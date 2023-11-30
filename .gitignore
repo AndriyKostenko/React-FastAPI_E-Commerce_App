@@ -44,3 +44,6 @@ next-env.d.ts
 
 # Backend (FastAPI) exclusions
 /backend/venv/
+
+#extra
+who_is_my_mummy.sh

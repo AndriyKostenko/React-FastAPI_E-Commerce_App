@@ -3,7 +3,7 @@ interface ContainerProps{
     children: React.ReactNode
 }
 
-// will be used as a middle section of page
+// will be used as a basic container for main components
 const Container: React.FC<ContainerProps> = ({children}) => {
     return ( 
         <div className="max-w-[1920px] 
