@@ -26,7 +26,7 @@ const NavBar = () => {
                                     md:gap-0">
                         {/* changing the font and adding more classes */}
                         <Link href='/' className={`${redressed.className} font-bold text-2xl`}>
-                            E-Commerce
+                            E-Commerce App
                         </Link>
 
                         {/* making hiden for smaller screens */}
