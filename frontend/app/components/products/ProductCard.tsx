@@ -5,6 +5,7 @@ import { Rating } from "@mui/material";
 import { formatPrice } from "@/utils/formatPrice";
 import { truncateText } from "@/utils/truncateText";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 
 //setting types for prod. data
 interface ProductCardProps{
@@ -14,12 +15,20 @@ interface ProductCardProps{
 
 const ProductCard:React.FC<ProductCardProps> = ({data}) => {
 
+    // creating the router for products with diff ID
+    // if onClick method is udes on the following product card -> the new page according to product id will be opened 
+    const router = useRouter();
+
+    // calculating the product rating 
     const productRating = data.reviews.reduce((accumulator: number, item: any) => 
         item.rating + accumulator, 0) / data.reviews.length
 
 
+    console.log(productRating);
+
     return ( 
-        <div className="col-span-1
+        <div onClick={() => router.push(`/product/${data.id}`)} 
+             className="col-span-1
                         cursor-pointer
                         border-[1.2px]
                         border-slate-200
