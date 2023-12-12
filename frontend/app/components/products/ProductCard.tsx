@@ -6,6 +6,7 @@ import { formatPrice } from "@/utils/formatPrice";
 import { truncateText } from "@/utils/truncateText";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
+import calculateAvarageRating from "../../../utils/productRating";
 
 //setting types for prod. data
 interface ProductCardProps{
@@ -18,13 +19,7 @@ const ProductCard:React.FC<ProductCardProps> = ({data}) => {
     // creating the router for products with diff ID
     // if onClick method is udes on the following product card -> the new page according to product id will be opened 
     const router = useRouter();
-
-    // calculating the product rating 
-    const productRating = data.reviews.reduce((accumulator: number, item: any) => 
-        item.rating + accumulator, 0) / data.reviews.length
-
-
-    console.log(productRating);
+  
 
     return ( 
         <div onClick={() => router.push(`/product/${data.id}`)} 
@@ -66,12 +61,12 @@ const ProductCard:React.FC<ProductCardProps> = ({data}) => {
 
                 {/* product rating*/}
                 <div>
-                    <Rating value={productRating} readOnly/>
+                    <Rating value={calculateAvarageRating(data.reviews)} readOnly precision={0.1}/>
                 </div>
 
                 {/* prod reviews */}
                 <div>
-                    {data.reviews.lenght} reviews
+                    {data.reviews.length} reviews
                 </div>
 
                 {/*prod price */}
