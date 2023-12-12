@@ -1,9 +1,10 @@
-// making a client component for user's interaction
+// making a client component for user's interaction (whenever working with states)
 'use client';
 
 
 import calculateAvarageRating from "@/utils/productRating";
 import { Rating } from "@mui/material";
+import { useState } from "react";
 
 //setting data types for product details
 interface ProductDetailsProps {
@@ -11,7 +12,28 @@ interface ProductDetailsProps {
 }
 
 
+//setting the data types of product in cart
+export type CartProductType = {
+    id: string,
+    name: string,
+    description: string,
+    category: string,
+    brand: string,
+    selectedImg: selectedImgType,
+    quantity: number,
+    price: number
 
+}
+
+// additional types for selectedImg
+export type selectedImgType = {
+    color: string,
+    colorCode: string,
+    image: string
+}
+
+
+// a simple line
 const Horizontal = () => {
     return <hr className="w-[30%] my-2"/>
 }
@@ -22,6 +44,17 @@ const Horizontal = () => {
 const ProductDetails:React.FC<ProductDetailsProps> = ({product}) => {
 
 
+    // default product that can be added to cart
+    const [cartProduct, setCartProduct] = useState<CartProductType>({
+        id: product.id,
+        name: product.name,
+        description: product.description,
+        category: product.category,
+        brand: product.brand,
+        selectedImg: {...product.images[0]},
+        quantity: 1,
+        price: product.price
+    })
 
     return ( 
         <div className="grid
@@ -75,11 +108,15 @@ const ProductDetails:React.FC<ProductDetailsProps> = ({product}) => {
 
                 <Horizontal/>
 
+                <div>color</div>
+
+                <Horizontal/>
+
+                <div>quantity</div>
                 
                 <Horizontal/>
 
-                <Horizontal/>
-
+                <div>add to cart</div>
                 
             </div>
         </div>
