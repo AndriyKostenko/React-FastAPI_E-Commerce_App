@@ -4,7 +4,9 @@
 
 import calculateAvarageRating from "@/utils/productRating";
 import { Rating } from "@mui/material";
-import { useState } from "react";
+import { useCallback, useState } from "react";
+import SetColor from "@/app/components/products/SetColor";
+import SetQuantity from "@/app/components/products/SetQuantity";
 
 //setting data types for product details
 interface ProductDetailsProps {
@@ -33,7 +35,7 @@ export type selectedImgType = {
 }
 
 
-// a simple line
+// drawing a simple line
 const Horizontal = () => {
     return <hr className="w-[30%] my-2"/>
 }
@@ -54,8 +56,49 @@ const ProductDetails:React.FC<ProductDetailsProps> = ({product}) => {
         selectedImg: {...product.images[0]},
         quantity: 1,
         price: product.price
-    })
+    });
 
+    console.log(cartProduct.quantity);
+
+   
+
+    // remembering function state ( selected color) between re-rendering of component if it wasn't change
+    // updating the selected cart product image & color
+    const handleColorSelect = useCallback((value: selectedImgType) => {
+        setCartProduct((previousSelectedCartProduct) => {
+            return {...previousSelectedCartProduct, selectedImg: value}
+        })
+    }, [cartProduct.selectedImg])
+
+
+    // rememb the state of quantity and increasing that
+    const handleQtyIncrease = useCallback(() => {
+
+        // for example the max qty in stock
+        if (cartProduct.quantity == 99) {
+            return;
+        }
+        setCartProduct((previousQty) => {
+            return { ...previousQty, quantity: previousQty.quantity + 1}
+        });
+    }, [cartProduct.quantity])
+
+
+
+    // rememb the state of quantity and decr that
+    const handleQtyDecrease = useCallback(() => {
+
+        // not going in minus
+        if (cartProduct.quantity == 1) {
+            return;
+        }
+
+        setCartProduct((previousQty) => {
+            return { ...previousQty, quantity: previousQty.quantity - 1}
+        });
+    }, [cartProduct.quantity])
+
+    
     return ( 
         <div className="grid
                         grid-cols-1
@@ -108,11 +151,15 @@ const ProductDetails:React.FC<ProductDetailsProps> = ({product}) => {
 
                 <Horizontal/>
 
-                <div>color</div>
+                <SetColor cartProduct={cartProduct} 
+                          images={product.images}
+                          handleColorSelect={handleColorSelect}/>
 
                 <Horizontal/>
 
-                <div>quantity</div>
+                <SetQuantity cartProduct={cartProduct}
+                            handleQtyIncrease={handleQtyIncrease}
+                            handleQtyDecrease={handleQtyDecrease}/>
                 
                 <Horizontal/>
 

@@ -5,7 +5,7 @@ import { truncateText } from "@/utils/truncateText";
 import ProductCard from "./components/products/ProductCard";
 
 
-// server component which will be rendered on t he server firsts
+// by default it's server component which will be rendered on t he server firsts
 export default function Home() {
 	return (
 		<div className="p-8">
