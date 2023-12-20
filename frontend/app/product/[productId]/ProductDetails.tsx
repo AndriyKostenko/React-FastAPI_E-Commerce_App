@@ -62,7 +62,7 @@ const ProductDetails:React.FC<ProductDetailsProps> = ({product}) => {
         price: product.price
     });
 
-    console.log(cartProduct.quantity);
+
 
    
 
