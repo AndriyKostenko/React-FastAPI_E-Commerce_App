@@ -2,11 +2,15 @@
 'use client';
 
 
-import calculateAvarageRating from "@/utils/productRating";
+
 import { Rating } from "@mui/material";
 import { useCallback, useState } from "react";
+
 import SetColor from "@/app/components/products/SetColor";
 import SetQuantity from "@/app/components/products/SetQuantity";
+import Button from "@/app/components/Button";
+import calculateAvarageRating from "@/utils/productRating";
+import ProductImage from "@/app/components/products/ProductImage";
 
 //setting data types for product details
 interface ProductDetailsProps {
@@ -62,7 +66,7 @@ const ProductDetails:React.FC<ProductDetailsProps> = ({product}) => {
 
    
 
-    // remembering function state ( selected color) between re-rendering of component if it wasn't change
+    // remembering function state (selected color) between re-rendering of component if it wasn't change
     // updating the selected cart product image & color
     const handleColorSelect = useCallback((value: selectedImgType) => {
         setCartProduct((previousSelectedCartProduct) => {
@@ -104,9 +108,11 @@ const ProductDetails:React.FC<ProductDetailsProps> = ({product}) => {
                         grid-cols-1
                         md:grid-cols-2
                         gap-12">
-            <div>
-                images
-            </div>
+
+            <ProductImage cartProduct={cartProduct} 
+                          product={product} 
+                          handleColorSelect={handleColorSelect}/>
+
             <div className="flex
                             flex-col
                             gap-1
@@ -163,7 +169,10 @@ const ProductDetails:React.FC<ProductDetailsProps> = ({product}) => {
                 
                 <Horizontal/>
 
-                <div>add to cart</div>
+                <div className="max-w-[300px]">
+                    <Button label="Add To Cart"
+                            onClick={() => {}}/>
+                </div>
                 
             </div>
         </div>
