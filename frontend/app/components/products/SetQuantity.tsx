@@ -1,8 +1,10 @@
+// making as client comp
 'use client';
 
 import { CartProductType } from "@/app/product/[productId]/ProductDetails";
 
 
+// we will use cartCounter twice and this flag will determine wether we are at our Product or our Cart
 interface SetQtyProps {
     cartCounter? : boolean
     cartProduct: CartProductType;
@@ -25,8 +27,13 @@ const SetQuantity: React.FC<SetQtyProps> = ({
         <div className="flex
                         gap-8
                         items-center">
+                            
             {cartCounter ? null : <div className="font-semibold">QUANTITY:</div>}
-            <div className="flex gap-4 items-center text-base">
+            {/* if null - we are at the Cart, esle - we are at the product Page */}
+            <div className="flex 
+                            gap-4 
+                            items-center 
+                            text-base">
                 <button onClick={handleQtyDecrease} className={btnStyles}>-</button>
                 <div>{cartProduct.quantity}</div>
                 <button onClick={handleQtyIncrease} className={btnStyles}>+</button>

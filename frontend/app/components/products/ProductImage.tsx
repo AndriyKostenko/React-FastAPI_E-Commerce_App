@@ -1,7 +1,7 @@
 "use client";
 
 
-import { CartProductType, selectedImgType } from "@/app/product/[productId]/ProductDetails";
+import { CartProductType, SelectedImgType } from "@/app/product/[productId]/ProductDetails";
 import Image from "next/image";
 
 
@@ -9,7 +9,7 @@ import Image from "next/image";
 interface ProductImageProps{
     cartProduct: CartProductType,
     product: any,
-    handleColorSelect: (value: selectedImgType) => void;
+    handleColorSelect: (value: SelectedImgType) => void;
 
 }
 
@@ -37,7 +37,7 @@ const ProductImage: React.FC<ProductImageProps> = ({
                             max-h-[500px]
                             min-h-[300px]
                             sm:min-h-[400px]">
-                {product.images.map((image: selectedImgType) => {
+                {product.images.map((image: SelectedImgType) => {
                     return <div key={image.color} 
                                 onClick={() => handleColorSelect(image)} 
                                 className={`relative

@@ -1,3 +1,5 @@
+// common component between the app
+
 interface HeadingProps{
     title: string,
     center?: boolean

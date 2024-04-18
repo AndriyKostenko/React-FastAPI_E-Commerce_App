@@ -11,9 +11,7 @@ interface IDParameters {
 
 // will be rendered on server so cosole.log will be shown in terminal
 const Product = ({params} : {params: IDParameters}) => {
-    //console.log("params: ", params);
 
-    
     return ( 
         <div className="p-8">
             <Container>

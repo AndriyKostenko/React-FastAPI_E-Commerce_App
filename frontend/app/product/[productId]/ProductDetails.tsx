@@ -2,17 +2,18 @@
 'use client';
 
 
-
 import { Rating } from "@mui/material";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import SetColor from "@/app/components/products/SetColor";
 import SetQuantity from "@/app/components/products/SetQuantity";
 import Button from "@/app/components/Button";
 import calculateAvarageRating from "@/utils/productRating";
 import ProductImage from "@/app/components/products/ProductImage";
+import { useCart } from "@/hooks/useCart";
 
 //setting data types for product details
+// (to be set)
 interface ProductDetailsProps {
     product: any
 }
@@ -25,14 +26,14 @@ export type CartProductType = {
     description: string,
     category: string,
     brand: string,
-    selectedImg: selectedImgType,
+    selectedImg: SelectedImgType,
     quantity: number,
     price: number
 
 }
 
 // additional types for selectedImg
-export type selectedImgType = {
+export type SelectedImgType = {
     color: string,
     colorCode: string,
     image: string
@@ -49,8 +50,12 @@ const Horizontal = () => {
 
 const ProductDetails:React.FC<ProductDetailsProps> = ({product}) => {
 
+    // getting methods from custom hook to handle cart products
+    const {handleAddProductToCart, cartProducts} = useCart();
 
-    // default product that can be added to cart
+
+    // product's data to change states
+    // cheking that selectedImg always exist on 64th line
     const [cartProduct, setCartProduct] = useState<CartProductType>({
         id: product.id,
         name: product.name,
@@ -62,22 +67,22 @@ const ProductDetails:React.FC<ProductDetailsProps> = ({product}) => {
         price: product.price
     });
 
-
+    console.log(cartProducts)
 
    
 
     // remembering function state (selected color) between re-rendering of component if it wasn't change
     // updating the selected cart product image & color
-    const handleColorSelect = useCallback((value: selectedImgType) => {
+    const handleColorSelect = useCallback((value: SelectedImgType) => {
         setCartProduct((previousSelectedCartProduct) => {
             return {...previousSelectedCartProduct, selectedImg: value}
         })
     }, [cartProduct.selectedImg])
 
 
+
     // rememb the state of quantity and increasing that
     const handleQtyIncrease = useCallback(() => {
-
         // for example the max qty in stock
         if (cartProduct.quantity == 99) {
             return;
@@ -89,26 +94,25 @@ const ProductDetails:React.FC<ProductDetailsProps> = ({product}) => {
 
 
 
-    // rememb the state of quantity and decr that
+    //rememb the state of quantity and decr that
     const handleQtyDecrease = useCallback(() => {
-
         // not going in minus
         if (cartProduct.quantity == 1) {
             return;
         }
-
         setCartProduct((previousQty) => {
             return { ...previousQty, quantity: previousQty.quantity - 1}
         });
     }, [cartProduct.quantity])
 
+    //console.log(`Cart product quantity: ${cartProduct.quantity}`)
     
     return ( 
         <div className="grid
                         grid-cols-1
                         md:grid-cols-2
                         gap-12">
-
+            {/* aside images */}
             <ProductImage cartProduct={cartProduct} 
                           product={product} 
                           handleColorSelect={handleColorSelect}/>
@@ -157,6 +161,7 @@ const ProductDetails:React.FC<ProductDetailsProps> = ({product}) => {
 
                 <Horizontal/>
 
+
                 <SetColor cartProduct={cartProduct} 
                           images={product.images}
                           handleColorSelect={handleColorSelect}/>
@@ -171,7 +176,7 @@ const ProductDetails:React.FC<ProductDetailsProps> = ({product}) => {
 
                 <div className="max-w-[300px]">
                     <Button label="Add To Cart"
-                            onClick={() => {}}/>
+                            onClick={() => {handleAddProductToCart(cartProduct)}}/>
                 </div>
                 
             </div>

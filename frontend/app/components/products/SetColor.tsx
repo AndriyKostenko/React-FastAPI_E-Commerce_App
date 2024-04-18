@@ -1,14 +1,14 @@
 'use client';
 
-import { CartProductType, selectedImgType } from "@/app/product/[productId]/ProductDetails";
+import { CartProductType, SelectedImgType } from "@/app/product/[productId]/ProductDetails";
 
 
 
-// setting color props validation
+// setting color props validation (arrays of imgs)
 interface SetColorProps{
-    images: selectedImgType[],
+    images: SelectedImgType[],
     cartProduct: CartProductType,
-    handleColorSelect: (value : selectedImgType) => void
+    handleColorSelect: (value : SelectedImgType) => void
 }
 
 
@@ -25,6 +25,7 @@ const SetColor: React.FC<SetColorProps> = ({images, cartProduct, handleColorSele
                         return ( 
                             <div key={image.color} 
                                 onClick={() => handleColorSelect(image)}
+                                // cheking if equal seelcted image colors
                                 className={`h-7
                                              w-7
                                              rounded-full
