@@ -3,7 +3,8 @@
 import { CartProductType } from '@/app/product/[productId]/ProductDetails';
 import { product } from '@/utils/product';
 import { products } from '@/utils/products';
-import { createContext, useState, useContext, useCallback } from 'react';
+import { createContext, useState, useContext, useCallback, useEffect } from 'react';
+import { toast } from 'react-hot-toast';
 
 
 // to be fixed with more props
@@ -31,24 +32,46 @@ export const CartContextProvider = (props: Props) => {
     const [cartProducts, setCartProducts] = useState<CartProductType[] | null>(null)
 
 
+    // getting items from local storage
+    useEffect(() => {
+        const cartItems: any = localStorage.getItem('eShopCartItems')
+        const Products: CartProductType[] | null = JSON.parse(cartItems)
+        
+        setCartProducts(Products)
+    }, [])
 
     // adding products to cart
     const handleAddProductToCart = useCallback((product: CartProductType) => {
         setCartProducts((previousState) => {
             let updatedCart;
 
-            if(previousState) {
+            if (previousState) {
                 // looking for already existing product in the cart by ID
                 // if it is - updating quantity respectivly
                 const indexOfExistProduct = previousState.findIndex(prod => prod.id === product.id);
                 if (indexOfExistProduct !== -1) {
                     previousState[indexOfExistProduct].quantity = product.quantity;
+
+                    // if quantity changed - updating local storage too
+                    localStorage.setItem('eShopCartItems', JSON.stringify([...previousState]))
+                    
                     return [...previousState];
                 }
+                
                 updatedCart = [...previousState, product]
+                
+                toast.success('Product added to cart')
+                // pushing items into local storage to save them during re-loading
+                localStorage.setItem('eShopCartItems', JSON.stringify(updatedCart));
             } else {
+                
                 updatedCart = [product]
+                toast.success('Product added to cart')
+                // pushing items into local storage to save them during re-loading
+                localStorage.setItem('eShopCartItems', JSON.stringify(updatedCart));
             }
+
+            
 
             return updatedCart;
         })

@@ -15,7 +15,7 @@ export default function Home() {
 					<HomeBanner/>
 				</div>
 				{/* mapping all products */}
-				<div className="grid
+					<div className="grid
 				 				grid-cols-2
 								sm:grid-cols-3
 								lg:grid-cols-4

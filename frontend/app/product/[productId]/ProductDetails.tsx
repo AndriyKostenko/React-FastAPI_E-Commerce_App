@@ -11,6 +11,8 @@ import Button from "@/app/components/Button";
 import calculateAvarageRating from "@/utils/productRating";
 import ProductImage from "@/app/components/products/ProductImage";
 import { useCart } from "@/hooks/useCart";
+import { MdCheckCircle } from "react-icons/md";
+import { useRouter } from "next/navigation";
 
 //setting data types for product details
 // (to be set)
@@ -53,6 +55,9 @@ const ProductDetails:React.FC<ProductDetailsProps> = ({product}) => {
     // getting methods from custom hook to handle cart products
     const {handleAddProductToCart, cartProducts} = useCart();
 
+    //
+    const [isProductInCart, setIsProductInCart] = useState(false);
+
 
     // product's data to change states
     // cheking that selectedImg always exist on 64th line
@@ -67,7 +72,9 @@ const ProductDetails:React.FC<ProductDetailsProps> = ({product}) => {
         price: product.price
     });
 
-    console.log(cartProducts)
+    const router = useRouter()
+
+    
 
    
 
@@ -105,7 +112,19 @@ const ProductDetails:React.FC<ProductDetailsProps> = ({product}) => {
         });
     }, [cartProduct.quantity])
 
-    //console.log(`Cart product quantity: ${cartProduct.quantity}`)
+    // whenever the component roads we will be able to check if that product is in cart alreay
+    useEffect(() => {
+        setIsProductInCart(false);
+
+        if(cartProducts) {
+            const existingIndexProduct = cartProducts.findIndex((item) => item.id === product.id)
+            if (existingIndexProduct > -1) {
+                setIsProductInCart(true);
+            }
+        }
+    }, [cartProducts])
+
+  
     
     return ( 
         <div className="grid
@@ -161,6 +180,16 @@ const ProductDetails:React.FC<ProductDetailsProps> = ({product}) => {
 
                 <Horizontal/>
 
+                {isProductInCart ? (
+                    <>
+                    <p className="mb-2 text-slate-500 flex items-center gap-1">
+                        <MdCheckCircle size={20} className="text-teal-400"></MdCheckCircle>
+                        <span>Product added to cart</span>   
+                    </p>
+                    <div className="max-w-[300px]">
+                        <Button label="View Cart" outline onClick={() => {router.push("/cart")} }></Button>
+                    </div>
+                    </>) : <></>}
 
                 <SetColor cartProduct={cartProduct} 
                           images={product.images}
