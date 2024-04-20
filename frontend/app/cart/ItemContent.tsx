@@ -8,6 +8,7 @@ import Link from "next/link";
 import { truncateText } from "@/utils/truncateText";
 import Image from "next/image";
 import SetQuantity from "../components/products/SetQuantity";
+import { useCart } from "@/hooks/useCart";
 
 
 //defining standart props for cart product
@@ -17,6 +18,9 @@ interface ItemContentProps {
 
 //content of each item in the sopping cart
 const ItemContent:React.FC<ItemContentProps> = ({item}) => {
+
+    const {handleRemoveProductFromCart, handleCartQtyIncrease, handleCartQtyDecrease} = useCart();
+
     return <div className="grid 
                             grid-cols-5 
                             text-xs 
@@ -34,13 +38,14 @@ const ItemContent:React.FC<ItemContentProps> = ({item}) => {
             </Link>
             <div className="flex flex-col justify-between">
 
-            <Link href={`/product/${item.id}`}>
-                {truncateText(item.name)}
-                <div>{item.selectedImg.color}</div>
+                <Link href={`/product/${item.id}`}>
+                    {truncateText(item.name)}
+                    <div>{item.selectedImg.color}</div>
+                </Link>
+
                 <div className="w-[70px]">
-                    <button className="text-lsate-500 underline" onClick={() => {}}>Remove</button>
+                        <button className="text-lsate-500 underline" onClick={() => handleRemoveProductFromCart(item)}>Remove</button>
                 </div>
-            </Link>
 
             </div>
         </div>
@@ -48,8 +53,8 @@ const ItemContent:React.FC<ItemContentProps> = ({item}) => {
         <div className="justify-self-center">
             <SetQuantity cartCounter={true} 
                             cartProduct={item} 
-                            handleQtyIncrease={() => {}} 
-                            handleQtyDecrease={() => {}}>                
+                            handleQtyIncrease={() => {handleCartQtyIncrease(item)}} 
+                            handleQtyDecrease={() => {handleCartQtyDecrease(item)}}>                
             </SetQuantity>
         </div>
         <div className="justify-self-end font-semibold">

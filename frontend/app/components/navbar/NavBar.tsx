@@ -1,6 +1,7 @@
 import Container from "../Container";
 import Link from "next/link";
 import { Redressed } from "next/font/google";
+import CartCount from "./CartCount";
 
 
 // setting the font
@@ -37,7 +38,7 @@ const NavBar = () => {
                                         items-center
                                         gap-8
                                         md:gap-12">
-                            <div>CartCount</div>
+                            <CartCount/>
                             <div>UserMenu</div>
                         </div>
 

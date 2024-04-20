@@ -1,7 +1,7 @@
 import Container from "@/app/components/Container";
-import { product } from "@/utils/product";
 import ProductDetails from "./ProductDetails";
 import ListRating from "./ListRating";
+import { products } from "@/utils/products";
 
 
 interface IDParameters {
@@ -11,6 +11,8 @@ interface IDParameters {
 
 // will be rendered on server so cosole.log will be shown in terminal
 const Product = ({params} : {params: IDParameters}) => {
+
+    const product = products.find((item) => item.id === params.productId)
 
     return ( 
         <div className="p-8">
