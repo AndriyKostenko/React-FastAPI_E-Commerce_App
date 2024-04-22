@@ -7,6 +7,7 @@ import { FieldValues, SubmitHandler, useForm } from "react-hook-form";
 import Button from "../components/Button";
 import Link from "next/link";
 import { AiOutlineGoogle } from "react-icons/ai";
+import toast from "react-hot-toast";
 
 
 
@@ -20,9 +21,38 @@ const RegisterForm = () => {
                         repeatedPassword: "",
     }})
 
-    const onSubmit:SubmitHandler<FieldValues> = (data) => {
+    const [showPassword, setShowPassword] = useState(false)
+    const [showRepeatedPassword, setShowRepeatedPassword] = useState(false)
+
+    const onSubmit:SubmitHandler<FieldValues> = async (data) => {
         setIsLoading(true)
-        console.log(data)
+        console.log(JSON.stringify(data))
+
+        try {
+                const response = await fetch('http://localhost:8000/register', {
+                        method: 'POST',
+                        headers: {
+                                'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(data)
+                
+                });
+
+                if (response.ok) {
+                        // registration successfuk, handle the response accordingly
+                        toast.success(`You are registered! `);
+                        console.log('registration succsessful!')
+                } else {
+                        // registratio faild, handle error
+                        toast.error('Registration is failed!')
+                        console.log('registration has failed!')
+                }
+        } catch (error) {
+                //handling of network errors
+                console.log(`Error: ${error}`)
+        } finally {
+                setIsLoading(false)
+        }
     }
 
     return ( 
@@ -56,16 +86,25 @@ const RegisterForm = () => {
                     disabled={isLoading}
                     register={register}
                     errors={errors}
-                    type="password"
+                    type={showPassword ? 'text' : 'password'}
                     required/>
+
+                
+                <label>
+                        <input type="checkbox" onChange={() => setShowPassword(!showPassword)} /> Show Password
+                </label>
 
                 <Input id="repeatedPassword" 
                     label="Repeate Password" 
                     disabled={isLoading}
                     register={register}
                     errors={errors}
-                    type="password"
+                    type={showRepeatedPassword ? 'text' : 'password'}
                     required/>
+
+                <label>
+                        <input type="checkbox" onChange={() => setShowRepeatedPassword(!showRepeatedPassword)} /> Show Repeated Password
+                </label>
 
                 <Button label= {isLoading ? "loading" : "Sign Up"} onClick={handleSubmit(onSubmit)}/>
 
