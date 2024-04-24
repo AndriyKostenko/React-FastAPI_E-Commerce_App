@@ -11,14 +11,34 @@ class UserInfo(BaseModel):
     email: str
     role: str = Optional[str]
 
-    class Config:
-        from_attributes = True
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "id": 1,
+                "name": "jhon",
+                "email": "doe",
+                "role": "user"
+            }
+        }
+    }
+    # class Config:
+    #     from_attributes = True
 
 
 class UserSignUp(BaseModel):
     name: str
     email: str
     password: str = Field(example='password', min_length=8)
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "name": "jhon doe",
+                "email": "jhondoe@gmail.com",
+                "password": "12345678"
+            }
+        }
+    }
 
 
 class UserUpdate(BaseModel):

@@ -29,7 +29,7 @@ const RegisterForm = () => {
         console.log(JSON.stringify(data))
 
         try {
-                const response = await fetch('http://localhost:8000/register', {
+                const response = await fetch('http://127.0.0.1:8000/register', {
                         method: 'POST',
                         headers: {
                                 'Content-Type': 'application/json',
@@ -49,6 +49,7 @@ const RegisterForm = () => {
                 }
         } catch (error) {
                 //handling of network errors
+                toast.error(`Error: ${error}`)
                 console.log(`Error: ${error}`)
         } finally {
                 setIsLoading(false)

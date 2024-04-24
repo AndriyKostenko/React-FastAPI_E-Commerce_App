@@ -2,7 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.models.user_model import User
 import bcrypt
 from sqlalchemy import select
-from src.schemas.user_schemas import UserSignUp, UserUpdate, DeleteUser, GetUser
+from src.schemas.user_schemas import UserSignUp, DeleteUser, UserUpdate
 
 
 class UserCRUDService:
@@ -20,7 +20,11 @@ class UserCRUDService:
         new_user = User(name=user.name,
                         email=user.email,
                         hashed_password=hashed_password)
+        # not using await coz it's an in-memory operation and doesn't interact with db
         self.session.add(new_user)
+
+        # the commit and refresh methods are an asynchronous operations because they involve writing the
+        # changes to the database, which is an I/O operation
         await self.session.commit()
         await self.session.refresh(new_user)
         return new_user
@@ -34,8 +38,19 @@ class UserCRUDService:
         db_user = await self.session.execute(select(User).where(User.email == email))
         return db_user.scalars().first()
 
-    async def delete_user(self, user: DeleteUser):
-        user_to_delete = await self.get_user_by_email(user.email)
+    async def get_user_by_id(self, user_id: int):
+        db_user = await self.session.execute(select(User).where(User.id == user_id))
+        return db_user.scalars().first()
+
+    async def update_user_by_id(self, user_id: int, user_update_data: UserUpdate):
+        db_user = await self.get_user_by_id(user_id)
+        db_user.name = user_update_data.name
+        db_user.hashed_password = self._hash_password(user_update_data.password)
+        await self.session.commit()
+        return db_user
+
+    async def delete_user_by_id(self, user_id: int):
+        user_to_delete = await self.get_user_by_id(user_id)
         await self.session.delete(user_to_delete)
         await self.session.commit()
 

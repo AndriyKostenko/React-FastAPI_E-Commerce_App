@@ -1,6 +1,9 @@
 
 # dependencies
+/backend/.idea
+/backend/.env
 /backend/__pycache__
+/backend/.venv
 /backend/venv
 /node_modules
 /frontend/node_modules
