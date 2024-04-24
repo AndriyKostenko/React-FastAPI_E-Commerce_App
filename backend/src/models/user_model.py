@@ -20,6 +20,7 @@ class User(Base):
     email: Mapped[str] = mapped_column(unique=True, nullable=False)
     hashed_password: Mapped[str] = mapped_column(unique=False, nullable=False)
     role: Mapped[str] = mapped_column(unique=False, nullable=True)
+    phone_number: Mapped[str] = mapped_column(unique=False, nullable=True)
     date_created: Mapped[datetime] = mapped_column(default=datetime.utcnow, unique=False, nullable=False)
 
     def __repr__(self):

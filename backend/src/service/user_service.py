@@ -1,7 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from src.models.user_model import User
 import bcrypt
-from sqlalchemy import select
+from sqlalchemy import select, asc, desc
 from src.schemas.user_schemas import UserSignUp, DeleteUser, UserUpdate
 
 
@@ -30,7 +30,7 @@ class UserCRUDService:
         return new_user
 
     async def get_all_users(self):
-        result = await self.session.execute(select(User))
+        result = await self.session.execute(select(User).order_by(asc(User.id)))
         users = result.scalars().all()
         return users
 

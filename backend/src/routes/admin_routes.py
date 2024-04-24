@@ -1,8 +1,8 @@
 from fastapi import HTTPException, status, APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Annotated
+from typing import Annotated, List
 from src.db.db_setup import get_db_session
-from src.schemas.user_schemas import UserUpdate
+from src.schemas.user_schemas import UserUpdate, UserInfo
 from src.security.authentication import get_current_user
 from src.service.user_service import UserCRUDService
 
@@ -10,13 +10,16 @@ admin_routes = APIRouter(tags=['admin'],
                          prefix='/admin')
 
 
-@admin_routes.get('/users', summary='Get all users from DB', status_code=status.HTTP_200_OK)
+@admin_routes.get('/users',
+                  summary='Get all users from DB',
+                  status_code=status.HTTP_200_OK,
+                  response_model=List[UserInfo])
 async def read_users(current_user: Annotated[dict, Depends(get_current_user)],
                      session: AsyncSession = Depends(get_db_session)):
     if current_user is None or current_user.get('user_role') != 'admin':
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Unauthorized')
     db_users = await UserCRUDService(session).get_all_users()
-    return db_users
+    return [UserInfo.from_orm(user) for user in db_users]
 
 
 @admin_routes.get('/users/{user_id}', summary='Get user by ID', status_code=status.HTTP_200_OK)
