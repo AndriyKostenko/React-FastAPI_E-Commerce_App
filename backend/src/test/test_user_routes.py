@@ -1,13 +1,18 @@
+import asyncio
+
 from fastapi import status
 import pytest
 from httpx import AsyncClient, ASGITransport
 
 from src import app
-from src.tests.db_setup import init_db, drop_all_tables
+from src.test.db_setup import init_db, drop_all_tables
+
+# marking with package to use same event_loop() for all test in package
+pytestmark = pytest.mark.asyncio(scope="package")
 
 
-# using AsyncClient to work with async call to db and async sqlalchemy
-@pytest.mark.asyncio
+# using AsyncClient to work with async calls to db and async sqlalchemy
+
 async def test_user_routes():
     async with AsyncClient(transport=ASGITransport(app), base_url="http://127.0.0.1") as client:
         # creating database models in test database

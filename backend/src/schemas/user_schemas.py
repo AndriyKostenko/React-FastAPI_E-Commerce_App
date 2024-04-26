@@ -14,21 +14,18 @@ class UserInfo(BaseModel):
     phone_number: Optional[str] = None
     date_created: datetime
 
-    class ConfigDict:
-        orm_mode = True
-        from_attributes = True
-        json_schema_extra = {
-            "example": {
-                "id": 1,
-                "name": "Test Test",
-                "email": "test@gmail.com",
-                "hashed_password": "!dff45e",
-                "role": "user",
-                "phone_number": "07000000000",
-                "date_created": "2021-04-24T11:46:07.770741"
-            }
-
+    model_config = ConfigDict(from_attributes=True, json_schema_extra={
+        "example": {
+            "id": 1,
+            "name": "Test Test",
+            "email": "test@gmail.com",
+            "hashed_password": "!dff45e",
+            "role": "user",
+            "phone_number": "07000000000",
+            "date_created": "2021-04-24T11:46:07.770741"
         }
+
+    })
 
 
 class UserSignUp(BaseModel):
@@ -36,18 +33,14 @@ class UserSignUp(BaseModel):
     email: str
     password: str = Field(..., min_length=8, description="User's password")
 
-    class ConfigDict:
-        orm_mode = True
-        from_attributes = True
-        json_schema_extra = {
-            "example": {
-                "name": "jhon doe",
-                "email": "jhondoe@gmail.com",
-                "password": "12345678"
-            }
-
+    model_config = ConfigDict(from_attributes=True, json_schema_extra={
+        "example": {
+            "name": "jhon doe",
+            "email": "jhondoe@gmail.com",
+            "password": "12345678"
         }
 
+    })
 
 
 class UserUpdate(BaseModel):
