@@ -1,4 +1,3 @@
-
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 
@@ -6,7 +5,7 @@ from src.db.db_setup import get_db_session
 from src.models.user_model import Base
 from src import app
 from src.config import settings
-from src.security.authentication import get_current_user
+
 
 async_engine = create_async_engine(
     url=settings.TEST_DATABASE_URL,
@@ -34,12 +33,13 @@ async def override_get_db_session() -> AsyncSession:
         yield session
 
 
-def override_get_current_user():
+def admin_user():
     return {'email': 'a.kostenkouk@gmail.com', 'id': 1, 'user_role': 'admin'}
+
+
+def normal_user():
+    return {'email': 'a.kostenkouk@gmail.com', 'id': 1, 'user_role': 'user'}
 
 
 # overriding to call our test db, not production db.....with the db session for test db with new db url
 app.dependency_overrides[get_db_session] = override_get_db_session
-
-# overriding the current user for our tests only
-app.dependency_overrides[get_current_user] = override_get_current_user
