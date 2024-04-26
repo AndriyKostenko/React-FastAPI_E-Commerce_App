@@ -22,12 +22,14 @@ user_routes = APIRouter(
 async def create_user(user: UserSignUp, session: AsyncSession = Depends(get_db_session)):
     existing_db_user = await UserCRUDService(session).get_user_by_email(email=user.email)
     if existing_db_user:
-        raise HTTPException(status_code=400, detail="Email already registered!")
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered!")
     new_db_user = await UserCRUDService(session).create_user(user)
     return new_db_user
 
 
-@user_routes.post("/login")
+@user_routes.post("/login",
+                  summary="User login",
+                  status_code=status.HTTP_200_OK)
 async def login(form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
                 session: AsyncSession = Depends(get_db_session)):
     user = await UserCRUDService(session).authenticate_user(email=form_data.username,

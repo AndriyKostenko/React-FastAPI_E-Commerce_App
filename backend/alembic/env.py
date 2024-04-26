@@ -10,6 +10,8 @@ from src.config import settings
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
+
+# setting different database url then in alembic.ini
 config.set_main_option('sqlalchemy.url', settings.ALEMBIC_DATABASE_URL)
 
 # Interpret the config file for Python logging.

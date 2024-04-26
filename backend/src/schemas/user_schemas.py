@@ -1,9 +1,8 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, EmailStr, validator
+from pydantic import BaseModel, ConfigDict
 from pydantic.fields import Field
-from fastapi import HTTPException, Form
 
 
 class UserInfo(BaseModel):
@@ -15,38 +14,40 @@ class UserInfo(BaseModel):
     phone_number: Optional[str] = None
     date_created: datetime
 
-    class Config:
+    class ConfigDict:
         orm_mode = True
         from_attributes = True
-        model_config = {
-            "json_schema_extra": {
-                "example": {
-                    "id": 1,
-                    "name": "Test Test",
-                    "email": "test@gmail.com",
-                    "hashed_password": "!dff45e",
-                    "role": "user",
-                    "phone_number": "07000000000",
-                    "date_created": "2021-04-24T11:46:07.770741"
-                }
+        json_schema_extra = {
+            "example": {
+                "id": 1,
+                "name": "Test Test",
+                "email": "test@gmail.com",
+                "hashed_password": "!dff45e",
+                "role": "user",
+                "phone_number": "07000000000",
+                "date_created": "2021-04-24T11:46:07.770741"
             }
+
         }
 
 
 class UserSignUp(BaseModel):
     name: str
     email: str
-    password: str = Field(example='password', min_length=8)
+    password: str = Field(..., min_length=8, description="User's password")
 
-    model_config = {
-        "json_schema_extra": {
+    class ConfigDict:
+        orm_mode = True
+        from_attributes = True
+        json_schema_extra = {
             "example": {
                 "name": "jhon doe",
                 "email": "jhondoe@gmail.com",
                 "password": "12345678"
             }
+
         }
-    }
+
 
 
 class UserUpdate(BaseModel):

@@ -12,8 +12,8 @@ class UserCRUDService:
     def _hash_password(self, entered_password: str) -> str:
         return bcrypt.hashpw(entered_password.encode(), bcrypt.gensalt()).decode()
 
-    def _verify_password(self, entered_password: str) -> bool:
-        return bcrypt.checkpw(entered_password.encode(), self._hash_password(entered_password).encode())
+    def _verify_password(self, entered_password: str, hashed_password: str) -> bool:
+        return bcrypt.checkpw(entered_password.encode(), hashed_password.encode())
 
     async def create_user(self, user: UserSignUp):
         hashed_password = self._hash_password(user.password)
@@ -59,6 +59,6 @@ class UserCRUDService:
         db_user = await self.get_user_by_email(email)
         if not db_user:
             return False
-        if not self._verify_password(entered_password=entered_password):
+        if not self._verify_password(entered_password=entered_password, hashed_password=db_user.hashed_password):
             return False
         return db_user
