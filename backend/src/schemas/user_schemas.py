@@ -18,7 +18,7 @@ class UserInfo(BaseModel):
         "example": {
             "id": 1,
             "name": "Test Test",
-            "email": "test@gmail.com",
+            "email": "tests@gmail.com",
             "hashed_password": "!dff45e",
             "role": "user",
             "phone_number": "07000000000",

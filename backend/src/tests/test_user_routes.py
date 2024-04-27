@@ -5,9 +5,9 @@ import pytest
 from httpx import AsyncClient, ASGITransport
 
 from src import app
-from src.test.db_setup import init_db, drop_all_tables
+from src.tests.db_setup import init_db, drop_all_tables
 
-# marking with package to use same event_loop() for all test in package
+# marking with package to use same event_loop() for all tests in package
 pytestmark = pytest.mark.asyncio(scope="package")
 
 
@@ -15,7 +15,7 @@ pytestmark = pytest.mark.asyncio(scope="package")
 
 async def test_user_routes():
     async with AsyncClient(transport=ASGITransport(app), base_url="http://127.0.0.1") as client:
-        # creating database models in test database
+        # creating database models in tests database
         await init_db()
 
         response_1 = await client.post('/register', json={'name': 'Andriy Kostenko',
@@ -40,5 +40,5 @@ async def test_user_routes():
         assert response_4.status_code == status.HTTP_200_OK
         assert response_5.status_code == status.HTTP_401_UNAUTHORIZED
 
-        # cleaning test database
+        # cleaning tests database
         await drop_all_tables()
