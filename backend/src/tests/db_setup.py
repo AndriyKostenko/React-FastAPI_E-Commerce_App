@@ -41,5 +41,5 @@ def normal_user():
     return {'email': 'a.kostenkouk@gmail.com', 'id': 1, 'user_role': 'user'}
 
 
-# overriding to call our test db, not production db.....with the db session for test db with new db url
+# overriding to call our tests db, not production db.....with the db session for tests db with new db url
 app.dependency_overrides[get_db_session] = override_get_db_session

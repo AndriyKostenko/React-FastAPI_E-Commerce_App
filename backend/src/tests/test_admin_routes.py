@@ -4,16 +4,16 @@ from httpx import AsyncClient, ASGITransport
 
 from src import app
 from src.security.authentication import get_current_user
-from src.test.db_setup import init_db, drop_all_tables, admin_user, normal_user
+from src.tests.db_setup import init_db, drop_all_tables, admin_user, normal_user
 
-# marking with package to use same event_loop() for all test in package
+# marking with package to use same event_loop() for all tests in package
 pytestmark = pytest.mark.asyncio(scope="package")
 
 
 # using AsyncClient to work with async calls to db and async sqlalchemy
 async def test_admin_routes():
     async with AsyncClient(transport=ASGITransport(app), base_url="http://127.0.0.1") as client:
-        # creating database models in test database
+        # creating database models in tests database
         await init_db()
 
         # overriding the current_user() as ADMIN for our tests only
@@ -26,5 +26,5 @@ async def test_admin_routes():
         response_2 = await client.get('/admin/users')
         assert response_2.status_code == status.HTTP_401_UNAUTHORIZED
 
-        # cleaning test database
+        # cleaning tests database
         await drop_all_tables()
