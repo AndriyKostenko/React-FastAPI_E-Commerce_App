@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Heading from "../components/Heading";
 import Input from "../components/inputs/Input";
 import { FieldValues, SubmitHandler, useForm } from "react-hook-form";
@@ -8,9 +8,21 @@ import Button from "../components/Button";
 import Link from "next/link";
 import { AiOutlineGoogle } from "react-icons/ai";
 import toast from "react-hot-toast";
+import { useRouter } from "next/navigation";
+import { signIn } from "next-auth/react";
 
 
-const LoginForm = () => {
+interface LoginFormProps{
+	currentUser?: {
+			name?: string | null | undefined,
+			email?: string | null | undefined,
+			image?: string | null | undefined
+	} | null;
+}
+
+
+
+const LoginForm:React.FC<LoginFormProps> = ({currentUser}) => {
     const [isLoading, setIsLoading] = useState(false);
     const {register, handleSubmit, formState: {errors}} = useForm<FieldValues>(
         {defaultValues: {
@@ -18,11 +30,18 @@ const LoginForm = () => {
                         password: "",
     }})
 
-    const onSubmit:SubmitHandler<FieldValues> = async (data) => {
-        setIsLoading(true)
-        
-        
+    const router = useRouter()
 
+    // checking if current user in the system and automatically redirecting without logging in
+    useEffect(() => {
+            if (currentUser){
+                    router.push('/cart')
+                    router.refresh()
+            }
+    })
+
+
+    const onSubmit:SubmitHandler<FieldValues> = async (data) => {
         try {
                 const formData = new FormData()
                 formData.append('username', data.email);
@@ -35,9 +54,38 @@ const LoginForm = () => {
                 });
 
                 if (response.ok) {
-                        // registration successfuk, handle the response accordingly
-                        toast.success(`You are logged in! `);
-                        console.log('logging succsessful!')
+                        
+                        const responseData = await response.json();
+                        // console.log(responseData)
+                        
+                        signIn('credentials', {
+                                ...data,
+                                redirect: false
+                        }).then((callback) => {
+                                setIsLoading(false)
+                                
+                                if (callback?.ok) {
+                                        router.push("/cart")
+                                        router.refresh()
+                                        toast.success('You are Logged in!')
+                                }
+
+                                if (callback?.error) {
+                                        toast.error(callback.error)
+                                }
+
+                        })
+
+                        // saving token
+                        // localStorage.setItem('jwtToken', responseData.access_token)
+
+                        // // rediracting to shopping cart
+                        // router.push('/cart')
+                        // router.refresh()
+                        
+                        //toast.success(`You are logged in! `)
+
+                        
                 } else {
                         // registratio faild, handle error
                         toast.error('Logging is failed!')
@@ -51,6 +99,10 @@ const LoginForm = () => {
                 setIsLoading(false)
         }
     }
+
+	if (currentUser) {
+		return <p className="text-center">Logged in. Rediracting...</p>
+	}
 
     return ( 
         <>

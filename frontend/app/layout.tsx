@@ -7,6 +7,8 @@ import Footer from './components/footer/Footer';
 import './globals.css';
 import CartProvider from '@/providers/CartProvider';
 import { Toaster } from 'react-hot-toast';
+import { getCurrentUser } from '@/actions/getCurrentUser';
+
 
 
 //root ot the application
@@ -25,11 +27,8 @@ export const metadata: Metadata = {
 
 
 
-export default function RootLayout({
-  	children,
-}: {
-  	children: React.ReactNode
-}) {
+
+export default async function RootLayout({children}: {children: React.ReactNode}) {
 	return (
 		<html lang="en">
 			<body className={`${poppins.className} text-slate-700`}>

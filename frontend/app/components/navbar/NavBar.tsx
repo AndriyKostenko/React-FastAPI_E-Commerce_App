@@ -2,14 +2,19 @@ import Container from "../Container";
 import Link from "next/link";
 import { Redressed } from "next/font/google";
 import CartCount from "./CartCount";
-
+import UserMenu from "./UserMenu";
+import { getCurrentUser } from "@/actions/getCurrentUser";
 
 // setting the font
 const redressed = Redressed({subsets: ['latin'],
                             weight: ['400'] })
 
 
-const NavBar = () => {
+const NavBar = async () => {
+    // getting current user from the session
+    const currentUser = await getCurrentUser();
+
+    console.log('Getting current user (NavBar.tsx): ', currentUser)
     return (
         <div className="sticky
                         top-0
@@ -39,7 +44,8 @@ const NavBar = () => {
                                         gap-8
                                         md:gap-12">
                             <CartCount/>
-                            <div>UserMenu</div>
+                            
+                            <UserMenu currentUser = {currentUser}/>
                         </div>
 
                     </div>
