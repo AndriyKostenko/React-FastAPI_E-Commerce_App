@@ -43,6 +43,11 @@ class UserSignUp(BaseModel):
     })
 
 
+class UserSaveWithGoogle(BaseModel):
+    email: str
+    password: str = Field(..., min_length=8, description="User's password")
+
+
 class UserUpdate(BaseModel):
     name: str
     password: str

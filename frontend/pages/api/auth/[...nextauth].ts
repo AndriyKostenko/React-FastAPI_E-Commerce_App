@@ -1,5 +1,6 @@
 import NextAuth, { AuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
+import GoogleProvider from "next-auth/providers/google";
 
 
 
@@ -10,6 +11,10 @@ import CredentialsProvider from "next-auth/providers/credentials";
 export const authOptions: AuthOptions = {
 // Configure one or more authentication providers
   providers: [
+    GoogleProvider({
+        clientId: process.env.GOOGLE_CLIENT_ID as string,
+        clientSecret: process.env.GOOGLE_CLIENT_SECRET as string
+    }),
     CredentialsProvider( {
         name: "Credentials",
         credentials: {
@@ -23,15 +28,25 @@ export const authOptions: AuthOptions = {
             }
      
         },
+        // built in function authorize() where im checking with an existing user in db by email
         async authorize(credentials, req) {
+
+            console.log('Credentials inside of authorize():', [credentials?.email, credentials?.password])
             if (!credentials?.email || !credentials?.password){
                 throw new Error('Invalid email or password!')
             }
 
             try {
-                const response = await fetch(`http://127.0.0.1:8000/get_user/${credentials.email}` ,{
-                    method: "GET",
-                    headers: {"Content-Type": "application/json"},
+
+                // params to send to form_data on backend
+                const formData = new URLSearchParams();
+                formData.append('username', credentials.email);
+                formData.append('password', credentials.password);
+
+                const response = await fetch(`http://127.0.0.1:8000/login` ,{
+                    method: "POST",
+                    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                    body: formData.toString()
                 });
 
                 if (!response.ok) {
@@ -41,6 +56,7 @@ export const authOptions: AuthOptions = {
 
                 const user = await response.json()
                
+                console.log('User from authorize(): ', user)
 
                 return user
 

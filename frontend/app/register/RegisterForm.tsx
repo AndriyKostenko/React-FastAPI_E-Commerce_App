@@ -22,6 +22,7 @@ interface LoginFormProps{
 }
 
 
+//getting currentUser from NextAuth session across the app
 const RegisterForm:React.FC<LoginFormProps> = ({currentUser}) => {
     const [isLoading, setIsLoading] = useState(false);
     const {register, handleSubmit, formState: {errors}} = useForm<FieldValues>(
@@ -51,46 +52,39 @@ const RegisterForm:React.FC<LoginFormProps> = ({currentUser}) => {
         setIsLoading(true)
       
         try {
-                const response = await fetch('http://127.0.0.1:8000/register', {
-                        method: 'POST',
-                        headers: {
-                                'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify(data)
-                });
+			const response = await fetch('http://127.0.0.1:8000/register', {
+					method: 'POST',
+					headers: {
+							'Content-Type': 'application/json',
+					},
+					body: JSON.stringify(data)
+			});
 
-                if (response.ok) {
-                        const responseData = await response.json();
+			if (response.ok) {
 
-
-                        // saving token
-                        // localStorage.setItem('jwtToken', responseData.access_token)
-
-                        // // rediracting to shopping cart
-                        // router.push('/cart')
-                        // router.refresh()
-                       
-                        // this function will send credentials to authorize() function in NextAuth class in pages/api/auth/...nextauth.js
-                        signIn('credentials', {email: responseData.email,
-                                                password: responseData.password, 
-                                                redirect: false})
-                                                .then((callback) => {
-                                if (callback?.ok) {
-                                        router.push('/cart')
-                                        router.refresh()
-                                        setTimeout(() => {
-                                                toast.success(`You are logged in! `)
-                                        }, 2000)
-                                }
-                                if (callback?.error) {
-                                        console.log('Error in SignIn(): ',callback.error)
-                                        toast.error(callback.error)
-                                }
-                        })
+				// this function will send credentials to authorize() function in NextAuth class in pages/api/auth/...nextauth.js
+				// to do not compare hashed password with me response from /register api i'm passing to authorize() function just 
+				// entered password because its awaiting unhashed password
+				signIn('credentials', {email: data.email,
+										password: data.password, 
+										redirect: false})
+						.then((callback) => {
+						if (callback?.ok) {
+							router.push('/cart')
+							router.refresh()
+							setTimeout(() => {
+									toast.success(`You are logged in! `)
+							}, 2000)
+						}
+						if (callback?.error) {
+								console.log('Error in SignIn(): ',callback.error)
+								toast.error(callback.error)
+						}
+				})
 
                 } else {
                         // registratio faild, handle error
-                        toast.error('Registration is failed!')
+                        toast.error('Email alredy registered!')
                         console.log('registration has failed!')
                 }
         } catch (error) {
@@ -110,11 +104,10 @@ const RegisterForm:React.FC<LoginFormProps> = ({currentUser}) => {
         <>
                 <Heading title='Sign Up for E-Shop'/>
 
-                <Button label="Sign Up with Google"
+                {/* <Button label="Sign Up with Google"
                         icon={AiOutlineGoogle}
-                        onClick={()=> {}}>
-
-                </Button>
+                        onClick={()=> {signIn('google')}}>
+                </Button> */}
 
                 <hr className="bg-slate-300 w-full h-px"></hr>
 

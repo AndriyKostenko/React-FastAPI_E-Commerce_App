@@ -4,7 +4,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from datetime import datetime
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.ext.asyncio import AsyncAttrs
-from sqlalchemy import Sequence, ForeignKey, Column, Integer, String, Text, DateTime, Float
+from sqlalchemy import ForeignKey
 from passlib.context import CryptContext
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -35,7 +35,7 @@ class Product(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True, unique=True)
     name: Mapped[str] = mapped_column(unique=False, nullable=False)
     description: Mapped[str] = mapped_column(unique=False, nullable=True)
-    price: Mapped[Float] = mapped_column(unique=False, nullable=False)
+    price: Mapped[float] = mapped_column(unique=False, nullable=False)
     quantity: Mapped[int] = mapped_column(unique=False, nullable=False)
     category_id: Mapped[int] = mapped_column(ForeignKey('categories.id'), nullable=False)
     image_url: Mapped[str] = mapped_column(unique=False, nullable=True)
@@ -65,7 +65,7 @@ class OrderItem(Base):
     order_id: Mapped[int] = mapped_column(ForeignKey('orders.id'), nullable=False)
     product_id: Mapped[int] = mapped_column(ForeignKey('products.id'), nullable=False)
     quantity: Mapped[int] = mapped_column(unique=False, nullable=False)
-    price: Mapped[Float] = mapped_column(unique=False, nullable=False)
+    price: Mapped[float] = mapped_column(unique=False, nullable=False)
 
 
 class Address(Base):
@@ -95,5 +95,5 @@ class CartItem(Base):
     cart_id: Mapped[int] = mapped_column(ForeignKey('carts.id'), nullable=False)
     product_id: Mapped[int] = mapped_column(ForeignKey('products.id'), nullable=False)
     quantity: Mapped[int] = mapped_column(unique=False, nullable=False)
-    price: Mapped[Float] = mapped_column(unique=False, nullable=False)
+    price: Mapped[float] = mapped_column(unique=False, nullable=False)
     cart: Mapped['Cart'] = relationship('Cart', back_populates='items')

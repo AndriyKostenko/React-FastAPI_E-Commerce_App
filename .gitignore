@@ -11,6 +11,7 @@
 /frontend/.pnp
 /frontend/.pnp.js
 /frontend/.yarn/install-state.gz
+/frontend/.env
 
 # testing
 /frontend/coverage

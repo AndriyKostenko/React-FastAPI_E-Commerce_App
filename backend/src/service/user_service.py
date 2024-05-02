@@ -1,5 +1,5 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from src.models.user_model import User
+from src.models.models import User
 import bcrypt
 from sqlalchemy import select, asc, desc
 from src.schemas.user_schemas import UserSignUp, DeleteUser, UserUpdate

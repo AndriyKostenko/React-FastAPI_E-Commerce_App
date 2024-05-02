@@ -2,7 +2,7 @@ import asyncio
 
 import pytest
 from src.service.user_service import UserCRUDService
-from src.models.user_model import User
+from src.models.models import User
 from src.schemas.user_schemas import UserSignUp
 from sqlalchemy.ext.asyncio import AsyncSession
 
