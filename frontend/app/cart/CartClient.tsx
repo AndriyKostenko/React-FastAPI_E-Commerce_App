@@ -69,11 +69,13 @@ const CartClient: React.FC<CartClientProps> = ({currentUser}) => {
                             <span>Subtotal</span>
                             <span>{formatPrice(cartTotalAmount)}</span>
                         </div>
-                        <p className="text-slate-500">Taxes abd shipping calculate at checkout</p>
+                        <p className="text-slate-500">
+                            Taxes abd shipping calculate at checkout
+                        </p>
 
                         <Button label={currentUser ? 'Checkout' : 'Login to Checkout'}
                                 outline= {currentUser ? false : true}
-                                onClick={() => { currentUser? router.push('/checkout') : router.push('/login')}}>
+                                onClick={() => { currentUser ? router.push('/checkout') : router.push('/login')}}>
                         </Button>
 
                         <Link href={"/"} className="text-slate-500 flex items-center gap-1 mt-2">

@@ -11,11 +11,7 @@ class SelectedImgType(BaseModel):
     image: str
 
 
-class AddressType(BaseModel):
-    street: str
-    city: str
-    province: str
-    postal_code: str
+
 
 
 class CartProductType(BaseModel):
@@ -46,7 +42,7 @@ class UpdateOrder(BaseModel):
     amount: float
     payment_intent_id: str
     items: List[CartProductType]
-    # address: List[AddressType]
+
 
 
 class PaymentIntentRequest(BaseModel):

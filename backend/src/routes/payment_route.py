@@ -4,14 +4,14 @@ from decimal import Decimal, ROUND_HALF_UP
 
 import stripe.error
 
-from fastapi import HTTPException, APIRouter, Depends, status
+from fastapi import HTTPException, APIRouter, Depends, status, Request, Header
 from typing import Dict, Annotated
 import stripe
 from src.config import settings
 from src.db.db_setup import get_db_session
 from src.routes.user_routes import get_current_user
 from src.schemas.order_schemas import PaymentIntentRequest, CreateOrder, UpdateOrder
-from src.schemas.payment import IntentSecret
+from src.schemas.payment import IntentSecret, AddressToUpdate
 from src.service.order_service import OrderCRUDService
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -22,7 +22,7 @@ payment_routes = APIRouter(
 )
 
 
-@payment_routes.post("/update_payment_intent", response_model=IntentSecret)
+@payment_routes.post("/update_payment_intent", response_model=IntentSecret, status_code=status.HTTP_200_OK)
 async def update_payment_intent(data: PaymentIntentRequest,
                                 session: AsyncSession = Depends(get_db_session)):
     # temporary doing to get current user id....suppouse to receive from backend
@@ -66,7 +66,7 @@ async def update_payment_intent(data: PaymentIntentRequest,
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Invalid payment intent ID')
 
 
-@payment_routes.post("/create_payment_intent", response_model=IntentSecret)
+@payment_routes.post("/create_payment_intent", response_model=IntentSecret, status_code=status.HTTP_201_CREATED)
 async def create_payment_intent(data: PaymentIntentRequest,
                                 session: AsyncSession = Depends(get_db_session)):
     # TODO: need to check for current user, but I am not sure where to check him...here or on client side
@@ -112,3 +112,45 @@ async def create_payment_intent(data: PaymentIntentRequest,
             "client_secret": payment_intent.client_secret}
 
 
+# This is your Stripe CLI webhook secret for testing your endpoint locally.
+endpoint_secret = 'whsec_0161353c47a85732f7b8a5e725628e6172f56231cbc91e771a0522506198544f'
+
+
+@payment_routes.post('/webhook', status_code=status.HTTP_200_OK)
+async def webhook(request: Request,
+                  stripe_signature: str = Header(None),
+                  session: AsyncSession = Depends(get_db_session)):
+
+    data = await request.body()
+
+    try:
+        event = stripe.Webhook.construct_event(
+            payload=data,
+            sig_header=stripe_signature,
+            secret=endpoint_secret
+        )
+    except ValueError as e:
+        # Invalid payload
+        raise HTTPException(status_code=400, detail=str(e))
+    except stripe.error.SignatureVerificationError as e:
+        # Invalid signature
+        raise HTTPException(status_code=400, detail=str(e))
+
+    # Handle the event
+    if event['type'] == 'payment_intent.succeeded':
+        payment_intent = event['data']['object']
+        address = payment_intent['shipping']['address']
+
+        # updating an order status to 'complete'
+        await OrderCRUDService(session).update_status_by_payment_intent_id(payment_intent_id=payment_intent.id,
+                                                                           status='complete')
+
+        # updating (creating) an order address
+        await OrderCRUDService(session).update_address_by_payment_intent_id(payment_intent_id=payment_intent.id,
+                                                                            address=AddressToUpdate(**address))
+
+    else:
+        print('Unhandled event type {}'.format(event['type']))
+        return {"success": False}
+
+    return {"success": True}

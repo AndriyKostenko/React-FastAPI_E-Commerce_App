@@ -3,6 +3,7 @@ from src.models.models import Order, OrderItem, Address
 from sqlalchemy import select, asc, desc
 
 from src.schemas.order_schemas import CreateOrder, UpdateOrder
+from src.schemas.payment import AddressToUpdate
 
 
 class OrderCRUDService:
@@ -69,6 +70,31 @@ class OrderCRUDService:
         await self.session.refresh(db_order)
         return db_order
 
+    async def update_status_by_payment_intent_id(self, payment_intent_id: str, status: str):
+        db_order = await self.get_order_by_payment_intent_id(payment_intent_id=payment_intent_id)
+        db_order.status = status
+        await self.session.commit()
+        await self.session.refresh(db_order)
+        return db_order
+
+    async def update_address_by_payment_intent_id(self, payment_intent_id: str, address: AddressToUpdate):
+        db_order = await self.get_order_by_payment_intent_id(payment_intent_id=payment_intent_id)
+        if db_order:
+            db_address = await self.session.execute(select(Address).where(Address.id == db_order.address_id))
+            db_address = db_address.scalars().first()
+            if db_address:
+                # TODO: state and country to be added to databale and street divided into 2 sections line1, line2
+                db_address.street = address.line1
+                db_address.city = address.city
+                db_address.province = address.country
+                db_address.postal_code = address.postal_code
+
+                await self.session.commit()
+                await self.session.refresh(db_address)
+                return db_address
+            return None
+        return None
+
     async def update_order_by_payment_intent_id(self, payment_intent_id: str, order: UpdateOrder):
 
         db_order = await self.get_order_by_payment_intent_id(payment_intent_id=payment_intent_id)
@@ -97,16 +123,6 @@ class OrderCRUDService:
                                                price=item_data.price)
                     self.session.add(new_order_item)
                     await self.session.commit()
-
-            # updating address
-            # address_data = order.address[0]
-            # db_address = await self.session.execute(select(Address).where(Address.id == db_order.address_id))
-            # db_address = db_address.scalars().first()
-            # if db_address:
-            #     db_address.street = address_data.street
-            #     db_address.city = address_data.city
-            #     db_address.province = address_data.province
-            #     db_address.postal_code = address_data.postal_code
 
             await self.session.commit()
             await self.session.refresh(db_order)
