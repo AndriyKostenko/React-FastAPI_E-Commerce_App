@@ -1,0 +1,97 @@
+"use client";
+
+import { useCart } from "@/hooks/useCart";
+import { useRouter } from "next/navigation";
+import { useEffect, useState, useRef } from "react";
+import toast from "react-hot-toast";
+import React from "react";
+
+
+
+
+
+const CheckoutClient = () => {
+    const {cartProducts, handleSetPaymentIntent, paymentIntent} = useCart();
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(false)
+    const [clientSecret, setClientSecret] = useState()
+    const router = useRouter();
+    const [times, setTimes] = useState(0)
+   
+
+    console.log('PaymentIntent: ', paymentIntent)
+    console.log('ClientSecret: ', clientSecret)
+
+    const renderCount = useRef(0);
+    renderCount.current++;
+
+    console.log('Component re-rendered:', renderCount.current);
+
+    useEffect(() => {
+
+        if (cartProducts && !paymentIntent) {
+
+                setLoading(true)
+                setError(false)
+    
+                fetch('http://127.0.0.1:8000/create_payment_intent', {
+                    method: 'POST',
+                    headers: {'Content-Type' : 'application/json'},
+                    body: JSON.stringify({
+                        items: cartProducts,
+                        payment_intent_id: paymentIntent
+                    })
+                }).then((res) => {
+                    setLoading(false)
+                    if (res.status === 401) {
+                        return router.push('/login')
+                    }
+    
+                    return res.json()
+                }).then((data: any) => {
+                    setClientSecret(data.client_secret)
+                    handleSetPaymentIntent(data.payment_intent_id)
+                }).catch((error: any) => {
+                    console.log('Error: ', error)
+                    toast.error('Something went wrong')
+                })
+
+            } else if (cartProducts && paymentIntent) {
+                setLoading(true)
+                setError(false)
+    
+                fetch('http://127.0.0.1:8000/update_payment_intent', {
+                    method: 'POST',
+                    headers: {'Content-Type' : 'application/json'},
+                    body: JSON.stringify({
+                        items: cartProducts,
+                        payment_intent_id: paymentIntent
+                    })
+                }).then((res) => {
+                    setLoading(false)
+                    if (res.status === 401) {
+                        return router.push('/login')
+                    }
+    
+                    return res.json()
+                }).then((data: any) => {
+                    setClientSecret(data.client_secret)
+                    handleSetPaymentIntent(data.payment_intent_id)
+                }).catch((error: any) => {
+                    console.log('Error: ', error)
+                    toast.error('Something went wrong')
+                })
+            }
+        
+        
+    }, [cartProducts, paymentIntent])
+
+
+    return ( <>
+    Checkout
+    </> );
+}
+
+
+export default CheckoutClient;
+ 

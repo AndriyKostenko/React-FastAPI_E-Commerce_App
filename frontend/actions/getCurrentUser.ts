@@ -10,6 +10,7 @@ export async function getSession() {
 
 
 
+
 export async function getCurrentUser() {
     try {
         const session = await getSession()
@@ -24,9 +25,14 @@ export async function getCurrentUser() {
             headers: { "Content-Type": "application/json"},
         });
 
+        if (!currentUser.ok) {
+            throw new Error("Failed to fetch user data");
+        }
+
         return currentUser.json();
 
     } catch (error: any) {
-        return null
+        console.error("Error fetching user data:", error);
+        return null;
     }
 }

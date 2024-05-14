@@ -16,6 +16,8 @@ type CartContextType = {
     handleCartQtyIncrease: (product: CartProductType) => void;
     handleCartQtyDecrease: (product: CartProductType) => void;
     handleClearCart: () => void;
+    paymentIntent: string | null;
+    handleSetPaymentIntent: (val: string | null) => void;
 };
 
 
@@ -34,14 +36,21 @@ export const CartContextProvider = (props: Props) => {
     const [cartTotalQty, setCartTtotalQty] = useState(0);
     const [cartProducts, setCartProducts] = useState<CartProductType[] | null>(null);
     const [cartTotalAmount, setCartTottalAmount] = useState(0);
+    const [paymentIntent, setPaymentIntent] = useState<string | null>(null)
+
 
 
     // getting items from local storage
     useEffect(() => {
         const cartItems: any = localStorage.getItem('eShopCartItems')
         const Products: CartProductType[] | null = JSON.parse(cartItems)
+
+        // updating payment intent in loal storage after it has been created
+        const eShopPaymentIntent:any = localStorage.getItem('eShopPaymentIntent')
+        const paymentIntent: string | null = JSON.parse(eShopPaymentIntent);
         
-        setCartProducts(Products)
+        setCartProducts(Products);
+        setPaymentIntent(paymentIntent);
     }, [])
 
     // counting of total price and quantity iduring changing of products in cart
@@ -74,8 +83,6 @@ export const CartContextProvider = (props: Props) => {
         getTotals()
     }, [cartProducts])
 
-    // console.log('qty: ', cartTotalQty)
-    // console.log('amount: ', cartTotalAmount)
 
     // adding products to cart
     const handleAddProductToCart = useCallback((product: CartProductType) => {
@@ -87,6 +94,7 @@ export const CartContextProvider = (props: Props) => {
                 // if it is - updating quantity respectivly
                 const indexOfExistProduct = previousState.findIndex(prod => prod.id === product.id);
                 if (indexOfExistProduct !== -1) {
+
                     previousState[indexOfExistProduct].quantity = product.quantity;
                     //updating prev. state
                     updatedCart = [...previousState];
@@ -180,6 +188,13 @@ export const CartContextProvider = (props: Props) => {
         localStorage.removeItem('eShopCartItems')
     }, [cartProducts])
 
+
+    // saving into starage and following new paymentintents
+    const handleSetPaymentIntent = useCallback((val:string | null) => {
+        setPaymentIntent(val)
+        localStorage.setItem('eShopPaymentIntent', JSON.stringify(val))
+    }, [paymentIntent])
+
     // will be able to pass all different proprs like state for cartTotalQty, functions like add ropduct/remove product from cart
     const value = {
         cartTotalQty,
@@ -189,7 +204,9 @@ export const CartContextProvider = (props: Props) => {
         handleCartQtyIncrease,
         handleCartQtyDecrease,
         handleClearCart,
-        cartTotalAmount
+        cartTotalAmount,
+        paymentIntent,
+        handleSetPaymentIntent
     }
 
     return <CartContext.Provider value={value} {...props}/>

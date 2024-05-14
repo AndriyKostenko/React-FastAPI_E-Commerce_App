@@ -47,3 +47,5 @@ starlette==0.37.2
 tomli==2.0.1
 typing_extensions==4.11.0
 uvicorn==0.29.0
+
+stripe~=9.5.0

@@ -24,6 +24,7 @@ class User(Base):
     role: Mapped[str] = mapped_column(unique=False, nullable=True)
     phone_number: Mapped[str] = mapped_column(unique=False, nullable=True)
     date_created: Mapped[datetime] = mapped_column(default=datetime.utcnow, unique=False, nullable=False)
+    image: Mapped[str] = mapped_column(unique=False, nullable=True)
 
     def __repr__(self):
         return f"<User: {self.name} has been created on {self.date_created} UTC.>"
@@ -32,13 +33,53 @@ class User(Base):
 class Product(Base):
     __tablename__ = 'products'
 
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True, unique=True)
+    id: Mapped[str] = mapped_column(primary_key=True, unique=True, nullable=False)
     name: Mapped[str] = mapped_column(unique=False, nullable=False)
     description: Mapped[str] = mapped_column(unique=False, nullable=True)
-    price: Mapped[float] = mapped_column(unique=False, nullable=False)
-    quantity: Mapped[int] = mapped_column(unique=False, nullable=False)
-    category_id: Mapped[int] = mapped_column(ForeignKey('categories.id'), nullable=False)
+    category: Mapped[str] = mapped_column(unique=False, nullable=False)
+    brand: Mapped[str] = mapped_column(unique=False, nullable=False)
     image_url: Mapped[str] = mapped_column(unique=False, nullable=True)
+    quantity: Mapped[int] = mapped_column(unique=False, nullable=False)
+    price: Mapped[float] = mapped_column(unique=False, nullable=False)
+
+
+class Order(Base):
+    __tablename__ = 'orders'
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True, unique=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey('users.id'), nullable=False)
+    amount: Mapped[float] = mapped_column(unique=False, nullable=False)
+    currency: Mapped[str] = mapped_column(unique=False, nullable=False)
+    status: Mapped[str] = mapped_column(unique=False, nullable=False)
+    delivery_status: Mapped[str] = mapped_column(unique=False, nullable=False)
+    create_date: Mapped[datetime] = mapped_column(default=datetime.utcnow, unique=False, nullable=False)
+    payment_intent_id: Mapped[str] = mapped_column(unique=True, nullable=True)
+    address_id: Mapped[int] = mapped_column(ForeignKey('addresses.id'), nullable=False)
+    address: Mapped['Address'] = relationship('Address', back_populates='orders')
+    items: Mapped[List['OrderItem']] = relationship('OrderItem', back_populates='order')
+
+
+class OrderItem(Base):
+    __tablename__ = 'order_items'
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True, unique=True)
+    order_id: Mapped[int] = mapped_column(ForeignKey('orders.id'), nullable=False)
+    product_id: Mapped[str] = mapped_column(ForeignKey('products.id'), nullable=False)
+    quantity: Mapped[int] = mapped_column(unique=False, nullable=False)
+    price: Mapped[float] = mapped_column(unique=False, nullable=False)
+    order: Mapped['Order'] = relationship('Order', back_populates='items')
+
+
+class Address(Base):
+    __tablename__ = 'addresses'
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True, unique=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey('users.id'), nullable=False)
+    street: Mapped[str] = mapped_column(unique=False, nullable=True)
+    city: Mapped[str] = mapped_column(unique=False, nullable=True)
+    province: Mapped[str] = mapped_column(unique=False, nullable=True)
+    postal_code: Mapped[str] = mapped_column(unique=False, nullable=True)
+    orders: Mapped[List['Order']] = relationship('Order', back_populates='address')
 
 
 class Category(Base):
@@ -47,53 +88,3 @@ class Category(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True, unique=True)
     name: Mapped[str] = mapped_column(unique=False, nullable=False)
     description: Mapped[str] = mapped_column(unique=False, nullable=True)
-
-
-class Order(Base):
-    __tablename__ = 'orders'
-
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True, unique=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey('users.id'), nullable=False)
-    date_placed: Mapped[datetime] = mapped_column(default=datetime.utcnow, unique=False, nullable=False)
-    status: Mapped[str] = mapped_column(unique=False, nullable=False)
-
-
-class OrderItem(Base):
-    __tablename__ = 'order_items'
-
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True, unique=True)
-    order_id: Mapped[int] = mapped_column(ForeignKey('orders.id'), nullable=False)
-    product_id: Mapped[int] = mapped_column(ForeignKey('products.id'), nullable=False)
-    quantity: Mapped[int] = mapped_column(unique=False, nullable=False)
-    price: Mapped[float] = mapped_column(unique=False, nullable=False)
-
-
-class Address(Base):
-    __tablename__ = 'addresses'
-
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True, unique=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey('users.id'), nullable=False)
-    street: Mapped[str] = mapped_column(unique=False, nullable=False)
-    city: Mapped[str] = mapped_column(unique=False, nullable=False)
-    state: Mapped[str] = mapped_column(unique=False, nullable=False)
-    country: Mapped[str] = mapped_column(unique=False, nullable=False)
-    zip_code: Mapped[str] = mapped_column(unique=False, nullable=False)
-
-
-class Cart(Base):
-    __tablename__ = 'carts'
-
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True, unique=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey('users.id'), nullable=False)
-    items: Mapped[List['CartItem']] = relationship('CartItem', back_populates='cart')
-
-
-class CartItem(Base):
-    __tablename__ = 'cart_items'
-
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True, unique=True)
-    cart_id: Mapped[int] = mapped_column(ForeignKey('carts.id'), nullable=False)
-    product_id: Mapped[int] = mapped_column(ForeignKey('products.id'), nullable=False)
-    quantity: Mapped[int] = mapped_column(unique=False, nullable=False)
-    price: Mapped[float] = mapped_column(unique=False, nullable=False)
-    cart: Mapped['Cart'] = relationship('Cart', back_populates='items')

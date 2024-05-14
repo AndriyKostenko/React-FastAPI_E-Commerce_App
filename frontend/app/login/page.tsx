@@ -4,7 +4,9 @@ import FormWrap from "../components/FormWrap";
 import LoginForm from "./LoginForm";
 
 const Login = async () => {
+
     const currentUser = await getCurrentUser()
+    
     return ( 
     <Container>
         <FormWrap>

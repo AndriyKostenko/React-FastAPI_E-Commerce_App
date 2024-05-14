@@ -43,7 +43,7 @@ const UserMenu:React.FC<UserMenuProps> = ({currentUser}) => {
                                                     transition
                                                     text-slate-700">
 
-                    <Avatar/>
+                    <Avatar src={currentUser?.image || undefined}/>
                     <AiFillCaretDown/>
                 </div>
             {isOpen && (

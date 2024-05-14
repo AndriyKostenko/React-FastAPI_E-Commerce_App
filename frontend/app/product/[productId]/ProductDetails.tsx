@@ -73,9 +73,18 @@ const ProductDetails:React.FC<ProductDetailsProps> = ({product}) => {
     });
 
     const router = useRouter()
-
     
+    //whenever the component roads we will be able to check if that product is in cart alreay
+    useEffect(() => {
+        setIsProductInCart(false);
 
+        if(cartProducts) {
+            const existingIndexProduct = cartProducts.findIndex((item) => item.id === product.id)
+            if (existingIndexProduct > -1) {
+                setIsProductInCart(true);
+            }
+        }
+    }, [cartProducts])
    
 
     // remembering function state (selected color) between re-rendering of component if it wasn't change
@@ -112,17 +121,7 @@ const ProductDetails:React.FC<ProductDetailsProps> = ({product}) => {
         });
     }, [cartProduct.quantity])
 
-    // whenever the component roads we will be able to check if that product is in cart alreay
-    useEffect(() => {
-        setIsProductInCart(false);
 
-        if(cartProducts) {
-            const existingIndexProduct = cartProducts.findIndex((item) => item.id === product.id)
-            if (existingIndexProduct > -1) {
-                setIsProductInCart(true);
-            }
-        }
-    }, [cartProducts])
 
   
     
@@ -204,7 +203,7 @@ const ProductDetails:React.FC<ProductDetailsProps> = ({product}) => {
                 <Horizontal/>
 
                 <div className="max-w-[300px]">
-                    <Button label="Add To Cart" onClick={() => {handleAddProductToCart(cartProduct)}}/>
+                    <Button label="Add To Cart" onClick={() =>handleAddProductToCart(cartProduct)}/>
                 </div>
                 
             </div>

@@ -17,8 +17,9 @@ const ListRating:React.FC<ListRstingProps> = ({product}) => {
             <Heading title="Product Review"/>
             <div className="text-sm mt-2">
                 {/* mapping if the reviews exist */}
-                {product.reviews && product.reviews.map((review: any) => {
-                    return <div key={review.id} 
+                {product.reviews && product.reviews.map((review: any, index: number) => {
+                    // using indexes instead of product review.id coz can be missing.
+                    return <div key={index} 
                                 className="max-w-[300px]">
                                 <div className="flex gap-2 items-center">
                                     {review && review.user && (

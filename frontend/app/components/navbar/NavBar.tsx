@@ -14,7 +14,6 @@ const NavBar = async () => {
     // getting current user from the session
     const currentUser = await getCurrentUser();
 
-    console.log('Getting current user (NavBar.tsx): ', currentUser)
     return (
         <div className="sticky
                         top-0

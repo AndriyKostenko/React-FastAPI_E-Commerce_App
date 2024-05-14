@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     SECRET_KEY: str = os.getenv("SECRET_KEY")
     ALGORITHM: str = os.getenv("ALGORITHM")
     ALEMBIC_DATABASE_URL: str = os.getenv("ALEMBIC_DATABASE_URL")
+    STRIPE_SECRET_KEY: str = os.getenv("STRIPE_SECRET_KEY")
 
 
 settings = Settings()

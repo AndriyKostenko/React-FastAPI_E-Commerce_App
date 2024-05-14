@@ -1,0 +1,114 @@
+from sqlalchemy.ext.asyncio import AsyncSession
+from src.models.models import Order, OrderItem, Address
+from sqlalchemy import select, asc, desc
+
+from src.schemas.order_schemas import CreateOrder, UpdateOrder
+
+
+class OrderCRUDService:
+    def __init__(self, session: AsyncSession):
+        self.session = session
+
+    async def create_order(self, order: CreateOrder):
+
+        # first creating an order address to get address_id as a foreign key for 'orders' table (connecting 2 tables)
+        new_address = Address(user_id=order.user_id)
+        self.session.add(new_address)
+        await self.session.commit()
+
+        # creating an order with the new address_id
+        new_order = Order(user_id=order.user_id,
+                          amount=order.amount,
+                          currency=order.currency,
+                          status=order.status,
+                          delivery_status=order.delivery_status,
+                          create_date=order.create_date,
+                          payment_intent_id=order.payment_intent_id,
+                          address_id=new_address.id, )
+        self.session.add(new_order)
+        await self.session.commit()
+
+        # Adding the products to the order_item table according to new_order_id and product_id
+        for product in order.products:
+            order_item = OrderItem(order_id=new_order.id,
+                                   product_id=product.id,
+                                   quantity=product.quantity,
+                                   price=product.price)
+            self.session.add(order_item)
+
+        await self.session.commit()
+        await self.session.refresh(new_order)
+        return new_order
+
+    async def get_all_order(self):
+        result = await self.session.execute(select(Order).order_by(asc(Order.id)))
+        orders = result.scalars().all()
+        return orders
+
+    async def get_order_by_id(self, order_id: int):
+        db_order = await self.session.execute(select(Order).where(Order.id == order_id))
+        return db_order.scalars().first()
+
+    async def get_order_by_payment_intent_id(self, payment_intent_id: str):
+        db_order = await self.session.execute(select(Order).where(Order.payment_intent_id == payment_intent_id))
+        db_order_res = db_order.scalars().first()
+        return db_order_res
+
+    async def update_order_by_id(self, order_id: int, order: CreateOrder):
+        db_order = await self.get_order_by_id(order_id)
+        db_order.amount = order.amount
+        db_order.currency = order.currency
+        db_order.status = order.status
+        db_order.delivery_status = order.delivery_status
+        db_order.create_date = order.create_date
+        db_order.payment_intent_id = order.payment_intent_id
+        db_order.items = order.items
+        db_order.address = order.address
+
+        await self.session.commit()
+        await self.session.refresh(db_order)
+        return db_order
+
+    async def update_order_by_payment_intent_id(self, payment_intent_id: str, order: UpdateOrder):
+
+        db_order = await self.get_order_by_payment_intent_id(payment_intent_id=payment_intent_id)
+
+        if db_order:
+            db_order.amount = order.amount
+            db_order.payment_intent_id = order.payment_intent_id
+
+            # updating items
+            for item_data in order.items:
+                order_items = await self.session.execute(select(OrderItem).where((OrderItem.order_id == db_order.id) & (
+                        item_data.id == OrderItem.product_id)))
+
+                order_items_res = order_items.scalars().first()
+
+                if order_items_res:
+                    # updating an existing item
+                    order_items_res.quantity = item_data.quantity
+                    await self.session.commit()
+                    await self.session.refresh(order_items_res)
+                else:
+                    # adding new order_item
+                    new_order_item = OrderItem(order_id=db_order.id,
+                                               product_id=item_data.id,
+                                               quantity=item_data.quantity,
+                                               price=item_data.price)
+                    self.session.add(new_order_item)
+                    await self.session.commit()
+
+            # updating address
+            # address_data = order.address[0]
+            # db_address = await self.session.execute(select(Address).where(Address.id == db_order.address_id))
+            # db_address = db_address.scalars().first()
+            # if db_address:
+            #     db_address.street = address_data.street
+            #     db_address.city = address_data.city
+            #     db_address.province = address_data.province
+            #     db_address.postal_code = address_data.postal_code
+
+            await self.session.commit()
+            await self.session.refresh(db_order)
+            return db_order
+        return None
