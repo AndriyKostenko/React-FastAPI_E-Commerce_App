@@ -5,6 +5,7 @@ from fastapi import Depends, APIRouter, status, HTTPException
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.config import settings
 from src.db.db_setup import get_db_session
 from src.schemas.user_schemas import UserSignUp, UserInfo, TokenSchema, GetUser, UserSaveWithGoogle
 from src.security.authentication import create_access_token, get_authenticated_user, get_current_user
@@ -39,7 +40,12 @@ async def login(form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
                             detail='Could not validate user')
-    return user
+    access_token = create_access_token(user.email, user.id, user.role, timedelta(minutes=settings.TIME_DELTA_MINUTES))
+    token_expiry = await get_current_user(access_token)
+    return {'access_token': access_token,
+            'token_type': 'bearer',
+            'user_role': user.role,
+            'token_expiry': token_expiry['exp']}
 
 
 @user_routes.post("/token", response_model=TokenSchema)
@@ -49,7 +55,7 @@ async def generate_token(user: UserInfo = Depends(get_authenticated_user)):
 
 
 @user_routes.get("/current_user")
-async def get_current_user(current_user: Annotated[dict, Depends(get_current_user)]):
+async def get_current_user_data(current_user: Annotated[dict, Depends(get_current_user)]):
     if current_user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Unauthorized')
     return current_user

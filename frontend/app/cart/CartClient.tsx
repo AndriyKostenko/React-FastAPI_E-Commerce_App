@@ -8,26 +8,27 @@ import Button from "../components/Button";
 import ItemContent from "./ItemContent";
 import { formatPrice } from "@/utils/formatPrice";
 import { useRouter } from "next/navigation";
-
+import { useEffect } from "react";
+import { signOut } from "next-auth/react";
+import { useCurrentUserTokenExpiryCheck } from "@/hooks/useCurrentUserToken";
 
 interface CartClientProps {
     currentUser: {
-        id: number;
-        hashed_password: string;
-        phone_number: string | null;
-        image: string | null;
-        role: string | null;
-        name: string;
-        email: string;
-        date_created: string;
-    } | null
+        name?: string | null | undefined;
+        email?: string | null | undefined;
+        image?: string | null | undefined;
+    } | null;
+    expiryToken: number | null;
 }
 
 
-const CartClient: React.FC<CartClientProps> = ({currentUser}) => {
+const CartClient: React.FC<CartClientProps> = ({currentUser, expiryToken}) => {
     const {cartProducts, handleClearCart, cartTotalAmount} = useCart();
 
     const router = useRouter()
+
+    // redirecting back if token is expired
+    useCurrentUserTokenExpiryCheck(expiryToken)
 
 
     if (!cartProducts || cartProducts.length === 0) {

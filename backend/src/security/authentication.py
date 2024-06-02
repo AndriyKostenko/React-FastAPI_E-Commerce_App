@@ -17,9 +17,9 @@ oath2_bearer = OAuth2PasswordBearer(tokenUrl='token')
 def create_access_token(email: str, user_id: int, role: str, expires_delta: timedelta):
     encode = {'sub': email,
               'id': user_id,
-              'role': role}
-    expires = datetime.utcnow() + expires_delta
-    encode.update({'exp': expires})
+              'role': role,
+              'exp': datetime.utcnow() + expires_delta
+              }
     return jwt.encode(encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
@@ -30,10 +30,11 @@ async def get_current_user(token: Annotated[str, Depends(oath2_bearer)]):
         email: str = payload.get('sub')
         user_id: int = payload.get('id')
         user_role: str = payload.get('role')
+        exp: int = payload.get('exp')
         if email is None or user_id is None:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
                                 detail='Could not validate user')
-        return {'email': email, 'id': user_id, 'user_role': user_role}
+        return {'email': email, 'id': user_id, 'user_role': user_role, 'exp': exp}
     except (JWTError, ValidationError):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
                             detail='Could not validate user')

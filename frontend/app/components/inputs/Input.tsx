@@ -1,6 +1,7 @@
 'use client';
 
-import {UseFormRegister, FieldValues, FieldErrors} from 'react-hook-form';
+import {UseFormRegister, FieldValues, FieldErrors, RegisterOptions} from 'react-hook-form';
+
 
 interface InputProps {
     id: string;
@@ -10,10 +11,14 @@ interface InputProps {
     required?: boolean;
     register: UseFormRegister<FieldValues>;
     errors: FieldErrors;
+    validationRules?: RegisterOptions; // informing if not a number entered
+
 
 }
 
-const Input: React.FC<InputProps> = ({id, label, type, disabled, required, register, errors}) => {
+const Input: React.FC<InputProps> = ({id, label, type, disabled, required, register, errors, validationRules}) => {
+    
+    
     return ( 
         <div className='w-full relative'>
             <input className={`peer 
@@ -33,9 +38,10 @@ const Input: React.FC<InputProps> = ({id, label, type, disabled, required, regis
                                 autoComplete='off'
                                 id={id}
                                 disabled={disabled}
-                                {...register(id, {required})}
+                                {...register(id, {required, ...validationRules})}  // using validation rules to check for number inputs
                                 placeholder=''
-                                type={type}/>
+                                type={type}
+                                /> 
                 <label htmlFor={id} className={`absolute 
                                                 cursor-text 
                                                 text-md 

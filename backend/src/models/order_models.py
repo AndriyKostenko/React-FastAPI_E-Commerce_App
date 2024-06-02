@@ -1,0 +1,50 @@
+from typing import List
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from datetime import datetime
+from sqlalchemy import ForeignKey
+from src.models import Base
+
+
+class Order(Base):
+    __tablename__ = 'orders'
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True, unique=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey('users.id'), nullable=False)
+    amount: Mapped[float] = mapped_column(nullable=False)
+    currency: Mapped[str] = mapped_column(nullable=False)
+    status: Mapped[str] = mapped_column(nullable=False)
+    delivery_status: Mapped[str] = mapped_column(nullable=False)
+    create_date: Mapped[datetime] = mapped_column(default=datetime.utcnow, nullable=False)
+    payment_intent_id: Mapped[str] = mapped_column(unique=True, nullable=True)
+    address_id: Mapped[int] = mapped_column(ForeignKey('addresses.id'), nullable=False)
+
+    address: Mapped['OrderAddress'] = relationship('OrderAddress', back_populates='orders')
+    items: Mapped[List['OrderItem']] = relationship('OrderItem', back_populates='order')
+    user: Mapped['User'] = relationship('User', back_populates='orders')
+
+
+class OrderItem(Base):
+    __tablename__ = 'order_items'
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True, unique=True)
+    order_id: Mapped[int] = mapped_column(ForeignKey('orders.id'), nullable=False)
+    product_id: Mapped[str] = mapped_column(ForeignKey('products.id'), nullable=False)
+    quantity: Mapped[int] = mapped_column(nullable=False)
+    price: Mapped[float] = mapped_column(nullable=False)
+
+    order: Mapped['Order'] = relationship('Order', back_populates='items')
+    product: Mapped['Product'] = relationship('Product')
+
+
+class OrderAddress(Base):
+    __tablename__ = 'addresses'
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True, unique=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey('users.id'), nullable=False)
+    street: Mapped[str] = mapped_column(nullable=True)
+    city: Mapped[str] = mapped_column(nullable=True)
+    province: Mapped[str] = mapped_column(nullable=True)
+    postal_code: Mapped[str] = mapped_column(nullable=True)
+
+    orders: Mapped[List['Order']] = relationship('Order', back_populates='address')
+    user: Mapped['User'] = relationship('User', back_populates='addresses')

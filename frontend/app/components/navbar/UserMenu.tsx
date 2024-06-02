@@ -15,11 +15,12 @@ interface UserMenuProps {
         email?: string | null | undefined,
         image?: string | null | undefined
     } | null;
+    currentUserRole?: string | null | undefined;
 }
 
 
 
-const UserMenu:React.FC<UserMenuProps> = ({currentUser}) => {
+const UserMenu:React.FC<UserMenuProps> = ({currentUser, currentUserRole}) => {
 
     const [isOpen, setIsOpen] = useState(false);
 
@@ -66,10 +67,6 @@ const UserMenu:React.FC<UserMenuProps> = ({currentUser}) => {
                             <Link href="/orders">
                                 <MenuItem onClick={toggleOpen}>Your Orders</MenuItem>
                             </Link>
-                            
-                            <Link href="/admin">
-                                <MenuItem onClick={toggleOpen}>Admin Dashboard</MenuItem>
-                            </Link>
 
                             <MenuItem onClick={() => {
                                 toggleOpen();
@@ -85,6 +82,11 @@ const UserMenu:React.FC<UserMenuProps> = ({currentUser}) => {
                                 <MenuItem onClick={toggleOpen}>Register</MenuItem>
                         </Link>
                         </div>
+                    }
+                    {currentUserRole == 'admin' &&  
+                            <Link href="/admin">
+                                <MenuItem onClick={toggleOpen}>Admin Dashboard</MenuItem>
+                            </Link>
                     }
 
 

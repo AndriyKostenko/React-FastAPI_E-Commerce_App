@@ -9,22 +9,28 @@ import { StripeElementsOptions, loadStripe } from "@stripe/stripe-js";
 import { Elements } from "@stripe/react-stripe-js";
 import CheckoutForm from "./CheckOutForm";
 import Button from "../components/Button";
+import Link from "next/link";
+import { MdArrowBack } from "react-icons/md";
 
+
+interface LoginFormProps{
+	currentUserJWT?: string | null | undefined,
+}
 
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY as string)
 
 
-const CheckoutClient = () => {
+const CheckoutClient:React.FC<LoginFormProps> = ({currentUserJWT}) => {
     const {cartProducts, handleSetPaymentIntent, paymentIntent} = useCart();
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(false)
     const [clientSecret, setClientSecret] = useState()
     const router = useRouter();
     const [paymentSuccess, setPaymentSuccess] = useState(false)
+    
 
-   
-
+    console.log('TOKEN in CheckoutClient: ', currentUserJWT)
     console.log('PaymentIntent: ', paymentIntent)
     console.log('ClientSecret: ', clientSecret)
 
@@ -42,7 +48,9 @@ const CheckoutClient = () => {
     
                 fetch('http://127.0.0.1:8000/create_payment_intent', {
                     method: 'POST',
-                    headers: {'Content-Type' : 'application/json'},
+                    headers: {'Content-Type' : 'application/json',
+                            'Authorization': `Bearer ${currentUserJWT}` // Including the JWT token here
+                    },
                     body: JSON.stringify({
                         items: cartProducts,
                         payment_intent_id: paymentIntent
@@ -68,7 +76,9 @@ const CheckoutClient = () => {
     
                 fetch('http://127.0.0.1:8000/update_payment_intent', {
                     method: 'POST',
-                    headers: {'Content-Type' : 'application/json'},
+                    headers: {'Content-Type' : 'application/json',
+                            'Authorization': `Bearer ${currentUserJWT}` // Including the JWT token here
+                    },
                     body: JSON.stringify({
                         items: cartProducts,
                         payment_intent_id: paymentIntent
@@ -106,6 +116,13 @@ const CheckoutClient = () => {
 
     return ( 
         <div className="w-full">
+            {!cartProducts && 
+                <div>
+                    <Link href={"/"} className="text-slate-500 flex items-center gap-1 mt-2">
+                            <MdArrowBack></MdArrowBack>
+                            <span>No items for checkout, continue shopping</span>
+                    </Link>
+                </div>}
             {clientSecret && cartProducts && (
                 <Elements options={options} stripe={stripePromise}>
                     <CheckoutForm clientSecret={clientSecret} handleSetPaymentSuccess={handleSetPaymentSuccess}/>

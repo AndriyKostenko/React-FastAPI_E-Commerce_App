@@ -1,9 +1,6 @@
 import math
 from datetime import datetime
 from decimal import Decimal, ROUND_HALF_UP
-
-import stripe.error
-
 from fastapi import HTTPException, APIRouter, Depends, status, Request, Header
 from typing import Dict, Annotated
 import stripe
@@ -15,6 +12,8 @@ from src.schemas.payment import IntentSecret, AddressToUpdate
 from src.service.order_service import OrderCRUDService
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.utils.calculate_ttl_amount import calculate_total_amount
+
 stripe.api_key = settings.STRIPE_SECRET_KEY
 
 payment_routes = APIRouter(
@@ -24,19 +23,16 @@ payment_routes = APIRouter(
 
 @payment_routes.post("/update_payment_intent", response_model=IntentSecret, status_code=status.HTTP_200_OK)
 async def update_payment_intent(data: PaymentIntentRequest,
+                                current_user: Annotated[dict, Depends(get_current_user)],
                                 session: AsyncSession = Depends(get_db_session)):
-    # temporary doing to get current user id....suppouse to receive from backend
-    current_user_id = 1
+
+    if current_user is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Unauthorized')
 
     # Calculate the total amount in cents
-    total_amount = sum(Decimal(item.price) * Decimal(item.quantity) for item in data.items)
-    total_amount = total_amount.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-    total_amount *= 100  # Convert to cents
-    total_amount = int(total_amount)
+    total_amount = calculate_total_amount(data.items)
 
     if data.payment_intent_id is not None:
-        print('---------------ENTERED INTO UPDATE PAYMENT INTENT--------------')
-        print('Payment intent ID: ', data.payment_intent_id)
         # Update an order with existing payment intent
         current_intent = stripe.PaymentIntent.retrieve(data.payment_intent_id)
 
@@ -68,31 +64,19 @@ async def update_payment_intent(data: PaymentIntentRequest,
 
 @payment_routes.post("/create_payment_intent", response_model=IntentSecret, status_code=status.HTTP_201_CREATED)
 async def create_payment_intent(data: PaymentIntentRequest,
+                                current_user: Annotated[dict, Depends(get_current_user)],
                                 session: AsyncSession = Depends(get_db_session)):
-    # TODO: need to check for current user, but I am not sure where to check him...here or on client side
-    # and current_user is supposed to be checked on server side...
-    # if current_user is None:
-    #     raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Unauthorized')
+    if current_user is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Unauthorized')
 
-    # getting current user id from client side
-    # if data.current_user_id is None:
-    #     raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Invalid user ID')
-
-    # temporary doing to get current user id....suppouse to receive from backend
-    current_user_id = 1
-
-    # Calculate the total amount in cents
-    total_amount = sum(Decimal(item.price) * Decimal(item.quantity) for item in data.items)
-    total_amount = total_amount.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-    total_amount *= 100  # Convert to cents
-    total_amount = int(total_amount)
+    total_amount = calculate_total_amount(data.items)
 
     # creating new intent
     payment_intent = stripe.PaymentIntent.create(
         amount=total_amount,
         currency='cad')
 
-    # TODO: need to check how and where to add address
+    # the adress will be added after the payment is completed after receiving information from the  stripe /webhook
     new_order = {
         "amount": total_amount,
         "currency": 'cad',
@@ -101,7 +85,7 @@ async def create_payment_intent(data: PaymentIntentRequest,
         "create_date": datetime.now(),
         "payment_intent_id": payment_intent.id,
         "products": data.items,
-        "user_id": current_user_id
+        "user_id": current_user['id']
     }
 
     # Creating new order
@@ -112,14 +96,15 @@ async def create_payment_intent(data: PaymentIntentRequest,
             "client_secret": payment_intent.client_secret}
 
 
-# This is your Stripe CLI webhook secret for testing your endpoint locally.
-endpoint_secret = 'whsec_0161353c47a85732f7b8a5e725628e6172f56231cbc91e771a0522506198544f'
-
-
 @payment_routes.post('/webhook', status_code=status.HTTP_200_OK)
 async def webhook(request: Request,
+                  current_user: Annotated[dict, Depends(get_current_user)],
                   stripe_signature: str = Header(None),
-                  session: AsyncSession = Depends(get_db_session)):
+                  session: AsyncSession = Depends(get_db_session),
+                  ):
+
+    if current_user['user_role'] != 'admin' or current_user is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Unauthorized')
 
     data = await request.body()
 
@@ -127,7 +112,7 @@ async def webhook(request: Request,
         event = stripe.Webhook.construct_event(
             payload=data,
             sig_header=stripe_signature,
-            secret=endpoint_secret
+            secret=settings.STRIPE_WEBHOOK_SECRET
         )
     except ValueError as e:
         # Invalid payload

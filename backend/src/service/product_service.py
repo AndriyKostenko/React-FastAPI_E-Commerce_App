@@ -1,37 +1,100 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from src.models.models import Product
+from sqlalchemy.orm import selectinload
+
+from src.models.product_models import Product, ProductImage, ProductCategory, ProductReview
 from sqlalchemy import select, asc, desc
-from src.schemas.product_schemas import CreateProduct
+from src.schemas.product_schemas import CreateProduct, ProductSchema
 
 
 class ProductCRUDService:
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    async def create_product(self, product: CreateProduct):
-        new_product = Product(id=product.id,
-                              name=product.name,
+    async def create_product_item(self, product: CreateProduct):
+
+        # getting product category.id for creation of new product, if no -> first creating category to connect with
+        # Product
+        product_category = await self.get_product_category_by_name(category=product.category)
+        if not product_category:
+            product_category = await self.create_product_category(category=product.category)
+
+        # creating new product
+        new_product = Product(name=product.name,
                               description=product.description,
-                              category=product.category,
+                              category_id=product_category.id,
                               brand=product.brand,
-                              image_url=product.image_url,
                               quantity=product.quantity,
-                              price=product.price)
-
-        # not using await coz it's an in-memory operation and doesn't interact with db
+                              price=product.price,
+                              in_stock=product.inStock, )
         self.session.add(new_product)
+        await self.session.commit()
 
-        # the commit and refresh methods are an asynchronous operations because they involve writing the
-        # changes to the database, which is an I/O operation
+        # creating product images
+        new_product_images = await self.create_product_image(product_id=new_product.id, image_data=product.images)
+        self.session.add(new_product_images)
+
         await self.session.commit()
         await self.session.refresh(new_product)
         return new_product
 
     async def get_all_products(self):
-        result = await self.session.execute(select(Product).order_by(asc(Product.id)))
+        result = await self.session.execute(
+            select(Product)
+            .options(
+                selectinload(Product.images),
+                selectinload(Product.reviews).selectinload(ProductReview.user)  # specify the full path
+            )
+            .order_by(asc(Product.id))
+        )
         products = result.scalars().all()
+
+        # return [ProductSchema.from_orm(product) for product in products]
+        #TODO: cant return a specific product format...returning products according to models
         return products
+        # return [product.to_dict() for product in products]
+        # return [{"id": p.id,
+        #          "name": p.name,
+        #          'description': p.description,
+        #          'price': p.price,
+        #          'category':p.category,
+        #          'in_stock': p.in_stock} for p in products]
 
     async def get_product_by_id(self, product_id: int):
         db_product = await self.session.execute(select(Product).where(Product.id == product_id))
         return db_product.scalars().first()
+
+    async def create_product_category(self, category: str):
+
+        db_category = await self.session.execute(select(ProductCategory).where(ProductCategory.name == category))
+        db_category = db_category.scalars().first()
+        if db_category:
+            return db_category
+
+        new_category = ProductCategory(name=category)
+        self.session.add(new_category)
+        await self.session.commit()
+        return new_category
+
+    async def get_product_category_by_name(self, category: str):
+        db_category = await self.session.execute(select(ProductCategory).where(ProductCategory.name == category))
+        if db_category:
+            return db_category.scalars().first()
+        return None
+
+    async def create_product_image(self, product_id: int, image_data: list):
+        # Iterate over the images and save each one
+        for data in image_data:
+            new_product_image = ProductImage(product_id=product_id,
+                                             image_url=data.image,
+                                             image_color=data.color,
+                                             image_color_code=data.colorCode)
+            self.session.add(new_product_image)
+
+        await self.session.commit()
+        return new_product_image
+
+    async def create_product_review(self, product_id: int, comment: str, user_id: int, rating: float):
+        new_review = ProductReview(product_id=product_id, comment=comment, user_id=user_id, rating=rating)
+        self.session.add(new_review)
+        await self.session.commit()
+        return new_review

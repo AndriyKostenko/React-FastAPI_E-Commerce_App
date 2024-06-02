@@ -13,6 +13,8 @@ class Settings(BaseSettings):
     ALGORITHM: str = os.getenv("ALGORITHM")
     ALEMBIC_DATABASE_URL: str = os.getenv("ALEMBIC_DATABASE_URL")
     STRIPE_SECRET_KEY: str = os.getenv("STRIPE_SECRET_KEY")
+    STRIPE_WEBHOOK_SECRET: str = os.getenv("STRIPE_WEBHOOK_SECRET")
+    TIME_DELTA_MINUTES: int = int(os.getenv("TIME_DELTA_MINUTES"))
 
 
 settings = Settings()

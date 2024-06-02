@@ -1,5 +1,5 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from src.models.models import Order, OrderItem, Address
+from src.models.order_models import Order, OrderItem, OrderAddress
 from sqlalchemy import select, asc, desc
 
 from src.schemas.order_schemas import CreateOrder, UpdateOrder
@@ -13,7 +13,7 @@ class OrderCRUDService:
     async def create_order(self, order: CreateOrder):
 
         # first creating an order address to get address_id as a foreign key for 'orders' table (connecting 2 tables)
-        new_address = Address(user_id=order.user_id)
+        new_address = OrderAddress(user_id=order.user_id)
         self.session.add(new_address)
         await self.session.commit()
 
@@ -80,7 +80,7 @@ class OrderCRUDService:
     async def update_address_by_payment_intent_id(self, payment_intent_id: str, address: AddressToUpdate):
         db_order = await self.get_order_by_payment_intent_id(payment_intent_id=payment_intent_id)
         if db_order:
-            db_address = await self.session.execute(select(Address).where(Address.id == db_order.address_id))
+            db_address = await self.session.execute(select(OrderAddress).where(OrderAddress.id == db_order.address_id))
             db_address = db_address.scalars().first()
             if db_address:
                 # TODO: state and country to be added to databale and street divided into 2 sections line1, line2

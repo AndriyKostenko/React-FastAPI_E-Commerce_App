@@ -44,7 +44,7 @@ const LoginForm:React.FC<LoginFormProps> = ({currentUser}) => {
     const onSubmit:SubmitHandler<FieldValues> = async (data) => {
 		setIsLoading(true);
 
-		console.log('Data from LogIn on submit: ', data)
+		//console.log('Data from LogIn on submit: ', data)
 
 		signIn('credentials', {
 			...data,

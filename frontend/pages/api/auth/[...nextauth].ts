@@ -4,6 +4,7 @@ import GoogleProvider from "next-auth/providers/google";
 
 
 
+
 // so.....during loggin/registerring of user we will be redirected here to authorize() function 
 // where i do endpoint with getting of user by email, however it is suppose to be logic like with login to check by email and password but im sending back hashed_password
 // so, its suppose to be refactored to got jwt token instead all of that and to compare it in authorize() function
@@ -11,12 +12,12 @@ import GoogleProvider from "next-auth/providers/google";
 export const authOptions: AuthOptions = {
 // Configure one or more authentication providers
   providers: [
-    GoogleProvider({
-        clientId: process.env.GOOGLE_CLIENT_ID as string,
-        clientSecret: process.env.GOOGLE_CLIENT_SECRET as string
-    }),
     CredentialsProvider( {
         name: "Credentials",
+        // The credentials are used to generate a suitable form on the sign in page.
+        // You can specify whatever fields you are expecting to be submitted.
+        // e.g. domain, username, password, 2FA token, etc.
+        // we can pass any HTML attribute to the <input> tag through the object.
         credentials: {
             email: {
                 label: "Email",
@@ -29,9 +30,13 @@ export const authOptions: AuthOptions = {
      
         },
         // built in function authorize() where im checking with an existing user in db by email
+        // by default its returning an User object with id, name, email, image...but we a including there jwt to, thats why gining an error
         async authorize(credentials, req) {
-
-            console.log('Credentials inside of authorize():', [credentials?.email, credentials?.password])
+            // here we write logic that takes the credentials and
+            // submit to backend server and returns either a object representing a user or value
+            // that is false/null if the credentials are invalid.
+            // e.g. return { id: 1, name: 'J Smith', email: 'jsmith@example.com' }
+            //console.log('Credentials inside of authorize():', [credentials?.email, credentials?.password])
             if (!credentials?.email || !credentials?.password){
                 throw new Error('Invalid email or password!')
             }
@@ -50,15 +55,17 @@ export const authOptions: AuthOptions = {
                 });
 
                 if (!response.ok) {
-                    throw new Error('Invalid email')
+                    throw new Error('Something went wrong')
                 }
-                
 
-                const user = await response.json()
-               
-                console.log('User from authorize(): ', user)
+                const data = await response.json()
+                console.log('Data in authent: ', data)
+                const jwt = data['access_token']
+                const role = data['user_role']
+                const token_expiry = data['token_expiry']
 
-                return user
+                // returning jwt token and credentials...by default its must to return only the user object or null but i do my implementetion with jwt token
+                return { ...credentials, jwt, role, token_expiry}
 
 
             } catch (error) {
@@ -67,13 +74,39 @@ export const authOptions: AuthOptions = {
         }
     })
   ],
+  // to make sure our JWT is included in the session object, we have to add it to the JWT in the session
+  callbacks: {
+    jwt: async ({token, user}) => {
+        // user id only available the first time
+        // when the user object is present (when the user signs in successfully), 
+        // the JWT is added to the token returned 
+        if (user) {
+            return {
+                ...token,
+                // ignore ts errors coz its awaiting a User object only, but we do custom session with token generated on backend and  its working as needed for us
+                jwt: user.jwt,
+                role: user.role,
+                token_expiry: user.token_expiry,
+
+            };
+        }
+        return token;
+    },
+
+    // adding jwt, user role and token expriration time to the session
+    session: async ({session, token}) => {
+        if (token) {
+            session.jwt = token.jwt
+            session.role = token.role
+            session.token_expiry = token.token_expiry
+        }
+        return session
+    }
+  },
   pages: {
     signIn: '/login',
   },
-  session: {
-    strategy: "jwt"
-  },
-  secret: process.env.NEXTAUTH_SECRET
+  
 }
 
 

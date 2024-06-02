@@ -11,9 +11,6 @@ class SelectedImgType(BaseModel):
     image: str
 
 
-
-
-
 class CartProductType(BaseModel):
     id: str
     name: str
@@ -42,7 +39,6 @@ class UpdateOrder(BaseModel):
     amount: float
     payment_intent_id: str
     items: List[CartProductType]
-
 
 
 class PaymentIntentRequest(BaseModel):
