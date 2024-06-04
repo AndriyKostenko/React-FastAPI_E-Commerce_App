@@ -5,7 +5,7 @@ async def create_image_metadata(image_paths: List[str], images_color: List[str],
     return [
         {
             "color": images_color[i],
-            "colorCode": images_color_code[i],
+            "color_code": images_color_code[i],
             "image": path,
         }
         for i, path in enumerate(image_paths)

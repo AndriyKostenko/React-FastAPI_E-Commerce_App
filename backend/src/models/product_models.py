@@ -8,19 +8,22 @@ from src.models import Base
 class Product(Base):
     __tablename__ = 'products'
 
+    #TODO: change all id to strings
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True, unique=True)
     name: Mapped[str] = mapped_column(nullable=False)
     description: Mapped[str] = mapped_column(nullable=True)
-    category_id: Mapped[int] = mapped_column(ForeignKey('categories.id'), nullable=False)
+    category_id: Mapped[int] = mapped_column(ForeignKey('product_categories.id'), nullable=False)
     brand: Mapped[str] = mapped_column(nullable=False)
     quantity: Mapped[int] = mapped_column(nullable=False)
     price: Mapped[float] = mapped_column(nullable=False)
     in_stock: Mapped[bool] = mapped_column(nullable=True)
+    date_created: Mapped[datetime] = mapped_column(default=datetime.utcnow, nullable=False)
 
     reviews: Mapped[List['ProductReview']] = relationship('ProductReview', back_populates='product')
     images: Mapped[List['ProductImage']] = relationship('ProductImage', back_populates='product')
     category: Mapped['ProductCategory'] = relationship('ProductCategory', back_populates='products')
 
+    # trying to convert data to dict while getting all products from CRUDService but still getting an error with async IO
     def to_dict(self):
         return {
             'id': self.id,
@@ -57,7 +60,7 @@ class ProductImage(Base):
         }
 
 class ProductReview(Base):
-    __tablename__ = 'reviews'
+    __tablename__ = 'product_reviews'
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True, unique=True)
     user_id: Mapped[int] = mapped_column(ForeignKey('users.id'), nullable=False)
@@ -78,7 +81,7 @@ class ProductReview(Base):
         }
 
 class ProductCategory(Base):
-    __tablename__ = 'categories'
+    __tablename__ = 'product_categories'
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True, unique=True)
     name: Mapped[str] = mapped_column(unique=True, nullable=False)
