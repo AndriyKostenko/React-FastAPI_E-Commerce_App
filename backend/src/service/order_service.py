@@ -41,8 +41,8 @@ class OrderCRUDService:
         await self.session.refresh(new_order)
         return new_order
 
-    async def get_all_order(self):
-        result = await self.session.execute(select(Order).order_by(asc(Order.id)))
+    async def get_all_orders(self):
+        result = await self.session.execute(select(Order).order_by(desc(Order.create_date)))
         orders = result.scalars().all()
         return orders
 

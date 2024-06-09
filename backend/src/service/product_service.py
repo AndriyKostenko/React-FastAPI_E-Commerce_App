@@ -1,6 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-
+from typing import List, Optional, Dict
 from src.models.product_models import Product, ProductImage, ProductCategory, ProductReview
 from sqlalchemy import select, asc, desc
 from src.schemas.product_schemas import CreateProduct, ProductSchema, CreateProductReview
@@ -37,6 +37,7 @@ class ProductCRUDService:
         await self.session.refresh(new_product)
         return new_product
 
+<<<<<<< HEAD
     async def get_all_products(self):
         result = await self.session.execute(
             select(Product)
@@ -51,6 +52,28 @@ class ProductCRUDService:
 
         # return [ProductSchema.from_orm(product) for product in products]
         #TODO: cant return a specific product format according to Product schema...returning products according to models right now
+=======
+
+    async def get_all_products(self, category: Optional[str] = None, searchTerm: Optional[str] = None):
+        # it works in way that it first loads all products, then loads images, reviews and category for each product
+        # according to relations in models
+        query = select(Product).options(
+            selectinload(Product.images),
+            selectinload(Product.reviews).selectinload(ProductReview.user),  # product review is connected with user
+            selectinload(Product.category)
+        ).order_by(desc(Product.date_created))
+
+        if category:
+            query = query.filter(Product.category.has(name=category))
+
+        if searchTerm:
+            query = query.filter(Product.name.ilike(f"%{searchTerm}%"))
+
+        result = await self.session.execute(query)
+        products = result.scalars().all()
+
+        #TODO: cant return a specific product format...returning products according to models right now
+>>>>>>> 0ed6875cfb190c545220d7e49a5687ef2f564754
         return products
         # return [product.to_dict() for product in products]
         # return [{"id": p.id,
@@ -59,6 +82,9 @@ class ProductCRUDService:
         #          'price': p.price,
         #          'category':p.category,
         #          'in_stock': p.in_stock} for p in products]
+
+
+
 
     async def get_product_by_id(self, product_id: int):
         db_product = await self.session.execute(select(Product).where(Product.id == product_id))

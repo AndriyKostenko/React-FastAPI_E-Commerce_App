@@ -27,9 +27,15 @@ class Order(Base):
 class OrderItem(Base):
     __tablename__ = 'order_items'
 
+<<<<<<< HEAD
     id: Mapped[str] = mapped_column(String, primary_key=True, default=generate_uuid, unique=True)
     order_id: Mapped[str] = mapped_column(ForeignKey('orders.id'), nullable=False)
     product_id: Mapped[str] = mapped_column(ForeignKey('products.id'), nullable=False)
+=======
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True, unique=True)
+    order_id: Mapped[int] = mapped_column(ForeignKey('orders.id'), nullable=False)
+    product_id: Mapped[int] = mapped_column(ForeignKey('products.id'), nullable=False)
+>>>>>>> 0ed6875cfb190c545220d7e49a5687ef2f564754
     quantity: Mapped[int] = mapped_column(nullable=False)
     price: Mapped[float] = mapped_column(nullable=False)
 
