@@ -4,12 +4,14 @@ from datetime import datetime
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.ext.asyncio import AsyncAttrs
 from src.models import Base
+from sqlalchemy import String
+from src.utils.generate_uuid import generate_uuid
 
 
 class User(Base):
     __tablename__ = 'users'
 
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True, unique=True)
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=generate_uuid, unique=True)
     name: Mapped[str] = mapped_column(nullable=False)
     email: Mapped[str] = mapped_column(unique=True, nullable=False)
     hashed_password: Mapped[str] = mapped_column(nullable=False)

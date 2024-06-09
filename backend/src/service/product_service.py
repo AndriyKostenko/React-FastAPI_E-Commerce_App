@@ -3,7 +3,7 @@ from sqlalchemy.orm import selectinload
 
 from src.models.product_models import Product, ProductImage, ProductCategory, ProductReview
 from sqlalchemy import select, asc, desc
-from src.schemas.product_schemas import CreateProduct, ProductSchema
+from src.schemas.product_schemas import CreateProduct, ProductSchema, CreateProductReview
 
 
 class ProductCRUDService:
@@ -25,7 +25,7 @@ class ProductCRUDService:
                               brand=product.brand,
                               quantity=product.quantity,
                               price=product.price,
-                              in_stock=product.inStock, )
+                              in_stock=product.in_stock, )
         self.session.add(new_product)
         await self.session.commit()
 
@@ -42,6 +42,7 @@ class ProductCRUDService:
             select(Product)
             .options(
                 selectinload(Product.images),
+                selectinload(Product.category),
                 selectinload(Product.reviews).selectinload(ProductReview.user)  # specify the full path
             )
             .order_by(asc(Product.id))
@@ -49,7 +50,7 @@ class ProductCRUDService:
         products = result.scalars().all()
 
         # return [ProductSchema.from_orm(product) for product in products]
-        #TODO: cant return a specific product format...returning products according to models
+        #TODO: cant return a specific product format according to Product schema...returning products according to models right now
         return products
         # return [product.to_dict() for product in products]
         # return [{"id": p.id,
@@ -87,14 +88,16 @@ class ProductCRUDService:
             new_product_image = ProductImage(product_id=product_id,
                                              image_url=data.image,
                                              image_color=data.color,
-                                             image_color_code=data.colorCode)
+                                             image_color_code=data.color_code)
             self.session.add(new_product_image)
 
         await self.session.commit()
-        return new_product_image
 
-    async def create_product_review(self, product_id: int, comment: str, user_id: int, rating: float):
-        new_review = ProductReview(product_id=product_id, comment=comment, user_id=user_id, rating=rating)
+    async def create_product_review(self, product_review: CreateProductReview):
+        new_review = ProductReview(product_id=product_review.product_id,
+                                   comment=product_review.comment,
+                                   user_id=product_review.user_id,
+                                   rating=product_review.rating)
         self.session.add(new_review)
         await self.session.commit()
         return new_review

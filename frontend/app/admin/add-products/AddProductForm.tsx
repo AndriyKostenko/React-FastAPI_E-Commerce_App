@@ -14,6 +14,7 @@ import { SubmitHandler } from "react-hook-form";
 import Button from "@/app/components/Button";
 import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
+import { useCurrentUserTokenExpiryCheck } from "@/hooks/useCurrentUserToken";
 
 
 
@@ -25,17 +26,19 @@ export type ImageType = {
 
 export type UploadedImageType = {
     color: string;
-    colorCode: string;
+    color_code: string;
     image: string;
 }
 
 
 interface AddProductProps {
     currentUserJWT: string | null | undefined;
+    expiryToken: number | null;
+    
 }
 
 
-const AddProductForm:React.FC<AddProductProps> = ({currentUserJWT}) => {
+const AddProductForm:React.FC<AddProductProps> = ({currentUserJWT, expiryToken}) => {
     
     const [isLoading, setIsLoading] = useState(false)
     const [images, setImages] = useState<ImageType[] | null>()
@@ -49,10 +52,13 @@ const AddProductForm:React.FC<AddProductProps> = ({currentUserJWT}) => {
             images: [],
             quantity: '',
             price: '',
-            inStock: false
+            in_stock: false
         }
     })
     const router = useRouter()
+
+    // redirecting back if token is expired
+    useCurrentUserTokenExpiryCheck(expiryToken)
 
 
     useEffect(() => {
@@ -88,7 +94,7 @@ const AddProductForm:React.FC<AddProductProps> = ({currentUserJWT}) => {
         formData.append('brand', data.brand);
         formData.append('quantity', data.quantity);
         formData.append('price', data.price);
-        formData.append('inStock', data.inStock);
+        formData.append('in_stock', data.in_stock);
      
 
         data.images.forEach((item: ImageType) => {

@@ -6,7 +6,7 @@ import os
 from src.db.db_setup import get_db_session
 from src.security.authentication import get_current_user
 from src.service.product_service import ProductCRUDService
-from src.schemas.product_schemas import CreateProduct, GetAllProducts
+from src.schemas.product_schemas import CreateProduct, GetAllProducts, CreateProductReview
 from src.utils.image_metadata import create_image_metadata
 from src.utils.image_pathes import create_image_paths
 
@@ -23,19 +23,17 @@ async def create_new_product(current_user: Annotated[dict, Depends(get_current_u
                              brand: str = Form(...),
                              quantity: str = Form(...),
                              price: str = Form(...),
-                             inStock: str = Form(...),
+                             in_stock: str = Form(...),
                              images_color: List[str] = Form(...),
                              images_color_code: List[str] = Form(...),
                              images: List[UploadFile] = File(...),
                              session: AsyncSession = Depends(get_db_session),
                              ):
-
     if current_user["user_role"] != "admin" or current_user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
 
     # create image paths
     image_paths = await create_image_paths(images=images)
-
 
     # Validating that the lengths of the lists match....number of pict = color = color codes
     if len(image_paths) != len(images_color) or len(image_paths) != len(images_color_code):
@@ -49,7 +47,7 @@ async def create_new_product(current_user: Annotated[dict, Depends(get_current_u
         # if still not matching - error
         if len(image_paths) != len(images_color) or len(image_paths) != len(images_color_code):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
-                            detail="Mismatch in the number of images and metadata")
+                                detail="Mismatch in the number of images and metadata")
     # create image metadata
     image_metadata = await create_image_metadata(image_paths=image_paths, images_color=images_color,
                                                  images_color_code=images_color_code)
@@ -61,7 +59,7 @@ async def create_new_product(current_user: Annotated[dict, Depends(get_current_u
                                                                                       images=image_metadata,
                                                                                       quantity=int(quantity),
                                                                                       price=float(price),
-                                                                                      inStock=inStock))
+                                                                                      in_stock=in_stock))
     return new_product
 
 
@@ -73,15 +71,14 @@ async def get_all_products(session: AsyncSession = Depends(get_db_session)):
 
 @product_routes.post("/create_product_review", status_code=status.HTTP_201_CREATED)
 async def create_product_review(current_user: Annotated[dict, Depends(get_current_user)],
-                                product_id: int = Form(...),
-                                comment: str = Form(...),
-                                rating: float = Form(...),
+                                product_review: CreateProductReview,
                                 session: AsyncSession = Depends(get_db_session)):
     if current_user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
 
-    product_review = await ProductCRUDService(session).create_product_review(product_id=product_id,
-                                                                             comment=comment,
-                                                                             user_id=current_user['id'],
-                                                                             rating=rating)
+    product_review = await ProductCRUDService(session).create_product_review(
+        CreateProductReview(product_id=product_review.product_id,
+                            comment=product_review.comment,
+                            user_id=current_user['id'],
+                            rating=product_review.rating))
     return product_review

@@ -1,22 +1,23 @@
 from typing import List
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from datetime import datetime
-from sqlalchemy import ForeignKey
+from sqlalchemy import ForeignKey, String
 from src.models import Base
+from src.utils.generate_uuid import generate_uuid
 
 
 class Order(Base):
     __tablename__ = 'orders'
 
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True, unique=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey('users.id'), nullable=False)
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=generate_uuid, unique=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey('users.id'), nullable=False)
     amount: Mapped[float] = mapped_column(nullable=False)
     currency: Mapped[str] = mapped_column(nullable=False)
     status: Mapped[str] = mapped_column(nullable=False)
     delivery_status: Mapped[str] = mapped_column(nullable=False)
     create_date: Mapped[datetime] = mapped_column(default=datetime.utcnow, nullable=False)
     payment_intent_id: Mapped[str] = mapped_column(unique=True, nullable=True)
-    address_id: Mapped[int] = mapped_column(ForeignKey('addresses.id'), nullable=False)
+    address_id: Mapped[str] = mapped_column(ForeignKey('order_addresses.id'), nullable=False)
 
     address: Mapped['OrderAddress'] = relationship('OrderAddress', back_populates='orders')
     items: Mapped[List['OrderItem']] = relationship('OrderItem', back_populates='order')
@@ -26,8 +27,8 @@ class Order(Base):
 class OrderItem(Base):
     __tablename__ = 'order_items'
 
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True, unique=True)
-    order_id: Mapped[int] = mapped_column(ForeignKey('orders.id'), nullable=False)
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=generate_uuid, unique=True)
+    order_id: Mapped[str] = mapped_column(ForeignKey('orders.id'), nullable=False)
     product_id: Mapped[str] = mapped_column(ForeignKey('products.id'), nullable=False)
     quantity: Mapped[int] = mapped_column(nullable=False)
     price: Mapped[float] = mapped_column(nullable=False)
@@ -37,10 +38,10 @@ class OrderItem(Base):
 
 
 class OrderAddress(Base):
-    __tablename__ = 'addresses'
+    __tablename__ = 'order_addresses'
 
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True, unique=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey('users.id'), nullable=False)
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=generate_uuid, unique=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey('users.id'), nullable=False)
     street: Mapped[str] = mapped_column(nullable=True)
     city: Mapped[str] = mapped_column(nullable=True)
     province: Mapped[str] = mapped_column(nullable=True)

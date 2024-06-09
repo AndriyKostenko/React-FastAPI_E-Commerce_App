@@ -10,7 +10,6 @@ class ImageType(BaseModel):
     color_code: str
     image: str
 
-    model_config = ConfigDict(from_attributes=True)
 
 class CreateProduct(BaseModel):
     name: str
@@ -22,14 +21,18 @@ class CreateProduct(BaseModel):
     price: float
     in_stock: bool
 
-    model_config = ConfigDict(from_attributes=True)
+
+class CreateProductReview(BaseModel):
+    product_id: str
+    comment: str
+    rating: float
+    user_id: int
 
 
 class UserInfoProductRating(BaseModel):
     name: str
     image: Optional[str] = None
 
-    model_config = ConfigDict(from_attributes=True)
 
 class Review(BaseModel):
     id: str
@@ -40,19 +43,15 @@ class Review(BaseModel):
     created_date: str
     user: UserInfoProductRating
 
-    model_config = ConfigDict(from_attributes=True)
-
 
 class Image(BaseModel):
     color: str
     color_code: str
     image: str
 
-    model_config = ConfigDict(from_attributes=True)
-
 
 class ProductSchema(BaseModel):
-    id: int
+    id: str
     name: str
     description: str
     price: float
@@ -61,8 +60,6 @@ class ProductSchema(BaseModel):
     in_stock: bool
     images: List[Image]
     reviews: List[Review]
-
-    model_config = ConfigDict(from_attributes=True)
 
 
 class GetAllProducts(BaseModel):

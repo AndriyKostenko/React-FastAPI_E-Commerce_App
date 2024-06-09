@@ -6,7 +6,7 @@ from pydantic.fields import Field
 
 
 class UserInfo(BaseModel):
-    id: int
+    id: str
     name: str
     email: str
     hashed_password: str
@@ -17,7 +17,7 @@ class UserInfo(BaseModel):
 
     model_config = ConfigDict(from_attributes=True, json_schema_extra={
         "example": {
-            "id": 1,
+            "id": "dfsdfgdft5646rh",
             "name": "Test Test",
             "email": "tests@gmail.com",
             "hashed_password": "!dff45e",
