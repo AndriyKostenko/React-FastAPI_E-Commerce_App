@@ -9,18 +9,10 @@ from src.utils.generate_uuid import generate_uuid
 class Product(Base):
     __tablename__ = 'products'
 
-<<<<<<< HEAD
     id: Mapped[str] = mapped_column(String, primary_key=True, default=generate_uuid, unique=True)
     name: Mapped[str] = mapped_column(nullable=False)
     description: Mapped[str] = mapped_column(nullable=True)
     category_id: Mapped[str] = mapped_column(ForeignKey('product_categories.id'), nullable=False)
-=======
-    #TODO: change all id to strings
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True, unique=True)
-    name: Mapped[str] = mapped_column(nullable=False)
-    description: Mapped[str] = mapped_column(nullable=True)
-    category_id: Mapped[int] = mapped_column(ForeignKey('product_categories.id'), nullable=False)
->>>>>>> 0ed6875cfb190c545220d7e49a5687ef2f564754
     brand: Mapped[str] = mapped_column(nullable=False)
     quantity: Mapped[int] = mapped_column(nullable=False)
     price: Mapped[float] = mapped_column(nullable=False)
@@ -31,26 +23,6 @@ class Product(Base):
     images: Mapped[List['ProductImage']] = relationship('ProductImage', back_populates='product')
     category: Mapped['ProductCategory'] = relationship('ProductCategory', back_populates='products')
 
-<<<<<<< HEAD
-=======
-    # trying to convert data to dict while getting all products from CRUDService but still getting an error with async IO
-    def to_dict(self):
-        return {
-            'id': self.id,
-            'name': self.name,
-            'description': self.description,
-            'category_id': self.category_id,
-            'brand': self.brand,
-            'quantity': self.quantity,
-            'price': self.price,
-            'in_stock': self.in_stock,
-            # Include relationships if necessary
-            'reviews': [review.to_dict() for review in self.reviews],
-            'images': [image.to_dict() for image in self.images],
-            'category': self.category.to_dict() if self.category else None,
-        }
-
->>>>>>> 0ed6875cfb190c545220d7e49a5687ef2f564754
 
 class ProductImage(Base):
     __tablename__ = 'product_images'

@@ -4,6 +4,7 @@ from typing import List, Optional, Dict
 from src.models.product_models import Product, ProductImage, ProductCategory, ProductReview
 from sqlalchemy import select, asc, desc
 from src.schemas.product_schemas import CreateProduct, ProductSchema, CreateProductReview
+from src.schemas.product_schemas import ImageType
 
 
 class ProductCRUDService:
@@ -37,23 +38,6 @@ class ProductCRUDService:
         await self.session.refresh(new_product)
         return new_product
 
-<<<<<<< HEAD
-    async def get_all_products(self):
-        result = await self.session.execute(
-            select(Product)
-            .options(
-                selectinload(Product.images),
-                selectinload(Product.category),
-                selectinload(Product.reviews).selectinload(ProductReview.user)  # specify the full path
-            )
-            .order_by(asc(Product.id))
-        )
-        products = result.scalars().all()
-
-        # return [ProductSchema.from_orm(product) for product in products]
-        #TODO: cant return a specific product format according to Product schema...returning products according to models right now
-=======
-
     async def get_all_products(self, category: Optional[str] = None, searchTerm: Optional[str] = None):
         # it works in way that it first loads all products, then loads images, reviews and category for each product
         # according to relations in models
@@ -72,8 +56,11 @@ class ProductCRUDService:
         result = await self.session.execute(query)
         products = result.scalars().all()
 
-        #TODO: cant return a specific product format...returning products according to models right now
->>>>>>> 0ed6875cfb190c545220d7e49a5687ef2f564754
+        print(type(products))
+        print('Products>>>>>>: ',products)
+
+        #TODO: cant return a specific product format, its returning the list of Procut classes...returning products according to models right now
+
         return products
         # return [product.to_dict() for product in products]
         # return [{"id": p.id,
@@ -83,10 +70,7 @@ class ProductCRUDService:
         #          'category':p.category,
         #          'in_stock': p.in_stock} for p in products]
 
-
-
-
-    async def get_product_by_id(self, product_id: int):
+    async def get_product_by_id(self, product_id: str):
         db_product = await self.session.execute(select(Product).where(Product.id == product_id))
         return db_product.scalars().first()
 
@@ -108,7 +92,7 @@ class ProductCRUDService:
             return db_category.scalars().first()
         return None
 
-    async def create_product_image(self, product_id: int, image_data: list):
+    async def create_product_image(self, product_id: str, image_data: List[ImageType]):
         # Iterate over the images and save each one
         for data in image_data:
             new_product_image = ProductImage(product_id=product_id,
@@ -118,6 +102,16 @@ class ProductCRUDService:
             self.session.add(new_product_image)
 
         await self.session.commit()
+        # TODO: rewrite functionality to return single new_product_image
+        return new_product_image
+        # new_product_images = [ProductImage(product_id=product_id,
+        #                                    image_url=data.image,
+        #                                    image_color=data.color,
+        #                                    image_color_code=data.color_code) for data in image_data]
+        # for image in new_product_images:
+        #     self.session.add(image)
+        # await self.session.commit()
+        # return new_product_images
 
     async def create_product_review(self, product_review: CreateProductReview):
         new_review = ProductReview(product_id=product_review.product_id,

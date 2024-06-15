@@ -216,7 +216,7 @@ const AddProductForm:React.FC<AddProductProps> = ({currentUserJWT, expiryToken})
                     register={register}
                     errors = {errors}
                     required/>
-            <CustomCheckBox id="inStock" register={register} label="This product is in stock"/>
+            <CustomCheckBox id="in_stock" register={register} label="This product is in stock"/>
             <div className="w-full font-medium">
                 <div className="mb-2 font-semibold">
                     Select a Category

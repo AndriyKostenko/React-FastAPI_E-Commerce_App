@@ -35,15 +35,12 @@ async def create_new_product(current_user: Annotated[dict, Depends(get_current_u
     # create image paths
     image_paths = await create_image_paths(images=images)
 
-<<<<<<< HEAD
-    # Validating that the lengths of the lists match....number of pict = color = color codes
-=======
-
-    # Validating that the lengths of the lists match....number of pict = color = color codes (only for inputs from Swagger)
->>>>>>> 0ed6875cfb190c545220d7e49a5687ef2f564754
+    # Validating that the lengths of the lists match....number of pict = color = color codes (only for inputs from
+    # Swagger)
     if len(image_paths) != len(images_color) or len(image_paths) != len(images_color_code):
-        #TODO : so, i have to get data from Form from client and its separating data correctly in the list...but when
-        # i do it from Swagger, all image_colors and image_color_codes are passed as a single string..so i have to split it
+        # TODO : so, i have to get data from Form from client and its separating data correctly in the list...but
+        #  when i do it from Swagger, all image_colors and image_color_codes are passed as a single string..so i have
+        #  to split it
 
         # data from Swagger will be passed as a single string with comas, so i have to split it manually
         images_color = [color for colors in images_color for color in colors.split(',')]
@@ -65,21 +62,19 @@ async def create_new_product(current_user: Annotated[dict, Depends(get_current_u
                                                                                       images=image_metadata,
                                                                                       quantity=int(quantity),
                                                                                       price=float(price),
-<<<<<<< HEAD
                                                                                       in_stock=in_stock))
-=======
-                                                                                      in_stock=inStock))
->>>>>>> 0ed6875cfb190c545220d7e49a5687ef2f564754
+
     return new_product
 
 
 @product_routes.get("/get_all_products", status_code=status.HTTP_200_OK)
-async def get_all_products(category: Optional[str] = None ,
+async def get_all_products(category: Optional[str] = None,
                            searchTerm: Optional[str] = None,
                            session: AsyncSession = Depends(get_db_session)):
     # getting all products or filtered by category and searchTerm
     all_products = await ProductCRUDService(session).get_all_products(category=category, searchTerm=searchTerm)
-    #TODO: i cant return products according to specific schema coz getting an error with async IO operations....so i m returning just according to models
+    # TODO: i cant return products according to specific schema coz getting an error with async IO operations....so i
+    #  m returning just according to models
     return all_products
 
 

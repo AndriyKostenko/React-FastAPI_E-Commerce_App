@@ -10,10 +10,6 @@ class ImageType(BaseModel):
     color_code: str
     image: str
 
-<<<<<<< HEAD
-=======
-
->>>>>>> 0ed6875cfb190c545220d7e49a5687ef2f564754
 
 class CreateProduct(BaseModel):
     name: str
@@ -26,24 +22,17 @@ class CreateProduct(BaseModel):
     in_stock: bool
 
 
-<<<<<<< HEAD
 class CreateProductReview(BaseModel):
     product_id: str
     comment: str
     rating: float
-    user_id: int
-=======
->>>>>>> 0ed6875cfb190c545220d7e49a5687ef2f564754
+    user_id: str
 
 
 class UserInfoProductRating(BaseModel):
     name: str
     image: Optional[str] = None
 
-<<<<<<< HEAD
-=======
-
->>>>>>> 0ed6875cfb190c545220d7e49a5687ef2f564754
 
 class Review(BaseModel):
     id: str
@@ -54,22 +43,12 @@ class Review(BaseModel):
     created_date: str
     user: UserInfoProductRating
 
-<<<<<<< HEAD
-=======
-
-
->>>>>>> 0ed6875cfb190c545220d7e49a5687ef2f564754
 
 class Image(BaseModel):
     color: str
     color_code: str
     image: str
 
-<<<<<<< HEAD
-=======
-
-
->>>>>>> 0ed6875cfb190c545220d7e49a5687ef2f564754
 
 class ProductSchema(BaseModel):
     id: str
@@ -82,11 +61,6 @@ class ProductSchema(BaseModel):
     images: List[Image]
     reviews: List[Review]
 
-<<<<<<< HEAD
-=======
-
-
->>>>>>> 0ed6875cfb190c545220d7e49a5687ef2f564754
 
 class GetAllProducts(BaseModel):
     products: List[ProductSchema]

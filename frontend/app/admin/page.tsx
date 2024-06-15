@@ -1,4 +1,19 @@
-const Admin = () => {
+import {  getCurrentUserRole } from "@/actions/getCurrentUser";
+import NullData from "@/app/components/NullData";
+
+
+
+const Admin = async () => {
+
+
+    const currentUserRole = await getCurrentUserRole()
+
+
+    if (currentUserRole !== 'admin') {
+        return <NullData title="Ooops! Access denied!" />;
+    }
+  
+    
     return ( 
         <div className="pt-8">
             Admin Page

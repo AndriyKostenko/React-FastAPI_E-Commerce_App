@@ -14,6 +14,7 @@ order_routes = APIRouter(
     tags=["orders"]
 )
 
+
 @order_routes.post("/get_all_orders", status_code=status.HTTP_201_CREATED)
 async def get_all_orders(current_user: Annotated[dict, Depends(get_current_user)],
                          session: AsyncSession = Depends(get_db_session)):

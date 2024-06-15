@@ -8,7 +8,7 @@ from src.routes.admin_routes import admin_routes
 from src.routes.payment_route import payment_routes
 from src.routes.product_route import product_routes
 from src.routes.user_routes import user_routes
-
+from src.routes.orders_routes import order_routes
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -47,4 +47,5 @@ app.include_router(user_routes)
 app.include_router(admin_routes)
 app.include_router(payment_routes)
 app.include_router(product_routes)
+app.include_router(order_routes)
 

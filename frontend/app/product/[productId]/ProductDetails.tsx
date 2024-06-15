@@ -16,6 +16,58 @@ import { useRouter } from "next/navigation";
 
 //setting data types for product details
 // (to be set)
+
+export interface ReviewProps {
+    id: string;
+    rating: number;
+    date_created: string;
+    user_id: string;
+    product_id: string;
+    comment: string;
+    user: {
+        id: string;
+        name: string;
+        hashed_password: string;
+        phone_number: string | null;
+        image: string | null;
+        email: string;
+        role: string;
+        date_created: string;
+    };
+}
+
+export interface ImageProps {
+    image_url: string;
+    product_id: string;
+    image_color_code: string;
+    id: string;
+    image_color: string;
+}
+
+export interface CategoryProps {
+    id: string;
+    name: string;
+}
+
+export interface ProductProps {
+    id: string;
+    category_id: string;
+    quantity: number;
+    in_stock: boolean;
+    name: string;
+    description: string;
+    brand: string;
+    price: number;
+    date_created: string;
+    category: CategoryProps;
+    reviews: ReviewProps[];
+    images: ImageProps[];
+}
+
+////////////////////////////////////////
+
+
+
 interface ProductDetailsProps {
     product: any
 }
@@ -26,7 +78,7 @@ export type CartProductType = {
     id: string,
     name: string,
     description: string,
-    category: string,
+    category: ProductCategoryType,
     brand: string,
     selectedImg: SelectedImgType,
     quantity: number,
@@ -39,6 +91,11 @@ export type SelectedImgType = {
     color: string,
     colorCode: string,
     image: string
+}
+
+export type ProductCategoryType = {
+    id: string,
+    name: string
 }
 
 
