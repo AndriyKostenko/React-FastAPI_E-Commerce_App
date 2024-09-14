@@ -56,9 +56,6 @@ class ProductCRUDService:
         result = await self.session.execute(query)
         products = result.scalars().all()
 
-        print(type(products))
-        print('Products>>>>>>: ',products)
-
         #TODO: cant return a specific product format, its returning the list of Procut classes...returning products according to models right now
 
         return products
@@ -104,14 +101,7 @@ class ProductCRUDService:
         await self.session.commit()
         # TODO: rewrite functionality to return single new_product_image
         return new_product_image
-        # new_product_images = [ProductImage(product_id=product_id,
-        #                                    image_url=data.image,
-        #                                    image_color=data.color,
-        #                                    image_color_code=data.color_code) for data in image_data]
-        # for image in new_product_images:
-        #     self.session.add(image)
-        # await self.session.commit()
-        # return new_product_images
+
 
     async def create_product_review(self, product_review: CreateProductReview):
         new_review = ProductReview(product_id=product_review.product_id,
@@ -121,3 +111,24 @@ class ProductCRUDService:
         self.session.add(new_review)
         await self.session.commit()
         return new_review
+
+    async def update_product_availability(self, product_id: str, in_stock: bool):
+        db_product = await self.session.execute(select(Product).where(Product.id == product_id))
+        db_product = db_product.scalars().first()
+
+        if db_product:
+            db_product.in_stock = in_stock
+            await self.session.commit()
+            return db_product
+        return None
+
+    async def delete_product(self, product_id: str):
+        db_product = await self.session.execute(select(Product).where(Product.id == product_id))
+        db_product = db_product.scalars().first()
+
+        if db_product:
+            await self.session.delete(db_product)
+            await self.session.commit()
+            return True
+        else:
+            return False

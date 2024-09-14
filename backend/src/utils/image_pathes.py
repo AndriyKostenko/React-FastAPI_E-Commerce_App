@@ -8,6 +8,8 @@ from PIL import Image
 MEDIA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../media/images'))
 os.makedirs(MEDIA_DIR, exist_ok=True)
 
+# The base URL for serving media files (you can configure this based on your FastAPI setup)
+BASE_MEDIA_URL = "/media/images"
 
 async def create_image_paths(images: List[UploadFile]):
     image_paths = []
@@ -33,5 +35,8 @@ async def create_image_paths(images: List[UploadFile]):
             # Save the resized and compressed image
             img.save(file_path, quality=70, optimize=True)
 
-        image_paths.append(file_path)
+        # Return the relative URL instead of the absolute file path
+        image_url = f"{BASE_MEDIA_URL}/{new_filename}"
+        image_paths.append(image_url)
+
     return image_paths

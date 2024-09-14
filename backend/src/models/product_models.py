@@ -19,8 +19,8 @@ class Product(Base):
     in_stock: Mapped[bool] = mapped_column(nullable=True)
     date_created: Mapped[datetime] = mapped_column(default=datetime.utcnow, nullable=False)
 
-    reviews: Mapped[List['ProductReview']] = relationship('ProductReview', back_populates='product')
-    images: Mapped[List['ProductImage']] = relationship('ProductImage', back_populates='product')
+    reviews: Mapped[List['ProductReview']] = relationship('ProductReview', back_populates='product', cascade='all, delete-orphan')
+    images: Mapped[List['ProductImage']] = relationship('ProductImage', back_populates='product', cascade='all, delete-orphan')
     category: Mapped['ProductCategory'] = relationship('ProductCategory', back_populates='products')
 
 
@@ -40,7 +40,7 @@ class ProductReview(Base):
     __tablename__ = 'product_reviews'
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=generate_uuid, unique=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey('users.id'), nullable=False)
+    user_id: Mapped[int] = mapped_column(ForeignKey('users.id', ), nullable=False)
     product_id: Mapped[str] = mapped_column(ForeignKey('products.id'), nullable=False)
     rating: Mapped[float] = mapped_column(nullable=False)
     comment: Mapped[str] = mapped_column(nullable=True)

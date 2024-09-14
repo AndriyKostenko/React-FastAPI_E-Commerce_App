@@ -88,6 +88,9 @@ async def create_payment_intent(data: PaymentIntentRequest,
         "user_id": current_user['id']
     }
 
+
+
+
     # Creating new order
     await OrderCRUDService(session).create_order(CreateOrder(**new_order))
 

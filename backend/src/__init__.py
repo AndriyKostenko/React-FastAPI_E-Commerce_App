@@ -2,6 +2,7 @@ import datetime
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
+from fastapi.staticfiles import StaticFiles
 
 from src.db.db_setup import init_db
 from src.routes.admin_routes import admin_routes
@@ -42,6 +43,8 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["*"],
 )
+
+app.mount("/media", StaticFiles(directory="/home/andriy/Documents/VSProjects/E-commerce_app/backend/media"), name="media")
 
 app.include_router(user_routes)
 app.include_router(admin_routes)

@@ -32,7 +32,7 @@ class CreateOrder(BaseModel):
     products: List[CartProductType]
     # TODO: need to check how and where to add address
     # address: List[AddressType]
-    user_id: int
+    user_id: str
 
 
 class UpdateOrder(BaseModel):

@@ -73,6 +73,7 @@ async def get_all_products(category: Optional[str] = None,
                            session: AsyncSession = Depends(get_db_session)):
     # getting all products or filtered by category and searchTerm
     all_products = await ProductCRUDService(session).get_all_products(category=category, searchTerm=searchTerm)
+    print("length of all products >>>>>>:",len(all_products))
     # TODO: i cant return products according to specific schema coz getting an error with async IO operations....so i
     #  m returning just according to models
     return all_products
@@ -91,3 +92,27 @@ async def create_product_review(current_user: Annotated[dict, Depends(get_curren
                             user_id=current_user['id'],
                             rating=product_review.rating))
     return product_review
+
+
+@product_routes.get("/get_product/{product_id}", status_code=status.HTTP_200_OK)
+async def get_product(product_id: str, session: AsyncSession = Depends(get_db_session)):
+    product = await ProductCRUDService(session).get_product_by_id(product_id=product_id)
+    return product
+
+
+@product_routes.put("/update_product_availability/{product_id}", status_code=status.HTTP_200_OK)
+async def update_product_availability(product_id: str,
+                                      in_stock: bool,
+                                      session: AsyncSession = Depends(get_db_session)):
+    # fastapi automatically getting query parameter 'in_stock' from the url\
+    product = await ProductCRUDService(session).update_product_availability(product_id=product_id, in_stock=in_stock)
+    return product
+
+
+@product_routes.delete("/delete_product/{product_id}", status_code=status.HTTP_200_OK)
+async def delete_product(product_id: str, session: AsyncSession = Depends(get_db_session)):
+    product = await ProductCRUDService(session).delete_product(product_id=product_id)
+    if product:
+        return {"message": "Product deleted successfully"}
+    else:
+        raise HTTPException(status_code=404, detail="Product not found")
