@@ -10,15 +10,11 @@ import ActionBtn from '@/app/components/ActionBtn';
 import { useState, useCallback, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { useRouter } from 'next/navigation';
-import fetchProductsFromBackend from '@/actions/getProducts';
-import Image from 'next/legacy/image';
+import fetchOrdersFromBackend from '@/actions/getOrders';
 
-interface ManageProductsClientProps{
-  initialProducts: ProductProps[]
-}
+const ManagaeClientOrders = ({initialOrders}) => {
 
-const ManageProductsClient:React.FC<ManageProductsClientProps> = ({initialProducts}) => {
-	const [products, setProducts] = useState<ProductProps[]>(initialProducts);
+    const [orders, setOrders] = useState<OrderProps[]>(initialOrders);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState('');
 
@@ -32,8 +28,8 @@ const ManageProductsClient:React.FC<ManageProductsClientProps> = ({initialProduc
 	const refreshProducts = async () => {
 		setLoading(true);
 		try {
-			const refreshedProducts = await fetchProductsFromBackend();
-			setProducts([...refreshedProducts]);
+			const refreshedOrders = await fetchOrdersFromBackend();
+			setOrders([...refreshedOrders]);
 		} catch (error) {
 			toast.error("Failed to refresh products");
 			console.error("Error refreshing products:", error);
@@ -51,9 +47,9 @@ const ManageProductsClient:React.FC<ManageProductsClientProps> = ({initialProduc
 
 
   // creating rows for the table
-  if (products) {
+  if (orders) {
 
-    rows = products.map((product) => {
+    rows = orders.map((order) => {
 
       return {
         id: product.id,
@@ -80,7 +76,7 @@ const ManageProductsClient:React.FC<ManageProductsClientProps> = ({initialProduc
 	{field: 'images', headerName: 'Images', width: 200, renderCell: (params) => {
 		return (<div className='flex gap-4'>
 			{params.row.images.map((image: string, index: number) => {
-				return (<Image width={100} height={100} key={index} src={`http://localhost:8000${image}`} alt={params.row.name} className='w-16 h-16 object-cover'/>)
+				return (<img key={index} src={`http://localhost:8000${image}`} alt={params.row.name} className='w-16 h-16 object-cover'/>)
 			})}
 		</div>)}
 	},
@@ -156,4 +152,5 @@ const ManageProductsClient:React.FC<ManageProductsClientProps> = ({initialProduc
   )
 }
 
-export default ManageProductsClient;
+
+export default ManagaeClientOrders;

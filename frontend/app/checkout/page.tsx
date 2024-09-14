@@ -1,14 +1,14 @@
-import { getSession } from "next-auth/react";
+
 import Container from "../components/Container";
 import FormWrap from "../components/FormWrap";
 import CheckoutClient from "./CheckoutClient";
-import { getCurrentUserJWT } from "@/actions/getCurrentUser";
+import { sessionManagaer } from "@/actions/getCurrentUser";
 
 
 
 const Checkout = async () => {
 
-    const currentUserJWT = await getCurrentUserJWT();
+    const currentUserJWT = await sessionManagaer.getCurrentUserJWT();
 
     return ( 
     

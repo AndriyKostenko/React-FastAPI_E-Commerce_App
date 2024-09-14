@@ -1,7 +1,7 @@
 import FormWrap from "@/app/components/FormWrap";
 import Container from "@/app/components/Container";
 import AddProductForm from "./AddProductForm";
-import {  getCurrentUserRole , getCurrentUserJWT, getCurrentUserTokenExpiry} from "@/actions/getCurrentUser";
+import {sessionManagaer} from "@/actions/getCurrentUser";
 import NullData from "@/app/components/NullData";
 
 
@@ -9,9 +9,9 @@ import NullData from "@/app/components/NullData";
 
 const AddProducts = async () => {
 
-    const currentUserRole =  await getCurrentUserRole()
-    const currentUserJWT = await getCurrentUserJWT()
-    const expiryToken = await getCurrentUserTokenExpiry()
+    const currentUserRole =  await sessionManagaer.getCurrentUserRole()
+    const currentUserJWT = await sessionManagaer.getCurrentUserJWT()
+    const expiryToken = await sessionManagaer.getCurrentUserTokenExpiry()
 
     if (currentUserRole !== 'admin') {
         return <NullData title="Ooops! Access denied!"/>

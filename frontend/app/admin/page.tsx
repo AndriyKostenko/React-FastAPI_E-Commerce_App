@@ -1,4 +1,4 @@
-import {  getCurrentUserRole } from "@/actions/getCurrentUser";
+import { sessionManagaer } from "@/actions/getCurrentUser";
 import NullData from "@/app/components/NullData";
 
 
@@ -6,7 +6,7 @@ import NullData from "@/app/components/NullData";
 const Admin = async () => {
 
 
-    const currentUserRole = await getCurrentUserRole()
+    const currentUserRole = await sessionManagaer.getCurrentUserRole();
 
 
     if (currentUserRole !== 'admin') {

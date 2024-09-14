@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Redressed } from "next/font/google";
 import CartCount from "./CartCount";
 import UserMenu from "./UserMenu";
-import { getCurrentUser, getCurrentUserRole } from "@/actions/getCurrentUser";
+import { sessionManagaer} from "@/actions/getCurrentUser";
 
 // setting the font
 const redressed = Redressed({subsets: ['latin'],
@@ -12,8 +12,8 @@ const redressed = Redressed({subsets: ['latin'],
 
 const NavBar = async () => {
     // getting current user from the session
-    const currentUser = await getCurrentUser();
-    const currentUserRole = await getCurrentUserRole()
+    const currentUser = await sessionManagaer.getCurrentUser();
+    const currentUserRole = await sessionManagaer.getCurrentUserRole();
 
     return (
         <div className="sticky

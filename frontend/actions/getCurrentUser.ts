@@ -1,11 +1,9 @@
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
+
 import { getServerSession } from "next-auth";
-import { signOut } from "next-auth/react";
-import toast from "react-hot-toast";
+import { authOptions } from "@/app/middleware/NextAuth";
 
 
-
-
+// Adding jwt property to Session interface
 declare module "next-auth" {
     interface Session {
       jwt: string;
@@ -14,75 +12,64 @@ declare module "next-auth" {
     }
   }
 
-// to get the current user among all app we have to create session with our currently logged in user, 
-// which will be detected in our authorize() function in auth0ptions in pages/api/...nextauth
-export async function getSession() {
-    return await getServerSession(authOptions)
-}
+//to get the current user among all app we have to create session with our currently logged in user, 
+//which will be detected in our authorize() function in auth0ptions in app/middleware/NextAuth.ts
 
 
-export async function getCurrentUser() {
-    try {
-        const session = await getSession()
-        console.log('Session data: ', session)
-       
-        if(!session?.user?.email) {
-            return null
+//we are creating a session manager to get the current user from the session
+class SessionManager {
+    private session: any;
+
+    constructor() {
+        this.session = null;
+    }
+
+    private async fetchSession() {
+        try {
+            this.session = await getServerSession(authOptions);
+        } catch (error) {
+            console.error("Error fetching session data:", error);
+            this.session = null;
         }
-        return session.user
+    }
 
+    public async getCurrentUser() {
+        await this.fetchSession();
 
-    } catch (error: any) {
-        console.error("Error fetching user data:", error);
-        return null;
+        if (!this.session?.user?.email) {
+            return null;
+        }
+        return this.session.user;
+    }
+
+    public async getCurrentUserJWT() {
+        await this.fetchSession();
+
+        if (!this.session?.jwt) {
+            return null;
+        }
+        return this.session.jwt;
+    }
+
+    public async getCurrentUserRole() {
+        await this.fetchSession();
+
+        if (!this.session?.role) {
+            return null;
+        }
+        return this.session.role;
+    }
+
+    public async getCurrentUserTokenExpiry() {
+        await this.fetchSession();
+
+        if (!this.session?.token_expiry) {
+            return null;
+        }
+        return this.session.token_expiry;
     }
 }
 
-export async function getCurrentUserJWT() {
-    try {
-        const session = await getSession()
-        
-        if(!session?.jwt) {
-            return null
-        }
-        return session.jwt
+export const sessionManagaer = new SessionManager();
 
 
-    } catch (error: any) {
-        console.error("Error fetching user data:", error);
-        return null;
-    }
-}
-
-export async function getCurrentUserRole() {
-    try {
-        const session = await getSession()
-        
-        if(!session?.role) {
-            return null
-        }
-        return session.role
-
-
-    } catch (error: any) {
-        console.error("Error fetching user data:", error);
-        return null;
-    }
-}
-
-
-export async function getCurrentUserTokenExpiry() {
-    try {
-        const session = await getSession()
-        
-        if(!session?.token_expiry) {
-            return null
-        }
-        return session.token_expiry
-
-
-    } catch (error: any) {
-        console.error("Error fetching user data:", error);
-        return null;
-    }
-}

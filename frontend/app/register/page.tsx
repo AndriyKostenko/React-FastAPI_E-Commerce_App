@@ -1,11 +1,11 @@
-import { getCurrentUser } from "@/actions/getCurrentUser";
+import { sessionManagaer } from "@/actions/getCurrentUser";
 import Container from "../components/Container";
 import FormWrap from "../components/FormWrap";
 import RegisterForm from "./RegisterForm";
 
 
 const Register = async () => {
-    const currentUser = await getCurrentUser()
+    const currentUser = await sessionManagaer.getCurrentUser();
     return ( 
         <Container>
             <FormWrap>
