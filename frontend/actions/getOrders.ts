@@ -1,8 +1,15 @@
-const fetchOrdersFromBackend = async (): Promise<any> => {
+
+const fetchOrdersFromBackend = async (token: string): Promise<any> => {
+
     // adding cache: 'no-store' to prevent caching of the response
-    const response = await fetch("http://127.0.0.1:8000/get_all_orders", {
+    const response = await fetch("http://127.0.0.1:8000/orders", {
         method: 'GET',
+        headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+        },
         cache: 'no-store',
+
     });
 
     if (!response.ok) {

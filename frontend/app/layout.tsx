@@ -7,7 +7,7 @@ import Footer from './components/footer/Footer';
 import './globals.css';
 import CartProvider from '@/providers/CartProvider';
 import { Toaster } from 'react-hot-toast';
-import { getCurrentUser } from '@/actions/getCurrentUser';
+
 
 
 
@@ -33,11 +33,13 @@ export default async function RootLayout({children}: {children: React.ReactNode}
 		<html lang="en">
 			<body className={`${poppins.className} text-slate-700`}>
 				<Toaster toastOptions={{
-					style: {
-						background: 'rgb(51 65 85)', 
-						color: '#fff'
-					}
-				}}></Toaster>
+							style: {
+								background: 'rgb(51 65 85)', 
+								color: '#fff'
+							}
+						}}>
+				</Toaster>
+
 				{/* wrapping all components into CartProvider for letting all other components acces the current 'value' defined in CartContextProvier  */}
 				{/* all of them now will be passes as 'children' to CartProvider component*/}
 				<CartProvider>

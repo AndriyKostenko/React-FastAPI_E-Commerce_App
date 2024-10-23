@@ -55,19 +55,21 @@ class OrderCRUDService:
         db_order_res = db_order.scalars().first()
         return db_order_res
 
-    async def update_order_by_id(self, order_id: int, order: CreateOrder):
+    async def update_order_by_id(self, order_id: int, order_updates: UpdateOrder):
         db_order = await self.get_order_by_id(order_id)
-        db_order.amount = order.amount
-        db_order.currency = order.currency
-        db_order.status = order.status
-        db_order.delivery_status = order.delivery_status
-        db_order.create_date = order.create_date
-        db_order.payment_intent_id = order.payment_intent_id
-        db_order.items = order.items
-        db_order.address = order.address
 
+        if not db_order:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
+
+        # Dynamically update the fields that are provided
+        for field, value in order_updates.dict(exclude_unset=True).items():
+            print(f'fidl and value in update>>>>>> {field}, {value}')
+            setattr(db_order, field, value)
+
+        # Commit the change
         await self.session.commit()
         await self.session.refresh(db_order)
+
         return db_order
 
     async def update_status_by_payment_intent_id(self, payment_intent_id: str, status: str):

@@ -21,7 +21,7 @@ async def init_db():
         await connection.run_sync(Base.metadata.create_all)
 
 
-# db dependancy for async session
+# db dependency for async session
 async def get_db_session() -> AsyncSession:
     async with async_session() as session:
         yield session

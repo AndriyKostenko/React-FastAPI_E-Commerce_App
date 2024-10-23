@@ -36,9 +36,8 @@ class CreateOrder(BaseModel):
 
 
 class UpdateOrder(BaseModel):
-    amount: float
-    payment_intent_id: str
-    items: List[CartProductType]
+    delivery_status: Optional[str] = None
+    status: Optional[str] = None
 
 
 class PaymentIntentRequest(BaseModel):

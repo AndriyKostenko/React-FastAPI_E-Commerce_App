@@ -42,13 +42,6 @@ const ManageProductsClient:React.FC<ManageProductsClientProps> = ({initialProduc
 		}
 	};
 
-	// Fetch fresh data when the component mounts
-	// useEffect(() => {
-	// 	refreshProducts();
-	// }, []);
-  
-  
-
 
   // creating rows for the table
   if (products) {

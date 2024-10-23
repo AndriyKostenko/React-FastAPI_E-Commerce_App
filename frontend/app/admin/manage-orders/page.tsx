@@ -6,18 +6,21 @@ import ManageClientOrders from "@/app/admin/manage-orders/ManageClientOrder";
 
 const ManageOrders = async () => {
 
-    // getting current user role
+    // getting current user role and token
+    
     const currentUserRole = await sessionManagaer.getCurrentUserRole()
+    const currentUserToken = await sessionManagaer.getCurrentUserJWT()
 
     if (currentUserRole !== 'admin') {
         return <NullData title="Ooops, access denied!"/>
     }
 
-    const data = fetchOrdersFromBackend();
+    const orders = await fetchOrdersFromBackend(currentUserToken);
+
 
     return ( 
         <div>
-            <ManageClientOrders initialOrders={data}/>
+            <ManageClientOrders initialOrders={orders} token={currentUserToken}/>
         </div>
      );
 }
