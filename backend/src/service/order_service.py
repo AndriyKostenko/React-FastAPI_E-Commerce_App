@@ -1,10 +1,11 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from src.models.order_models import Order, OrderItem, OrderAddress
 from sqlalchemy import select, asc, desc
+from sqlalchemy.orm import joinedload, selectinload
 
 from src.schemas.order_schemas import CreateOrder, UpdateOrder
 from src.schemas.payment import AddressToUpdate
-
+from src.models.product_models import Product
 
 class OrderCRUDService:
     def __init__(self, session: AsyncSession):
@@ -46,9 +47,26 @@ class OrderCRUDService:
         orders = result.scalars().all()
         return orders
 
-    async def get_order_by_id(self, order_id: int):
-        db_order = await self.session.execute(select(Order).where(Order.id == order_id))
-        return db_order.scalars().first()
+    async def get_order_with_items_by_id(self, order_id: str):
+        """
+        Get an order by ID along with all the related order items.
+        """
+        db_order = await self.session.execute(
+            select(Order)
+            .where(Order.id == order_id)
+            .options(
+                selectinload(Order.items)  # Load order items
+                .selectinload(OrderItem.product)  # Load the associated product for each order item
+                .selectinload(Product.images),  # Load product images
+                selectinload(Order.items).selectinload(OrderItem.product).selectinload(Product.category),  # Load product category
+                selectinload(Order.items).selectinload(OrderItem.product).selectinload(Product.reviews)  # Load product reviews
+            )
+        )
+        order = db_order.scalars().first()
+        if not order:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
+        return order
+
 
     async def get_order_by_payment_intent_id(self, payment_intent_id: str):
         db_order = await self.session.execute(select(Order).where(Order.payment_intent_id == payment_intent_id))

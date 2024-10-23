@@ -44,7 +44,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.mount("/media", StaticFiles(directory="/home/andriy/Documents/VSProjects/E-commerce_app/backend/media"), name="media")
+app.mount("/media", StaticFiles(directory="media"), name="media")
 
 app.include_router(user_routes)
 app.include_router(admin_routes)

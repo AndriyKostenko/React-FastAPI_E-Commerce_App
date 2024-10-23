@@ -26,11 +26,8 @@ async def get_all_orders(current_user: Annotated[dict, Depends(get_current_user)
 
 @order_routes.get("/orders/{id}", status_code=status.HTTP_200_OK)
 async def get_order(id: str,
-                    current_user: Annotated[dict, Depends(get_current_user)],
                     session: AsyncSession = Depends(get_db_session)):
-    if current_user["user_role"] != "admin" or current_user is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
-    order = await OrderCRUDService(session=session).get_order_by_id(order_id=id)
+    order = await OrderCRUDService(session=session).get_order_with_items_by_id(order_id=id)
     return order
 
 @order_routes.put("/orders/{id}", status_code=status.HTTP_200_OK)
@@ -38,10 +35,6 @@ async def update_order(id: str,
                     order_updates: UpdateOrder,  # Fetch updated fields from body
                     current_user: Annotated[dict, Depends(get_current_user)],
                     session: AsyncSession = Depends(get_db_session)):
-    if current_user["user_role"] != "admin" or current_user is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
-
-    print(order_updates)
 
     order = await OrderCRUDService(session=session).update_order_by_id(order_id=id, order_updates=order_updates)
     return order

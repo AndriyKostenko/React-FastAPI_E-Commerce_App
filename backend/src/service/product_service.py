@@ -68,7 +68,15 @@ class ProductCRUDService:
         #          'in_stock': p.in_stock} for p in products]
 
     async def get_product_by_id(self, product_id: str):
-        db_product = await self.session.execute(select(Product).where(Product.id == product_id))
+        # Querying product with related images, reviews (including users), and category
+        db_product = await self.session.execute(
+            select(Product)
+            .where(Product.id == product_id)
+            .options(
+                selectinload(Product.images),  # Load related images
+                selectinload(Product.reviews).selectinload(ProductReview.user),  # Load reviews and related user
+                selectinload(Product.category)  # Load related category
+            ))
         return db_product.scalars().first()
 
     async def create_product_category(self, category: str):

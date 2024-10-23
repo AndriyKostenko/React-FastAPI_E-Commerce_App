@@ -1,5 +1,5 @@
 import math
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal, ROUND_HALF_UP
 from fastapi import HTTPException, APIRouter, Depends, status, Request, Header
 from typing import Dict, Annotated
@@ -76,13 +76,13 @@ async def create_payment_intent(data: PaymentIntentRequest,
         amount=total_amount,
         currency='cad')
 
-    # the adress will be added after the payment is completed after receiving information from the  stripe /webhook
+    # the address will be added after the payment is completed after receiving information from the  stripe /webhook
     new_order = {
         "amount": total_amount,
         "currency": 'cad',
         "status": 'pending',
         "delivery_status": 'pending',
-        "create_date": datetime.now(),
+        "create_date": datetime.now(timezone.utc),
         "payment_intent_id": payment_intent.id,
         "products": data.items,
         "user_id": current_user['id']
