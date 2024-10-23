@@ -88,7 +88,7 @@ const ManageProductsClient:React.FC<ManageProductsClientProps> = ({initialProduc
 		return (<div className='flex justify-between gap-4 w-full'>
 			<ActionBtn icon={MdDisabledVisible} onClick={() => {handleToggleStock(params.row.id, params.row.in_stock)}}/>
 			<ActionBtn icon={MdDelete} onClick={() => {handleDeleteProduct(params.row.id)}}/>
-			<ActionBtn icon={MdRemoveRedEye} onClick={() => {router.push(`product/${params.row.id}`)}}/>
+			<ActionBtn icon={MdRemoveRedEye} onClick={() => {router.push(`/product/${params.row.id}`)}}/>
 		</div>)
 	}},
   ]

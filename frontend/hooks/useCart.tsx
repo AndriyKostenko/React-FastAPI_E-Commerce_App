@@ -1,6 +1,7 @@
 'use client';
 
 import { CartProductType } from '@/app/product/[productId]/ProductDetails';
+import { parse } from "path";
 import { createContext, useState, useContext, useCallback, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
 
@@ -42,12 +43,17 @@ export const CartContextProvider = (props: Props) => {
 
     // getting items from local storage
     useEffect(() => {
-        const cartItems: any = localStorage.getItem('eShopCartItems')
-        const Products: CartProductType[] | null = JSON.parse(cartItems)
+        const cartItems: any | null = localStorage.getItem('eShopCartItems');
+        const Products: CartProductType[] | null = cartItems ? JSON.parse(cartItems) : null;
 
         // updating payment intent in loal storage after it has been created
-        const eShopPaymentIntent:any = localStorage.getItem('eShopPaymentIntent')
-        const paymentIntent: string | null = JSON.parse(eShopPaymentIntent);
+        const eShopPaymentIntent: string | null = localStorage.getItem('eShopPaymentIntent')
+        let paymentIntent: string | null = null;
+        try {
+            paymentIntent = eShopPaymentIntent ? JSON.parse(eShopPaymentIntent) : null;
+        } catch (error) {
+            console.error('Error parsing paymentIntent from localStorage:', error);
+        }
         
         setCartProducts(Products);
         setPaymentIntent(paymentIntent);

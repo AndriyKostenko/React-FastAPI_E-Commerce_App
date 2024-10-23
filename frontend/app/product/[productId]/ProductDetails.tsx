@@ -80,17 +80,19 @@ export type CartProductType = {
     description: string,
     category: ProductCategoryType,
     brand: string,
-    selectedImg: SelectedImgType,
+    selectedImg: ImgType,
+    images: ImgType[],
     quantity: number,
     price: number
+    reviews: number[];
 
 }
 
 // additional types for selectedImg
-export type SelectedImgType = {
-    color: string,
-    colorCode: string,
-    image: string
+export type ImgType = {
+    image_color: string,
+    image_color_code: string,
+    image_url: string
 }
 
 export type ProductCategoryType = {
@@ -109,6 +111,8 @@ const Horizontal = () => {
 
 const ProductDetails:React.FC<ProductDetailsProps> = ({product}) => {
 
+    console.log('Product in ProductDetails:',product)
+
     // getting methods from custom hook to handle cart products
     const {handleAddProductToCart, cartProducts} = useCart();
 
@@ -122,12 +126,22 @@ const ProductDetails:React.FC<ProductDetailsProps> = ({product}) => {
         id: product.id,
         name: product.name,
         description: product.description,
-        category: product.category,
+        category: product.category_id,
         brand: product.brand,
-        selectedImg: {...product.images[0]},
-        quantity: 1,
-        price: product.price
+        selectedImg: product.images[0],
+        images: product.images && product.images.length > 0 ? {...product.images[0]} : {
+            image_color: "",
+            image_color_code: "",
+            image_url: ""
+        },  // fallback if no image
+        quantity: product.quantity,
+        price: product.price,
+        reviews: product.reviews
     });
+
+    console.log('Product Details:>>', cartProduct)
+
+    
 
     const router = useRouter()
     
@@ -146,7 +160,7 @@ const ProductDetails:React.FC<ProductDetailsProps> = ({product}) => {
 
     // remembering function state (selected color) between re-rendering of component if it wasn't change
     // updating the selected cart product image & color
-    const handleColorSelect = useCallback((value: SelectedImgType) => {
+    const handleColorSelect = useCallback((value: ImgType) => {
         setCartProduct((previousSelectedCartProduct) => {
             return {...previousSelectedCartProduct, selectedImg: value}
         })
@@ -188,9 +202,13 @@ const ProductDetails:React.FC<ProductDetailsProps> = ({product}) => {
                         md:grid-cols-2
                         gap-12">
             {/* aside images */}
-            <ProductImage cartProduct={cartProduct} 
-                          product={product} 
-                          handleColorSelect={handleColorSelect}/>
+           {product.images && product.images.length > 0 && (
+                <ProductImage 
+                    cartProduct={cartProduct} 
+                    product={product} 
+                    handleColorSelect={handleColorSelect} 
+                />
+            )}
 
             <div className="flex
                             flex-col
@@ -208,9 +226,10 @@ const ProductDetails:React.FC<ProductDetailsProps> = ({product}) => {
                 <div className="flex
                                 items-center
                                 gap-2">
-                    <Rating value={calculateAvarageRating(product.reviews)} readOnly precision={0.1}/>
-                    {/* number reviews */}
-                    <div>{product.reviews.length} reviews</div>
+                    {/* Check if reviews exist and have a length greater than zero */}
+                    <Rating value={product.reviews && product.reviews.length > 0 ? calculateAvarageRating(product.reviews) : 0} readOnly precision={0.1}/>
+                    {/* Show the number of reviews or "No reviews" if empty */}
+                    <div>{product.reviews && product.reviews.length > 0 ? `${product.reviews.length} reviews` : "No reviews yet"}</div>
                     
                 </div>
 
@@ -223,7 +242,7 @@ const ProductDetails:React.FC<ProductDetailsProps> = ({product}) => {
 
                 {/* prod category*/}
                 <div>
-                    <span className="font-semibold">CATEGORY: </span>{product.category}
+                    <span className="font-semibold">CATEGORY: </span>{product.category.name}
                 </div>
 
                 {/* prod brand */}
@@ -231,9 +250,16 @@ const ProductDetails:React.FC<ProductDetailsProps> = ({product}) => {
                     <span className="font-semibold">BRAND: </span>{product.brand}
                 </div>
 
-                {/* product stock*/}
-                <div className={product.inStock ? 'text-teal-400' : 'text-rose-400'}>{product.inStock ? 'In stock' : 'Out of stock'}</div>
+                 {/* prod quantity */}
+                <div>
+                    <span className="font-semibold">QUANTITY: </span>{product.quantity}
+                </div>
 
+                {/* product stock */}
+                <div className={product.quantity > 0 ? 'text-teal-400' : 'text-rose-400'}>
+                    {product.quantity > 0 ? 'In stock' : 'Out of stock'}
+                </div>
+                
                 <Horizontal/>
 
                 {isProductInCart ? (

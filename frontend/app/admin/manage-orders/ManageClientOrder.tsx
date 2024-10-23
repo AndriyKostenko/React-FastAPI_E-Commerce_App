@@ -24,12 +24,21 @@ export interface OrderProps {
     id:                string;
     amount:            number;
     status:            string;
-    create_date:       Date;
+    create_date:       string;
     address_id:        string;
     user_id:           string;
     currency:          string;
     delivery_status:   string;
     payment_intent_id: string;
+    items: Item[];
+}
+
+export interface Item {
+    id:         string;
+    quantity:   number;
+    order_id:   string;
+    product_id: string;
+    price:      number;
 }
 
 
@@ -111,7 +120,7 @@ const ManagaeClientOrders:React.FC<ManageOrdersClientProps> = ({initialOrders, t
                     color = 'text-red-700';
                     icon = MdClose;
                     break;
-                case 'completed':
+                case 'complete':
                     background = 'bg-green-200';
                     color = 'text-green-700';
                     icon = MdDone;
@@ -148,6 +157,11 @@ const ManagaeClientOrders:React.FC<ManageOrdersClientProps> = ({initialOrders, t
                     icon = MdClose;
                     break;
                 case 'dispatched':
+                    background = 'bg-orange-200';
+                    color = 'text-orange-700';
+                    icon = MdDeliveryDining;
+                    break;
+                case 'delivered':
                     background = 'bg-green-200';
                     color = 'text-green-700';
                     icon = MdDone;
@@ -170,7 +184,7 @@ const ManagaeClientOrders:React.FC<ManageOrdersClientProps> = ({initialOrders, t
 		return (<div className='flex justify-between gap-4 w-full'>
 			<ActionBtn icon={MdDeliveryDining} onClick={() => {handleDispatch(params.row.id)}}/>
 			<ActionBtn icon={MdDone} onClick={() => {handleDeliver(params.row.id)}}/>
-			<ActionBtn icon={MdRemoveRedEye} onClick={() => {router.push(`order/${params.row.id}`)}}/>
+			<ActionBtn icon={MdRemoveRedEye} onClick={() => {router.push(`/order/${params.row.id}`)}}/>
 		</div>)
 	}},
   ]

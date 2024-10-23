@@ -33,14 +33,14 @@ const ItemContent:React.FC<ItemContentProps> = ({item}) => {
         <div className="col-span-2 justify-self-start flex gap-2 md:gap-4">
             <Link href={`/product/${item.id}`}>
                 <div className="relative w-[70px] aspect-square">
-                    <Image src={item.selectedImg.image} alt={item.name} fill className="pbject-contain"></Image>
+                    <Image src={`http://localhost:8000${item.selectedImg.image_url}`} alt={item.name} fill className="pbject-contain"></Image>
                 </div>
             </Link>
             <div className="flex flex-col justify-between">
 
                 <Link href={`/product/${item.id}`}>
                     {truncateText(item.name)}
-                    <div>{item.selectedImg.color}</div>
+                    <div>{item.selectedImg.image_color}</div>
                 </Link>
 
                 <div className="w-[70px]">

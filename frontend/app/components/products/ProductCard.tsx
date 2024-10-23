@@ -10,19 +10,21 @@ import calculateAvarageRating from "../../../utils/productRating";
 
 //setting types for prod. data
 interface ProductCardProps{
-    data: any
+    product: any
 }
 
 
-const ProductCard:React.FC<ProductCardProps> = ({data}) => {
+const ProductCard:React.FC<ProductCardProps> = ({product}) => {
 
     // creating the router for products with diff ID
     // if onClick method is udes on the following product card -> the new page according to product id will be opened 
     const router = useRouter();
-  
+    
+    //console.log('Product in ProductCard>>>>>', product)
+   
 
     return ( 
-        <div onClick={() => router.push(`/product/${data.id}`)} 
+        <div onClick={() => router.push(`/product/${product.id}`)} 
              className="col-span-1
                         cursor-pointer
                         border-[1.2px]
@@ -46,8 +48,8 @@ const ProductCard:React.FC<ProductCardProps> = ({data}) => {
                                 relative
                                 w-full">
                     <Image
-                        src={data.images[0].image}
-                        alt={data.name}
+                        src={`http://localhost:8000${product.images[0].image_url}`}
+                        alt={product.name}
                         fill
                         className="w-full
                                     h-full
@@ -56,22 +58,22 @@ const ProductCard:React.FC<ProductCardProps> = ({data}) => {
 
                 {/* prod name */}
                 <div className="mt-4">
-                    {truncateText(data.name)}
+                    {truncateText(product.name)}
                 </div>
 
                 {/* product rating*/}
                 <div>
-                    <Rating value={calculateAvarageRating(data.reviews)} readOnly precision={0.1}/>
+                    <Rating value={calculateAvarageRating(product.reviews)} readOnly precision={0.1}/>
                 </div>
 
                 {/* prod reviews */}
                 <div>
-                    {data.reviews.length} reviews
+                    {product.reviews.length} reviews
                 </div>
 
                 {/*prod price */}
                 <div className="font-semibold">
-                    {formatPrice(data.price)}
+                    {formatPrice(product.price)}
                 </div>
 
                 

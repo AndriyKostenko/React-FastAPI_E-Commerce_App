@@ -1,7 +1,7 @@
 "use client";
 
 
-import { CartProductType, SelectedImgType } from "@/app/product/[productId]/ProductDetails";
+import { CartProductType, ImgType } from "@/app/product/[productId]/ProductDetails";
 import Image from "next/image";
 
 
@@ -9,15 +9,11 @@ import Image from "next/image";
 interface ProductImageProps{
     cartProduct: CartProductType,
     product: any,
-    handleColorSelect: (value: SelectedImgType) => void;
+    handleColorSelect: (value: ImgType) => void;
 
 }
 
-const ProductImage: React.FC<ProductImageProps> = ({
-                                                    cartProduct,
-                                                    product,
-                                                    handleColorSelect
-}) => {
+const ProductImage: React.FC<ProductImageProps> = ({cartProduct, product, handleColorSelect}) => {
     return ( 
         <div className="grid
                         grid-cols-6
@@ -37,17 +33,17 @@ const ProductImage: React.FC<ProductImageProps> = ({
                             max-h-[500px]
                             min-h-[300px]
                             sm:min-h-[400px]">
-                {product.images.map((image: SelectedImgType) => {
-                    return <div key={image.color} 
+                {product.images.map((image: ImgType) => {
+                    return <div key={image.image_color} 
                                 onClick={() => handleColorSelect(image)} 
                                 className={`relative
                                            w-[80%]
                                            aspect-square
                                            rounded
                                            border-teal-300
-                                           ${cartProduct.selectedImg.color === image.color ? "border-[1.5px]" : "border-none"}`}>
-                                    <Image src={image.image}   
-                                        alt={image.color} 
+                                           ${cartProduct.selectedImg.image_color === image.image_color ? "border-[1.5px]" : "border-none"}`}>
+                                    <Image src={`http://localhost:8000${image.image_url}`}   
+                                        alt={image.image_color} 
                                         fill 
                                         className="object-contain"/>
                     </div>
@@ -57,7 +53,7 @@ const ProductImage: React.FC<ProductImageProps> = ({
             <div className="col-span-5 
                             relative 
                             aspect-square">
-                <Image src={cartProduct.selectedImg.image} 
+                <Image src={`http://localhost:8000${cartProduct.selectedImg.image_url}`} 
                        alt={cartProduct.name}
                        fill 
                        className="w-full 

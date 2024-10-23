@@ -1,18 +1,19 @@
 'use client';
 
-import { CartProductType, SelectedImgType } from "@/app/product/[productId]/ProductDetails";
+import { CartProductType, ImgType } from "@/app/product/[productId]/ProductDetails";
 
 
 
 // setting color props validation (arrays of imgs)
 interface SetColorProps{
-    images: SelectedImgType[],
+    images: ImgType[],
     cartProduct: CartProductType,
-    handleColorSelect: (value : SelectedImgType) => void
+    handleColorSelect: (value : ImgType) => void
 }
 
 
 const SetColor: React.FC<SetColorProps> = ({images, cartProduct, handleColorSelect}) => {
+    console.log('Images in SetColor:', images)
     return ( 
         <div>
             <div className="flex 
@@ -23,7 +24,7 @@ const SetColor: React.FC<SetColorProps> = ({images, cartProduct, handleColorSele
                                 gap-1">{
                     images.map((image) => {
                         return ( 
-                            <div key={image.color} 
+                            <div key={image.image_color} 
                                 onClick={() => handleColorSelect(image)}
                                 // cheking if equal seelcted image colors
                                 className={`h-7
@@ -33,8 +34,8 @@ const SetColor: React.FC<SetColorProps> = ({images, cartProduct, handleColorSele
                                              flex
                                              items-center
                                              justify-center
-                                             ${cartProduct.selectedImg.color === image.color ? 'border-[1.5px]' : 'border-none'}`}>
-                                <div style={{background: image.colorCode}} className="h-5 
+                                             ${cartProduct.selectedImg.image_color === image.image_color ? 'border-[1.5px]' : 'border-none'}`}>
+                                <div style={{background: image.image_color_code}} className="h-5 
                                                                                       w-5 
                                                                                       rounded-full 
                                                                                       border-[1.2px]

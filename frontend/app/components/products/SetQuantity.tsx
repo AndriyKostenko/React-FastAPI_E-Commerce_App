@@ -16,10 +16,10 @@ const btnStyles = 'border-[1.2px] border-slate-300 px-2 rounded'
 
 
 const SetQuantity: React.FC<SetQtyProps> = ({
-                                            cartCounter,
-                                            cartProduct,
-                                            handleQtyIncrease,
-                                            handleQtyDecrease
+    cartCounter,
+    cartProduct,
+    handleQtyIncrease,
+    handleQtyDecrease
 }) => {
 
 

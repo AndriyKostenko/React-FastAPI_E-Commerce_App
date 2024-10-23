@@ -1,8 +1,8 @@
-const fetchProductsFromBackend = async (): Promise<any> => {
+const fetchProductById = async (productId: string): Promise<any> => {
     
     try {
         // adding cache: 'no-store' to prevent caching of the response
-        const response = await fetch("http://127.0.0.1:8000/get_all_products", {
+        const response = await fetch(`http://127.0.0.1:8000/get_product/${productId}`, {
             method: 'GET',
             cache: 'no-store',
         });
@@ -12,9 +12,9 @@ const fetchProductsFromBackend = async (): Promise<any> => {
             return null;
         }
 
-        const products = await response.json();
+        const product = await response.json();
     
-        return products;
+        return product;
         
     } catch (error) {
         console.error(error)
@@ -22,4 +22,4 @@ const fetchProductsFromBackend = async (): Promise<any> => {
 
 };
 
-export default fetchProductsFromBackend;
+export default fetchProductById;
