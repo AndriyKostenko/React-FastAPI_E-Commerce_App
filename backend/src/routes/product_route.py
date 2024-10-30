@@ -15,11 +15,11 @@ product_routes = APIRouter(
 )
 
 
-@product_routes.post("/create_new_product", status_code=status.HTTP_201_CREATED)
+@product_routes.post("/products", status_code=status.HTTP_201_CREATED)
 async def create_new_product(current_user: Annotated[dict, Depends(get_current_user)],
                              name: str = Form(...),
                              description: str = Form(...),
-                             category: str = Form(...),
+                             category_id: str = Form(...),
                              brand: str = Form(...),
                              quantity: str = Form(...),
                              price: str = Form(...),
@@ -57,7 +57,7 @@ async def create_new_product(current_user: Annotated[dict, Depends(get_current_u
     # create product
     new_product = await ProductCRUDService(session).create_product_item(CreateProduct(name=name,
                                                                                       description=description,
-                                                                                      category=category,
+                                                                                      category_id=category_id,
                                                                                       brand=brand,
                                                                                       images=image_metadata,
                                                                                       quantity=int(quantity),

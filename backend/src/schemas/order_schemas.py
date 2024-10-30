@@ -4,22 +4,8 @@ from typing import Optional, List
 from pydantic import BaseModel, ConfigDict
 from pydantic.fields import Field
 
+from src.schemas.product_schemas import ProductSchema
 
-class SelectedImgType(BaseModel):
-    color: str
-    colorCode: str
-    image: str
-
-
-class CartProductType(BaseModel):
-    id: str
-    name: str
-    description: str
-    category: str
-    brand: str
-    selectedImg: SelectedImgType
-    quantity: int
-    price: float
 
 
 class CreateOrder(BaseModel):
@@ -27,9 +13,8 @@ class CreateOrder(BaseModel):
     currency: str
     status: str
     delivery_status: str
-    create_date: datetime
     payment_intent_id: str
-    products: List[CartProductType]
+    products: List[ProductSchema]
     # TODO: need to check how and where to add address
     # address: List[AddressType]
     user_id: str
@@ -38,8 +23,9 @@ class CreateOrder(BaseModel):
 class UpdateOrder(BaseModel):
     delivery_status: Optional[str] = None
     status: Optional[str] = None
+    amount: float
 
 
 class PaymentIntentRequest(BaseModel):
-    items: List[CartProductType]
+    items: List[ProductSchema]
     payment_intent_id: Optional[str]

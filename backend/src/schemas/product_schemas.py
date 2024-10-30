@@ -10,16 +10,23 @@ class ImageType(BaseModel):
     color_code: str
     image: str
 
+class CartImages(BaseModel):
+    image_color: str
+    id: str
+    product_id: str
+    image_url:str
+    image_color_code: str
+
 
 class CreateProduct(BaseModel):
     name: str
     description: str
-    category: str
+    category_id: str
     brand: str
     images: List[ImageType]
     quantity: int
     price: float
-    in_stock: bool
+    in_stock: str
 
 
 class CreateProductReview(BaseModel):
@@ -43,24 +50,23 @@ class Review(BaseModel):
     created_date: str
     user: UserInfoProductRating
 
-
-class Image(BaseModel):
-    color: str
-    color_code: str
-    image: str
-
+class CategoryProps(BaseModel):
+    id: str
+    name: str
 
 class ProductSchema(BaseModel):
     id: str
     name: str
     description: str
     price: float
+    quantity: int
     brand: str
-    category: str
+    category: CategoryProps
     in_stock: bool
-    images: List[Image]
+    date_created: str
+    selected_image: CartImages
+    images: List[CartImages]
     reviews: List[Review]
-
 
 class GetAllProducts(BaseModel):
     products: List[ProductSchema]

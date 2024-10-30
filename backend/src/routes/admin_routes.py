@@ -48,7 +48,7 @@ async def update_user_by_id(user_id: int,
     return updated_user
 
 
-@admin_routes.delete('/user/{user_id}', summary='Delete user by ID', status_code=status.HTTP_204_NO_CONTENT)
+@admin_routes.delete('/users/{user_id}', summary='Delete user by ID', status_code=status.HTTP_204_NO_CONTENT)
 async def delete_user_by_id(user_id: int,
                             current_user: Annotated[dict, Depends(get_current_user)],
                             session: AsyncSession = Depends(get_db_session)):

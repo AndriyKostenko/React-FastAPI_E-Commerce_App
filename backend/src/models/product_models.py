@@ -12,7 +12,7 @@ class Product(Base):
     id: Mapped[str] = mapped_column(String, primary_key=True, default=generate_uuid, unique=True)
     name: Mapped[str] = mapped_column(nullable=False)
     description: Mapped[str] = mapped_column(nullable=True)
-    category_id: Mapped[str] = mapped_column(ForeignKey('product_categories.id'), nullable=False)
+    category_id: Mapped[str] = mapped_column(ForeignKey('categories.id'), nullable=False)
     brand: Mapped[str] = mapped_column(nullable=False)
     quantity: Mapped[int] = mapped_column(nullable=False)
     price: Mapped[float] = mapped_column(nullable=False)
@@ -21,7 +21,7 @@ class Product(Base):
 
     reviews: Mapped[List['ProductReview']] = relationship('ProductReview', back_populates='product', cascade='all, delete-orphan')
     images: Mapped[List['ProductImage']] = relationship('ProductImage', back_populates='product', cascade='all, delete-orphan')
-    category: Mapped['ProductCategory'] = relationship('ProductCategory', back_populates='products')
+    category: Mapped['Category'] = relationship('Category', back_populates='products')
 
 
 class ProductImage(Base):
@@ -50,10 +50,4 @@ class ProductReview(Base):
     product: Mapped['Product'] = relationship('Product', back_populates='reviews')
 
 
-class ProductCategory(Base):
-    __tablename__ = 'product_categories'
 
-    id: Mapped[str] = mapped_column(String, primary_key=True, default=generate_uuid, unique=True)
-    name: Mapped[str] = mapped_column(unique=True, nullable=False)
-
-    products: Mapped[List['Product']] = relationship('Product', back_populates='category')

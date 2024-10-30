@@ -45,7 +45,8 @@ async def login(form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
     return {'access_token': access_token,
             'token_type': 'bearer',
             'user_role': user.role,
-            'token_expiry': token_expiry['exp']}
+            'token_expiry': token_expiry['exp'],
+            'user_id': user.id}
 
 
 @user_routes.post("/token", response_model=TokenSchema)
@@ -54,14 +55,14 @@ async def generate_token(user: UserInfo = Depends(get_authenticated_user)):
     return {"access_token": token, "token_type": "bearer"}
 
 
-@user_routes.get("/current_user")
+@user_routes.get("/me")
 async def get_current_user_data(current_user: Annotated[dict, Depends(get_current_user)]):
     if current_user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Unauthorized')
     return current_user
 
 
-@user_routes.get("/get_user/{user_email}")
+@user_routes.get("/user/{user_email}")
 async def get_user(user_email: str, session: AsyncSession = Depends(get_db_session)):
     user = await UserCRUDService(session).get_user_by_email(user_email)
     if not user:

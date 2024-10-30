@@ -24,7 +24,6 @@ class OrderCRUDService:
                           currency=order.currency,
                           status=order.status,
                           delivery_status=order.delivery_status,
-                          create_date=order.create_date,
                           payment_intent_id=order.payment_intent_id,
                           address_id=new_address.id, )
         self.session.add(new_order)
@@ -66,6 +65,31 @@ class OrderCRUDService:
         if not order:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
         return order
+
+    async def get_orders_with_items_by_user_id(self, user_id: str):
+        """
+        Get all orders by a specific user ID along with related items and products.
+        """
+        result = await self.session.execute(
+            select(Order)
+            .where(Order.user_id == user_id)
+            .options(
+                selectinload(Order.items)
+                .selectinload(OrderItem.product)  # Load products associated with order items
+                .selectinload(Product.images),  # Load product images
+                selectinload(Order.items).selectinload(OrderItem.product).selectinload(Product.category),
+                # Load product category
+                selectinload(Order.items).selectinload(OrderItem.product).selectinload(Product.reviews)
+                # Load product reviews
+            )
+            .order_by(Order.create_date.desc())  # Optional: order by creation date descending
+        )
+
+        orders = result.scalars().all()
+        if not orders:
+            return None
+
+        return orders
 
 
     async def get_order_by_payment_intent_id(self, payment_intent_id: str):

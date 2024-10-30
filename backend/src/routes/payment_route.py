@@ -69,7 +69,9 @@ async def create_payment_intent(data: PaymentIntentRequest,
     if current_user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Unauthorized')
 
+    print(f'Receiveed data>>>>>>>: {data}')
     total_amount = calculate_total_amount(data.items)
+    print(f'Total anount>>>>>>',total_amount)
 
     # creating new intent
     payment_intent = stripe.PaymentIntent.create(
@@ -82,14 +84,10 @@ async def create_payment_intent(data: PaymentIntentRequest,
         "currency": 'cad',
         "status": 'pending',
         "delivery_status": 'pending',
-        "create_date": datetime.now(timezone.utc),
         "payment_intent_id": payment_intent.id,
         "products": data.items,
         "user_id": current_user['id']
     }
-
-
-
 
     # Creating new order
     await OrderCRUDService(session).create_order(CreateOrder(**new_order))

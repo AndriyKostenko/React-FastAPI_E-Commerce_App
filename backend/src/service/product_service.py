@@ -1,7 +1,8 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from typing import List, Optional, Dict
-from src.models.product_models import Product, ProductImage, ProductCategory, ProductReview
+from src.models.product_models import Product, ProductImage, ProductReview
+from src.models.category_models import Category
 from sqlalchemy import select, asc, desc
 from src.schemas.product_schemas import CreateProduct, ProductSchema, CreateProductReview
 from src.schemas.product_schemas import ImageType
@@ -15,14 +16,10 @@ class ProductCRUDService:
 
         # getting product category.id for creation of new product, if no -> first creating category to connect with
         # Product
-        product_category = await self.get_product_category_by_name(category=product.category)
-        if not product_category:
-            product_category = await self.create_product_category(category=product.category)
-
         # creating new product
         new_product = Product(name=product.name,
                               description=product.description,
-                              category_id=product_category.id,
+                              category_id=product.category_id,
                               brand=product.brand,
                               quantity=product.quantity,
                               price=product.price,
@@ -56,16 +53,8 @@ class ProductCRUDService:
         result = await self.session.execute(query)
         products = result.scalars().all()
 
-        #TODO: cant return a specific product format, its returning the list of Procut classes...returning products according to models right now
-
         return products
-        # return [product.to_dict() for product in products]
-        # return [{"id": p.id,
-        #          "name": p.name,
-        #          'description': p.description,
-        #          'price': p.price,
-        #          'category':p.category,
-        #          'in_stock': p.in_stock} for p in products]
+
 
     async def get_product_by_id(self, product_id: str):
         # Querying product with related images, reviews (including users), and category
@@ -79,20 +68,8 @@ class ProductCRUDService:
             ))
         return db_product.scalars().first()
 
-    async def create_product_category(self, category: str):
-
-        db_category = await self.session.execute(select(ProductCategory).where(ProductCategory.name == category))
-        db_category = db_category.scalars().first()
-        if db_category:
-            return db_category
-
-        new_category = ProductCategory(name=category)
-        self.session.add(new_category)
-        await self.session.commit()
-        return new_category
-
     async def get_product_category_by_name(self, category: str):
-        db_category = await self.session.execute(select(ProductCategory).where(ProductCategory.name == category))
+        db_category = await self.session.execute(select(Category).where(Category.name == category))
         if db_category:
             return db_category.scalars().first()
         return None

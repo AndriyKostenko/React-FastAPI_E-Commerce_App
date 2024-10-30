@@ -14,7 +14,7 @@ from src.service.user_service import UserCRUDService
 oath2_bearer = OAuth2PasswordBearer(tokenUrl='token')
 
 
-def create_access_token(email: str, user_id: int, role: str, expires_delta: timedelta):
+def create_access_token(email: str, user_id: str, role: str, expires_delta: timedelta):
     encode = {'sub': email,
               'id': user_id,
               'role': role,
