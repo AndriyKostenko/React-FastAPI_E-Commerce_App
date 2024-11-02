@@ -10,6 +10,7 @@ const ManageOrders = async () => {
     
     const currentUserRole = await sessionManagaer.getCurrentUserRole()
     const currentUserToken = await sessionManagaer.getCurrentUserJWT()
+    const expiryToken = await sessionManagaer.getCurrentUserTokenExpiry()
 
     if (currentUserRole !== 'admin') {
         return <NullData title="Ooops, access denied!"/>
@@ -20,7 +21,7 @@ const ManageOrders = async () => {
 
     return ( 
         <div>
-            <ManageClientOrders initialOrders={orders} token={currentUserToken}/>
+            <ManageClientOrders initialOrders={orders} token={currentUserToken} expiryToken={expiryToken}/>
         </div>
      );
 }

@@ -4,6 +4,8 @@ import { Redressed } from "next/font/google";
 import CartCount from "./CartCount";
 import UserMenu from "./UserMenu";
 import { sessionManagaer} from "@/actions/getCurrentUser";
+import Categories from "./Categories";
+import fetchCategoriesFromBackend from "@/actions/getCategories";
 
 // setting the font
 const redressed = Redressed({subsets: ['latin'],
@@ -14,6 +16,7 @@ const NavBar = async () => {
     // getting current user from the session
     const currentUser = await sessionManagaer.getCurrentUser();
     const currentUserRole = await sessionManagaer.getCurrentUserRole();
+    const categories = await fetchCategoriesFromBackend()
 
     return (
         <div className="sticky
@@ -52,6 +55,7 @@ const NavBar = async () => {
 
                 </Container>
             </div>
+            <Categories categories={categories}/>
         </div>
     );
 }

@@ -1,22 +1,22 @@
 'use client';
 
-
-import {IconType} from 'react-icons';
+import Image from 'next/image'
 
 
 interface CategoryInputProps{
     selected?: boolean;
     label: string;
-    icon: IconType;
+    src: string;
+    alt: string;
     onClick: (value: string) => void
 }
 
 
-const CategoryInput:React.FC<CategoryInputProps> = ({selected, label, icon:Icon, onClick}) => {
+const CategoryInput:React.FC<CategoryInputProps> = ({selected, label, src, alt, onClick}) => {
     return ( 
         <div onClick={() => onClick(label)} className={`rounded-xl border-2 p-4 flex flex-col items-center gap-2 hover:border-slate-500 transition cursor-pointer
                                                         ${selected ? 'border-slate-500' : 'border-slate-200'}`}>
-            <Icon size={30}/>
+            <Image src={src} width={50} height={50} alt={alt}/>
             <div className='fornt-medium'>{label}</div>
         </div>
     );

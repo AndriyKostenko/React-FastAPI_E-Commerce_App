@@ -1,14 +1,14 @@
 'use client';
 
-import { CartProductType, ImgType } from "@/app/product/[productId]/ProductDetails";
+import { ProductProps, ImageProps } from "@/app/product/[productId]/ProductDetails";
 
 
 
 // setting color props validation (arrays of imgs)
 interface SetColorProps{
-    images: ImgType[],
-    cartProduct: CartProductType,
-    handleColorSelect: (value : ImgType) => void
+    images: ImageProps[],
+    cartProduct: ProductProps,
+    handleColorSelect: (value : ImageProps) => void
 }
 
 
@@ -34,7 +34,7 @@ const SetColor: React.FC<SetColorProps> = ({images, cartProduct, handleColorSele
                                              flex
                                              items-center
                                              justify-center
-                                             ${cartProduct.selectedImg.image_color === image.image_color ? 'border-[1.5px]' : 'border-none'}`}>
+                                             ${cartProduct.selected_image.image_color === image.image_color ? 'border-[1.5px]' : 'border-none'}`}>
                                 <div style={{background: image.image_color_code}} className="h-5 
                                                                                       w-5 
                                                                                       rounded-full 

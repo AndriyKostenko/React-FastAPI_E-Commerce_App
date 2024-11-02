@@ -25,7 +25,7 @@ const CheckoutClient:React.FC<LoginFormProps> = ({currentUserJWT}) => {
     const {cartProducts, handleSetPaymentIntent, paymentIntent} = useCart();
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(false)
-    const [clientSecret, setClientSecret] = useState()
+    const [clientSecret, setClientSecret] = useState<string | undefined>(undefined)
     const router = useRouter();
     const [paymentSuccess, setPaymentSuccess] = useState(false)
     
@@ -33,6 +33,7 @@ const CheckoutClient:React.FC<LoginFormProps> = ({currentUserJWT}) => {
     console.log('TOKEN in CheckoutClient: ', currentUserJWT)
     console.log('PaymentIntent: ', paymentIntent)
     console.log('ClientSecret: ', clientSecret)
+    console.log('CartProducts>>>>>',cartProducts)
 
     const renderCount = useRef(0);
     renderCount.current++;
@@ -100,7 +101,7 @@ const CheckoutClient:React.FC<LoginFormProps> = ({currentUserJWT}) => {
             }
         
         
-    }, [cartProducts, paymentIntent])
+    }, [cartProducts])
 
     const options:StripeElementsOptions = {
         clientSecret,

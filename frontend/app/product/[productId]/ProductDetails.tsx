@@ -14,8 +14,31 @@ import { useCart } from "@/hooks/useCart";
 import { MdCheckCircle } from "react-icons/md";
 import { useRouter } from "next/navigation";
 
-//setting data types for product details
-// (to be set)
+
+export interface AllProductsProps {
+    products: ProductProps[];
+}
+
+
+export interface ProductProps {
+    id: string;
+    name: string;
+    description: string;
+    price: number;
+    quantity: number;
+    brand: string;
+    in_stock: boolean;
+    date_created: string;
+    selected_image: ImageProps,
+    category: CategoryProps;
+    reviews: ReviewProps[];
+    images: ImageProps[];
+}
+
+export interface CategoryProps {
+    id: string;
+    name: string;
+}
 
 export interface ReviewProps {
     id: string;
@@ -44,61 +67,10 @@ export interface ImageProps {
     image_color: string;
 }
 
-export interface CategoryProps {
-    id: string;
-    name: string;
-}
-
-export interface ProductProps {
-    id: string;
-    category_id: string;
-    quantity: number;
-    in_stock: boolean;
-    name: string;
-    description: string;
-    brand: string;
-    price: number;
-    date_created: string;
-    category: CategoryProps;
-    reviews: ReviewProps[];
-    images: ImageProps[];
-}
-
-////////////////////////////////////////
 
 
 
-interface ProductDetailsProps {
-    product: any
-}
 
-
-//setting the data types of product in cart
-export type CartProductType = {
-    id: string,
-    name: string,
-    description: string,
-    category: ProductCategoryType,
-    brand: string,
-    selectedImg: ImgType,
-    images: ImgType[],
-    quantity: number,
-    price: number
-    reviews: number[];
-
-}
-
-// additional types for selectedImg
-export type ImgType = {
-    image_color: string,
-    image_color_code: string,
-    image_url: string
-}
-
-export type ProductCategoryType = {
-    id: string,
-    name: string
-}
 
 
 // drawing a simple line
@@ -109,34 +81,33 @@ const Horizontal = () => {
 
 
 
-const ProductDetails:React.FC<ProductDetailsProps> = ({product}) => {
+const ProductDetails:React.FC<{product: ProductProps}> = ({product}) => {
 
-    console.log('Product in ProductDetails:',product)
+    //console.log('Product in ProductDetails:',product)
 
     // getting methods from custom hook to handle cart products
     const {handleAddProductToCart, cartProducts} = useCart();
 
     //
     const [isProductInCart, setIsProductInCart] = useState(false);
+    const [selectedImg, setSelectedImg] = useState<ImageProps | null>(null);
 
 
     // product's data to change states
     // cheking that selectedImg always exist on 64th line
-    const [cartProduct, setCartProduct] = useState<CartProductType>({
+    const [cartProduct, setCartProduct] = useState<ProductProps>({
         id: product.id,
+        category: product.category, // Include category_id
+        quantity: product.quantity,
+        in_stock: product.in_stock, // Include in_stock
         name: product.name,
         description: product.description,
-        category: product.category_id,
         brand: product.brand,
-        selectedImg: product.images[0],
-        images: product.images && product.images.length > 0 ? {...product.images[0]} : {
-            image_color: "",
-            image_color_code: "",
-            image_url: ""
-        },  // fallback if no image
-        quantity: product.quantity,
         price: product.price,
-        reviews: product.reviews
+        date_created: product.date_created, // Include date_created
+        selected_image: product.images[0],
+        reviews: product.reviews,
+        images: product.images,
     });
 
     console.log('Product Details:>>', cartProduct)
@@ -158,13 +129,10 @@ const ProductDetails:React.FC<ProductDetailsProps> = ({product}) => {
     }, [cartProducts])
    
 
-    // remembering function state (selected color) between re-rendering of component if it wasn't change
-    // updating the selected cart product image & color
-    const handleColorSelect = useCallback((value: ImgType) => {
-        setCartProduct((previousSelectedCartProduct) => {
-            return {...previousSelectedCartProduct, selectedImg: value}
-        })
-    }, [cartProduct.selectedImg])
+   // Updating the selected image
+    const handleColorSelect = useCallback((value: ImageProps) => {
+        setSelectedImg(value);
+    }, []);
 
 
 

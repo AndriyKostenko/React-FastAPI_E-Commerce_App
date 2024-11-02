@@ -16,7 +16,7 @@ import { useCurrentUserTokenExpiryCheck } from "@/hooks/useCurrentUserToken";
 
 
 interface ManageOrdersClientProps{
-  initialOrders: OrderProps[];
+  userOrders: OrderProps[];
   token: string;
   expiryToken: number | null;
 }
@@ -78,16 +78,12 @@ export interface Review {
 
 
 
-const ManagaeClientOrders:React.FC<ManageOrdersClientProps> = ({initialOrders, token, expiryToken}) => {
+const OrdersClient:React.FC<ManageOrdersClientProps> = ({userOrders, token, expiryToken}) => {
 
-    const [orders, setOrders] = useState<OrderProps[]>(initialOrders);
+    const [orders, setOrders] = useState<OrderProps[]>(userOrders);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState('');
 	
-	console.log('Token in manageClient>>>', token)
-	console.log(orders)
-
-
 
 	// creating rows for the table
   	let rows: any = [];
@@ -176,7 +172,6 @@ const ManagaeClientOrders:React.FC<ManageOrdersClientProps> = ({initialOrders, t
 	}},
 	{field: 'create_date', headerName: 'Date of creation', width: 200},
 	{field: 'address_id', headerName: 'Address ID', width: 200},
-	{field: 'user_id', headerName: 'User ID', width: 200},
 	{field: 'currency', headerName: 'Currency', width: 200},
 	{field: 'delivery_status', headerName: 'Delivery Status', width: 200, renderCell: (params: any) => {
 		let background = '';
@@ -216,75 +211,13 @@ const ManagaeClientOrders:React.FC<ManageOrdersClientProps> = ({initialOrders, t
             ); 
 		}
 	},
-	{field: 'payment_intent_id', headerName: 'Payment Intent', width: 200},
 
 	{field: 'action', headerName: 'Actions', width: 200, renderCell: (params) => {
 		return (<div className='flex justify-between gap-4 w-full'>
-			<ActionBtn icon={MdDeliveryDining} onClick={() => {handleDispatch(params.row.id)}}/>
-			<ActionBtn icon={MdDone} onClick={() => {handleDeliver(params.row.id)}}/>
 			<ActionBtn icon={MdRemoveRedEye} onClick={() => {router.push(`/order/${params.row.id}`)}}/>
 		</div>)
 	}},
   ]
-
-
-  const handleDispatch = useCallback((id: string) => {
-    toast('Dispatching an order...');
-
-	if (!token) {
-      toast.error('No token found');
-      return;
-    }
-    
-    fetch(`http://127.0.0.1:8000/orders/${id}`, {
-        method: 'PUT',
-        headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            delivery_status: 'dispatched'  // Pass delivery status in the body
-        }),
-    }).then(response => {
-		if (response.ok) {
-			toast.success('Order is updated');
-			refreshOrders();
-		}
-	}).catch(error => {
-		toast.error('Failed to update the oreder.');
-		console.log('Error in handleToggleStock:', error)
-	})}, [token]);
-
-
-const handleDeliver = useCallback((id: string) => {
-    toast('Updating delivery status to completed...');
-
-	if (!token) {
-      toast.error('No token found');
-      return;
-    }
-    
-    fetch(`http://127.0.0.1:8000/orders/${id}`, {
-        method: 'PUT',
-        headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            status: 'completed'  // Pass delivery status in the body
-        }),
-    }).then(response => {
-		if (response.ok) {
-			toast.success('Order is updated');
-			refreshOrders();
-		}
-	}).catch(error => {
-		toast.error('Failed to update the oreder.');
-		console.log('Error in handleToggleStock:', error)
-	})}, [token]);
-
-
-
 
   return (
     <div className='max-w-[1150px] m-auto text-xl'>
@@ -312,4 +245,4 @@ const handleDeliver = useCallback((id: string) => {
 }
 
 
-export default ManagaeClientOrders;
+export default OrdersClient;

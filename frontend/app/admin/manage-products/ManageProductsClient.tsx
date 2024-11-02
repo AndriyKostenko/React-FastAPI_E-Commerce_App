@@ -12,12 +12,14 @@ import toast from 'react-hot-toast';
 import { useRouter } from 'next/navigation';
 import fetchProductsFromBackend from '@/actions/getProducts';
 import Image from 'next/legacy/image';
+import { useCurrentUserTokenExpiryCheck } from "@/hooks/useCurrentUserToken";
 
 interface ManageProductsClientProps{
-  initialProducts: ProductProps[]
+  initialProducts: ProductProps[];
+  expiryToken: number | null;
 }
 
-const ManageProductsClient:React.FC<ManageProductsClientProps> = ({initialProducts}) => {
+const ManageProductsClient:React.FC<ManageProductsClientProps> = ({initialProducts, expiryToken}) => {
 	const [products, setProducts] = useState<ProductProps[]>(initialProducts);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState('');
@@ -27,6 +29,9 @@ const ManageProductsClient:React.FC<ManageProductsClientProps> = ({initialProduc
 
 	// Next.js router
 	const router = useRouter();
+
+	// redirecting back if token is expired
+    useCurrentUserTokenExpiryCheck(expiryToken)
 
 	// Function to refresh products from the backend
 	const refreshProducts = async () => {

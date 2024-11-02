@@ -1,13 +1,13 @@
 // making as client comp
 'use client';
 
-import { CartProductType } from "@/app/product/[productId]/ProductDetails";
+import { ProductProps } from "@/app/product/[productId]/ProductDetails";
 
 
 // we will use cartCounter twice and this flag will determine wether we are at our Product or our Cart
 interface SetQtyProps {
     cartCounter? : boolean
-    cartProduct: CartProductType;
+    cartProduct: ProductProps;
     handleQtyIncrease: () => void;
     handleQtyDecrease: () => void;
 }

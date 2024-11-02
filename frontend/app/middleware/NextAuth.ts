@@ -1,3 +1,4 @@
+import { log } from "console";
 import { AuthOptions, User } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 
@@ -6,9 +7,21 @@ import CredentialsProvider from "next-auth/providers/credentials";
 
 // adding jwt, user role and token expiry to the User object
 interface CustomUser extends User {
+    id: string;
     jwt: string;
     role: string;
     token_expiry: number;
+}
+
+declare module "next-auth" {
+    interface Session {
+        jwt: string;
+        role: string;
+        token_expiry: number;
+        user: {
+            id: string; // Add user ID here
+        };
+    }
 }
 
 
@@ -67,14 +80,15 @@ export const authOptions: AuthOptions = {
                 }
 
                 const data = await response.json()
-                //console.log('Data in authent: ', data)
+                console.log('Data in authent: ', data)
                 const jwt = data['access_token']
                 const role = data['user_role']
                 const token_expiry = data['token_expiry']
+                const userId = data['user_id']
 
                 // returning jwt token and credentials...by default its must to return only the User object or null but i do my implementetion with jwt token, role and tok_expiry and thats why we need to ovewrite the User object
                 return { 
-                    id: data["user_id"],
+                    id: userId,
                     email: credentials.email,
                     jwt,
                     role,
@@ -92,10 +106,12 @@ export const authOptions: AuthOptions = {
     // adding jwt, user role and token expiry to the token
     jwt: async ({token, user}) => {
         if (user) {
+            console.log("User ID in jwt callback:", user.id); // Log to ensure id is available
             const customUser = user as CustomUser;
 
             return {
                 ...token,
+                id: customUser.id,
                 jwt: customUser.jwt,
                 role: customUser.role,
                 token_expiry: customUser.token_expiry,
@@ -114,6 +130,7 @@ export const authOptions: AuthOptions = {
             session.jwt = token.jwt as string;
             session.role = token.role as string;
             session.token_expiry = token.token_expiry as number;
+            session.user.id = token.id as string;
         }
         return session
     }

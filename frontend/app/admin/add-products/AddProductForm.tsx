@@ -6,7 +6,6 @@ import CustomCheckBox from "@/app/components/inputs/CustomCheckbox";
 import { useCallback, useEffect, useState } from "react";
 import { FieldValues, useForm } from "react-hook-form";
 import TextArea from "@/app/components/inputs/TextArea";
-import { categories } from "@/utils/Categories";
 import CategoryInput from "@/app/components/inputs/CategoryInput";
 import {colors} from "@/utils/Colors";
 import SelectColor from "@/app/components/inputs/SelectColor";
@@ -30,15 +29,22 @@ export type UploadedImageType = {
     image: string;
 }
 
+interface Category {
+    id: string;
+    name: string;
+    image_url: string;
+}
+
 
 interface AddProductProps {
     currentUserJWT: string | null | undefined;
     expiryToken: number | null;
+    categories: Category[]
     
 }
 
 
-const AddProductForm:React.FC<AddProductProps> = ({currentUserJWT, expiryToken}) => {
+const AddProductForm:React.FC<AddProductProps> = ({currentUserJWT, expiryToken, categories}) => {
     
     const [isLoading, setIsLoading] = useState(false)
     const [images, setImages] = useState<ImageType[] | null>()
@@ -47,7 +53,7 @@ const AddProductForm:React.FC<AddProductProps> = ({currentUserJWT, expiryToken})
         defaultValues: {
             name: '',
             description: '',
-            category: '',
+            category_id: '',
             brand: '',
             images: [],
             quantity: '',
@@ -75,7 +81,7 @@ const AddProductForm:React.FC<AddProductProps> = ({currentUserJWT, expiryToken})
 
     const onSubmit: SubmitHandler<FieldValues> = async (data) => {
 
-        if (!data.category) {
+        if (!data.category_id) {
             setIsLoading(false)
             return toast.error('Category is notselected!')
         }
@@ -90,7 +96,7 @@ const AddProductForm:React.FC<AddProductProps> = ({currentUserJWT, expiryToken})
         const formData = new FormData();
         formData.append('name', data.name);
         formData.append('description', data.description);
-        formData.append('category', data.category);
+        formData.append('category_id', data.category_id);
         formData.append('brand', data.brand);
         formData.append('quantity', data.quantity);
         formData.append('price', data.price);
@@ -105,17 +111,22 @@ const AddProductForm:React.FC<AddProductProps> = ({currentUserJWT, expiryToken})
             }
             
         })
- 
-        console.log('FormData in AddProductForm: ', formData)
+
+            // Log the form data entries
+        formData.forEach((value, key) => {
+            console.log(`${key}: ${value}`);
+        });
 
         try {
-            const response = await fetch('http://127.0.0.1:8000/create_new_product', {
+            const response = await fetch('http://127.0.0.1:8000/products', {
                 method: 'POST',
                 body: formData,
                 headers: {
                     'Authorization': `Bearer ${currentUserJWT}`,
                 }
             });
+
+            
             
             if (response.ok) {
                 toast.success('Product created successfully!');
@@ -133,7 +144,7 @@ const AddProductForm:React.FC<AddProductProps> = ({currentUserJWT, expiryToken})
     }  
         
 
-    const category = watch('category');
+    const category_id = watch('category_id');
 
     const setCustomValue = (id: string, value: any) => {
         setValue(id, value, {
@@ -223,15 +234,14 @@ const AddProductForm:React.FC<AddProductProps> = ({currentUserJWT, expiryToken})
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-3 max-h[50vh] overflow-y-auto gap-3">
                     {categories.map((item) => {
-                        if(item.label === 'ALL') {
-                            return null;
-                        }
 
-                        return <div key={item.label} className="cal-span">
-                            <CategoryInput onClick={(category) => setCustomValue('category', category)}
-                                            selected={category === item.label}
-                                            label={item.label}
-                                            icon={item.icon}/>
+                        return <div key={item.id} className="cal-span">
+                            <CategoryInput onClick={(category_id) => setCustomValue('category_id', item.id)}
+                                            selected={category_id === item.id}
+                                            label={item.name}
+                                            src={`http://localhost:8000${item.image_url}`}
+                                            alt={item.name}
+                                            />
                         </div>
                     })}
                 </div>

@@ -9,6 +9,7 @@ const ManageProducts = async () => {
 
     // getting current user role
     const currentUserRole = await sessionManagaer.getCurrentUserRole()
+    const expiryToken = await sessionManagaer.getCurrentUserTokenExpiry()
     
     if (currentUserRole !== 'admin') {
         return <NullData title="Ooops, access denied!"/>
@@ -22,7 +23,7 @@ const ManageProducts = async () => {
     return ( 
         <div className="pt-8">
             <Container>
-                <ManageProductsClient initialProducts={data}/>
+                <ManageProductsClient initialProducts={data} expiryToken={expiryToken}/>
             </Container>
             
         </div>

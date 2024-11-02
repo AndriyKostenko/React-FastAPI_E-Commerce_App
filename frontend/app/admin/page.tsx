@@ -2,7 +2,6 @@ import { sessionManagaer } from "@/actions/getCurrentUser";
 import NullData from "@/app/components/NullData";
 
 
-
 const Admin = async () => {
 
 

@@ -1,8 +1,13 @@
-const fetchProductsFromBackend = async (): Promise<any> => {
-    
+import { ProductProps } from "@/app/product/[productId]/ProductDetails";
+
+const fetchProductsFromBackend = async (category?: string): Promise<ProductProps[] | null> => {
     try {
-        // adding cache: 'no-store' to prevent caching of the response
-        const response = await fetch("http://127.0.0.1:8000/get_all_products", {
+        const url = new URL("http://127.0.0.1:8000/products");
+        if (category !== undefined) {
+            url.searchParams.append("category", category);
+        }
+
+        const response = await fetch(url.toString(), {
             method: 'GET',
             cache: 'no-store',
         });
@@ -12,14 +17,12 @@ const fetchProductsFromBackend = async (): Promise<any> => {
             return null;
         }
 
-        const products = await response.json();
-    
+        const products: ProductProps[] = await response.json();
         return products;
-        
     } catch (error) {
-        console.error(error)
+        console.error("Error fetching products:", error);
+        return null;
     }
-
 };
 
 export default fetchProductsFromBackend;

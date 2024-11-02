@@ -1,15 +1,15 @@
 "use client";
 
 
-import { CartProductType, ImgType } from "@/app/product/[productId]/ProductDetails";
+import { ProductProps, ImageProps } from "@/app/product/[productId]/ProductDetails";
 import Image from "next/image";
 
 
 
 interface ProductImageProps{
-    cartProduct: CartProductType,
+    cartProduct: ProductProps,
     product: any,
-    handleColorSelect: (value: ImgType) => void;
+    handleColorSelect: (value: ImageProps) => void;
 
 }
 
@@ -33,7 +33,7 @@ const ProductImage: React.FC<ProductImageProps> = ({cartProduct, product, handle
                             max-h-[500px]
                             min-h-[300px]
                             sm:min-h-[400px]">
-                {product.images.map((image: ImgType) => {
+                {product.images.map((image: ImageProps) => {
                     return <div key={image.image_color} 
                                 onClick={() => handleColorSelect(image)} 
                                 className={`relative
@@ -41,7 +41,7 @@ const ProductImage: React.FC<ProductImageProps> = ({cartProduct, product, handle
                                            aspect-square
                                            rounded
                                            border-teal-300
-                                           ${cartProduct.selectedImg.image_color === image.image_color ? "border-[1.5px]" : "border-none"}`}>
+                                           ${cartProduct.selected_image.image_color === image.image_color ? "border-[1.5px]" : "border-none"}`}>
                                     <Image src={`http://localhost:8000${image.image_url}`}   
                                         alt={image.image_color} 
                                         fill 
@@ -53,7 +53,7 @@ const ProductImage: React.FC<ProductImageProps> = ({cartProduct, product, handle
             <div className="col-span-5 
                             relative 
                             aspect-square">
-                <Image src={`http://localhost:8000${cartProduct.selectedImg.image_url}`} 
+                <Image src={`http://localhost:8000${cartProduct.selected_image.image_url}`} 
                        alt={cartProduct.name}
                        fill 
                        className="w-full 

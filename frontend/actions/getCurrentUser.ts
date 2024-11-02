@@ -42,6 +42,15 @@ class SessionManager {
         return this.session.user;
     }
 
+    public async getCurrentUserId() {
+        await this.fetchSession();
+
+        if (!this.session?.user?.id) {
+            return null;
+        }
+        return this.session.user.id;
+    }
+
     public async getCurrentUserJWT() {
         await this.fetchSession();
 
