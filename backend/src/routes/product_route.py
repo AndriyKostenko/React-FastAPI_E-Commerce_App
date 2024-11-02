@@ -32,6 +32,13 @@ async def create_new_product(current_user: Annotated[dict, Depends(get_current_u
     if current_user["user_role"] != "admin" or current_user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
 
+    if isinstance(in_stock, str):
+        if in_stock.lower() == "true":
+            in_stock = True
+        else:
+            in_stock = False
+
+
     # create image paths
     image_paths = await create_image_paths(images=images)
 
@@ -67,19 +74,14 @@ async def create_new_product(current_user: Annotated[dict, Depends(get_current_u
     return new_product
 
 
-@product_routes.get("/get_all_products", status_code=status.HTTP_200_OK)
+@product_routes.get("/products", status_code=status.HTTP_200_OK)
 async def get_all_products(category: Optional[str] = None,
                            searchTerm: Optional[str] = None,
                            session: AsyncSession = Depends(get_db_session)):
-    # getting all products or filtered by category and searchTerm
-    all_products = await ProductCRUDService(session).get_all_products(category=category, searchTerm=searchTerm)
-    print("length of all products >>>>>>:",len(all_products))
-    # TODO: i cant return products according to specific schema coz getting an error with async IO operations....so i
-    #  m returning just according to models
-    return all_products
+    return await ProductCRUDService(session).get_all_products(category=category, searchTerm=searchTerm)
 
 
-@product_routes.post("/create_product_review", status_code=status.HTTP_201_CREATED)
+@product_routes.post("/products/{product_id}/review", status_code=status.HTTP_201_CREATED)
 async def create_product_review(current_user: Annotated[dict, Depends(get_current_user)],
                                 product_review: CreateProductReview,
                                 session: AsyncSession = Depends(get_db_session)):
@@ -94,13 +96,13 @@ async def create_product_review(current_user: Annotated[dict, Depends(get_curren
     return product_review
 
 
-@product_routes.get("/get_product/{product_id}", status_code=status.HTTP_200_OK)
+@product_routes.get("/products/{product_id}", status_code=status.HTTP_200_OK)
 async def get_product(product_id: str, session: AsyncSession = Depends(get_db_session)):
     product = await ProductCRUDService(session).get_product_by_id(product_id=product_id)
     return product
 
 
-@product_routes.put("/update_product_availability/{product_id}", status_code=status.HTTP_200_OK)
+@product_routes.put("/products/{product_id}", status_code=status.HTTP_200_OK)
 async def update_product_availability(product_id: str,
                                       in_stock: bool,
                                       session: AsyncSession = Depends(get_db_session)):
@@ -109,7 +111,7 @@ async def update_product_availability(product_id: str,
     return product
 
 
-@product_routes.delete("/delete_product/{product_id}", status_code=status.HTTP_200_OK)
+@product_routes.delete("/products/{product_id}", status_code=status.HTTP_200_OK)
 async def delete_product(product_id: str, session: AsyncSession = Depends(get_db_session)):
     product = await ProductCRUDService(session).delete_product(product_id=product_id)
     if product:

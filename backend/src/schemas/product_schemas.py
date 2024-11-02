@@ -26,7 +26,8 @@ class CreateProduct(BaseModel):
     images: List[ImageType]
     quantity: int
     price: float
-    in_stock: str
+    in_stock: Optional[bool] = None
+    date_created: Optional[datetime] = None
 
 
 class CreateProductReview(BaseModel):
