@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Optional, List, Dict
 
 from pydantic import BaseModel, ConfigDict
-from pydantic.fields import Field
+from src.schemas.review_schemas import Review
 
 
 class ImageType(BaseModel):
@@ -29,27 +29,6 @@ class CreateProduct(BaseModel):
     in_stock: Optional[bool] = None
     date_created: Optional[datetime] = None
 
-
-class CreateProductReview(BaseModel):
-    product_id: str
-    comment: str
-    rating: float
-    user_id: str
-
-
-class UserInfoProductRating(BaseModel):
-    name: str
-    image: Optional[str] = None
-
-
-class Review(BaseModel):
-    id: str
-    user_id: str
-    product_id: str
-    rating: int
-    comment: str
-    created_date: str
-    user: UserInfoProductRating
 
 class CategoryProps(BaseModel):
     id: str

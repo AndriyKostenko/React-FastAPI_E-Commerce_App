@@ -6,7 +6,7 @@ import os
 from src.db.db_setup import get_db_session
 from src.security.authentication import get_current_user
 from src.service.product_service import ProductCRUDService
-from src.schemas.product_schemas import CreateProduct, GetAllProducts, CreateProductReview
+from src.schemas.product_schemas import CreateProduct
 from src.utils.image_metadata import create_image_metadata
 from src.utils.image_pathes import create_image_paths
 
@@ -79,21 +79,6 @@ async def get_all_products(category: Optional[str] = None,
                            searchTerm: Optional[str] = None,
                            session: AsyncSession = Depends(get_db_session)):
     return await ProductCRUDService(session).get_all_products(category=category, searchTerm=searchTerm)
-
-
-@product_routes.post("/products/{product_id}/review", status_code=status.HTTP_201_CREATED)
-async def create_product_review(current_user: Annotated[dict, Depends(get_current_user)],
-                                product_review: CreateProductReview,
-                                session: AsyncSession = Depends(get_db_session)):
-    if current_user is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
-
-    product_review = await ProductCRUDService(session).create_product_review(
-        CreateProductReview(product_id=product_review.product_id,
-                            comment=product_review.comment,
-                            user_id=current_user['id'],
-                            rating=product_review.rating))
-    return product_review
 
 
 @product_routes.get("/products/{product_id}", status_code=status.HTTP_200_OK)

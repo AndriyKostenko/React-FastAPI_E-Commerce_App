@@ -8,7 +8,7 @@ from src.config import settings
 from src.db.db_setup import get_db_session
 from src.routes.user_routes import get_current_user
 from src.schemas.order_schemas import PaymentIntentRequest, CreateOrder, UpdateOrder
-from src.schemas.payment import IntentSecret, AddressToUpdate
+from src.schemas.payment_schemas import IntentSecret, AddressToUpdate
 from src.service.order_service import OrderCRUDService
 from sqlalchemy.ext.asyncio import AsyncSession
 

@@ -1,10 +1,11 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from typing import List, Optional, Dict
-from src.models.product_models import Product, ProductImage, ProductReview
-from src.models.category_models import Category
+from src.models.product_models import Product, ProductImage
+from src.models.review_models import ProductReview
+from src.models.category_models import ProductCategory
 from sqlalchemy import select, asc, desc
-from src.schemas.product_schemas import CreateProduct, ProductSchema, CreateProductReview
+from src.schemas.product_schemas import CreateProduct
 from src.schemas.product_schemas import ImageType
 
 
@@ -13,10 +14,6 @@ class ProductCRUDService:
         self.session = session
 
     async def create_product_item(self, product: CreateProduct):
-
-        # getting product category.id for creation of new product, if no -> first creating category to connect with
-        # Product
-        # creating new product
         new_product = Product(name=product.name,
                               description=product.description,
                               category_id=product.category_id,
@@ -36,8 +33,6 @@ class ProductCRUDService:
         return new_product
 
     async def get_all_products(self, category: Optional[str] = None, searchTerm: Optional[str] = None):
-        # it works in way that it first loads all products, then loads images, reviews and category for each product
-        # according to relations in models
         query = select(Product).options(
             selectinload(Product.images),
             selectinload(Product.reviews).selectinload(ProductReview.user),  # product review is connected with user
@@ -51,9 +46,8 @@ class ProductCRUDService:
             query = query.filter(Product.name.ilike(f"%{searchTerm}%"))
 
         result = await self.session.execute(query)
-        products = result.scalars().all()
 
-        return products
+        return result.scalars().all()
 
 
     async def get_product_by_id(self, product_id: str):
@@ -69,7 +63,7 @@ class ProductCRUDService:
         return db_product.scalars().first()
 
     async def get_product_category_by_name(self, category: str):
-        db_category = await self.session.execute(select(Category).where(Category.name == category))
+        db_category = await self.session.execute(select(ProductCategory).where(ProcutCategory.name == category))
         if db_category:
             return db_category.scalars().first()
         return None
@@ -87,15 +81,6 @@ class ProductCRUDService:
         # TODO: rewrite functionality to return single new_product_image
         return new_product_image
 
-
-    async def create_product_review(self, product_review: CreateProductReview):
-        new_review = ProductReview(product_id=product_review.product_id,
-                                   comment=product_review.comment,
-                                   user_id=product_review.user_id,
-                                   rating=product_review.rating)
-        self.session.add(new_review)
-        await self.session.commit()
-        return new_review
 
     async def update_product_availability(self, product_id: str, in_stock: bool):
         db_product = await self.session.execute(select(Product).where(Product.id == product_id))

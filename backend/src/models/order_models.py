@@ -1,6 +1,6 @@
 from typing import List
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import ForeignKey, String
 from src.models import Base
 from src.utils.generate_uuid import generate_uuid
@@ -15,7 +15,11 @@ class Order(Base):
     currency: Mapped[str] = mapped_column(nullable=False)
     status: Mapped[str] = mapped_column(nullable=False)
     delivery_status: Mapped[str] = mapped_column(nullable=False)
-    create_date: Mapped[datetime] = mapped_column(default=datetime.utcnow, nullable=False)
+    date_created: Mapped[datetime] = mapped_column(
+        default=lambda: datetime.now(timezone.utc).astimezone(timezone.utc).replace(tzinfo=None),
+        nullable=False
+    )
+    date_updated: Mapped[datetime] = mapped_column(nullable=True)
     payment_intent_id: Mapped[str] = mapped_column(unique=True, nullable=True)
     address_id: Mapped[str] = mapped_column(ForeignKey('order_addresses.id'), nullable=False)
 

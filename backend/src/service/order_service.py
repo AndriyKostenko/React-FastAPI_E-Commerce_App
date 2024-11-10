@@ -4,7 +4,7 @@ from sqlalchemy import select, asc, desc
 from sqlalchemy.orm import joinedload, selectinload
 
 from src.schemas.order_schemas import CreateOrder, UpdateOrder
-from src.schemas.payment import AddressToUpdate
+from src.schemas.payment_schemas import AddressToUpdate
 from src.models.product_models import Product
 
 class OrderCRUDService:
@@ -42,7 +42,7 @@ class OrderCRUDService:
         return new_order
 
     async def get_all_orders(self):
-        result = await self.session.execute(select(Order).order_by(desc(Order.create_date)))
+        result = await self.session.execute(select(Order).order_by(desc(Order.date_created)))
         orders = result.scalars().all()
         return orders
 
@@ -63,7 +63,7 @@ class OrderCRUDService:
         )
         order = db_order.scalars().first()
         if not order:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
+            return None
         return order
 
     async def get_orders_with_items_by_user_id(self, user_id: str):
@@ -82,7 +82,7 @@ class OrderCRUDService:
                 selectinload(Order.items).selectinload(OrderItem.product).selectinload(Product.reviews)
                 # Load product reviews
             )
-            .order_by(Order.create_date.desc())  # Optional: order by creation date descending
+            .order_by(Order.date_created.desc())  # Optional: order by creation date descending
         )
 
         orders = result.scalars().all()
@@ -97,11 +97,11 @@ class OrderCRUDService:
         db_order_res = db_order.scalars().first()
         return db_order_res
 
-    async def update_order_by_id(self, order_id: int, order_updates: UpdateOrder):
-        db_order = await self.get_order_by_id(order_id)
+    async def update_order_by_id(self, order_id: str, order_updates: UpdateOrder):
+        db_order = await self.get_order_with_items_by_id(order_id)
 
         if not db_order:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
+            return None
 
         # Dynamically update the fields that are provided
         for field, value in order_updates.dict(exclude_unset=True).items():

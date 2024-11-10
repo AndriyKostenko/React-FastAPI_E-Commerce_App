@@ -1,6 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from src.models.category_models import Category
+from src.models.category_models import ProductCategory
 from src.schemas.category_schema import CreateCategory
 
 
@@ -10,28 +10,28 @@ class CategoryCRUDService:
         self.session = session
 
     async def create_category(self, name: str, image_url: str):
-        db_category = await self.session.execute(select(Category).where(Category.name == name))
+        db_category = await self.session.execute(select(ProductCategory).where(ProductCategory.name == name))
         db_category = db_category.scalars().first()
         if db_category:
             return db_category
 
-        new_category = Category(name=name, image_url=image_url)
+        new_category = ProductCategory(name=name, image_url=image_url)
         self.session.add(new_category)
         await self.session.commit()
         return new_category
 
     async def get_all_categories(self):
-        result = await self.session.execute(select(Category))
+        result = await self.session.execute(select(ProductCategory))
         categories = result.scalars().all()
         return categories
 
     async def get_category_by_id(self, category_id: int):
-        result = await self.session.execute(select(Category).where(Category.id == category_id))
+        result = await self.session.execute(select(ProductCategory).where(ProductCategory.id == category_id))
         category = result.scalars().first()
         return category
 
     async def delete_category(self, category_id: int):
-        result = await self.session.execute(select(Category).where(Category.id == category_id))
+        result = await self.session.execute(select(ProductCategory).where(ProductCategory.id == category_id))
         category = result.scalars().first()
         if category:
             await self.session.delete(category)
@@ -39,7 +39,7 @@ class CategoryCRUDService:
         return category
 
     async def update_category(self, id: str, name: str, image_url: str):
-        result = await self.session.execute(select(Category).where(Category.id == id))
+        result = await self.session.execute(select(ProductCategory).where(ProductCategory.id == id))
         category = result.scalars().first()
         if category:
             if name is not None:
