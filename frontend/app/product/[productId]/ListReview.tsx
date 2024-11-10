@@ -11,7 +11,9 @@ interface ListRstingProps {
     product: any;
 }
 
-const ListRating:React.FC<ListRstingProps> = ({product}) => {
+const ListReview:React.FC<ListRstingProps> = ({product}) => {
+    if (!product) return null;
+    
     return ( 
         <div>
             <Heading title="Product Review"/>
@@ -46,4 +48,4 @@ const ListRating:React.FC<ListRstingProps> = ({product}) => {
      );
 }
  
-export default ListRating;
+export default ListReview;

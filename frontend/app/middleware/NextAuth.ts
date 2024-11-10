@@ -80,7 +80,6 @@ export const authOptions: AuthOptions = {
                 }
 
                 const data = await response.json()
-                console.log('Data in authent: ', data)
                 const jwt = data['access_token']
                 const role = data['user_role']
                 const token_expiry = data['token_expiry']
@@ -106,9 +105,7 @@ export const authOptions: AuthOptions = {
     // adding jwt, user role and token expiry to the token
     jwt: async ({token, user}) => {
         if (user) {
-            console.log("User ID in jwt callback:", user.id); // Log to ensure id is available
             const customUser = user as CustomUser;
-
             return {
                 ...token,
                 id: customUser.id,

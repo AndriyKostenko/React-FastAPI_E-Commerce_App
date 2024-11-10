@@ -33,7 +33,7 @@ export default async function Home(props: {
 
 	console.log("category", category)
   
-	const products: ProductProps[] = await fetchProductsFromBackend(category)
+	const products: ProductProps[] = await fetchProductsFromBackend(category) || []
 
 	
 	

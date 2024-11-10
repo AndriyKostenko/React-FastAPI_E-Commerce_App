@@ -81,7 +81,21 @@ const Horizontal = () => {
 
 
 
-const ProductDetails:React.FC<{product: ProductProps}> = ({product}) => {
+const ProductDetails:React.FC<{product: ProductProps | null}> = ({product}) => {
+
+    const router = useRouter()
+
+    console.log('Product in ProductDetails:',product)
+
+    // Check if the product is null or undefined
+    if (!product) {
+        return (
+            <div className="p-8">
+                <h2 className="text-3xl font-medium text-slate-700">Product not found</h2>
+                <Button label="Go Back" onClick={() => router.back()} />
+            </div>
+        );
+    }
 
     //console.log('Product in ProductDetails:',product)
 
@@ -114,7 +128,7 @@ const ProductDetails:React.FC<{product: ProductProps}> = ({product}) => {
 
     
 
-    const router = useRouter()
+   
     
     //whenever the component roads we will be able to check if that product is in cart alreay
     useEffect(() => {

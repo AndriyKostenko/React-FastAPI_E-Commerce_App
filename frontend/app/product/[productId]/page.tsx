@@ -1,8 +1,12 @@
 import Container from "@/app/components/Container";
 import ProductDetails from "./ProductDetails";
-import ListRating from "./ListRating";
-import { products } from "@/utils/products";
+
+
 import fetchProductById from "@/actions/getProductById";
+import { sessionManagaer } from "@/actions/getCurrentUser";
+import fetchOrderByUserId from "@/actions/getOrdersByUserId";
+import AddReview from "./AddReview";
+import ListReview from "./ListReview";
 
 
 interface IDParameters {
@@ -17,15 +21,25 @@ const Product = async ({params} : {params: IDParameters}) => {
 
     const product = await fetchProductById(productId)
 
-    console.log('Product in Product component:  ', product)
+    const currentUser = await sessionManagaer.getCurrentUser();
+
+
+    const orders = await fetchOrderByUserId(currentUser.id, product.id);
+
+
+    // cheking if the product is already ordered by the user
+    const order = orders.find((order: any) => order.productId === productId);
+
+    //
+    const isDelivered = order?.status === "delivered" ? true : false;
 
     return ( 
         <div className="p-8">
             <Container>
                 <ProductDetails product={product}/>
                 <div className="flex flex-col mt-20 gap-4">
-                    <div>Add Rating</div>
-                    <ListRating product={product}/>
+                    <AddReview product={product} user={currentUser} isDeliveres={isDelivered}/>
+                    <ListReview product={product}/>
                 </div>
             </Container>
         </div>
