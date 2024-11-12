@@ -24,6 +24,11 @@ class ReviewCRUDService:
         result = await self.session.execute(stmt)
         return result.scalars().first()
 
+    async def get_product_review_by_user_id(self, product_id: str, user_id: str):
+        stmt = select(ProductReview).filter(ProductReview.product_id == product_id).filter(ProductReview.user_id == user_id)
+        result = await self.session.execute(stmt)
+        return result.scalars().first()
+
     async def get_product_reviews(self, product_id: str):
         stmt = select(ProductReview).filter(ProductReview.product_id == product_id)
         result = await self.session.execute(stmt)

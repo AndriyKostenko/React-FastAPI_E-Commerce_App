@@ -18,24 +18,33 @@ review_routes = APIRouter(
     tags=["review"]
 )
 
-@review_routes.get("/product/{product_id}/review")
+@review_routes.get("/review/product/{product_id}")
 async def get_product_reviews(product_id: str,
                               db: AsyncSession = Depends(get_db_session)):
     return await ReviewCRUDService(session=db).get_product_reviews(product_id)
 
 
-@review_routes.post("/product/{product_id}/review", response_model=CreateProductReview, status_code=status.HTTP_201_CREATED)
-async def create_product_rating(product_id: str,
+@review_routes.post("/review/product/{product_id}", response_model=CreateProductReview, status_code=status.HTTP_201_CREATED)
+async def create_product_review(product_id: str,
                                 review: CreateProductReview,
                                 db: AsyncSession = Depends(get_db_session),
                                 current_user: dict = Depends(get_current_user)):
     if current_user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="You need to be logged in to review a product")
+
+    # Check if the product exists
     product = await ProductCRUDService(session=db).get_product_by_id(product_id)
     if product is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found")
-    return await ReviewCRUDService(session=db).create_product_review(review=review)
 
+    # Check if the user already reviewed this product
+    existing_review = await ReviewCRUDService(session=db).get_product_review_by_user_id(product_id, current_user["id"])
+    if existing_review:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="You have already reviewed this product")
+
+    # Proceed with creating the review if no existing review is found
+    new_review = await ReviewCRUDService(session=db).create_product_review(review=review)
+    return new_review
 
 @review_routes.put("/product/{product_id}/review/{review_id}", response_model=CreateProductReview)
 async def update_product_review(product_id: str,
