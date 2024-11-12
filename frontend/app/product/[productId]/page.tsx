@@ -1,15 +1,14 @@
 import Container from "@/app/components/Container";
 import ProductDetails from "./ProductDetails";
-
+import checkIfOrderIsDelivered from "@/actions/checkIfOrderDelivered";
 
 import fetchProductById from "@/actions/getProductById";
 import { sessionManagaer } from "@/actions/getCurrentUser";
-import fetchOrderByUserId from "@/actions/getOrdersByUserId";
 import AddReview from "./AddReview";
 import ListReview from "./ListReview";
 
 
-interface IDParameters {
+interface IDParameters { 
     productId: string;
 }
 
@@ -23,22 +22,23 @@ const Product = async ({params} : {params: IDParameters}) => {
 
     const currentUser = await sessionManagaer.getCurrentUser();
 
+    const currentUserToken = await sessionManagaer.getCurrentUserJWT();
 
-    const orders = await fetchOrderByUserId(currentUser.id, product.id);
 
 
-    // cheking if the product is already ordered by the user
-    const order = orders.find((order: any) => order.productId === productId);
 
-    //
-    const isDelivered = order?.status === "delivered" ? true : false;
+    const isDelivered = currentUser ? await checkIfOrderIsDelivered(currentUser.id, productId) : false;
+
+
+
 
     return ( 
         <div className="p-8">
             <Container>
                 <ProductDetails product={product}/>
                 <div className="flex flex-col mt-20 gap-4">
-                    <AddReview product={product} user={currentUser} isDeliveres={isDelivered}/>
+                     {/* Render AddReview only if the user is logged in */}
+                     {currentUser && <AddReview product={product} user={currentUser} isDelivered={isDelivered} token={currentUserToken} />}
                     <ListReview product={product}/>
                 </div>
             </Container>

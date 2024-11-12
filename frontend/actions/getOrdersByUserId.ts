@@ -1,4 +1,4 @@
-const fetchOrderByUserId = async (userId: string, productId: string): Promise<any> => {
+const fetchOrderByUserId = async (userId: string): Promise<any> => {
 	try {
 		// adding cache: 'no-store' to prevent caching of the response
 		const response = await fetch(`http://127.0.0.1:8000/orders/user/${userId}`, {
@@ -10,14 +10,19 @@ const fetchOrderByUserId = async (userId: string, productId: string): Promise<an
 			console.error("Failed to fetch order by id:", response.status);
 			return null;
 		}
-		const orders = await response.json();
-		const order = orders.find((order: any) => order.productId === productId);
+		const data = await response.json();
 
-		return order || null;
+		console.log('Data orders in fetchOrderByUserId>>>>>>', data);
+
+		const orders = Array.isArray(data) ? data : data.orders;
+
+		return orders || [];
+
+
 
 	} catch (error) {
 		console.error(error)
-		return null;
+		return [];
 	}
 
 };

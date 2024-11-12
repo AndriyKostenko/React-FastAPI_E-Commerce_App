@@ -25,12 +25,20 @@ interface User {
 interface AddReviewProps {
     product: ProductProps;
     user: User;
+    isDelivered: boolean;
+    token: string;
 }
 
 
-const AddReview:React.FC<AddReviewProps> = ({product, user}) => {
+const AddReview:React.FC<AddReviewProps> = ({product, user, isDelivered, token}) => {
 
+    // check if user is logged in and product is available and delivered then show the review form
     if (!user || !product) return null;
+
+    if (isDelivered === false) return null;
+
+
+    
 
     const [isLoading, setIsLoading] = useState(false);
     const router = useRouter();
@@ -53,14 +61,17 @@ const AddReview:React.FC<AddReviewProps> = ({product, user}) => {
     const onSubmit:SubmitHandler<FieldValues> = async (data: FieldValues) => {
         setIsLoading(true);
 
-        if (data.rating === 0) return toast.error("Please rate the product");
+        if (data.rating === 0) {
+            toast.error("Please rate the product");
+            setIsLoading(false);
+            return;
+        }
 
         const reviewData = {productId: product.id, userId: user?.id, rating: data.rating, comment: data.comment};
-        
-        setIsLoading(true);
-        const result = await updateProductReview(reviewData);
-        if (result === null){
-            toast.error("Failed to rate the product");
+        const result = await updateProductReview(reviewData, token);
+
+        if (!result.success){
+            toast.error(result.message);
             setIsLoading(false);
             return;
         } else {
@@ -69,6 +80,8 @@ const AddReview:React.FC<AddReviewProps> = ({product, user}) => {
             reset();
             router.refresh();
         }
+
+        setIsLoading(false);
     }
 
 
@@ -77,7 +90,6 @@ const AddReview:React.FC<AddReviewProps> = ({product, user}) => {
             <Heading title='Rate this product'/>
             <Rating
                 name="rating"
-                value={0}
                 onChange={(event, newValue) => {
                     setCustomValue("rating", newValue);
                 }}
@@ -89,7 +101,7 @@ const AddReview:React.FC<AddReviewProps> = ({product, user}) => {
                 register={register}
                 errors={errors}
                 required />
-            <Button label={isLoading ? "Loading..." : "Rate Product"} onClick={handleSubmit(onSubmit)} disabled={isLoading}/>
+            <Button label={isLoading ? "Loading..." : "Review Product"} onClick={handleSubmit(onSubmit)} disabled={isLoading}/>
         </div>
     );
 };

@@ -13,7 +13,7 @@ interface SetColorProps{
 
 
 const SetColor: React.FC<SetColorProps> = ({images, cartProduct, handleColorSelect}) => {
-    console.log('Images in SetColor:', images)
+    
     return ( 
         <div>
             <div className="flex 

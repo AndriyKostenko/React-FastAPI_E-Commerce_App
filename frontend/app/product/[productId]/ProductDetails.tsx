@@ -85,7 +85,7 @@ const ProductDetails:React.FC<{product: ProductProps | null}> = ({product}) => {
 
     const router = useRouter()
 
-    console.log('Product in ProductDetails:',product)
+  
 
     // Check if the product is null or undefined
     if (!product) {
@@ -124,8 +124,7 @@ const ProductDetails:React.FC<{product: ProductProps | null}> = ({product}) => {
         images: product.images,
     });
 
-    console.log('Product Details:>>', cartProduct)
-
+    
     
 
    
