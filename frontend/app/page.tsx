@@ -4,14 +4,15 @@ import HomeBanner from "./components/banner/HomeBanner";
 import ProductCard from "./components/products/ProductCard";
 import NullData from "./components/NullData";
 import fetchProductsFromBackend from "../actions/getProducts";
-import { ProductProps } from "./product/[productId]/ProductDetails";
+import { ProductProps } from "./interfaces/product";
+
 
 
 
 type Params = Promise<{ slug: string }>
 type SearchParams = Promise<{ [key: string]: string | string[] | undefined }>
 
-
+// this function will be called at build time for generating metadata
 export async function generateMetadata(props: {
 	params: Params
 	searchParams: SearchParams
@@ -27,13 +28,14 @@ export default async function Home(props: {
 	params: Params
 	searchParams: SearchParams
   }) {
-	const params = await props.params
-	const searchParams = await props.searchParams
-	const category = (await searchParams).category as string | undefined;
 
-	console.log("category", category)
+	const searchParams = await props.searchParams
+	const searchTerm = searchParams['searchTerm'] as string | undefined;
+	const category = searchParams['category'] as string | undefined;
+	
+	console.log("searchParams", searchParams)
   
-	const products: ProductProps[] = await fetchProductsFromBackend(category) || []
+	const products = await fetchProductsFromBackend(category, searchTerm);
 
 	
 	

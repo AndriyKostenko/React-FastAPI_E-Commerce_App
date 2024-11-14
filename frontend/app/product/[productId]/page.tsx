@@ -24,12 +24,7 @@ const Product = async ({params} : {params: IDParameters}) => {
 
     const currentUserToken = await sessionManagaer.getCurrentUserJWT();
 
-
-
-
     const isDelivered = currentUser ? await checkIfOrderIsDelivered(currentUser.id, productId) : false;
-
-
 
 
     return ( 

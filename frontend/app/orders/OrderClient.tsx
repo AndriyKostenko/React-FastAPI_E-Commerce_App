@@ -12,6 +12,7 @@ import { useRouter } from 'next/navigation';
 import fetchOrdersFromBackend from '@/actions/getOrders';
 import { sessionManagaer } from "@/actions/getCurrentUser";
 import { useCurrentUserTokenExpiryCheck } from "@/hooks/useCurrentUserToken";
+import { OrderProps } from '../interfaces/order';
 
 
 
@@ -20,62 +21,6 @@ interface ManageOrdersClientProps{
   token: string;
   expiryToken: number | null;
 }
-
-export interface OrderProps {
-    id:                string;
-    amount:            number;
-    status:            string;
-    create_date:       string;
-    address_id:        string;
-    user_id:           string;
-    currency:          string;
-    delivery_status:   string;
-    payment_intent_id: string;
-    items:             Item[];
-}
-
-export interface Item {
-    id:         string;
-    quantity:   number;
-    order_id:   string;
-    product_id: string;
-    price:      number;
-    product:    Product;
-}
-
-export interface Product {
-    id:           string;
-    name:         string;
-    description:  string;
-    brand:        string;
-    price:        number;
-    date_created: string;
-    category_id:  string;
-    quantity:     number;
-    in_stock:     boolean;
-    images:       Image[];
-    category:     Category;
-    reviews:      Review[];  // Assuming Review is an array
-}
-
-export interface Image {
-    id:               string;
-    image_color:      string;
-    image_color_code: string;
-    image_url:        string;
-    product_id:       string;
-}
-
-export interface Category {
-    id:   string;
-    name: string;
-}
-
-export interface Review {
-    // Define review properties as per your data model
-}
-
-
 
 
 const OrdersClient:React.FC<ManageOrdersClientProps> = ({userOrders, token, expiryToken}) => {

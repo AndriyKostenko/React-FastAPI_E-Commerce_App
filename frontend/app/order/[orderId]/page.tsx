@@ -2,7 +2,6 @@ import fetchOrderById from "@/actions/getOrderById";
 import OrderDetails from "./OrderDetails";
 import Container from "@/app/components/Container";
 import NullData from "@/app/components/NullData";
-import { sessionManagaer } from "@/actions/getCurrentUser";
 
 
 interface IDParameters {
@@ -16,7 +15,6 @@ const Order = async ({params} : {params: IDParameters}) => {
     const { orderId } = params;
 
     const order = await fetchOrderById(orderId)
-    console.log('Order in Order>>', order)
 
     if (!order) {
         return <NullData title="No orders found."></NullData>

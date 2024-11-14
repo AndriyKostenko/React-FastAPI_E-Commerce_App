@@ -1,18 +1,10 @@
-interface Review {
-    productId: string;
-    userId: string;
-    rating: number;
-    comment: string;
-    // Add other relevant fields
-}
+import { ReviewProps } from "@/app/interfaces/review";
 
-const updateProductReview = async (review: Review, token: string) => {
-    const {productId, rating, comment, userId} = review;
-
-    console.log("token in updateProductReview>>>>>", token);
+const updateProductReview = async (review: ReviewProps, token: string) => {
+    const {product_id, rating, comment, user_id} = review;
 
     try {
-        const response = await fetch(`http://127.0.0.1:8000/review/product/${productId}`, {
+        const response = await fetch(`http://127.0.0.1:8000/review/product/${product_id}`, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${token}`,
@@ -21,8 +13,8 @@ const updateProductReview = async (review: Review, token: string) => {
             body: JSON.stringify({
                 rating: rating,
                 comment: comment,
-                user_id: userId,
-                product_id: productId
+                user_id: user_id,
+                product_id: product_id
             }),
         });
 

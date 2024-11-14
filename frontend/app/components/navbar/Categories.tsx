@@ -7,11 +7,11 @@ import { usePathname, useSearchParams } from "next/navigation";
 interface CategoryProps {
     id: string;
     name: string;
-    image_url: string;
+    image_url?: string;
     selected?: boolean;
 }
 
-interface CategoriesProps {
+export interface CategoriesProps {
     categories: CategoryProps[];
 }
 

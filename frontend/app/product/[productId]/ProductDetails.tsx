@@ -13,71 +13,14 @@ import ProductImage from "@/app/components/products/ProductImage";
 import { useCart } from "@/hooks/useCart";
 import { MdCheckCircle } from "react-icons/md";
 import { useRouter } from "next/navigation";
-
-
-export interface AllProductsProps {
-    products: ProductProps[];
-}
-
-
-export interface ProductProps {
-    id: string;
-    name: string;
-    description: string;
-    price: number;
-    quantity: number;
-    brand: string;
-    in_stock: boolean;
-    date_created: string;
-    selected_image: ImageProps,
-    category: CategoryProps;
-    reviews: ReviewProps[];
-    images: ImageProps[];
-}
-
-export interface CategoryProps {
-    id: string;
-    name: string;
-}
-
-export interface ReviewProps {
-    id: string;
-    rating: number;
-    date_created: string;
-    user_id: string;
-    product_id: string;
-    comment: string;
-    user: {
-        id: string;
-        name: string;
-        hashed_password: string;
-        phone_number: string | null;
-        image: string | null;
-        email: string;
-        role: string;
-        date_created: string;
-    };
-}
-
-export interface ImageProps {
-    image_url: string;
-    product_id: string;
-    image_color_code: string;
-    id: string;
-    image_color: string;
-}
-
-
-
-
-
+import { ProductProps } from "@/app/interfaces/product";
+import { ImageProps } from "@/app/interfaces/image";
 
 
 // drawing a simple line
 const Horizontal = () => {
     return <hr className="w-[30%] my-2"/>
 }
-
 
 
 

@@ -14,6 +14,7 @@ import Button from "@/app/components/Button";
 import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
 import { useCurrentUserTokenExpiryCheck } from "@/hooks/useCurrentUserToken";
+import { CategoryProps } from "@/app/interfaces/category";
 
 
 
@@ -29,17 +30,13 @@ export type UploadedImageType = {
     image: string;
 }
 
-interface Category {
-    id: string;
-    name: string;
-    image_url: string;
-}
+
 
 
 interface AddProductProps {
     currentUserJWT: string | null | undefined;
     expiryToken: number | null;
-    categories: Category[]
+    categories: CategoryProps[];
     
 }
 

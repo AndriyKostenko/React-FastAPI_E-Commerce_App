@@ -1,5 +1,6 @@
+import { OrderProps } from "@/app/interfaces/order";
 
-const fetchOrdersFromBackend = async (token: string): Promise<any> => {
+const fetchOrdersFromBackend = async (token: string): Promise<OrderProps[]> => {
 
     try {
         // adding cache: 'no-store' to prevent caching of the response
@@ -15,7 +16,7 @@ const fetchOrdersFromBackend = async (token: string): Promise<any> => {
 
         if (!response.ok) {
             console.error("Failed to fetch products:", response.status);
-            return null;
+            return [];
         }
 
         const orders = await response.json();
@@ -24,7 +25,7 @@ const fetchOrdersFromBackend = async (token: string): Promise<any> => {
 
     } catch (error) {
         console.error(error)
-        return null;
+        return [];
     }
 
 };

@@ -1,10 +1,6 @@
-interface Category {
-    id: string;
-    name: string;
-    // Add other relevant fields
-}
+import { CategoryProps } from "./../app/interfaces/category";
 
-const fetchCategoriesFromBackend = async (): Promise<Category[] | null> => {
+const fetchCategoriesFromBackend = async (): Promise<CategoryProps[]> => {
     try {
         const response = await fetch("http://127.0.0.1:8000/categories", {
             method: 'GET',
@@ -13,14 +9,16 @@ const fetchCategoriesFromBackend = async (): Promise<Category[] | null> => {
 
         if (!response.ok) {
             console.error("Failed to fetch categories:", response.status);
-            return null;
+            return [];
         }
 
-        const categories: Category[] = await response.json();
+        const categories = await response.json();
+
         return categories;
+
     } catch (error) {
         console.error("Error fetching categories:", error);
-        return null;
+        return [];
     }
 };
 

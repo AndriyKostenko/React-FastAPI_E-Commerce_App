@@ -6,6 +6,7 @@ import UserMenu from "./UserMenu";
 import { sessionManagaer} from "@/actions/getCurrentUser";
 import Categories from "./Categories";
 import fetchCategoriesFromBackend from "@/actions/getCategories";
+import SearchBar from "./SearchBar";
 
 // setting the font
 const redressed = Redressed({subsets: ['latin'],
@@ -16,7 +17,7 @@ const NavBar = async () => {
     // getting current user from the session
     const currentUser = await sessionManagaer.getCurrentUser();
     const currentUserRole = await sessionManagaer.getCurrentUserRole();
-    const categories = await fetchCategoriesFromBackend()
+    const categories = (await fetchCategoriesFromBackend()) || [];
 
     return (
         <div className="sticky
@@ -39,8 +40,9 @@ const NavBar = async () => {
                         </Link>
 
                         {/* making hiden for smaller screens */}
-                        <div className="hidden 
-                                        md:block">Search</div>
+                        <div className="md:block">
+                            <SearchBar/>
+                        </div>
 
                         <div className="flex 
                                         items-center
