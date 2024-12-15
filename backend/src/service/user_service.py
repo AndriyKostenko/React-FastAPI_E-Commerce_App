@@ -31,8 +31,7 @@ class UserCRUDService:
 
     async def get_all_users(self):
         result = await self.session.execute(select(User).order_by(asc(User.id)))
-        users = result.scalars().all()
-        return users
+        return result.scalars().all()
 
     async def get_user_by_email(self, email: str):
         db_user = await self.session.execute(select(User).where(User.email == email))

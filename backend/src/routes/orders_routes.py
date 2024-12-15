@@ -1,5 +1,5 @@
 from typing import List, Annotated, Dict, Optional
-
+from datetime import datetime
 from fastapi import Depends, APIRouter, status, HTTPException, Form, UploadFile, File, Body, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 import os
@@ -18,11 +18,14 @@ order_routes = APIRouter(
 
 @order_routes.get("/orders", status_code=status.HTTP_200_OK)
 async def get_all_orders(current_user: Annotated[dict, Depends(get_current_user)],
-                         session: AsyncSession = Depends(get_db_session)):
+                         session: AsyncSession = Depends(get_db_session),
+                         startDate: Optional[str] = Query(None),
+                         endDate: Optional[str] = Query(None)):
     if current_user["user_role"] != "admin" or current_user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
-    orders = await OrderCRUDService(session=session).get_all_orders()
-    return orders
+    if startDate and endDate:
+        return await OrderCRUDService(session=session).get_all_orders(start_date=startDate, end_date=endDate)
+    return await OrderCRUDService(session=session).get_all_orders()
 
 @order_routes.get("/orders/{id}", status_code=status.HTTP_200_OK)
 async def get_order_by_order_id(id: str,
@@ -43,4 +46,6 @@ async def update_order(id: str,
                     session: AsyncSession = Depends(get_db_session)):
     order = await OrderCRUDService(session=session).update_order_by_id(order_id=id, order_updates=order_updates)
     return order
+
+
 

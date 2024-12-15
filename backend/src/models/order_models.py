@@ -16,7 +16,7 @@ class Order(Base):
     status: Mapped[str] = mapped_column(nullable=False)
     delivery_status: Mapped[str] = mapped_column(nullable=False)
     date_created: Mapped[datetime] = mapped_column(
-        default=lambda: datetime.now(timezone.utc).astimezone(timezone.utc).replace(tzinfo=None),
+        default=lambda: datetime.now(timezone.utc),
         nullable=False
     )
     date_updated: Mapped[datetime] = mapped_column(nullable=True)

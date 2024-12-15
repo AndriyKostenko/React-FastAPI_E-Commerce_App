@@ -18,8 +18,8 @@ async def read_users(current_user: Annotated[dict, Depends(get_current_user)],
                      session: AsyncSession = Depends(get_db_session)):
     if current_user is None or current_user.get('user_role') != 'admin':
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Unauthorized')
-    db_users = await UserCRUDService(session).get_all_users()
-    return [UserInfo.from_orm(user) for user in db_users]
+    return await UserCRUDService(session).get_all_users()
+
 
 
 @admin_routes.get('/users/{user_id}', summary='Get user by ID', status_code=status.HTTP_200_OK)

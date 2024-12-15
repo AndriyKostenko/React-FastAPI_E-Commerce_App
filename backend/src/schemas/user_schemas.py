@@ -9,7 +9,6 @@ class UserInfo(BaseModel):
     id: str
     name: str
     email: str
-    hashed_password: str
     role: Optional[str] = None
     phone_number: Optional[str] = None
     date_created: datetime
