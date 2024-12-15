@@ -12,13 +12,9 @@ const fetchOrderByUserId = async (userId: string): Promise<any> => {
 		}
 		const data = await response.json();
 
-		console.log('Data orders in fetchOrderByUserId>>>>>>', data);
-
 		const orders = Array.isArray(data) ? data : data.orders;
 
 		return orders || [];
-
-
 
 	} catch (error) {
 		console.error(error)

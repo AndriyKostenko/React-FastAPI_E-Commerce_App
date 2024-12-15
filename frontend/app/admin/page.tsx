@@ -5,6 +5,8 @@ import fetchProductsFromBackend from "@/actions/getProducts";
 import fetchOrdersFromBackend from "@/actions/getOrders";
 import fetchUsersFromBackend from "@/actions/fetchUsers";
 import Container from "@/app/components/Container";
+import getGraphData from "@/actions/getGraphData";
+import BarGraph from "./BarGraph";
 
 
 const Admin = async () => {
@@ -20,6 +22,7 @@ const Admin = async () => {
     const products = await fetchProductsFromBackend();
     const orders = await fetchOrdersFromBackend(token);
     const users = await fetchUsersFromBackend(token);
+    const graphData = await getGraphData(token);
   
     
     return ( 
@@ -28,6 +31,9 @@ const Admin = async () => {
                 <Summary products={products} 
                         orders={orders}
                         users={users}/>
+                <div className="mt-4 mx-auto max-w[1150px]">
+                    <BarGraph data={graphData}/>
+                </div>
             </Container>
 
         </div>
