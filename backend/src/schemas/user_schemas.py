@@ -11,8 +11,11 @@ class UserInfo(BaseModel):
     email: str
     role: Optional[str] = None
     phone_number: Optional[str] = None
-    date_created: datetime
+    date_created: str
     image: Optional[str] = None
+    date_updated: Optional[str] = None
+    hashed_password: Optional[str] = None
+
 
     model_config = ConfigDict(from_attributes=True, json_schema_extra={
         "example": {

@@ -23,6 +23,8 @@ async def update_payment_intent(data: PaymentIntentRequest,
                                 current_user: Annotated[dict, Depends(get_current_user)],
                                 session: AsyncSession = Depends(get_db_session)):
 
+    print('data>>>>>>>',data)
+
     if current_user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Unauthorized')
 

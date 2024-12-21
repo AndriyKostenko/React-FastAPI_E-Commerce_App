@@ -44,40 +44,20 @@ class OrderCRUDService:
 
     async def get_all_orders(self, start_date: str = None, end_date: str = None):
 
-        # summarize total amount and total orders for complete orders
+        # if start_date and end_date are provided, filter orders by date range and status 'complete'
         if start_date and end_date:
             start_date_parsed = datetime.fromisoformat(start_date).astimezone(timezone.utc).replace(tzinfo=None)
             end_date_parsed = datetime.fromisoformat(end_date).astimezone(timezone.utc).replace(tzinfo=None)
 
-            # # Summarize total amount for a single day
-            if start_date == end_date:
-                query = select(func.sum(Order.amount).label("total_amount"),
-                               func.count(Order.id).label("total_orders")
-                        ).where(
-                            and_(
-                                Order.date_created >= start_date_parsed,
-                                Order.date_created <= end_date_parsed,
-                                Order.status == 'complete'
-                                            ))
-                result = await self.session.execute(query)
-                summary = result.fetchone()
-
-                # Safely return the summary
-                return {
-                    'total_amount': summary.total_amount if summary.total_amount is not None else 0,
-                    'total_orders': summary.total_orders if summary.total_orders is not None else 0,
-                }
-
-            else:
-                query = select(Order).where(
-                    and_(
-                        Order.date_created >= start_date_parsed,
-                        Order.date_created <= end_date_parsed,
-                        Order.status == 'complete'
-                    )
+            query = select(Order).where(
+                and_(
+                    Order.date_created >= start_date_parsed,
+                    Order.date_created <= end_date_parsed,
+                    Order.status == 'complete'
                 )
-                result = await self.session.execute(query)
-                return result.scalars().all()
+            )
+            result = await self.session.execute(query)
+            return result.scalars().all()
         else:
             # getting all orders if no date range is provided
             query = select(Order).order_by(asc(Order.date_created))

@@ -11,11 +11,11 @@ class ImageType(BaseModel):
     image: str
 
 class CartImages(BaseModel):
-    image_color: str
-    id: str
     product_id: str
-    image_url:str
+    image_url: str
     image_color_code: str
+    id: str
+    image_color: str
 
 
 class CreateProduct(BaseModel):
@@ -27,12 +27,15 @@ class CreateProduct(BaseModel):
     quantity: int
     price: float
     in_stock: Optional[bool] = None
-    date_created: Optional[datetime] = None
+    date_created: Optional[str] = None
 
 
 class CategoryProps(BaseModel):
     id: str
     name: str
+    image_url: str
+    date_created: str
+    date_updated: str
 
 class ProductSchema(BaseModel):
     id: str

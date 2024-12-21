@@ -1,4 +1,5 @@
 from typing import Optional
+from src.schemas.user_schemas import UserInfo
 
 from pydantic import BaseModel
 
@@ -17,5 +18,6 @@ class Review(BaseModel):
     product_id: str
     rating: int
     comment: str
-    created_date: str
-    user: Optional[dict] = None
+    date_created: str
+    date_updated: Optional[str] = None
+    user: UserInfo
