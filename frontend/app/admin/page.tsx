@@ -19,6 +19,7 @@ const Admin = async () => {
     }
 
     const token = await sessionManagaer.getCurrentUserJWT()
+    const expiryToken = await sessionManagaer.getCurrentUserTokenExpiry()
     const products = await fetchProductsFromBackend();
     const orders = await fetchOrdersFromBackend(token);
     const users = await fetchUsersFromBackend(token);
@@ -30,8 +31,9 @@ const Admin = async () => {
             <Container>
                 <Summary products={products} 
                         orders={orders}
-                        users={users}/>
-                <div className="mt-4 mx-auto max-w[1150px]">
+                        users={users}
+                        expiryToken={expiryToken}/>
+                <div className="mt-4 mx-auto max-w-[1150px]">
                     <BarGraph data={graphData}/>
                 </div>
             </Container>

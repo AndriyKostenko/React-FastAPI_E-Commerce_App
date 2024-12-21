@@ -1,6 +1,6 @@
 'use client';
 
-import { ProductProps } from '@/app/product/[productId]/ProductDetails';
+import { ProductProps } from '../app/interfaces/product';
 import { createContext, useState, useContext, useCallback, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
 

@@ -1,10 +1,11 @@
 import moment from "moment";
 import fetchOrdersFromBackend from "./getOrders";
+import { OrderProps } from "@/app/interfaces/order";
 
 export default async function getGraphData(token: string) {
 	try {
 		// getting the start and end date for the last 7 days
-		const startDate = moment().subtract(6, "days").startOf("day");
+		const startDate = moment().subtract(60, "days").startOf("day");
 		const endDate = moment().endOf("day");
 
 		console.log('startDate>>>>', startDate);
@@ -17,7 +18,7 @@ export default async function getGraphData(token: string) {
 
 		// initializing an object to aggregate the data by day
 		const aggregatedData: {
-			[day: string]: {day: string, date: string, totalAmount: number}
+			[date: string]: {date: string, totalAmount: number}
 		} = {};
 
 		// creating a clone of the start date to iterate over each day
@@ -26,13 +27,12 @@ export default async function getGraphData(token: string) {
 		// iterate over each day from the start date to the end date
 		while (currentDate <= endDate) {
 			// format the current day to a string like Monday
-			const day = currentDate.format("dddd");
+			const date = currentDate.format("YYYY-MM-DD");
 			//console.log('day>>>>>',day, currentDate);
 
 			// initialize the aggregated data for the day
-			aggregatedData[day] = {
-				day,
-				date: currentDate.format("YYYY-MM-DD"),
+			aggregatedData[date] = {
+				date,
 				totalAmount: 0
 			};
 
@@ -41,10 +41,16 @@ export default async function getGraphData(token: string) {
 		}
 
 		// calculate the total amount for each day by summing the amount of each order
-		data.forEach((order: any) => {
-			const day = moment(order.created_at).format("dddd");
+		data.forEach((order: OrderProps) => {
+			const orderDate = moment(order.date_created).format("YYYY-MM-DD");
+			console.log('orderDate>>>>', orderDate);
 			const amount = order.amount || 0;
-			aggregatedData[day].totalAmount += amount;
+
+			// checking if the order exists in the aggregated data
+			if (aggregatedData[orderDate]) {
+				// add the amount of the order to the total amount for the day
+				aggregatedData[orderDate].totalAmount += amount;
+			}
 		});
 
 		// convert the aggregated object to an array and sort it by date

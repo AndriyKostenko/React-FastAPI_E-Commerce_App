@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import Heading from "../components/Heading";
 import { formatPrice } from "@/utils/formatPrice";
 import { formatNumber } from "@/utils/formatNumber";
+import { useCurrentUserTokenExpiryCheck } from "@/hooks/useCurrentUserToken";
 
 
 
@@ -14,6 +15,7 @@ interface SummaryProps {
     orders: OrderProps[];
     products: ProductProps[];
     users: UserProps[];
+	expiryToken: number | null;
 }
 
 type SummaryDataType = {
@@ -24,7 +26,11 @@ type SummaryDataType = {
 }
 
  
-const Summary:React.FC<SummaryProps> = ({orders, products, users}) => {
+const Summary:React.FC<SummaryProps> = ({orders, products, users, expiryToken}) => {
+
+	// redirecting back if token is expired
+    useCurrentUserTokenExpiryCheck(expiryToken)
+
 	const [summaryData, setSummaryData] = useState<SummaryDataType>({
 		sale: {
 			label: 'Total Sale',

@@ -11,6 +11,7 @@ import CheckoutForm from "./CheckOutForm";
 import Button from "../components/Button";
 import Link from "next/link";
 import { MdArrowBack } from "react-icons/md";
+import { ProductProps } from "../interfaces/product";
 
 
 interface LoginFormProps{
@@ -40,6 +41,17 @@ const CheckoutClient:React.FC<LoginFormProps> = ({currentUserJWT}) => {
 
     console.log('Component re-rendered:', renderCount.current);
 
+    function cleanCartItemsFromNull(cartProducts: ProductProps[] | null) {
+        for (const key in cartProducts) {
+            if (cartProducts[key] === null) {
+                cartProducts[key] = ""; // replacing null with empty string
+            } else if (typeof cartProducts[key] === 'object' && !Array.isArray(cartProducts[key])) {
+                cleanCartItemsFromNull(cartProducts[key]); // recursively cleaning nested objects
+            }
+        }
+        return cartProducts;
+    }
+
     useEffect(() => {
         // creating paymentINtent
         if (cartProducts && !paymentIntent) {
@@ -53,7 +65,7 @@ const CheckoutClient:React.FC<LoginFormProps> = ({currentUserJWT}) => {
                             'Authorization': `Bearer ${currentUserJWT}` // Including the JWT token here
                     },
                     body: JSON.stringify({
-                        items: cartProducts,
+                        items: cleanCartItemsFromNull(cartProducts),
                         payment_intent_id: paymentIntent
                     })
                 }).then((res) => {

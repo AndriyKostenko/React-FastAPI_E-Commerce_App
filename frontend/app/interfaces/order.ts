@@ -4,7 +4,7 @@ export interface OrderProps {
     id:                string;
     amount:            number;
     status:            string;
-    create_date:       string;
+    date_created:      string;
     address_id:        string;
     user_id:           string;
     currency:          string;
