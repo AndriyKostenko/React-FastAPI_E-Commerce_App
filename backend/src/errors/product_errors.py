@@ -15,3 +15,7 @@ class ProductNotFoundError(ProductServiceError):
 class ProductUpdateError(ProductServiceError):
     """Raised when updating a product fails."""
     pass
+
+class ProductImageCreationError(ProductServiceError):
+    """Raised when creating a product image fails."""
+    pass

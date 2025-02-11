@@ -24,8 +24,8 @@ class CreateProduct(BaseModel):
     category_id: str =  Field(..., description="Category ID is required")
     brand: str = Field(..., min_length=3, max_length=50, description="Brand name must be between 3 and 50 characters")
     images: List[ImageType]
-    quantity: PositiveInt
-    price: PositiveFloat
+    quantity: int = PositiveInt
+    price: float = PositiveFloat
     in_stock: Optional[bool] = None
     date_created: Optional[str] = None
 
@@ -44,12 +44,25 @@ class ProductSchema(BaseModel):
     price: float
     quantity: int
     brand: str
-    category: CategoryProps
-    in_stock: bool
+    category: Optional[CategoryProps]
     date_created: str
-    selected_image: CartImages
-    images: List[CartImages]
+    in_stock: bool
+    selected_image: Optional[CartImages] = None
+    images: List[CartImages] 
     reviews: List[Review]
+    
+class CreatedProduct(BaseModel):
+    id: str
+    category_id: str
+    quantity: int
+    in_stock: bool
+    date_updated: Optional[str] = None
+    name: str
+    description: str
+    brand: str
+    price: float
+    date_created: datetime
+    
 
 class GetAllProducts(BaseModel):
     products: List[ProductSchema]

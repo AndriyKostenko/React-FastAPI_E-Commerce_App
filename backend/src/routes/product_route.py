@@ -1,38 +1,53 @@
-from typing import List, Annotated, Dict, Optional
-
-from fastapi import Depends, APIRouter, status, HTTPException, Form, UploadFile, File, Body, Query
+from typing import List, Annotated, Optional
+from fastapi import Depends, APIRouter, status, HTTPException, Form, UploadFile, File, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
-import os
+from pydantic import ValidationError
+
 from src.db.db_setup import get_db_session
+from src.errors.user_errors import UserAuthenticationError
 from src.security.authentication import get_current_user
 from src.service.product_service import ProductCRUDService
-from src.schemas.product_schemas import CreateProduct
+from src.schemas.product_schemas import CreateProduct, ProductSchema, CreatedProduct
 from src.utils.image_metadata import create_image_metadata
 from src.utils.image_pathes import create_image_paths
 from src.errors.database_errors import DatabaseError
+from src.errors.product_errors import ProductCreationError
+from src.errors.category_errors import CategoryNotFoundError
 
 product_routes = APIRouter(
     tags=["product"]
 )
 
 
-@product_routes.post("/products", status_code=status.HTTP_201_CREATED)
+@product_routes.post("/products", 
+                     status_code=status.HTTP_201_CREATED, 
+                     response_model=CreatedProduct,
+                     response_description="New product created",
+                     responses={
+                            201: {"description": "New product created"},
+                            400: {"description": "Bad request"},
+                            401: {"description": "Unauthorized"},
+                            404: {"description": "Category not found"},
+                            422: {"description": "Validation error"},
+                            500: {"description": "Internal server error"}})
 async def create_new_product(current_user: Annotated[dict, Depends(get_current_user)],
-                             name: str = Form(...),
-                             description: str = Form(...),
+                             background_tasks: BackgroundTasks,
+                             name: str = Form(..., min_length=3, max_length=50),
+                             description: str = Form(..., min_length=10, max_length=500),
                              category_id: str = Form(...),
                              brand: str = Form(...),
-                             quantity: str = Form(...),
-                             price: str = Form(...),
+                             quantity: int = Form(..., ge=0),
+                             price: float = Form(..., ge=0),
                              in_stock: str = Form(...),
                              images_color: List[str] = Form(...),
                              images_color_code: List[str] = Form(...),
                              images: List[UploadFile] = File(...),
                              session: AsyncSession = Depends(get_db_session),
                              ):
-    if current_user["user_role"] != "admin" or current_user is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
+    if current_user["user_role"] != "admin":
+        raise UserAuthenticationError(status_code=status.HTTP_401_UNAUTHORIZED, detail="Admin access required")
 
+    # convert in_stock to boolean coz it will be passed as a string from client
     if isinstance(in_stock, str):
         if in_stock.lower() == "true":
             in_stock = True
@@ -40,47 +55,79 @@ async def create_new_product(current_user: Annotated[dict, Depends(get_current_u
             in_stock = False
 
 
-    # create image paths
+    # processing images in background
+    # background_tasks.add_task(create_image_paths, images=images)
+    
     image_paths = await create_image_paths(images=images)
 
     # Validating that the lengths of the lists match....number of pict = color = color codes (only for inputs from
     # Swagger)
-    if len(image_paths) != len(images_color) or len(image_paths) != len(images_color_code):
-        # TODO : so, i have to get data from Form from client and its separating data correctly in the list...but
-        #  when i do it from Swagger, all image_colors and image_color_codes are passed as a single string..so i have
-        #  to split it
+    # TODO : so, i have to get data from Form from client and its separating data correctly in the list...but
+    #  when i do it from Swagger, all image_colors and image_color_codes are passed as a single string..so i have
+    #  to split it
 
-        # data from Swagger will be passed as a single string with comas, so i have to split it manually
-        images_color = [color for colors in images_color for color in colors.split(',')]
-        images_color_code = [code for codes in images_color_code for code in codes.split(',')]
+    # data from Swagger will be passed as a single string with comas, so i have to split it manually
+    images_color = [color for colors in images_color for color in colors.split(',')]
+    images_color_code = [code for codes in images_color_code for code in codes.split(',')]
 
-        # if still not matching - error
-        if len(image_paths) != len(images_color) or len(image_paths) != len(images_color_code):
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
-                                detail="Mismatch in the number of images and metadata")
+    print(f"images_color: {images_color}, images_color_code: {images_color_code}, image_paths: {image_paths}")
+
+    # if not matching - error
+    if len(image_paths) != len(images_color) or len(image_paths) != len(images_color_code) or len(images_color) != len(images_color_code):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="Mismatch in the number of images and metadata")
+        
     # create image metadata
-    image_metadata = await create_image_metadata(image_paths=image_paths, images_color=images_color,
+    image_metadata = await create_image_metadata(image_paths=image_paths, 
+                                                 images_color=images_color,
                                                  images_color_code=images_color_code)
 
-    # create product
-    new_product = await ProductCRUDService(session).create_product_item(CreateProduct(name=name,
-                                                                                      description=description,
-                                                                                      category_id=category_id,
-                                                                                      brand=brand,
-                                                                                      images=image_metadata,
-                                                                                      quantity=int(quantity),
-                                                                                      price=float(price),
-                                                                                      in_stock=in_stock))
+    try :
+        # creating new product
+        new_product = await ProductCRUDService(session).create_product_item(CreateProduct(name=name,
+                                                                                          description=description,
+                                                                                          category_id=category_id,
+                                                                                          brand=brand,
+                                                                                          images=image_metadata,
+                                                                                          quantity=int(quantity),
+                                                                                          price=float(price),
+                                                                                          in_stock=in_stock))
 
-    return new_product
+        return CreatedProduct(**new_product)
+
+    except ValidationError as error:
+        raise HTTPException(status_code=422, detail=error.errors())
+    except ProductCreationError as error:
+        raise HTTPException(status_code=400, detail=str(error))
+    except CategoryNotFoundError as error:
+        raise HTTPException(status_code=404, detail=str(error))
+    except DatabaseError as error:
+        raise HTTPException(status_code=500, detail=str(error))
+
+
+
+
+
 
 
 @product_routes.get("/products", status_code=status.HTTP_200_OK)
 async def get_all_products(category: Optional[str] = None,
                            searchTerm: Optional[str] = None,
+                           page: int = 1,
+                           page_size: int = 10,
                            session: AsyncSession = Depends(get_db_session)):
-    products = await ProductCRUDService(session).get_all_products(category=category, searchTerm=searchTerm)
-    return products if products else HTTPException(status_code=404, detail="No products found")
+    try:
+        products = await ProductCRUDService(session).get_all_products(category=category,
+                                                                      searchTerm=searchTerm,
+                                                                      page_size=page_size,
+                                                                      page=page)
+    # sqlalchemy errors
+    except DatabaseError as error:
+        raise HTTPException(status_code=500, detail=str(error))
+    # pydantic errors
+    except ValidationError as error:
+        raise HTTPException(status_code=422, detail=error.errors())
+    return products if products else HTTPException(status_code=404, detail="Products not found")
 
 
 @product_routes.get("/products/{product_id}", status_code=status.HTTP_200_OK)
@@ -92,7 +139,7 @@ async def get_product_by_id(product_id: str,
             raise HTTPException(status_code=404, detail="Product not found")
         return product
     except DatabaseError as error:
-        raise HTTPException(status_code=404, detail=str(error))
+        raise HTTPException(status_code=500, detail=str(error))
 
 @product_routes.get("/products/{name}", status_code=status.HTTP_200_OK)
 async def get_product_by_name(name: str,
