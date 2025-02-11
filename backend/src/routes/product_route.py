@@ -9,6 +9,7 @@ from src.service.product_service import ProductCRUDService
 from src.schemas.product_schemas import CreateProduct
 from src.utils.image_metadata import create_image_metadata
 from src.utils.image_pathes import create_image_paths
+from src.errors.database_errors import DatabaseError
 
 product_routes = APIRouter(
     tags=["product"]
@@ -78,13 +79,26 @@ async def create_new_product(current_user: Annotated[dict, Depends(get_current_u
 async def get_all_products(category: Optional[str] = None,
                            searchTerm: Optional[str] = None,
                            session: AsyncSession = Depends(get_db_session)):
-    return await ProductCRUDService(session).get_all_products(category=category, searchTerm=searchTerm)
+    products = await ProductCRUDService(session).get_all_products(category=category, searchTerm=searchTerm)
+    return products if products else HTTPException(status_code=404, detail="No products found")
 
 
 @product_routes.get("/products/{product_id}", status_code=status.HTTP_200_OK)
-async def get_product(product_id: str, session: AsyncSession = Depends(get_db_session)):
-    product = await ProductCRUDService(session).get_product_by_id(product_id=product_id)
-    return product
+async def get_product_by_id(product_id: str,
+                            session: AsyncSession = Depends(get_db_session)):
+    try:
+        product = await ProductCRUDService(session).get_product_by_id(product_id=product_id)
+        if not product:
+            raise HTTPException(status_code=404, detail="Product not found")
+        return product
+    except DatabaseError as error:
+        raise HTTPException(status_code=404, detail=str(error))
+
+@product_routes.get("/products/{name}", status_code=status.HTTP_200_OK)
+async def get_product_by_name(name: str,
+                              session: AsyncSession = Depends(get_db_session)):
+    product = await ProductCRUDService(session).get_product_by_name(name=name)
+    return product if product else HTTPException(status_code=404, detail="Product not found")
 
 
 @product_routes.put("/products/{product_id}", status_code=status.HTTP_200_OK)
@@ -93,13 +107,16 @@ async def update_product_availability(product_id: str,
                                       session: AsyncSession = Depends(get_db_session)):
     # fastapi automatically getting query parameter 'in_stock' from the url\
     product = await ProductCRUDService(session).update_product_availability(product_id=product_id, in_stock=in_stock)
-    return product
+    return product if product else HTTPException(status_code=404, detail="Product not found")
 
 
-@product_routes.delete("/products/{product_id}", status_code=status.HTTP_200_OK)
-async def delete_product(product_id: str, session: AsyncSession = Depends(get_db_session)):
-    product = await ProductCRUDService(session).delete_product(product_id=product_id)
-    if product:
-        return {"message": "Product deleted successfully"}
-    else:
-        raise HTTPException(status_code=404, detail="Product not found")
+@product_routes.delete("/products/{product_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_product(product_id: str,
+                         current_user: Annotated[dict, Depends(get_current_user)],
+                         session: AsyncSession = Depends(get_db_session)):
+    if current_user["user_role"] != "admin" or current_user is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
+    deleted_product = await ProductCRUDService(session).delete_product(product_id=product_id)
+    if not deleted_product:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found")
+

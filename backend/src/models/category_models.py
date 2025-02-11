@@ -19,4 +19,4 @@ class ProductCategory(Base):
     )
     date_updated: Mapped[datetime] = mapped_column(nullable=True)
 
-    products: Mapped[List['Product']] = relationship('Product', back_populates='category')
+    products: Mapped[List['Product']] = relationship('Product', back_populates='category', cascade='all, delete-orphan')

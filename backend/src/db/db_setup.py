@@ -6,7 +6,8 @@ from src.models.user_models import Base
 # create async engine
 async_engine = create_async_engine(
     url=settings.DATABASE_URL,
-    echo=True)
+    echo=True
+) # # Set to False in production to avoid logging SQL queries
 
 # create async session
 async_session = sessionmaker(

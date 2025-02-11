@@ -15,9 +15,8 @@ category_routes = APIRouter(
 
 @category_routes.get("/categories", status_code=status.HTTP_200_OK)
 async def get_all_categories(session: AsyncSession = Depends(get_db_session)):
-    return await CategoryCRUDService(session=session).get_all_categories()
-
-
+    categories = await CategoryCRUDService(session=session).get_all_categories()
+    return categories if categories else HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Categories not found")
 
 
 @category_routes.post("/categories", status_code=status.HTTP_201_CREATED)
@@ -32,17 +31,40 @@ async def create_category(current_user: Annotated[dict, Depends(get_current_user
     image_paths = await create_image_paths(images=[image])
 
     # Create category with the image URL
-
     new_category = await CategoryCRUDService(session=session).create_category(name=name, image_url=image_paths[0])
-    return new_category
+    return new_category if new_category else HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Category not created")
+
 
 @category_routes.get("/categories/{category_id}", status_code=status.HTTP_200_OK)
-async def get_category_by_id(category_id: int,
+async def get_category_by_id(category_id: str,
                              current_user: Annotated[dict, Depends(get_current_user)],
                              session: AsyncSession = Depends(get_db_session)):
     if current_user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
-    return await CategoryCRUDService(session=session).get_category_by_id(category_id=category_id)
+    category = await CategoryCRUDService(session=session).get_category_by_id(category_id=category_id)
+    return category if category else HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
+
+@category_routes.get("/categories/{category_id}", status_code=status.HTTP_200_OK)
+async def get_category_by_name(name: str,
+                               current_user: Annotated[dict, Depends(get_current_user)],
+                               session: AsyncSession = Depends(get_db_session)):
+    if current_user is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
+    category = await CategoryCRUDService(session=session).get_category_by_name(name=name)
+    return category if category else HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
+
+
+@category_routes.delete("/categories/{category_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_category(category_id: str,
+                          current_user: Annotated[dict, Depends(get_current_user)],
+                          session: AsyncSession = Depends(get_db_session)):
+    if current_user["user_role"] != "admin" or current_user is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
+
+    deleted_category = await CategoryCRUDService(session=session).delete_category(category_id=category_id)
+    if not deleted_category:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
+
 
 @category_routes.put("/categories/{category_id}", status_code=status.HTTP_200_OK)
 async def update_category(category_id: str,
@@ -60,5 +82,5 @@ async def update_category(category_id: str,
             image_url = image_paths[0]
 
         # Update category with the image URL
-        updated_category = await CategoryCRUDService(session=session).update_category(id=category_id, name=name, image_url=image_url)
+        updated_category = await CategoryCRUDService(session=session).update_category(category_id=category_id, name=name, image_url=image_url)
         return updated_category

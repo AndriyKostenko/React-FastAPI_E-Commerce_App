@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional, List, Dict
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, PositiveInt, PositiveFloat, Field
 from src.schemas.review_schemas import Review
 
 
@@ -19,13 +19,13 @@ class CartImages(BaseModel):
 
 
 class CreateProduct(BaseModel):
-    name: str
-    description: str
-    category_id: str
-    brand: str
+    name: str = Field(..., min_length=3, max_length=50, description="Product name must be between 3 and 50 characters")
+    description: str = Field(..., min_length=10, max_length=500, description="Product description must be between 10 and 500 characters")
+    category_id: str =  Field(..., description="Category ID is required")
+    brand: str = Field(..., min_length=3, max_length=50, description="Brand name must be between 3 and 50 characters")
     images: List[ImageType]
-    quantity: int
-    price: float
+    quantity: PositiveInt
+    price: PositiveFloat
     in_stock: Optional[bool] = None
     date_created: Optional[str] = None
 
