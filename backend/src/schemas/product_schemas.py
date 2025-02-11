@@ -34,8 +34,8 @@ class CategoryProps(BaseModel):
     id: str
     name: str
     image_url: str
-    date_created: str
-    date_updated: str
+    date_created: datetime
+    date_updated: Optional[datetime] = None
 
 class ProductSchema(BaseModel):
     id: str
@@ -44,8 +44,9 @@ class ProductSchema(BaseModel):
     price: float
     quantity: int
     brand: str
-    category: Optional[CategoryProps]
-    date_created: str
+    category: Optional[CategoryProps] = None
+    date_created: datetime
+    date_updated: Optional[datetime] = None
     in_stock: bool
     selected_image: Optional[CartImages] = None
     images: List[CartImages] 
@@ -63,10 +64,6 @@ class CreatedProduct(BaseModel):
     price: float
     date_created: datetime
     
-
-class GetAllProducts(BaseModel):
-    products: List[ProductSchema]
-
 
 class ProductParams(BaseModel):
     category: Optional[str] = None

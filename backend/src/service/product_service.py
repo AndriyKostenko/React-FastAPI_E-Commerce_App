@@ -88,9 +88,10 @@ class ProductCRUDService:
 
             result = await self.session.execute(query)
             products = result.scalars().all()
-            if products:
-                return products
-            return None
+            
+            if not products:
+                return None
+            return products
 
         except SQLAlchemyError as e:
             raise DatabaseError(f"Error fetching products: {str(e)}")
@@ -143,7 +144,6 @@ class ProductCRUDService:
         except SQLAlchemyError as e:
             await self.session.rollback()
             raise ProductImageCreationError(f"Error creating product images: {str(e)}")
-
 
     async def update_product_availability(self, product_id: str, in_stock: bool):
         try:

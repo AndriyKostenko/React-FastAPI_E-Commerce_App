@@ -93,7 +93,7 @@ async def create_new_product(current_user: Annotated[dict, Depends(get_current_u
                                                                                           price=float(price),
                                                                                           in_stock=in_stock))
 
-        return CreatedProduct(**new_product)
+        return new_product # FastAPI automatically converts SQLAlchemy models into Pydantic models when response_model is used
 
     except ValidationError as error:
         raise HTTPException(status_code=422, detail=error.errors())
@@ -110,7 +110,15 @@ async def create_new_product(current_user: Annotated[dict, Depends(get_current_u
 
 
 
-@product_routes.get("/products", status_code=status.HTTP_200_OK)
+@product_routes.get("/products", 
+                    status_code=status.HTTP_200_OK,
+                    response_model=List[ProductSchema],
+                    response_description="All products",
+                    responses={
+                        200: {"description": "All products"},
+                        404: {"description": "Products not found"},
+                        422: {"description": "Validation error"},
+                        500: {"description": "Internal server error"}})
 async def get_all_products(category: Optional[str] = None,
                            searchTerm: Optional[str] = None,
                            page: int = 1,
@@ -121,13 +129,18 @@ async def get_all_products(category: Optional[str] = None,
                                                                       searchTerm=searchTerm,
                                                                       page_size=page_size,
                                                                       page=page)
+        if not products:
+            raise HTTPException(status_code=404, detail="Products not found")
+        return products # FastAPI automatically converts SQLAlchemy models into Pydantic models when response_model is used
+            
     # sqlalchemy errors
     except DatabaseError as error:
         raise HTTPException(status_code=500, detail=str(error))
     # pydantic errors
     except ValidationError as error:
         raise HTTPException(status_code=422, detail=error.errors())
-    return products if products else HTTPException(status_code=404, detail="Products not found")
+
+
 
 
 @product_routes.get("/products/{product_id}", status_code=status.HTTP_200_OK)
