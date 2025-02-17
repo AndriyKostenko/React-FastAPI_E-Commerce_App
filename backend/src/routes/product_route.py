@@ -157,8 +157,14 @@ async def get_product_by_id(product_id: str,
 @product_routes.get("/products/{name}", status_code=status.HTTP_200_OK)
 async def get_product_by_name(name: str,
                               session: AsyncSession = Depends(get_db_session)):
-    product = await ProductCRUDService(session).get_product_by_name(name=name)
-    return product if product else HTTPException(status_code=404, detail="Product not found")
+    try:
+        product = await ProductCRUDService(session).get_product_by_name(name=name)
+        if not product:
+            raise HTTPException(status_code=404, detail="Product not found")
+        return product
+    except DatabaseError as error:
+        raise HTTPException(status_code=500, detail=str(error))
+ 
 
 
 @product_routes.put("/products/{product_id}", status_code=status.HTTP_200_OK)
@@ -166,9 +172,14 @@ async def update_product_availability(product_id: str,
                                       in_stock: bool,
                                       session: AsyncSession = Depends(get_db_session)):
     # fastapi automatically getting query parameter 'in_stock' from the url\
-    product = await ProductCRUDService(session).update_product_availability(product_id=product_id, in_stock=in_stock)
-    return product if product else HTTPException(status_code=404, detail="Product not found")
-
+    try:
+        product = await ProductCRUDService(session=session).get_product_by_id(product_id=product_id)
+        if not product:
+            raise HTTPException(status_code=404, detail="Product not found")
+    except DatabaseError as error:
+        raise HTTPException(status_code=500, detail=str(error))
+        
+    
 
 @product_routes.delete("/products/{product_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_product(product_id: str,
@@ -176,7 +187,10 @@ async def delete_product(product_id: str,
                          session: AsyncSession = Depends(get_db_session)):
     if current_user["user_role"] != "admin" or current_user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
-    deleted_product = await ProductCRUDService(session).delete_product(product_id=product_id)
-    if not deleted_product:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found")
+    try:
+        deleted_product = await ProductCRUDService(session).delete_product(product_id=product_id)
+        if not deleted_product:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found")
+    except DatabaseError as error:
+        raise HTTPException(status_code=500, detail=str(error))
 

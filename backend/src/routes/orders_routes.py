@@ -6,7 +6,7 @@ import os
 from src.db.db_setup import get_db_session
 from src.security.authentication import get_current_user
 from src.service.order_service import OrderCRUDService
-from src.schemas.product_schemas import CreateProduct, GetAllProducts
+from src.schemas.product_schemas import CreateProduct
 from src.utils.image_metadata import create_image_metadata
 from src.utils.image_pathes import create_image_paths
 from src.schemas.order_schemas import UpdateOrder

@@ -47,6 +47,9 @@ class ProductCRUDService:
             except SQLAlchemyError as e:
                 await self.session.rollback()
                 raise ProductCreationError(f"Error creating product images: {str(e)}")
+            except DatabaseError as e:
+                await self.session.rollback()
+                raise ProductImageCreationError(f"Error creating product images: {str(e)}")
 
             # Refresh product to get the related images
             await self.session.refresh(new_product)
@@ -87,6 +90,7 @@ class ProductCRUDService:
             query = query.offset((page - 1) * page_size).limit(page_size)
 
             result = await self.session.execute(query)
+            
             products = result.scalars().all()
             
             if not products:
@@ -143,7 +147,7 @@ class ProductCRUDService:
             await self.session.commit()
         except SQLAlchemyError as e:
             await self.session.rollback()
-            raise ProductImageCreationError(f"Error creating product images: {str(e)}")
+            raise DatabaseError(f"Error creating product images: {str(e)}")
 
     async def update_product_availability(self, product_id: str, in_stock: bool):
         try:

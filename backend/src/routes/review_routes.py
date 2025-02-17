@@ -7,7 +7,7 @@ import os
 from src.db.db_setup import get_db_session
 from src.security.authentication import get_current_user
 from src.service.product_service import ProductCRUDService
-from src.schemas.product_schemas import CreateProduct, GetAllProducts
+from src.schemas.product_schemas import CreateProduct
 from src.schemas.review_schemas import CreateProductReview
 from src.service.review_service import ReviewCRUDService
 
