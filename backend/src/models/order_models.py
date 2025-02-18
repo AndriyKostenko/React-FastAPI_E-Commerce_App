@@ -25,7 +25,7 @@ class Order(Base):
 
     address: Mapped['OrderAddress'] = relationship('OrderAddress', back_populates='orders')
     items: Mapped[List['OrderItem']] = relationship('OrderItem', back_populates='order')
-    user: Mapped['User'] = relationship('User', back_populates='orders')
+    user: Mapped['User'] = relationship('User', back_populates='orders') # type: ignore
 
 
 class OrderItem(Base):
@@ -38,7 +38,7 @@ class OrderItem(Base):
     price: Mapped[float] = mapped_column(nullable=False)
 
     order: Mapped['Order'] = relationship('Order', back_populates='items')
-    product: Mapped['Product'] = relationship('Product')
+    product: Mapped['Product'] = relationship('Product') # type: ignore
 
 
 class OrderAddress(Base):
@@ -52,5 +52,5 @@ class OrderAddress(Base):
     postal_code: Mapped[str] = mapped_column(nullable=True)
 
     orders: Mapped[List['Order']] = relationship('Order', back_populates='address')
-    user: Mapped['User'] = relationship('User', back_populates='addresses')
+    user: Mapped['User'] = relationship('User', back_populates='addresses') # type: ignore
 

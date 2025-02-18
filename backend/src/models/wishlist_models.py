@@ -18,7 +18,7 @@ class Wishlist(Base):
     date_updated: Mapped[datetime] = mapped_column(nullable=True)
 
     items: Mapped[List['WishlistItem']] = relationship('WishlistItem', back_populates='wishlist', cascade='all, delete-orphan')
-    user: Mapped['User'] = relationship('User', back_populates='wishlist')
+    user: Mapped['User'] = relationship('User', back_populates='wishlist') # type: ignore
 
 class WishlistItem(Base):
     __tablename__ = 'wishlist_items'
@@ -32,4 +32,4 @@ class WishlistItem(Base):
     )
 
     wishlist: Mapped['Wishlist'] = relationship('Wishlist', back_populates='items')
-    product: Mapped['Product'] = relationship('Product')
+    product: Mapped['Product'] = relationship('Product') # type: ignore

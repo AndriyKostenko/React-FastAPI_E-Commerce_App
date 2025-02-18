@@ -18,8 +18,8 @@ class Cart(Base):
     date_updated: Mapped[datetime] = mapped_column(nullable=True)
 
     items: Mapped[List['CartItem']] = relationship('CartItem', back_populates='cart', cascade='all, delete-orphan')
-    user: Mapped['User'] = relationship('User', back_populates='cart')
-
+    user: Mapped['User'] = relationship('User', back_populates='cart')  # type: ignore
+ 
 class CartItem(Base):
     __tablename__ = 'cart_items'
 
@@ -33,4 +33,4 @@ class CartItem(Base):
     )
 
     cart: Mapped['Cart'] = relationship('Cart', back_populates='items')
-    product: Mapped['Product'] = relationship('Product')
+    product: Mapped['Product'] = relationship('Product') # type: ignore

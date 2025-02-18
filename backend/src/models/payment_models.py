@@ -18,4 +18,4 @@ class Payment(Base):
     )
     date_updated: Mapped[datetime] = mapped_column(nullable=True)
 
-    user: Mapped['User'] = relationship('User', back_populates='payments')
+    user: Mapped['User'] = relationship('User', back_populates='payments') # type: ignore

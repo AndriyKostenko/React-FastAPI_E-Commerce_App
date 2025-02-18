@@ -18,5 +18,5 @@ class ProductReview(Base):
     )
     date_updated: Mapped[datetime] = mapped_column(nullable=True)
 
-    user: Mapped['User'] = relationship('User', back_populates='reviews')
-    product: Mapped['Product'] = relationship('Product', back_populates='reviews')
+    user: Mapped['User'] = relationship('User', back_populates='reviews') # type: ignore
+    product: Mapped['Product'] = relationship('Product', back_populates='reviews') # type: ignore

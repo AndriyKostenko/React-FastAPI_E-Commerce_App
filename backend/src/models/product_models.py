@@ -23,9 +23,9 @@ class Product(Base):
     )
     date_updated: Mapped[datetime] = mapped_column(nullable=True)
 
-    reviews: Mapped[List['ProductReview']] = relationship('ProductReview', back_populates='product', cascade='all, delete-orphan')
+    reviews: Mapped[List['ProductReview']] = relationship('ProductReview', back_populates='product', cascade='all, delete-orphan') # type: ignore
     images: Mapped[List['ProductImage']] = relationship('ProductImage', back_populates='product', cascade='all, delete-orphan')
-    category: Mapped['ProductCategory'] = relationship('ProductCategory', back_populates='products')
+    category: Mapped['ProductCategory'] = relationship('ProductCategory', back_populates='products') # type: ignore
 
 
 class ProductImage(Base):

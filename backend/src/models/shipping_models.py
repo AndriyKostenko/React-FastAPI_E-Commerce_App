@@ -21,4 +21,4 @@ class Shipping(Base):
     )
     date_updated: Mapped[datetime] = mapped_column(nullable=True)
 
-    user: Mapped['User'] = relationship('User', back_populates='shippings')
+    user: Mapped['User'] = relationship('User', back_populates='shippings') # type: ignore
