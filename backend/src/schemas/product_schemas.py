@@ -1,21 +1,22 @@
 from datetime import datetime
 from typing import Optional, List, Dict
-
+from uuid import UUID
 from pydantic import BaseModel, PositiveInt, PositiveFloat, Field
-from src.schemas.review_schemas import Review
 
+from src.schemas.review_schemas import Review
+from src.schemas.category_schema import CategoryProps
 
 class ImageType(BaseModel):
-    color: str
-    color_code: str
-    image: str
+    color: str = Field(..., min_length=3, max_length=50, description="Image color must be between 3 and 50 characters", example="Black")
+    color_code: str = Field(..., min_length=3, max_length=50, description="Image color code must be between 3 and 50 characters" , example="#000000")
+    image: str = Field(..., min_length=3, max_length=100, description="Image URL must be between 3 and 500 characters", example="https://example.com/image.jpg")
 
 class CartImages(BaseModel):
-    product_id: str
-    image_url: str
-    image_color_code: str
-    id: str
-    image_color: str
+    product_id: UUID = Field(..., description="Product ID is required", example="123e4567-e89b-12d3-a456-426614174000", min_length=10, max_length=100)
+    image_url: str = Field(..., min_length=3, max_length=100, description="Image URL must be between 3 and 500 characters", example="https://example.com/image.jpg")
+    image_color_code: str = Field(..., min_length=3, max_length=50, description="Image color code must be between 3 and 50 characters" , example="#000000")
+    id: UUID = Field(..., description="Image ID is required", example="123e4567-e89b-12d3-a456-426614174000", min_length=10, max_length=100)
+    image_color: str = Field(..., min_length=3, max_length=50, description="Image color must be between 3 and 50 characters", example="Black")
 
 
 class CreateProduct(BaseModel):
@@ -30,41 +31,35 @@ class CreateProduct(BaseModel):
     date_created: Optional[str] = None
 
 
-class CategoryProps(BaseModel):
-    id: str
-    name: str
-    image_url: str
-    date_created: datetime
-    date_updated: Optional[datetime] = None
 
 class ProductSchema(BaseModel):
-    id: str
-    name: str
-    description: str
-    price: float
-    quantity: int
-    brand: str
-    category: Optional[CategoryProps] = None
+    id: UUID = Field(..., description="Product ID is required", example="123e4567-e89b-12d3-a456-426614174000", min_length=10, max_length=100)
+    name: str = Field(..., description="Product name is required", examples=["Nike Air Max", "Adidas Superstar"], min_length=3, max_length=50)
+    description: str = Field(..., description="Product description is required", examples=["The best shoes in the market", "The most comfortable shoes"], min_length=10, max_length=500)
+    price: float = PositiveFloat
+    quantity: int = PositiveInt
+    brand: str = Field(..., description="Product brand is required", example="Nike", min_length=3, max_length=50)
+    category: CategoryProps
     date_created: datetime
     date_updated: Optional[datetime] = None
-    in_stock: bool
+    in_stock: bool = Field(..., description="Product in_stock status is required", example=True)
     selected_image: Optional[CartImages] = None
     images: List[CartImages] 
-    reviews: List[Review]
+    reviews: Optional[List[Review]] = None
     
 class CreatedProduct(BaseModel):
-    id: str
-    category_id: str
-    quantity: int
-    in_stock: bool
-    date_updated: Optional[str] = None
-    name: str
-    description: str
-    brand: str
-    price: float
+    id: UUID = Field(..., description="Product ID is required", example="123e4567-e89b-12d3-a456-426614174000", min_length=10, max_length=100)
+    category_id: str = Field(..., description="Category ID is required", example="123e4567-e89b-12d3-a456-426614174000", min_length=10)
+    quantity: int = PositiveInt
+    in_stock: bool = Field(..., description="Product in_stock status is required", example=True)
+    date_updated: Optional[datetime] = None
+    name: str = Field(..., description="Product name is required", examples=["Nike Air Max", "Adidas Superstar"], min_length=3, max_length=50)
+    description: str = Field(..., description="Product description is required", examples=["The best shoes in the market", "The most comfortable shoes"], min_length=10, max_length=500)
+    brand: str = Field(..., description="Product brand is required", example="Nike", min_length=3, max_length=50)
+    price: float = PositiveFloat
     date_created: datetime
     
 
 class ProductParams(BaseModel):
-    category: Optional[str] = None
-    searchTerm: Optional[str] = None
+    category: Optional[str] = Field(None, description="Category name is required", example="Shoes", min_length=3, max_length=50)
+    searchTerm: Optional[str] = Field(None, description="Search term is required", example="Nike", min_length=3, max_length=50)

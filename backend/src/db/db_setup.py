@@ -3,6 +3,8 @@ from src.config import settings
 from sqlalchemy.orm import sessionmaker
 from src.models.user_models import Base
 
+
+
 # create async engine
 async_engine = create_async_engine(
     url=settings.DATABASE_URL,
@@ -23,6 +25,6 @@ async def init_db():
 
 
 # db dependency for async session
-async def get_db_session() -> AsyncSession:
+async def get_db_session():
     async with async_session() as session:
         yield session

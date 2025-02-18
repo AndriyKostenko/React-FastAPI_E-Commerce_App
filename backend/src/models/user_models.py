@@ -2,8 +2,9 @@ from typing import List
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from datetime import datetime
 from datetime import timezone
-from src.models import Base
 from sqlalchemy import String
+
+from src.models import Base
 from src.utils.generate_uuid import generate_uuid
 
 
@@ -26,6 +27,8 @@ class User(Base):
     reviews: Mapped[List['ProductReview']] = relationship('ProductReview', back_populates='user')
     addresses: Mapped[List['OrderAddress']] = relationship('OrderAddress', back_populates='user')
     orders: Mapped[List['Order']] = relationship('Order', back_populates='user')
-
-    def __repr__(self):
-        return f"<User: {self.name} has been created on {self.date_created} UTC.>"
+    wishlist: Mapped['Wishlist'] = relationship('Wishlist', back_populates='user', uselist=False)
+    cart: Mapped['Cart'] = relationship('Cart', back_populates='user', uselist=False)
+    payments: Mapped[List['Payment']] = relationship('Payment', back_populates='user')
+    shippings: Mapped[List['Shipping']] = relationship('Shipping', back_populates='user')
+    notifications: Mapped[List['Notification']] = relationship('Notification', back_populates='user')

@@ -54,10 +54,7 @@ class ProductCRUDService:
             # Refresh product to get the related images
             await self.session.refresh(new_product)
             
-            # Return the product as a dictionary
-            return new_product.__dict__
-        
-
+            return new_product
 
         except SQLAlchemyError as e:
             await self.session.rollback()
@@ -162,7 +159,7 @@ class ProductCRUDService:
             await self.session.rollback()
             raise DatabaseError(f"Error updating product availability: {str(e)}")
 
-    async def delete_product(self, product_id: str):
+    async def delete_product(self, product_id: str) -> Optional[Product]:
         try:
             product = await self.get_product_by_id(product_id)
             if product:

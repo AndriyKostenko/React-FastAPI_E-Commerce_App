@@ -36,6 +36,15 @@ class ProductImage(Base):
     image_url: Mapped[str] = mapped_column(nullable=False)
     image_color: Mapped[str] = mapped_column(nullable=True)
     image_color_code: Mapped[str] = mapped_column(nullable=True)
+    date_created: Mapped[datetime] = mapped_column(
+        default=lambda: datetime.now(timezone.utc).astimezone(timezone.utc).replace(tzinfo=None),
+        nullable=False
+    )
+    date_updated: Mapped[datetime] = mapped_column(
+        default=lambda: datetime.now(timezone.utc).astimezone(timezone.utc).replace(tzinfo=None),
+        onupdate=lambda: datetime.now(timezone.utc).astimezone(timezone.utc).replace(tzinfo=None),
+        nullable=True
+    )
 
     product: Mapped['Product'] = relationship('Product', back_populates='images')
 

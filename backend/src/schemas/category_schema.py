@@ -1,10 +1,17 @@
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
 from pydantic.fields import Field
 
 
+class CategoryProps(BaseModel):
+    id: UUID
+    name: str
+    image_url: str
+    date_created: datetime
+    date_updated: Optional[datetime] = None
 
 
 class CreateCategory(BaseModel):

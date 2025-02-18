@@ -43,7 +43,7 @@ async def create_new_product(current_user: Annotated[dict, Depends(get_current_u
                              images_color_code: List[str] = Form(...),
                              images: List[UploadFile] = File(...),
                              session: AsyncSession = Depends(get_db_session),
-                             ):
+                             ) -> CreatedProduct:
     if current_user["user_role"] != "admin":
         raise UserAuthenticationError(status_code=status.HTTP_401_UNAUTHORIZED, detail="Admin access required")
 
@@ -105,11 +105,6 @@ async def create_new_product(current_user: Annotated[dict, Depends(get_current_u
         raise HTTPException(status_code=500, detail=str(error))
 
 
-
-
-
-
-
 @product_routes.get("/products", 
                     status_code=status.HTTP_200_OK,
                     response_model=List[ProductSchema],
@@ -123,7 +118,7 @@ async def get_all_products(category: Optional[str] = None,
                            searchTerm: Optional[str] = None,
                            page: int = 1,
                            page_size: int = 10,
-                           session: AsyncSession = Depends(get_db_session)):
+                           session: AsyncSession = Depends(get_db_session)) -> List[ProductSchema]:
     try:
         products = await ProductCRUDService(session).get_all_products(category=category,
                                                                       searchTerm=searchTerm,
@@ -143,9 +138,16 @@ async def get_all_products(category: Optional[str] = None,
 
 
 
-@product_routes.get("/products/{product_id}", status_code=status.HTTP_200_OK)
+@product_routes.get("/products/{product_id}", 
+                    status_code=status.HTTP_200_OK,
+                    response_model=ProductSchema,
+                    response_description="Product by ID",
+                    responses={
+                        200: {"description": "Product by ID"},
+                        404: {"description": "Product not found"},
+                        500: {"description": "Internal server error"}})
 async def get_product_by_id(product_id: str,
-                            session: AsyncSession = Depends(get_db_session)):
+                            session: AsyncSession = Depends(get_db_session)) -> ProductSchema:
     try:
         product = await ProductCRUDService(session).get_product_by_id(product_id=product_id)
         if not product:
@@ -153,10 +155,19 @@ async def get_product_by_id(product_id: str,
         return product
     except DatabaseError as error:
         raise HTTPException(status_code=500, detail=str(error))
+    
 
-@product_routes.get("/products/{name}", status_code=status.HTTP_200_OK)
+@product_routes.get("/products/name/{name}", 
+                    status_code=status.HTTP_200_OK,
+                    response_model=ProductSchema,
+                    response_description="Product by name",
+                    responses={
+                        200: {"description": "Product by name"},
+                        404: {"description": "Product not found"},
+                        500: {"description": "Internal server error"}})
 async def get_product_by_name(name: str,
-                              session: AsyncSession = Depends(get_db_session)):
+                              session: AsyncSession = Depends(get_db_session)) -> ProductSchema:
+    print(f"Name: {name}")
     try:
         product = await ProductCRUDService(session).get_product_by_name(name=name)
         if not product:
@@ -167,24 +178,38 @@ async def get_product_by_name(name: str,
  
 
 
-@product_routes.put("/products/{product_id}", status_code=status.HTTP_200_OK)
+@product_routes.put("/products/{product_id}", 
+                    status_code=status.HTTP_200_OK,
+                    response_model=ProductSchema,
+                    response_description="Product availability updated",
+                    responses={
+                        200: {"description": "Product availability updated"},
+                        404: {"description": "Product not found"},
+                        500: {"description": "Internal server error"}})
 async def update_product_availability(product_id: str,
                                       in_stock: bool,
-                                      session: AsyncSession = Depends(get_db_session)):
-    # fastapi automatically getting query parameter 'in_stock' from the url\
+                                      session: AsyncSession = Depends(get_db_session)) -> ProductSchema:
     try:
-        product = await ProductCRUDService(session=session).get_product_by_id(product_id=product_id)
+        product = await ProductCRUDService(session=session).update_product_availability(product_id=product_id, in_stock=in_stock)
         if not product:
             raise HTTPException(status_code=404, detail="Product not found")
+        return product
     except DatabaseError as error:
         raise HTTPException(status_code=500, detail=str(error))
         
     
 
-@product_routes.delete("/products/{product_id}", status_code=status.HTTP_204_NO_CONTENT)
+@product_routes.delete("/products/{product_id}", 
+                       status_code=status.HTTP_204_NO_CONTENT,
+                       response_description="Product deleted",
+                       responses={
+                           204: {"description": "Product deleted"},
+                           401: {"description": "Unauthorized"},
+                           404: {"description": "Product not found"},
+                           500: {"description": "Internal server error"}})
 async def delete_product(product_id: str,
                          current_user: Annotated[dict, Depends(get_current_user)],
-                         session: AsyncSession = Depends(get_db_session)):
+                         session: AsyncSession = Depends(get_db_session)) -> None:
     if current_user["user_role"] != "admin" or current_user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
     try:
