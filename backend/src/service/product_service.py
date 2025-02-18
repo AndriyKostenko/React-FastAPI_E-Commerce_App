@@ -9,7 +9,7 @@ from src.models.product_models import Product, ProductImage
 from src.models.review_models import ProductReview
 from src.models.category_models import ProductCategory
 from sqlalchemy import select, asc, desc
-from src.schemas.product_schemas import CreateProduct
+from src.schemas.product_schemas import CreateProduct, CreatedProduct, ProductSchema
 from src.schemas.product_schemas import ImageType
 from src.errors.product_errors import ProductCreationError, ProductNotFoundError, ProductImageCreationError
 from src.errors.category_errors import CategoryCreationError, CategoryNotFoundError
@@ -21,7 +21,7 @@ class ProductCRUDService:
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    async def create_product_item(self, product_data: CreateProduct) -> dict:
+    async def create_product_item(self, product_data: CreateProduct) -> CreatedProduct:
         try:
             # Validate input data (example: ensure price and quantity are non-negative)
             if product_data.price <= 0 or product_data.quantity <= 0:
@@ -97,7 +97,7 @@ class ProductCRUDService:
         except SQLAlchemyError as e:
             raise DatabaseError(f"Error fetching products: {str(e)}")
 
-    async def get_product_by_id(self, product_id: str) -> Optional[Product]:
+    async def get_product_by_id(self, product_id: str) -> Optional[ProductSchema]:
         try:
             # Querying product with related images, reviews (including users), and category
             db_product = await self.session.execute(
