@@ -5,6 +5,8 @@ from sqlalchemy import select, asc
 from src.models.user_models import User
 from src.schemas.user_schemas import UserSignUp, DeleteUser, UserUpdate
 from src.errors.user_errors import UserCreationError, UserNotFoundError, UserUpdateError
+from src.errors.database_errors import DatabaseError
+from sqlalchemy.exc import SQLAlchemyError
 
 
 class UserCRUDService:
@@ -18,21 +20,24 @@ class UserCRUDService:
         return bcrypt.checkpw(entered_password.encode(), hashed_password.encode())
 
     async def create_user(self, user: UserSignUp):
-        db_user = await self.get_user_by_email(user.email)
-        if db_user:
-            raise UserCreationError(detail=f"User with email: {user.email} already exists")
-        hashed_password = self._hash_password(user.password)
-        new_user = User(name=user.name,
-                        email=user.email,
-                        hashed_password=hashed_password)
-        # not using await coz it's an in-memory operation and doesn't interact with db
-        self.session.add(new_user)
+        try:
+            db_user = await self.get_user_by_email(user.email)
+            if db_user:
+                raise UserCreationError(detail=f"User with email: {user.email} already exists")
+            hashed_password = self._hash_password(user.password)
+            new_user = User(name=user.name,
+                            email=user.email,
+                            hashed_password=hashed_password)
+            # not using await coz it's an in-memory operation and doesn't interact with db
+            self.session.add(new_user)
 
-        # the commit and refresh methods are an asynchronous operations because they involve writing the
-        # changes to the database, which is an I/O operation
-        await self.session.commit()
-        await self.session.refresh(new_user)
-        return new_user
+            # the commit and refresh methods are an asynchronous operations because they involve writing the
+            # changes to the database, which is an I/O operation
+            await self.session.commit()
+            await self.session.refresh(new_user)
+            return new_user
+        except SQLAlchemyError as error:
+            raise DatabaseError(detail=str(error))
 
     async def get_all_users(self):
         result = await self.session.execute(select(User).order_by(asc(User.id)))

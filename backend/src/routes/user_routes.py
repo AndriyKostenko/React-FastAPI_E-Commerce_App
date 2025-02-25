@@ -4,6 +4,7 @@ from typing import Annotated
 from fastapi import Depends, APIRouter, status, HTTPException
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
+from pydantic import ValidationError
 
 
 from src.config import settings
@@ -12,13 +13,16 @@ from src.schemas.user_schemas import UserSignUp, UserInfo, TokenSchema, GetUser,
 from src.security.authentication import create_access_token, get_authenticated_user, get_current_user
 from src.service.user_service import UserCRUDService
 from src.errors.user_errors import UserCreationError
+from src.errors.database_errors import DatabaseError
+from src.errors.user_http_responses import UserAPIHTTPErrors
 
 user_routes = APIRouter(
     tags=["user"]
 )
 
 
-# registering new user...response model will be full user info
+# registering new user...response_model will return the neccesary data...
+# validation errors will be handeled automatically by pydantic and fastapi and sent 422
 @user_routes.post('/register',
                   summary="Create new user",
                   status_code=status.HTTP_201_CREATED,
@@ -26,15 +30,19 @@ user_routes = APIRouter(
                   response_description="New user created successfully",
                   responses={
                         409: {"description": "User already exists"},
-                        201: {"description": "New user created successfully"}
+                        201: {"description": "New user created successfully"},
+                        500: {"description": "Internal server error"},
+                        422: {"description": "Validation error"}
+                        
                   })
 async def create_user(user: UserSignUp, 
-                      session: AsyncSession = Depends(get_db_session)):
+                      session: AsyncSession = Depends(get_db_session)) -> UserInfo:
     try:
         new_db_user = await UserCRUDService(session).create_user(user)
     except UserCreationError as error:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error))
-
+        raise UserAPIHTTPErrors.user_already_exists()
+    except DatabaseError as error:
+        raise UserAPIHTTPErrors.user_creation_error(error=error)
     return new_db_user
 
 
