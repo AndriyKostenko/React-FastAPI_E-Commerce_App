@@ -17,4 +17,4 @@ class Notification(Base):
         nullable=False
     )
 
-    user: Mapped['User'] = relationship('User', back_populates='notifications') # type: ignore
+    user: Mapped['User'] = relationship('User', back_populates='notifications') 

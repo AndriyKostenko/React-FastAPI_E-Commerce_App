@@ -1,21 +1,20 @@
 from datetime import datetime
 from typing import Optional
+from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, EmailStr
 from pydantic.fields import Field
 
 
 class UserInfo(BaseModel):
-    id: str
-    name: str
-    email: str
-    role: Optional[str] = None
-    phone_number: Optional[str] = None
-    date_created: str
-    image: Optional[str] = None
-    date_updated: Optional[str] = None
-    hashed_password: Optional[str] = None
-
+    id: UUID = Field(..., description="User ID is required", example="123e4567-e89b-12d3-a456-426614174000")
+    name: str = Field(..., min_length=3, max_length=50, description="User name must be between 3 and 50 characters")
+    email: EmailStr = Field(..., description="User email")
+    role: Optional[str] = Field(None, description="User role", example="user , admin")
+    phone_number: Optional[str] = Field(None, description="User phone number", example="07000000000", min_length=10, max_length=15)
+    date_created: datetime
+    image: Optional[str] = Field(None, description="User image URL", example="https://example.com/image.jpg")
+    date_updated: datetime = None
 
     model_config = ConfigDict(from_attributes=True, json_schema_extra={
         "example": {
@@ -32,9 +31,9 @@ class UserInfo(BaseModel):
 
 
 class UserSignUp(BaseModel):
-    name: str
-    email: str
-    password: str = Field(..., min_length=8, description="User's password")
+    name: str = Field(..., min_length=3, max_length=50, description="User's name")
+    email: EmailStr = Field(..., description="User's email")
+    password: str = Field(..., min_length=8, max_length=100,description="User's password")
 
     model_config = ConfigDict(from_attributes=True, json_schema_extra={
         "example": {

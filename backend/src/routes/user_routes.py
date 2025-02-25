@@ -5,11 +5,13 @@ from fastapi import Depends, APIRouter, status, HTTPException
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 
+
 from src.config import settings
 from src.db.db_setup import get_db_session
 from src.schemas.user_schemas import UserSignUp, UserInfo, TokenSchema, GetUser, UserSaveWithGoogle
 from src.security.authentication import create_access_token, get_authenticated_user, get_current_user
 from src.service.user_service import UserCRUDService
+from src.errors.user_errors import UserCreationError
 
 user_routes = APIRouter(
     tags=["user"]
@@ -19,15 +21,21 @@ user_routes = APIRouter(
 # registering new user...response model will be full user info
 @user_routes.post('/register',
                   summary="Create new user",
-                  status_code=status.HTTP_201_CREATED)
-async def create_user(user: UserSignUp, session: AsyncSession = Depends(get_db_session)):
-    existing_db_user = await UserCRUDService(session).get_user_by_email(email=user.email)
-    if existing_db_user:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered!")
-    new_db_user = await UserCRUDService(session).create_user(user)
+                  status_code=status.HTTP_201_CREATED,
+                  response_model=UserInfo,
+                  response_description="New user created successfully",
+                  responses={
+                        409: {"description": "User already exists"},
+                        201: {"description": "New user created successfully"}
+                  })
+async def create_user(user: UserSignUp, 
+                      session: AsyncSession = Depends(get_db_session)):
+    try:
+        new_db_user = await UserCRUDService(session).create_user(user)
+    except UserCreationError as error:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error))
 
-    return {"email": new_db_user.email,
-            "password": new_db_user.hashed_password}
+    return new_db_user
 
 
 @user_routes.post("/login",
@@ -63,8 +71,15 @@ async def get_current_user_data(current_user: Annotated[dict, Depends(get_curren
 
 
 @user_routes.get("/user/{user_email}")
-async def get_user(user_email: str, session: AsyncSession = Depends(get_db_session)):
+async def get_user_by_email(user_email: str, session: AsyncSession = Depends(get_db_session)):
     user = await UserCRUDService(session).get_user_by_email(user_email)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='User not found')
+    return user
+
+@user_routes.post("/user/{id}")
+async def get_user_by_id(id: str, session: AsyncSession = Depends(get_db_session)):
+    user = await UserCRUDService(session).get_user_by_id(id)
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='User not found')
     return user

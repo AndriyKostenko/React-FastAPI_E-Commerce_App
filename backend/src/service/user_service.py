@@ -1,8 +1,10 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from src.models.user_models import User
 import bcrypt
-from sqlalchemy import select, asc, desc
+from sqlalchemy import select, asc
+
+from src.models.user_models import User
 from src.schemas.user_schemas import UserSignUp, DeleteUser, UserUpdate
+from src.errors.user_errors import UserCreationError, UserNotFoundError, UserUpdateError
 
 
 class UserCRUDService:
@@ -16,6 +18,9 @@ class UserCRUDService:
         return bcrypt.checkpw(entered_password.encode(), hashed_password.encode())
 
     async def create_user(self, user: UserSignUp):
+        db_user = await self.get_user_by_email(user.email)
+        if db_user:
+            raise UserCreationError(detail=f"User with email: {user.email} already exists")
         hashed_password = self._hash_password(user.password)
         new_user = User(name=user.name,
                         email=user.email,
@@ -35,14 +40,18 @@ class UserCRUDService:
 
     async def get_user_by_email(self, email: str):
         db_user = await self.session.execute(select(User).where(User.email == email))
-        return db_user.scalars().first()
+        user = db_user.scalars().first()
+        return user
 
     async def get_user_by_id(self, user_id: int):
         db_user = await self.session.execute(select(User).where(User.id == user_id))
-        return db_user.scalars().first()
+        user = db_user.scalars().first()
+        return user  # Returns None if user is not found
 
     async def update_user_by_id(self, user_id: int, user_update_data: UserUpdate):
         db_user = await self.get_user_by_id(user_id)
+        if not db_user:
+            return None
         db_user.name = user_update_data.name
         db_user.hashed_password = self._hash_password(user_update_data.password)
         await self.session.commit()

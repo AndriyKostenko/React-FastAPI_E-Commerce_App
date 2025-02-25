@@ -33,4 +33,4 @@ class CartItem(Base):
     )
 
     cart: Mapped['Cart'] = relationship('Cart', back_populates='items')
-    product: Mapped['Product'] = relationship('Product') # type: ignore
+    product: Mapped['Product'] = relationship('Product')

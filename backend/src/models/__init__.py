@@ -1,10 +1,8 @@
-from sqlalchemy.orm import DeclarativeBase
-from sqlalchemy.ext.asyncio import AsyncAttrs
+from sqlalchemy.orm import declarative_base
 from passlib.context import CryptContext
 
 # Base class for all models
-class Base(DeclarativeBase, AsyncAttrs):
-    pass
+Base = declarative_base()
 
 # Password hashing context
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
