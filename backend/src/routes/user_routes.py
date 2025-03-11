@@ -15,6 +15,7 @@ from src.service.user_service import UserCRUDService
 from src.errors.user_errors import UserCreationError
 from src.errors.database_errors import DatabaseError
 from src.errors.user_http_responses import UserAPIHTTPErrors
+from src.dependencies.user_dependencies import get_user_service
 
 user_routes = APIRouter(
     tags=["user"]
@@ -36,9 +37,9 @@ user_routes = APIRouter(
                         
                   })
 async def create_user(user: UserSignUp, 
-                      session: AsyncSession = Depends(get_db_session)) -> UserInfo:
+                      user_crud_service: UserCRUDService = Depends(get_user_service)) -> UserInfo:
     try:
-        new_db_user = await UserCRUDService(session=session).create_user(user=user)
+        new_db_user = await user_crud_service.create_user(user=user)
     except UserCreationError as error:
         raise UserAPIHTTPErrors.user_already_exists()
     except DatabaseError as error:

@@ -9,6 +9,10 @@ from src.errors.database_errors import DatabaseError
 from sqlalchemy.exc import SQLAlchemyError
 
 
+
+# the service needs a database session which is request-scoped
+# each request should have its own isolated session for transaction safety
+# FastAPI dependency injection system is designed to work this way
 class UserCRUDService:
     def __init__(self, session: AsyncSession):
         self.session = session
@@ -67,11 +71,5 @@ class UserCRUDService:
         await self.session.delete(user_to_delete)
         await self.session.commit()
 
-    # taking email for authentication coz its unique (but in OAth2 form it will be written as 'username')
-    async def authenticate_user(self, email: str, entered_password: str):
-        db_user = await self.get_user_by_email(email)
-        if not db_user:
-            return False
-        if not self._verify_password(entered_password=entered_password, hashed_password=db_user.hashed_password):
-            return False
-        return db_user
+
+
