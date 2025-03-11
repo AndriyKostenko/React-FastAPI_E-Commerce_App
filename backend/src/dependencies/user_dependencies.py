@@ -4,6 +4,7 @@ from src.db.db_setup import get_db_session
 from src.service.user_service import UserCRUDService
 
 
-# Dependency to get the user service for CRUD operations
+
+# dependency function that provides an instance of UserCRUDService
 def get_user_service(session: AsyncSession = Depends(get_db_session)) -> UserCRUDService:
     return UserCRUDService(session=session)

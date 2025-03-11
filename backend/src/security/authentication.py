@@ -74,10 +74,10 @@ class AuthenticationManager:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
                                 detail='Could not validate user')
         return user
-    
-
             
             
 auth_manager = AuthenticationManager()
             
+            
+
 

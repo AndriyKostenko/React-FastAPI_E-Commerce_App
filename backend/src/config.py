@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     TIME_DELTA_MINUTES: int = int(os.getenv("TIME_DELTA_MINUTES"))
     TOKEN_TYPE: str = os.getenv("TOKEN_TYPE")
     TOKEN_URL: str = os.getenv("TOKEN_URL")
+    CRYPT_CONTEXT_SCHEME: str = os.getenv("CRYPT_CONTEXT_SCHEME")
 
 
 settings = Settings()
