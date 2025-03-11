@@ -3,8 +3,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Annotated, List
 from src.db.db_setup import get_db_session
 from src.schemas.user_schemas import UserUpdate, UserInfo
-from src.security.authentication import get_current_user
+# from src.security.authentication import get_current_user
 from src.service.user_service import UserCRUDService
+from src.security.authentication import auth_manager
 
 admin_routes = APIRouter(tags=['admin'],
                          prefix='/admin')
@@ -14,7 +15,7 @@ admin_routes = APIRouter(tags=['admin'],
                   summary='Get all users from DB',
                   status_code=status.HTTP_200_OK,
                   response_model=List[UserInfo])
-async def read_users(current_user: Annotated[dict, Depends(get_current_user)],
+async def read_users(current_user: Annotated[dict, Depends(auth_manager.get_current_user)],
                      session: AsyncSession = Depends(get_db_session)):
     if current_user is None or current_user.get('user_role') != 'admin':
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Unauthorized')
@@ -24,7 +25,7 @@ async def read_users(current_user: Annotated[dict, Depends(get_current_user)],
 
 @admin_routes.get('/users/{user_id}', summary='Get user by ID', status_code=status.HTTP_200_OK)
 async def get_user_by_id(user_id: int,
-                         current_user: Annotated[dict, Depends(get_current_user)],
+                         current_user: Annotated[dict, Depends(auth_manager.get_current_user)],
                          session: AsyncSession = Depends(get_db_session)):
     if current_user is None or current_user.get('user_role') != 'admin':
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Unauthorized')
@@ -37,7 +38,7 @@ async def get_user_by_id(user_id: int,
 @admin_routes.put('/users/{user_id}', summary='Update user by ID', status_code=status.HTTP_200_OK)
 async def update_user_by_id(user_id: int,
                             user_update_data: UserUpdate,
-                            current_user: Annotated[dict, Depends(get_current_user)],
+                            current_user: Annotated[dict, Depends(auth_manager.get_current_user)],
                             session: AsyncSession = Depends(get_db_session)):
     if current_user is None or current_user.get('user_role') != 'admin':
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Unauthorized')
@@ -50,7 +51,7 @@ async def update_user_by_id(user_id: int,
 
 @admin_routes.delete('/users/{user_id}', summary='Delete user by ID', status_code=status.HTTP_204_NO_CONTENT)
 async def delete_user_by_id(user_id: int,
-                            current_user: Annotated[dict, Depends(get_current_user)],
+                            current_user: Annotated[dict, Depends(auth_manager.get_current_user)],
                             session: AsyncSession = Depends(get_db_session)):
     if current_user is None or current_user.get('user_role') != 'admin':
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Unauthorized')

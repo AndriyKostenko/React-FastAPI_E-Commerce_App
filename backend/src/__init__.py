@@ -1,8 +1,11 @@
 import datetime
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi import FastAPI
+from fastapi.responses import JSONResponse
+from fastapi import FastAPI, Request
 from contextlib import asynccontextmanager
 from fastapi.staticfiles import StaticFiles
+from pydantic import ValidationError
+from fastapi.exceptions import ResponseValidationError, RequestValidationError
 
 from src.db.db_setup import init_db
 from src.routes.admin_routes import admin_routes
@@ -32,6 +35,31 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+# Custom Exception handlers for Pydantic validation errors in request and response
+@app.exception_handler(ValidationError)
+async def validation_input_exception_handler(request: Request, exc: ValidationError):
+    errors = [{"field": err['loc'][0], "message": err['msg']} for err in exc.errors()]
+    return JSONResponse(
+        status_code=422,
+        content={"detail": 'Validation input error', "errors": errors}
+    )
+    
+@app.exception_handler(ResponseValidationError)
+async def validation_response_exception_handler(request: Request, exc: ResponseValidationError):
+    errors = [{"field": err['loc'][0], "message": err['msg']} for err in exc.errors()]
+    return JSONResponse(
+        status_code=422,
+        content={"detail": 'Validation response error', "errors": errors}
+    )
+
+@app.exception_handler(RequestValidationError)
+async def validation_request_exception_handler(request: Request, exc: RequestValidationError):
+    errors = [{"field": err['loc'][0], "message": err['msg']} for err in exc.errors()]
+    return JSONResponse(
+        status_code=422,
+        content={"detail": 'Validation request error', "errors": errors}
+    )    
+    
 origins = [
     "http://localhost:3000",
     "http://localhost:3001"

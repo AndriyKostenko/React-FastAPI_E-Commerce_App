@@ -15,6 +15,8 @@ class Settings(BaseSettings):
     STRIPE_SECRET_KEY: str = os.getenv("STRIPE_SECRET_KEY")
     STRIPE_WEBHOOK_SECRET: str = os.getenv("STRIPE_WEBHOOK_SECRET")
     TIME_DELTA_MINUTES: int = int(os.getenv("TIME_DELTA_MINUTES"))
+    TOKEN_TYPE: str = os.getenv("TOKEN_TYPE")
+    TOKEN_URL: str = os.getenv("TOKEN_URL")
 
 
 settings = Settings()

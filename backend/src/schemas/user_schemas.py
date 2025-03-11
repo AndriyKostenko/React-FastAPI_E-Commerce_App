@@ -14,7 +14,7 @@ class UserInfo(BaseModel):
     phone_number: Optional[str] = Field(None, description="User phone number", example="07000000000", min_length=10, max_length=15)
     date_created: datetime
     image: Optional[str] = Field(None, description="User image URL", example="https://example.com/image.jpg")
-    date_updated: datetime = None
+    date_updated: Optional[datetime] 
 
     model_config = ConfigDict(from_attributes=True, json_schema_extra={
         "example": {
@@ -64,10 +64,16 @@ class DeleteUser(BaseModel):
 
 
 class TokenSchema(BaseModel):
+    access_token: str = Field(..., description="Access token", min_length=1)
+    token_type: str
+    
+class UserLoginDetails(BaseModel):
     access_token: str
     token_type: str
-
-
+    user_role: Optional[str]
+    token_expiry: int
+    user_id: UUID
+    
 class TokenPayload(BaseModel):
     sub: str = None
     exp: int = None

@@ -4,7 +4,7 @@ from fastapi import Depends, APIRouter, status, HTTPException, Form, UploadFile,
 from sqlalchemy.ext.asyncio import AsyncSession
 import os
 from src.db.db_setup import get_db_session
-from src.security.authentication import get_current_user
+from src.security.authentication import auth_manager
 from src.service.order_service import OrderCRUDService
 from src.schemas.product_schemas import CreateProduct
 from src.utils.image_metadata import create_image_metadata
@@ -17,7 +17,7 @@ order_routes = APIRouter(
 
 
 @order_routes.get("/orders", status_code=status.HTTP_200_OK)
-async def get_all_orders(current_user: Annotated[dict, Depends(get_current_user)],
+async def get_all_orders(current_user: Annotated[dict, Depends(auth_manager.get_current_user)],
                          session: AsyncSession = Depends(get_db_session),
                          startDate: Optional[str] = Query(None),
                          endDate: Optional[str] = Query(None)):
@@ -42,7 +42,7 @@ async def get_orders_by_user_id(id: str,
 @order_routes.put("/orders/{id}", status_code=status.HTTP_200_OK)
 async def update_order(id: str,
                     order_updates: UpdateOrder,  # Fetch updated fields from body
-                    current_user: Annotated[dict, Depends(get_current_user)],
+                    current_user: Annotated[dict, Depends(auth_manager.get_current_user)],
                     session: AsyncSession = Depends(get_db_session)):
     order = await OrderCRUDService(session=session).update_order_by_id(order_id=id, order_updates=order_updates)
     return order

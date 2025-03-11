@@ -3,13 +3,14 @@ from typing import Dict, Annotated
 import stripe
 from src.config import settings
 from src.db.db_setup import get_db_session
-from src.routes.user_routes import get_current_user
+# from src.routes.user_routes import get_current_user
 from src.schemas.order_schemas import PaymentIntentRequest, CreateOrder, UpdateOrder
 from src.schemas.payment_schemas import IntentSecret, AddressToUpdate
 from src.service.order_service import OrderCRUDService
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.utils.calculate_ttl_amount import calculate_total_amount
+from src.security.authentication import auth_manager
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
 
@@ -20,7 +21,7 @@ payment_routes = APIRouter(
 
 @payment_routes.post("/update_payment_intent", response_model=IntentSecret, status_code=status.HTTP_200_OK)
 async def update_payment_intent(data: PaymentIntentRequest,
-                                current_user: Annotated[dict, Depends(get_current_user)],
+                                current_user: Annotated[dict, Depends(auth_manager.get_current_user)],
                                 session: AsyncSession = Depends(get_db_session)):
 
     print('data>>>>>>>',data)
@@ -63,7 +64,7 @@ async def update_payment_intent(data: PaymentIntentRequest,
 
 @payment_routes.post("/create_payment_intent", response_model=IntentSecret, status_code=status.HTTP_201_CREATED)
 async def create_payment_intent(data: PaymentIntentRequest,
-                                current_user: Annotated[dict, Depends(get_current_user)],
+                                current_user: Annotated[dict, Depends(auth_manager.get_current_user)],
                                 session: AsyncSession = Depends(get_db_session)):
     if current_user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Unauthorized')
@@ -98,7 +99,7 @@ async def create_payment_intent(data: PaymentIntentRequest,
 
 @payment_routes.post('/webhook', status_code=status.HTTP_200_OK)
 async def webhook(request: Request,
-                  current_user: Annotated[dict, Depends(get_current_user)],
+                  current_user: Annotated[dict, Depends(auth_manager.get_current_user)],
                   stripe_signature: str = Header(None),
                   session: AsyncSession = Depends(get_db_session),
                   ):
