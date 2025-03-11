@@ -71,6 +71,7 @@ class UserCRUDService:
         await self.session.delete(user_to_delete)
         await self.session.commit()
 
+    #TODO: Transfer this method to the authentication service
     # taking email for authentication coz its unique (but in OAth2 form it will be written as 'username')
     async def authenticate_user(self, email: str, entered_password: str):
         db_user = await self.get_user_by_email(email)
