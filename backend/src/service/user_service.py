@@ -71,5 +71,12 @@ class UserCRUDService:
         await self.session.delete(user_to_delete)
         await self.session.commit()
 
-
+    # taking email for authentication coz its unique (but in OAth2 form it will be written as 'username')
+    async def authenticate_user(self, email: str, entered_password: str):
+        db_user = await self.get_user_by_email(email)
+        if not db_user:
+            return False
+        if not self._verify_password(entered_password=entered_password, hashed_password=db_user.hashed_password):
+            return False
+        return db_user
 
