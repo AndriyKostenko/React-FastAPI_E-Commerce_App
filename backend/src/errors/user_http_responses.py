@@ -1,5 +1,7 @@
 from fastapi import HTTPException, status
 
+
+# using a Static Factory Method pattern to create HTTPException instances for user related errors
 class UserAPIHTTPErrors:
     @staticmethod
     def user_already_exists() -> HTTPException:
@@ -31,3 +33,4 @@ class UserAPIHTTPErrors:
         return HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail=str(error['detail']['msg']))
         
+user_api_http_errors = UserAPIHTTPErrors()

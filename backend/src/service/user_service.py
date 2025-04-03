@@ -4,7 +4,7 @@ from sqlalchemy import select, asc
 
 from src.models.user_models import User
 from src.schemas.user_schemas import UserSignUp, DeleteUser, UserUpdate
-from src.errors.user_errors import UserCreationError, UserNotFoundError, UserUpdateError
+from src.errors.user_service_errors import user_service_error_factory
 from src.errors.database_errors import DatabaseError
 from sqlalchemy.exc import SQLAlchemyError
 

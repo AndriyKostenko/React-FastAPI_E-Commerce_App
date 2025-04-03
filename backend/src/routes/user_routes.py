@@ -12,9 +12,9 @@ from src.db.db_setup import get_db_session
 from src.schemas.user_schemas import UserSignUp, UserInfo, TokenSchema, UserLoginDetails
 # from src.security.authentication import create_access_token, get_authenticated_user, get_current_user
 from src.service.user_service import UserCRUDService
-from src.errors.user_errors import UserCreationError
+from src.errors.user_service_errors import UserCreationError
 from src.errors.database_errors import DatabaseError
-from src.errors.user_http_responses import UserAPIHTTPErrors
+from src.errors.user_http_responses import user_api_http_errors
 from src.dependencies.user_dependencies import get_user_service
 
 user_routes = APIRouter(
@@ -41,9 +41,9 @@ async def create_user(user: UserSignUp,
     try:
         new_db_user = await user_crud_service.create_user(user=user)
     except UserCreationError as error:
-        raise UserAPIHTTPErrors.user_already_exists()
+        raise user_api_http_errors.user_already_exists()
     except DatabaseError as error:
-        raise UserAPIHTTPErrors.user_creation_error(error=error)
+        raise user_api_http_errors.user_creation_error(error=error)
     return new_db_user
 
 
@@ -60,8 +60,7 @@ async def login(form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
                 session: AsyncSession = Depends(get_db_session)) -> UserLoginDetails:
     user = await auth_manager.get_authenticated_user(form_data=form_data, session=session)
     if not user:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
-                            detail='Could not validate user')
+        raise user_api_http_errors.unauthorized_user()
     # create access token
     access_token = auth_manager.create_access_token(user.email, 
                                                     user.id, 
