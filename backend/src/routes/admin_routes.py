@@ -17,7 +17,7 @@ admin_routes = APIRouter(tags=['admin'],
                   response_model=List[UserInfo])
 async def read_users(current_user: Annotated[dict, Depends(auth_manager.get_current_user)],
                      session: AsyncSession = Depends(get_db_session)):
-    if current_user is None or current_user.get('user_role') != 'admin':
+    if current_user is None or current_user.user_role != 'admin':
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Unauthorized')
     return await UserCRUDService(session).get_all_users()
 
@@ -27,7 +27,7 @@ async def read_users(current_user: Annotated[dict, Depends(auth_manager.get_curr
 async def get_user_by_id(user_id: int,
                          current_user: Annotated[dict, Depends(auth_manager.get_current_user)],
                          session: AsyncSession = Depends(get_db_session)):
-    if current_user is None or current_user.get('user_role') != 'admin':
+    if current_user is None or current_user.user_role != 'admin':
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Unauthorized')
     db_user = await UserCRUDService(session).get_user_by_id(user_id=user_id)
     if db_user is None:
@@ -40,7 +40,7 @@ async def update_user_by_id(user_id: int,
                             user_update_data: UserUpdate,
                             current_user: Annotated[dict, Depends(auth_manager.get_current_user)],
                             session: AsyncSession = Depends(get_db_session)):
-    if current_user is None or current_user.get('user_role') != 'admin':
+    if current_user is None or current_user.user_role != 'admin':
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Unauthorized')
     db_user = await UserCRUDService(session).get_user_by_id(user_id)
     if db_user is None:
@@ -53,7 +53,7 @@ async def update_user_by_id(user_id: int,
 async def delete_user_by_id(user_id: int,
                             current_user: Annotated[dict, Depends(auth_manager.get_current_user)],
                             session: AsyncSession = Depends(get_db_session)):
-    if current_user is None or current_user.get('user_role') != 'admin':
+    if current_user is None or current_user.user_role != 'admin':
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Unauthorized')
     db_user = await UserCRUDService(session).get_user_by_id(user_id=user_id)
     if db_user is None:

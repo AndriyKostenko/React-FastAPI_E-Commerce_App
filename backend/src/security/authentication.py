@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.config import settings
 from src.db.db_setup import get_db_session
 from src.service.user_service import UserCRUDService
+from src.schemas.user_schemas import CurrentUserInfo
 
 # using a singleton pattern to create only one instance of AuthenticationManager
 # this is to avoid creating multiple instances of the same class
@@ -43,7 +44,7 @@ class AuthenticationManager:
         return jwt.encode(encode, self.secret_key, algorithm=self.algorithm)
     
     async def get_current_user(self, 
-                               token: Annotated[str, Depends(OAuth2PasswordBearer(tokenUrl=settings.TOKEN_URL))]):
+                               token: Annotated[str, Depends(OAuth2PasswordBearer(tokenUrl=settings.TOKEN_URL))]) -> CurrentUserInfo:
         """Checking if user is logged in and with valid token"""
         try:
             payload = jwt.decode(token, self.secret_key, algorithms=[self.algorithm])
@@ -53,15 +54,13 @@ class AuthenticationManager:
             exp: int = payload.get('exp')
             
             if not email or not user_id:
-                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
-                                    detail='Could not validate user')
-            return {'email': email, 
-                    'id': user_id, 
-                    'user_role': user_role, 
-                    'exp': exp}
+                return None
+            return CurrentUserInfo(email=email, 
+                            id=user_id, 
+                            user_role=user_role, 
+                            exp=exp)
         except (JWTError, ValidationError):
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
-                                detail='Could not validate user')
+            return None
             
             
     async def get_authenticated_user(self,

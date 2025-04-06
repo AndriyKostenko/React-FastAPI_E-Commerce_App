@@ -52,12 +52,12 @@ class UserCRUDService:
         user = db_user.scalars().first()
         return user
 
-    async def get_user_by_id(self, user_id: int):
+    async def get_user_by_id(self, user_id: str):
         db_user = await self.session.execute(select(User).where(User.id == user_id))
         user = db_user.scalars().first()
         return user  # Returns None if user is not found
 
-    async def update_user_by_id(self, user_id: int, user_update_data: UserUpdate):
+    async def update_user_by_id(self, user_id: str, user_update_data: UserUpdate):
         db_user = await self.get_user_by_id(user_id)
         if not db_user:
             return None
@@ -66,7 +66,7 @@ class UserCRUDService:
         await self.session.commit()
         return db_user
 
-    async def delete_user_by_id(self, user_id: int):
+    async def delete_user_by_id(self, user_id: str):
         user_to_delete = await self.get_user_by_id(user_id)
         await self.session.delete(user_to_delete)
         await self.session.commit()

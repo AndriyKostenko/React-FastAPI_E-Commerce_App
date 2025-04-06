@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.security.authentication import auth_manager
 from src.config import settings
 from src.db.db_setup import get_db_session
-from src.schemas.user_schemas import UserSignUp, UserInfo, TokenSchema, UserLoginDetails
+from src.schemas.user_schemas import UserSignUp, UserInfo, TokenSchema, UserLoginDetails, CurrentUserInfo
 # from src.security.authentication import create_access_token, get_authenticated_user, get_current_user
 from src.service.user_service import UserCRUDService
 from src.errors.user_service_errors import UserCreationError
@@ -74,6 +74,56 @@ async def login(form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
                             user_role=user.role,
                             token_expiry=token_data['exp'],
                             user_id=user.id)
+    
+    
+@user_routes.post("/password-reset_request",
+                  summary="Request password reset",
+                  status_code=status.HTTP_200_OK,
+                  response_description="Password reset request sent successfully",
+                  responses={
+                      404: {"description": "User not found"},
+                      200: {"description": "Password reset request sent successfully"}
+                  })
+async def request_password_reset(email: str, 
+                                user_crud_service: UserCRUDService = Depends(get_user_service)):
+    user = await user_crud_service.get_user_by_email(email=email)
+    if not user:
+        raise user_api_http_errors.user_not_found()
+    
+    # generate reset token
+    reset_token = auth_manager.create_access_token(
+        email=user.email,
+        user_id=user.id,
+        role=user.role,
+        expires_delta=timedelta(minutes=settings.RESET_TOKEN_EXPIRY_MINUTES)
+    )
+    
+    # Here you would typically send an email with a password reset link
+    # await send reset_email(user.email, reset_token)
+    return {"message": f"Password reset instructions sent to email: {email}"}
+
+@user_routes.post("/password-reset/{token}",
+                  summary="Reset password with token",
+                  status_code=status.HTTP_200_OK,
+                  response_description="Password reset successfully",
+                  responses={
+                      401: {"description": "Invalid or expired token"},
+                      200: {"description": "Password reset successfully"}
+                  })
+async def reset_password(token: str,
+                        new_password: str,
+                        user_crud_service: UserCRUDService = Depends(get_user_service)):
+    """Reset password using token"""
+    
+   
+        # verify token
+        user = await auth_manager.get_current_user(token=token)
+        if not user:
+            raise user_api_http_errors.invalid_token()
+        # update password
+        # Here you would typically hash the new password before saving it
+        await user_crud_service.update_user_password(user_id=user.id, new_password=new_password)
+        return {"message": "Password reset successfully"}
 
 
 
@@ -89,23 +139,46 @@ async def generate_token(user: UserInfo = Depends(auth_manager.get_authenticated
     return TokenSchema(access_token=token, token_type=settings.TOKEN_TYPE)
 
 
-@user_routes.get("/me")
-async def get_current_user_data(current_user: Annotated[dict, Depends(auth_manager.get_current_user)]):
+@user_routes.get("/me",
+                  summary="Get current user data",
+                  response_model=CurrentUserInfo,
+                  response_description="Current user data retrieved successfully",
+                  responses={
+                      401: {"description": "Unauthorized"},
+                      200: {"description": "Current user data retrieved successfully"}
+                  })
+async def get_current_user_data(current_user: Annotated[dict, Depends(auth_manager.get_current_user)]) -> CurrentUserInfo:
     if current_user is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Unauthorized')
+        raise user_api_http_errors.unauthorized_user()
     return current_user
 
 
-@user_routes.get("/user/{user_email}")
-async def get_user_by_email(user_email: str, session: AsyncSession = Depends(get_db_session)):
-    user = await UserCRUDService(session).get_user_by_email(user_email)
+@user_routes.get("/user/{user_email}",
+                  summary="Get user by email",
+                  response_model=UserInfo,
+                  response_description="User data retrieved successfully",
+                  responses={
+                      404: {"description": "User not found"},
+                      200: {"description": "User data retrieved successfully"}
+                  })
+async def get_user_by_email(user_email: str, 
+                            user_crud_service: UserCRUDService = Depends(get_user_service)) -> UserInfo:
+    user = await user_crud_service.get_user_by_email(user_email)
     if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='User not found')
+        raise user_api_http_errors.user_not_found()
     return user
 
-@user_routes.post("/user/{id}")
-async def get_user_by_id(id: str, session: AsyncSession = Depends(get_db_session)):
-    user = await UserCRUDService(session).get_user_by_id(id)
+@user_routes.post("/user/{id}",
+                  summary="Get user by id",
+                  response_model=UserInfo,
+                  response_description="User data retrieved successfully",
+                  responses={
+                      404: {"description": "User not found"},
+                      200: {"description": "User data retrieved successfully"}
+                  })
+async def get_user_by_user_id(id: str, 
+                              user_crud_service: UserCRUDService = Depends(get_user_service)) -> UserInfo:
+    user = await user_crud_service.get_user_by_id(user_id=id)
     if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='User not found')
+        raise user_api_http_errors.user_not_found()
     return user

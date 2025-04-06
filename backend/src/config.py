@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     TOKEN_TYPE: str = os.getenv("TOKEN_TYPE")
     TOKEN_URL: str = os.getenv("TOKEN_URL")
     CRYPT_CONTEXT_SCHEME: str = os.getenv("CRYPT_CONTEXT_SCHEME")
+    RESET_TOKEN_EXPIRY_MINUTES: int = int(os.getenv("RESET_TOKEN_EXPIRY_MINUTES"))
 
 
 settings = Settings()

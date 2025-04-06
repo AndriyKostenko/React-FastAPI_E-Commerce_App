@@ -44,6 +44,12 @@ class UserSignUp(BaseModel):
 
     })
 
+class CurrentUserInfo(BaseModel):
+    email: str
+    id: UUID
+    user_role: Optional[str]
+    exp: int
+ 
 
 class UserSaveWithGoogle(BaseModel):
     email: str

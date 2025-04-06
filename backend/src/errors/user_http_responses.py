@@ -33,4 +33,9 @@ class UserAPIHTTPErrors:
         return HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail=str(error['detail']['msg']))
         
+    @staticmethod
+    def invalid_token() -> HTTPException:
+        return HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
+                            detail='Invalid token')
+        
 user_api_http_errors = UserAPIHTTPErrors()
