@@ -20,6 +20,8 @@ class User(Base):
     role: Mapped[str] = mapped_column(nullable=True)
     phone_number: Mapped[str] = mapped_column(nullable=True)
     image: Mapped[str] = mapped_column(nullable=True)
+    is_active: Mapped[bool] = mapped_column(default=True, nullable=False)
+    is_verified: Mapped[bool] = mapped_column(default=False, nullable=False)
     date_created: Mapped[datetime] = mapped_column(
         default=lambda: datetime.now(timezone.utc).astimezone(timezone.utc).replace(tzinfo=None),
         nullable=False

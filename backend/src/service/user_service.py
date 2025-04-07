@@ -23,15 +23,20 @@ class UserCRUDService:
     def _verify_password(self, entered_password: str, hashed_password: str) -> bool:
         return bcrypt.checkpw(entered_password.encode(), hashed_password.encode())
 
-    async def create_user(self, user: UserSignUp):
+    async def create_user(self, user: UserSignUp, verified: bool = False):
         try:
             db_user = await self.get_user_by_email(user.email)
+            
             if db_user:
-                raise UserCreationError(detail=f"User with email: {user.email} already exists")
+                raise user_service_error_factory.create_error('email', 'User with this email already exists')
+            
+            
             hashed_password = self._hash_password(user.password)
+            
             new_user = User(name=user.name,
                             email=user.email,
-                            hashed_password=hashed_password)
+                            hashed_password=hashed_password,
+                            is_verified=verified)
             # not using await coz it's an in-memory operation and doesn't interact with db
             self.session.add(new_user)
 
@@ -65,6 +70,14 @@ class UserCRUDService:
         db_user.hashed_password = self._hash_password(user_update_data.password)
         await self.session.commit()
         return db_user
+    
+    async def update_user_verified_status(self, user_id: str, verified: bool):
+        db_user = await self.get_user_by_id(user_id)
+        if not db_user:
+            return None
+        db_user.is_verified = verified
+        await self.session.commit()
+        return db_user
 
     async def delete_user_by_id(self, user_id: str):
         user_to_delete = await self.get_user_by_id(user_id)
@@ -76,9 +89,9 @@ class UserCRUDService:
     async def authenticate_user(self, email: str, entered_password: str):
         db_user = await self.get_user_by_email(email)
         if not db_user:
-            return False
+            return user_service_error_factory.create_error('email', 'User with this email does not exist')
         if not self._verify_password(entered_password=entered_password, hashed_password=db_user.hashed_password):
-            return False
+            return user_service_error_factory.create_error('password', 'Incorrect password')
         return db_user
 
 

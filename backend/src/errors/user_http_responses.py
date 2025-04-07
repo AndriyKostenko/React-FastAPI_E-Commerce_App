@@ -12,6 +12,11 @@ class UserAPIHTTPErrors:
     def user_not_authenticated() -> HTTPException:
         return HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
                             detail='Could not validate user')
+        
+    @staticmethod
+    def user_not_verified() -> HTTPException:
+        return HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
+                            detail='User not verified via Email link')
 
     @staticmethod
     def user_creation_error(error:str) -> HTTPException:
@@ -37,5 +42,10 @@ class UserAPIHTTPErrors:
     def invalid_token() -> HTTPException:
         return HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
                             detail='Invalid token')
+        
+    @staticmethod
+    def user_is_not_active() -> HTTPException:
+        return HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
+                            detail='Your account has been deactivated')
         
 user_api_http_errors = UserAPIHTTPErrors()

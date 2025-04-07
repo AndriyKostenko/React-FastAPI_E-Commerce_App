@@ -2,57 +2,44 @@ from typing import Dict, Type
 
 
 # using Factory Pattern along with Inheritance design patterns for creating user related service errors
-class UserServerError(Exception):
+class UserServiceError(Exception):
     """Base class for user errors"""
     def __init__(self, detail: str):
         super().__init__(detail)
         
-class UserNotFoundError(UserServerError):
+class UserNotFoundError(UserServiceError):
     """Raised when user is not found"""
     pass
 
 
-class UserCreationError(UserServerError):
+class UserCreationError(UserServiceError):
     """Raised when user creation fails"""
     pass
 
-class UserValidationError(UserServerError):
+class UserValidationError(UserServiceError):
     """Raised when user validation fails"""
     pass
 
-class UserUpdateError(UserServerError):
+class UserUpdateError(UserServiceError):
     """Raised when user update fails"""
     pass
 
-class UserDeletionError(UserServerError):
+class UserDeletionError(UserServiceError):
     """Raised when user deletion fails"""
     pass
 
-class UserAuthenticationError(UserServerError):
+class UserAuthenticationError(UserServiceError):
     """Raised when user authentication fails"""
+    pass
+
+class UserPasswordError(UserServiceError):
+    """Raised when user password is invalid"""
+    pass
+
+class UserEmailError(UserServiceError):
+    """Raised when user email is not verified"""
     pass
 
 
 
 
-class UserErrorFactory:
-    """Factory class to create user errors"""
-    
-    _error_types: Dict[str, Type[UserServerError]] = {
-        'not_found': UserNotFoundError,
-        'creation': UserCreationError,
-        'validation': UserValidationError,
-        'update': UserUpdateError,
-        'deletion': UserDeletionError,
-        'authentication': UserAuthenticationError
-    }
-    
-    @classmethod
-    def create_error(cls, error_type: str, detail: str) -> UserServerError:
-        """Create a user error"""
-        if error_type not in cls._error_types:
-            raise ValueError(f"Unknown error type: {error_type}")
-        return cls._error_types[error_type](detail)
-    
-        
-user_service_error_factory = UserErrorFactory()

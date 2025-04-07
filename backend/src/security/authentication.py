@@ -67,11 +67,23 @@ class AuthenticationManager:
                                      form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
                                      session: AsyncSession = Depends(get_db_session)):
         """Authenticate user with credentials"""
-        user = await UserCRUDService(session=session).authenticate_user(email=form_data.username,
+        try:
+            user = await UserCRUDService(session=session).authenticate_user(email=form_data.username,
                                                                 entered_password=form_data.password)
-        if not user:
+        except UserPasswordError as error:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
-                                detail='Could not validate user')
+                                detail=str(error),
+                                headers={"WWW-Authenticate": "Bearer"})
+        except UserNotFoundError as error:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                                detail=str(error),
+                                headers={"WWW-Authenticate": "Bearer"})
+        except UserEmailError as error:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                                detail=str(error),
+                                headers={"WWW-Authenticate": "Bearer"})
+            
+            
         return user
             
             

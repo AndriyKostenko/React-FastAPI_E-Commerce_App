@@ -3,6 +3,7 @@ from jose import jwt
 from src.config import settings
 from src.security.authentication import get_current_user
 from fastapi import HTTPException
+
 # marking with package to use same event_loop() for all tests in package
 pytestmark = pytest.mark.asyncio(scope="package")
 
