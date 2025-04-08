@@ -11,6 +11,9 @@ class UserNotFoundError(UserServiceError):
     """Raised when user is not found"""
     pass
 
+class UserAlreadyExistsError(UserServiceError):
+    """Raised when user already exists"""
+    pass
 
 class UserCreationError(UserServiceError):
     """Raised when user creation fails"""
@@ -39,6 +42,15 @@ class UserPasswordError(UserServiceError):
 class UserEmailError(UserServiceError):
     """Raised when user email is not verified"""
     pass
+
+class UserServiceDatabaseError(UserServiceError):
+    """Raised when there is a database error"""
+    pass
+
+class UserIsNotVerifiedError(UserServiceError):
+    """Raised when user is not verified"""
+    pass
+
 
 
 

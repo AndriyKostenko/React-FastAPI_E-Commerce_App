@@ -34,12 +34,16 @@ class UserSignUp(BaseModel):
     name: str = Field(..., min_length=3, max_length=50, description="User's name")
     email: EmailStr = Field(..., description="User's email")
     password: str = Field(..., min_length=8, max_length=100,description="User's password")
+    is_verified: Optional[bool] = Field(False, description="User's verification status")
+    role: Optional[str] = Field(None, description="User's role", example="user , admin")
 
     model_config = ConfigDict(from_attributes=True, json_schema_extra={
         "example": {
             "name": "jhon doe",
             "email": "jhondoe@gmail.com",
-            "password": "12345678"
+            "password": "12345678",
+            "is_verified": False,
+            "role": "user"
         }
 
     })
