@@ -56,9 +56,9 @@ class AuthenticationManager:
             if not email or not user_id:
                 return None
             return CurrentUserInfo(email=email, 
-                            id=user_id, 
-                            user_role=user_role, 
-                            exp=exp)
+                                    id=user_id, 
+                                    user_role=user_role, 
+                                    exp=exp)
         except (JWTError, ValidationError):
             return None
             
@@ -67,23 +67,7 @@ class AuthenticationManager:
                                      form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
                                      session: AsyncSession = Depends(get_db_session)):
         """Authenticate user with credentials"""
-        try:
-            user = await UserCRUDService(session=session).authenticate_user(email=form_data.username,
-                                                                entered_password=form_data.password)
-        except UserPasswordError as error:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
-                                detail=str(error),
-                                headers={"WWW-Authenticate": "Bearer"})
-        except UserNotFoundError as error:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                                detail=str(error),
-                                headers={"WWW-Authenticate": "Bearer"})
-        except UserEmailError as error:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                                detail=str(error),
-                                headers={"WWW-Authenticate": "Bearer"})
-            
-            
+        user = await UserCRUDService(session=session).authenticate_user(email=form_data.username,entered_password=form_data.password)
         return user
             
             

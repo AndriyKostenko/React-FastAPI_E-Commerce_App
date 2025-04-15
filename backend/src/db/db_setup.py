@@ -1,7 +1,9 @@
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from src.config import settings
 from sqlalchemy.orm import sessionmaker
-from src.models.user_models import Base, User
+from contextlib import asynccontextmanager
+
+from src.models.user_models import Base
 from src.models.wishlist_models import Wishlist, WishlistItem
 from src.models.cart_models import Cart, CartItem
 from src.models.payment_models import Payment
@@ -24,6 +26,7 @@ async_session = sessionmaker(
 )
 
 # create tables
+# TODO: Catch an error if postgress doenst work
 async def init_db():
     async with async_engine.begin() as connection:
         await connection.run_sync(Base.metadata.create_all)
@@ -33,3 +36,20 @@ async def init_db():
 async def get_db_session():
     async with async_session() as session:
         yield session
+
+
+
+# for some reason this approach doenst catch any of SQLalchemy errors, 
+# for example i stop the the postgres or deleting tha tables in runtime and its not catching such errors, thats why im using decorators for a moment
+# async def get_db_session():
+#     async with async_session() as session:
+#         try:
+#             yield session
+#         except Exception as e:
+#             await session.rollback()
+#             print(f"Error: {str(e)}")
+#             raise e
+#         finally:
+#             await session.close()
+
+

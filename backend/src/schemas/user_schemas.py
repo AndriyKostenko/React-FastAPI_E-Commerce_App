@@ -40,10 +40,10 @@ class UserSignUp(BaseModel):
     model_config = ConfigDict(from_attributes=True, json_schema_extra={
         "example": {
             "name": "jhon doe",
-            "email": "jhondoe@gmail.com",
+            "email": "a.kostenkouk@gmail.com",
             "password": "12345678",
-            "is_verified": False,
-            "role": "user"
+            "is_verified": True,
+            "role": "admin"
         }
 
     })

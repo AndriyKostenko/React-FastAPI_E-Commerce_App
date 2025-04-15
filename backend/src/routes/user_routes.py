@@ -88,14 +88,7 @@ async def create_user(user: UserSignUp,
 async def login(form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
                 session: AsyncSession = Depends(get_db_session)) -> UserLoginDetails:
     user = await auth_manager.get_authenticated_user(form_data=form_data, session=session)
-    if not user:
-        raise user_api_http_errors.unauthorized_user()
-    if not user.is_verified:
-        raise user_api_http_errors.user_not_verified()
-    if not user.is_active:
-        raise user_api_http_errors.user_is_not_active()
-    
-    
+ 
     # create access token
     access_token = auth_manager.create_access_token(user.email, 
                                                     user.id, 
@@ -107,7 +100,7 @@ async def login(form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
     return UserLoginDetails(access_token=access_token,
                             token_type=settings.TOKEN_TYPE,
                             user_role=user.role,
-                            token_expiry=token_data['exp'],
+                            token_expiry=token_data.exp,
                             user_id=user.id)
     
 @user_routes.get('/activate/{token}',

@@ -36,7 +36,7 @@ async def get_user_by_id(user_id: int,
 
 
 @admin_routes.put('/users/{user_id}', summary='Update user by ID', status_code=status.HTTP_200_OK)
-async def update_user_by_id(user_id: int,
+async def update_user_by_id(user_id: str,
                             user_update_data: UserUpdate,
                             current_user: Annotated[dict, Depends(auth_manager.get_current_user)],
                             session: AsyncSession = Depends(get_db_session)):

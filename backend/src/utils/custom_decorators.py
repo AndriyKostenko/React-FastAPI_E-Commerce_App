@@ -1,21 +1,16 @@
 from functools import wraps
+from sqlalchemy import exc
  
-from sqlalchemy.exc import (IntegrityError, 
-                            OperationalError, 
-                            SQLAlchemyError, 
-                            TimeoutError, 
-                            StatementError,
-                            ProgrammingError,
-                            DBAPIError)
+from sqlalchemy.exc import (SQLAlchemyError, 
+                            DBAPIError,
+                            InterfaceError as SQLAlchemyInterfaceError)
+
+from asyncpg.exceptions._base import InterfaceError as AsyncPGInterfaceError
 from src.errors.database_errors import (
-    DatabaseError,
     DatabaseConnectionError,
-    DatabaseIntegrityError,
     DatabaseOperationError,
-    DatabaseTimeoutError,
     DatabaseTransactionError,
-    DatabaseProgrammingError,
-    DatabaseTableNotFoundError
+
 )
 import logging
 
@@ -23,37 +18,23 @@ logger = logging.getLogger(__name__)
 
 def handle_db_errors(func):
     """
-    Decorator to handle database-related errors.
+    Decorator to handle SQLAlchemy database-related errors.
     """
     @wraps(func)
     async def wrapper(*args, **kwargs):
         try:
             return await func(*args, **kwargs)
-        except IntegrityError as e:
-            logger.error(f"Database integrity error in {func.__name__}: {str(e)}")
-            raise DatabaseIntegrityError(f"Database integrity error: {str(e)}")
-        except OperationalError as e:
-            logger.error(f"Database connection error in {func.__name__}: {str(e)}")
-            raise DatabaseConnectionError(f"Database connection error: {str(e)}")
-        # looks likecatching only this type of error in regards to others, even if others were in place as well
+        # looks likecatching only this type of error in regards to others SQLAlchemy errors, even if others were in place as well
         except SQLAlchemyError as e:
             logger.error(f"Database error in {func.__name__}: {str(e)}")
-            raise DatabaseOperationError(f"Database operation failed: {str(e)}")
-        except TimeoutError as e:
-            logger.error(f"Database timeout error in {func.__name__}: {str(e)}")
-            raise DatabaseTimeoutError(f"Database operation timed out: {str(e)}")
-        except StatementError as e:
-            logger.error(f"Database statement error in {func.__name__}: {str(e)}")
-            raise DatabaseError(f"Database statement error: {str(e)}")
-        except ProgrammingError as e:
-            raise DatabaseProgrammingError(f"Database programming error: {str(e)}")
-        except DBAPIError as e:
-            # Check if the underlying error is UndefinedTableError
-            logger.error(f"Database API error in {func.__name__}: {str(e)}")
-            if "UndefinedTableError" in str(e.__cause__):
-                table_name = str(e.__cause__).split('"')[1]  # Extract table name from error
-                raise DatabaseTableNotFoundError(table_name)
-            raise DatabaseProgrammingError(f"Database programming error: {str(e)}")
+            raise DatabaseOperationError(f"Database operation failed due to SQLAlchemy error: {str(e)}")
+        
+        #TODO: cannot catch database off errors, when poastgress doesnt work....
+        except (AsyncPGInterfaceError, SQLAlchemyInterfaceError, ConnectionRefusedError, exc.DBAPIError, DBAPIError) as e:
+            logger.error(f"Database connection lost in {func.__name__}: {str(e)}")
+            raise DatabaseConnectionError(
+                "Database connection is closed. The server might be down or restarting."
+            )
             
     return wrapper
 

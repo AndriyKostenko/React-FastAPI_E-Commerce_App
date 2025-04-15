@@ -42,6 +42,8 @@ async def lifespan(app: FastAPI):
     events of a FastAPI application.
     """
     print(f"Server has started at {datetime.datetime.now()}")
+    # TODO: Catch an error if the database connection fails
+    # Initialize the database connection
     await init_db()
     yield
     print(f"Server has shut down at {datetime.datetime.now()}")
@@ -54,6 +56,7 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+# adding the middleware to the app for handling different types of errors
 def add_exception_handlers(app: FastAPI):
     """
     This function adds exception handlers to the FastAPI application.
