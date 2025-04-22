@@ -9,6 +9,10 @@ class DatabaseConnectionError(DatabaseError):
     """Raised when there is a connection issue with the database"""
     pass
 
+class DatabaseSessionError(DatabaseError):
+    """Raised when there is a session issue with the database"""
+    pass
+
 class DatabaseIntegrityError(DatabaseError):
     """Raised when there is an integrity issue with the database"""
     pass

@@ -1,4 +1,5 @@
 import datetime
+import logging
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi import FastAPI, Request, status
@@ -7,7 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import ValidationError
 from fastapi.exceptions import ResponseValidationError, RequestValidationError
 
-from src.db.db_setup import init_db
+from src.db.db_setup import database_session_manager
 from src.routes.admin_routes import admin_routes
 from src.routes.category_routes import category_routes
 from src.routes.payment_route import payment_routes
@@ -34,7 +35,11 @@ from src.errors.database_errors import (DatabaseConnectionError,
                                         DatabaseTimeoutError,
                                         DatabaseProgrammingError,
                                         DatabaseTableNotFoundError,
-                                        DatabaseOperationError)
+                                        DatabaseOperationError,
+                                        DatabaseSessionError)
+
+logger = logging.getLogger(__name__)
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
@@ -42,10 +47,27 @@ async def lifespan(app: FastAPI):
     events of a FastAPI application.
     """
     print(f"Server has started at {datetime.datetime.now()}")
-    # TODO: Catch an error if the database connection fails
-    # Initialize the database connection
-    await init_db()
+    
+    # Use a boolean to track connection success
+    db_initialized = False
+    
+    # Test if engine is initialized
+    if database_session_manager._async_engine is not None:
+        try:
+            # Initialize the database
+            await database_session_manager.init_db()
+            db_initialized = True
+        except Exception as e:
+            logger.error(f"Database initialization failed: {str(e)}")
+    
+    if not db_initialized:
+        logger.warning("Application started with database unavailable! Some features will not work.")
+    
     yield
+    
+    # Cleanup
+    if database_session_manager.is_connected:
+        await database_session_manager.close()
     print(f"Server has shut down at {datetime.datetime.now()}")
 
 
@@ -169,6 +191,13 @@ def add_exception_handlers(app: FastAPI):
     # Custom Exception handlers for database errors
     @app.exception_handler(DatabaseConnectionError)
     async def database_connection_error_handler(request: Request, exc: DatabaseConnectionError):
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"detail": str(exc)}
+        )
+        
+    @app.exception_handler(DatabaseSessionError)
+    async def database_session_error_handler(request: Request, exc: DatabaseSessionError):
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"detail": str(exc)}

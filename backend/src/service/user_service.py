@@ -52,7 +52,7 @@ class UserCRUDService:
         result = await self.session.execute(select(User).order_by(asc(User.id)))
         return result.scalars().all()
     
-    @handle_db_errors
+    # @handle_db_errors
     async def get_user_by_email(self, email: str):
         db_user = await self.session.execute(select(User).where(User.email == email))
         return db_user.scalars().first() # returns the first result of the query or None if no results were found
@@ -65,15 +65,15 @@ class UserCRUDService:
     # The order of decorators matters. In this case:
     # handle_db_transaction_rollback runs first, doing session commits/rolls back.
     # handle_db_errors wraps around that and transforms the exception.
-    @handle_db_errors
-    @handle_db_transaction_rollbacks
+    # @handle_db_errors
+    # @handle_db_transaction_rollbacks
     async def update_user_by_id(self, user_id: str, user_update_data: UserUpdate):
         db_user = await self.get_user_by_id(user_id)
         db_user.name = user_update_data.name
         db_user.hashed_password = self._hash_password(user_update_data.password)
         # commit and refresh in decorators
-        # await self.session.commit()
-        # await self.session.refresh(db_user)
+        await self.session.commit()
+        await self.session.refresh(db_user)
         return db_user
     
 
