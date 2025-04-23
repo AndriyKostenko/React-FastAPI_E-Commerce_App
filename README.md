@@ -1,18 +1,13 @@
-
 ## Getting Started
 
-First, run the development server:
+## Alembic migrations
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+- Initialize Alembic (if you haven’t): alembic init alembic
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+- Generate a new migration file: alembic revision --autogenerate -m "Your migration message"
 
+- Review and clean up the migration: Check the generated file — remove redundant / incorrect staff or adjust logic as needed.
 
+- Roll back a migration (optional): alembic downgrade -1 / alembic downgrade <revision_id>
+
+- Mark current DB as up-to-date without running migrations: alembic stamp head (if got error about not matching your current models with existing, u can stamp specific idwith: alembic stamp <revision_id> )

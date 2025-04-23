@@ -2,16 +2,24 @@ from typing import List
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from datetime import datetime
 from datetime import timezone
-from sqlalchemy import String
+from sqlalchemy import String, Index
 
 from src.models import Base
 from src.utils.generate_uuid import generate_uuid
 
 
-
-#TODO: Add the validation for fields like String(50)
 class User(Base):
     __tablename__ = 'users'
+    
+    # Creating indexes for the columns
+    # to improve query performance
+    __table_args__ = (
+        Index('idx_users_email', 'email'),
+        Index('idx_users_role', 'role'),
+        Index('idx_users_is_active', 'is_active'),
+        Index('idx_users_is_verified', 'is_verified'),
+        Index('idx_users_date_created', 'date_created'),
+    )
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=generate_uuid, unique=True)
     name: Mapped[str] = mapped_column(String(50),nullable=False)
