@@ -9,7 +9,7 @@ from src.errors.user_service_errors import (UserNotFoundError,
                                             UserIsNotVerifiedError, 
                                             UserPasswordError,
                                             UserAlreadyExistsError)
-from src.utils.custom_decorators import handle_db_errors, handle_db_transaction_rollbacks
+
 
 
 
@@ -54,24 +54,25 @@ class UserCRUDService:
     
     # @handle_db_errors
     async def get_user_by_email(self, email: str):
-        db_user = await self.session.execute(select(User).where(User.email == email))
-        return db_user.scalars().first() # returns the first result of the query or None if no results were found
-
+        result = await self.session.execute(select(User).where(User.email == email))
+        user = result.scalars().first()
+        if not user:
+            raise UserNotFoundError(detail=f'User with email: "{email}" not found')
+        return user 
+        
   
     async def get_user_by_id(self, user_id: str):
-        db_user = await self.session.execute(select(User).where(User.id == user_id))
-        return db_user.scalars().first() # returns the first result of the query or None if no results were found
+        result = await self.session.execute(select(User).where(User.id == user_id))
+        user = result.scalars().first()
+        if not user:
+            raise UserNotFoundError(detail=f'User with id: "{user_id}" not found')
+        return user
 
-    # The order of decorators matters. In this case:
-    # handle_db_transaction_rollback runs first, doing session commits/rolls back.
-    # handle_db_errors wraps around that and transforms the exception.
-    # @handle_db_errors
-    # @handle_db_transaction_rollbacks
+
     async def update_user_by_id(self, user_id: str, user_update_data: UserUpdate):
         db_user = await self.get_user_by_id(user_id)
         db_user.name = user_update_data.name
         db_user.hashed_password = self._hash_password(user_update_data.password)
-        # commit and refresh in decorators
         await self.session.commit()
         await self.session.refresh(db_user)
         return db_user
@@ -80,6 +81,8 @@ class UserCRUDService:
     async def update_user_verified_status(self, user_id: str, verified: bool):
         db_user = await self.get_user_by_id(user_id)
         db_user.is_verified = verified
+        await self.session.commit()
+        await self.session.refresh(db_user)
         return db_user
     
 
