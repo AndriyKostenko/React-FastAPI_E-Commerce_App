@@ -203,45 +203,10 @@ def add_exception_handlers(app: FastAPI):
             content={"detail": str(exc)}
         )
 
-    @app.exception_handler(DatabaseTransactionError)
-    async def database_transaction_error_handler(request: Request, exc: DatabaseTransactionError):
-        return JSONResponse(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={"detail": str(exc)}
-        )
-    @app.exception_handler(DatabaseIntegrityError)
-    async def database_integrity_error_handler(request: Request, exc: DatabaseIntegrityError):
-        return JSONResponse(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={"detail": str(exc)}
-        )
-    @app.exception_handler(DatabaseTimeoutError)
-    async def database_timeout_error_handler(request: Request, exc: DatabaseTimeoutError):
-        return JSONResponse(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={"detail": str(exc)}
-        )
+
         
-    @app.exception_handler(DatabaseProgrammingError)
-    async def database_programming_error_handler(request: Request, exc: DatabaseProgrammingError):
-        return JSONResponse(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={"detail": str(exc)}
-        )
         
-    @app.exception_handler(DatabaseTableNotFoundError)
-    async def database_table_not_found_error_handler(request: Request, exc: DatabaseTableNotFoundError):
-        return JSONResponse(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={"detail": str(exc)}
-        )
-        
-    @app.exception_handler(DatabaseOperationError)
-    async def database_operation_error_handler(request: Request, exc: DatabaseOperationError):
-        return JSONResponse(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={"detail": str(exc)}
-        )
+
     
         
 
