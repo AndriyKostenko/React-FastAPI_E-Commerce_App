@@ -8,13 +8,6 @@ from typing import Any, AsyncIterator, AsyncGenerator
 import logging
 
 from src.models.user_models import Base
-from src.models.wishlist_models import Wishlist, WishlistItem
-from src.models.cart_models import Cart, CartItem
-from src.models.payment_models import Payment
-from src.models.shipping_models import Shipping
-from src.models.notification_models import Notification
-from src.models.product_models import Product, ProductImage
-from src.models.category_models import ProductCategory
 from src.errors.database_errors import DatabaseConnectionError, DatabaseSessionError
 
 

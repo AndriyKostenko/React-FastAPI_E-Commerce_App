@@ -30,12 +30,6 @@ from src.errors.user_service_errors import (UserNotFoundError,
                                             UserAuthenticationError)
 
 from src.errors.database_errors import (DatabaseConnectionError,
-                                        DatabaseTransactionError, 
-                                        DatabaseIntegrityError, 
-                                        DatabaseTimeoutError,
-                                        DatabaseProgrammingError,
-                                        DatabaseTableNotFoundError,
-                                        DatabaseOperationError,
                                         DatabaseSessionError)
 
 logger = logging.getLogger(__name__)
@@ -57,6 +51,7 @@ async def lifespan(app: FastAPI):
             # Initialize the database
             await database_session_manager.init_db()
             db_initialized = True
+            logger.info('Database initialized succesfully.')
         except Exception as e:
             logger.error(f"Database initialization failed: {str(e)}")
     

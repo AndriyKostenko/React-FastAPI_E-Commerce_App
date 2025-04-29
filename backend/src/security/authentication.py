@@ -10,6 +10,7 @@ from src.config import settings
 from src.db.db_setup import get_db_session
 from src.service.user_service import UserCRUDService
 from src.schemas.user_schemas import CurrentUserInfo
+from src.errors.user_service_errors import UserIsNotVerifiedError
 
 # using a singleton pattern to create only one instance of AuthenticationManager
 # this is to avoid creating multiple instances of the same class
@@ -54,13 +55,14 @@ class AuthenticationManager:
             exp: int = payload.get('exp')
             
             if not email or not user_id:
-                return None
+                raise UserIsNotVerifiedError(detail=f"User's email or id is not provided.")
+
             return CurrentUserInfo(email=email, 
                                     id=user_id, 
                                     user_role=user_role, 
                                     exp=exp)
-        except (JWTError, ValidationError):
-            return None
+        except (JWTError, ValidationError) as error:
+            raise UserIsNotVerifiedError(detail=f"User is not verified due to: {str(error)}")
             
             
     async def get_authenticated_user(self,

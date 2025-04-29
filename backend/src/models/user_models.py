@@ -36,11 +36,11 @@ class User(Base):
     )
     date_updated: Mapped[datetime] = mapped_column(nullable=True)
 
-    reviews: Mapped[List['ProductReview']] = relationship('ProductReview', back_populates='user')
-    addresses: Mapped[List['OrderAddress']] = relationship('OrderAddress', back_populates='user') 
+    reviews: Mapped[List['ProductReview']] = relationship('ProductReview', back_populates='user') # type: ignore
+    addresses: Mapped[List['OrderAddress']] = relationship('OrderAddress', back_populates='user') # type: ignore
     orders: Mapped[List['Order']] = relationship('Order', back_populates='user') # type: ignore
-    wishlist: Mapped["Wishlist"] = relationship("Wishlist", back_populates='user', uselist=False)
-    cart: Mapped['Cart'] = relationship('Cart', back_populates='user', uselist=False) 
-    payments: Mapped[List['Payment']] = relationship('Payment', back_populates='user') 
-    shippings: Mapped[List['Shipping']] = relationship('Shipping', back_populates='user')
-    notifications: Mapped[List['Notification']] = relationship('Notification', back_populates='user') 
+    wishlist: Mapped['Wishlist'] = relationship('Wishlist', back_populates='user', uselist=False) # type: ignore
+    cart: Mapped['Cart'] = relationship('Cart', back_populates='user', uselist=False) # type: ignore
+    payments: Mapped[List['Payment']] = relationship('Payment', back_populates='user') # type: ignore
+    shippings: Mapped[List['Shipping']] = relationship('Shipping', back_populates='user') # type: ignore
+    notifications: Mapped[List['Notification']] = relationship('Notification', back_populates='user') # type: ignore
