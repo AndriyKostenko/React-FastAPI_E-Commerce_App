@@ -12,7 +12,7 @@ from src.service.user_service import UserCRUDService
 from src.schemas.user_schemas import CurrentUserInfo
 from src.errors.user_service_errors import UserIsNotVerifiedError
 
-# using a singleton pattern to create only one instance of AuthenticationManager
+# using a Singleton pattern to create only one instance of AuthenticationManager
 # this is to avoid creating multiple instances of the same class
 class AuthenticationManager:
     _instance = None

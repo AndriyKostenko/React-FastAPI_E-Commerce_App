@@ -9,11 +9,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.security.authentication import auth_manager
 from src.config import settings
 from src.db.db_setup import get_db_session
-from src.schemas.user_schemas import UserSignUp, UserInfo, TokenSchema, UserLoginDetails, CurrentUserInfo
+from src.schemas.user_schemas import (UserSignUp, 
+                                      UserInfo, 
+                                      TokenSchema, 
+                                      UserLoginDetails, 
+                                      CurrentUserInfo, 
+                                      EmailSchema)
 from src.service.user_service import UserCRUDService
 from src.dependencies.user_dependencies import get_user_service
 from src.service.email import email_service
-from src.errors.user_service_errors import UserAlreadyExistsError
+
 
 user_routes = APIRouter(
     tags=["users"]
@@ -39,14 +44,10 @@ async def create_user(user: UserSignUp,
                       user_crud_service: UserCRUDService = Depends(get_user_service)
                       ) -> UserInfo:
     
-    existing_user = await user_crud_service.get_user_by_email(user.email)
-    if existing_user:
-        raise UserAlreadyExistsError(f"User with email: {user.email} already exists!")
-    
     # generating verification token
     verification_token = auth_manager.create_access_token(
         email=user.email,
-        user_id=None, # no user id yet
+        user_id="", # no user id yet
         role='user',
         expires_delta=timedelta(minutes=settings.VERIFICATION_TOKEN_EXPIRY_MINUTES)
     )
@@ -58,7 +59,8 @@ async def create_user(user: UserSignUp,
     email_data = {
         "app_name": settings.MAIL_FROM_NAME,
         "email": user.email,
-        "activate_url": activate_url}
+        "activate_url": activate_url
+    }
     
     # Send account verification email
     await email_service.send_email(
@@ -101,6 +103,19 @@ async def login(form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
                             user_role=user.role,
                             token_expiry=token_data.exp,
                             user_id=user.id)
+    
+@user_routes.post('/send-email',)
+async def send_verification_email(emails: EmailSchema, 
+                                  background_tasks: BackgroundTasks,
+                                  user_crud_service: UserCRUDService = Depends(get_user_service)):
+    emails = emails.addresses
+    email_service.create_message(
+        recipients=emails,
+        subject="Verification of Email address",
+        template_name="verify_email.html",
+        context={"app_name": settings.MAIL_FROM_NAME},
+        background_tasks=background_tasks
+    )
     
     
 @user_routes.get('/activate/{token}',

@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr
@@ -87,3 +87,6 @@ class UserLoginDetails(BaseModel):
 class TokenPayload(BaseModel):
     sub: str = None
     exp: int = None
+
+class EmailSchema(BaseModel):
+    addresses = List[str]

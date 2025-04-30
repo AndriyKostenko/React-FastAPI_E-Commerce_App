@@ -28,6 +28,7 @@ class UserCRUDService:
 
     async def create_user(self, user: UserSignUp):
         db_user = await self.get_user_by_email(user.email)
+        
         if db_user:
             raise UserAlreadyExistsError(detail=f'User with email: {user.email} already exists')
         
@@ -55,22 +56,18 @@ class UserCRUDService:
     # @handle_db_errors
     async def get_user_by_email(self, email: str):
         result = await self.session.execute(select(User).where(User.email == email))
-        user = result.scalars().first()
-        if not user:
-            raise UserNotFoundError(detail=f'User with email: "{email}" not found')
-        return user 
+        return result.scalars().first() # will be returned as None if not found
         
   
     async def get_user_by_id(self, user_id: str):
         result = await self.session.execute(select(User).where(User.id == user_id))
-        user = result.scalars().first()
-        if not user:
-            raise UserNotFoundError(detail=f'User with id: "{user_id}" not found')
-        return user
+        return result.scalars().first() # will be returned as None if not found
 
 
     async def update_user_by_id(self, user_id: str, user_update_data: UserUpdate):
         db_user = await self.get_user_by_id(user_id)
+        if not db_user:
+            raise UserNotFoundError(detail=f'User with id: "{user_id}" not found')
         db_user.name = user_update_data.name
         db_user.hashed_password = self._hash_password(user_update_data.password)
         await self.session.commit()
@@ -80,6 +77,8 @@ class UserCRUDService:
 
     async def update_user_verified_status(self, user_id: str, verified: bool):
         db_user = await self.get_user_by_id(user_id)
+        if not db_user:
+            raise UserNotFoundError(detail=f'User with id: "{user_id}" not found')
         db_user.is_verified = verified
         await self.session.commit()
         await self.session.refresh(db_user)
