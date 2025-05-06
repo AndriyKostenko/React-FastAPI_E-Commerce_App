@@ -2,20 +2,23 @@ from datetime import timedelta
 from typing import Annotated
 
 from fastapi import Depends, APIRouter, status, BackgroundTasks
+from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi_mail import FastMail, MessageSchema, ConnectionConfig, MessageType
 
 from src.security.authentication import auth_manager
 from src.config import settings
-from src.db.db_setup import get_db_session
+from src.dependencies.dependencies import get_db_session
 from src.schemas.user_schemas import (UserSignUp, 
                                       UserInfo, 
                                       TokenSchema, 
                                       UserLoginDetails, 
-                                      CurrentUserInfo, 
-                                      EmailSchema)
+                                      CurrentUserInfo
+                                      )
+from src.schemas.email_schemas import EmailSchema
 from src.service.user_service import UserCRUDService
-from src.dependencies.user_dependencies import get_user_service
+from src.dependencies.dependencies import get_user_service
 from src.service.email_service import email_service
 
 
@@ -39,21 +42,35 @@ user_routes = APIRouter(
                         
                   })
 async def create_user(user: UserSignUp,
-                      background_tasks: BackgroundTasks, 
+                      background_tasks: BackgroundTasks,
                       user_crud_service: UserCRUDService = Depends(get_user_service)
                       ) -> UserInfo:
     #  create user in db with verified = False flag
     new_db_user = await user_crud_service.create_user(user=user)
     
-    # Send verification email using the EmailService method
+    # Send verification email in background
     await email_service.send_verification_email(
         email=new_db_user.email,
         user_id=new_db_user.id,
         user_role=new_db_user.role,
-        background_tasks=background_tasks,
+        background_tasks=background_tasks
     )
 
     return new_db_user
+
+@user_routes.post("/send-email")
+async def simple_send(email: EmailSchema,
+                      background_tasks: BackgroundTasks) -> JSONResponse:
+    
+    await email_service.send_verification_email(
+        email=email.email,
+        template_body=email.body,
+        user_id="test_id",
+        user_role="user",
+        background_tasks=background_tasks
+    )
+    
+    return JSONResponse(status_code=status.HTTP_200_OK, content={"message": "Email sent successfully"})
 
 
 @user_routes.post("/login",
@@ -83,18 +100,7 @@ async def login(form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
                             token_expiry=token_data.exp,
                             user_id=user.id)
     
-@user_routes.post('/send-email',)
-async def send_verification_email(emails: EmailSchema, 
-                                  background_tasks: BackgroundTasks,
-                                  user_crud_service: UserCRUDService = Depends(get_user_service)):
-    emails = emails.addresses
-    email_service.create_message(
-        recipients=emails,
-        subject="Verification of Email address",
-        template_name="verify_email.html",
-        context={"app_name": settings.MAIL_FROM_NAME},
-        background_tasks=background_tasks
-    )
+
     
     
 @user_routes.get('/activate/{token}',

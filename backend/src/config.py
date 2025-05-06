@@ -37,5 +37,7 @@ class Settings(BaseSettings):
     MAIL_DEBUG: bool | None = os.getenv("MAIL_DEBUG")
     USE_CREDENTIALS: bool | None = os.getenv("USE_CREDENTIALS")
     TEMPLATES_DIR: str | None = os.getenv("TEMPLATES_DIR")
+    VALIDATE_CERTS: bool | None = os.getenv("VALIDATE_CERTS")
+
 
 settings = Settings()

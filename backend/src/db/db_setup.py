@@ -48,11 +48,10 @@ class DatabaseSessionManager:
             self.async_session = None
 
         
-    async def init_db(self) -> bool:
+    async def init_db(self) -> None:
         """Initialize the database, creating all tables."""
         if self.async_engine is None:
             raise DatabaseConnectionError("Database engine is not initialized.")
-            #return False
         
         try:
             # Create all tables in the database
@@ -60,7 +59,7 @@ class DatabaseSessionManager:
                 await connection.run_sync(Base.metadata.create_all)
             logger.info("Database tables initialized successfully")
             self.is_connected = True
-            return True
+            return 
         except (DBAPIError, SQLAlchemyError, OSError) as e:
             logger.error(f"Database connection error: {str(e)}")
             raise DatabaseConnectionError(f"Database connection error: {str(e)}")
@@ -145,8 +144,3 @@ database_session_manager = DatabaseSessionManager(settings.DATABASE_URL,
                                                                 "max_overflow": 0, #The maximum number of connections to allow in the connection pool above pool_size. It's set to 0, meaning no overflow connections are allowed.
                                                                 })
 
-# FastAPI dependency that will be used to get the database session from the request
-async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
-    """Providing a transactional scope around for each series (request) of operations with database."""
-    async with database_session_manager.session() as session:
-        yield session

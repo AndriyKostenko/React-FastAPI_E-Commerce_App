@@ -7,7 +7,7 @@ from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import settings
-from src.db.db_setup import get_db_session
+from src.dependencies.dependencies import get_db_session
 from src.service.user_service import UserCRUDService
 from src.schemas.user_schemas import CurrentUserInfo
 from src.errors.user_service_errors import UserIsNotVerifiedError

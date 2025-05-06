@@ -4,7 +4,7 @@ from fastapi import Depends, APIRouter, status, HTTPException, Form, UploadFile,
 from requests import session
 from sqlalchemy.ext.asyncio import AsyncSession
 import os
-from src.db.db_setup import get_db_session
+from src.dependencies.dependencies import get_db_session
 from src.security.authentication import auth_manager
 from src.service.product_service import ProductCRUDService
 from src.schemas.product_schemas import CreateProduct

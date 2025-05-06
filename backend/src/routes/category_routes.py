@@ -3,7 +3,7 @@ from typing import Annotated, Optional
 from fastapi import Depends, APIRouter, status, HTTPException, Form, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.db.db_setup import get_db_session
+from src.dependencies.dependencies import get_db_session
 # from src.security.authentication import get_current_user
 from src.service.category_service import CategoryCRUDService
 from src.utils.image_pathes import create_image_paths

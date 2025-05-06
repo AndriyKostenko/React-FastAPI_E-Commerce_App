@@ -3,7 +3,7 @@ from datetime import datetime
 from fastapi import Depends, APIRouter, status, HTTPException, Form, UploadFile, File, Body, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 import os
-from src.db.db_setup import get_db_session
+from src.dependencies.dependencies import get_db_session
 from src.security.authentication import auth_manager
 from src.service.order_service import OrderCRUDService
 from src.schemas.product_schemas import CreateProduct
