@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     ALEMBIC_DATABASE_URL: str | None = os.getenv("ALEMBIC_DATABASE_URL")
     STRIPE_SECRET_KEY: str | None = os.getenv("STRIPE_SECRET_KEY")
     STRIPE_WEBHOOK_SECRET: str | None = os.getenv("STRIPE_WEBHOOK_SECRET")
-    TIME_DELTA_MINUTES: int | None = int(os.getenv("TIME_DELTA_MINUTES"))
+    TIME_DELTA_MINUTES: int = int(os.getenv("TIME_DELTA_MINUTES"))
     TOKEN_TYPE: str | None = os.getenv("TOKEN_TYPE")
     TOKEN_URL: str | None = os.getenv("TOKEN_URL")
     CRYPT_CONTEXT_SCHEME: str | None = os.getenv("CRYPT_CONTEXT_SCHEME")
@@ -36,5 +36,6 @@ class Settings(BaseSettings):
     MAIL_SSL_TLS: bool | None = os.getenv("MAIL_SSL_TLS")
     MAIL_DEBUG: bool | None = os.getenv("MAIL_DEBUG")
     USE_CREDENTIALS: bool | None = os.getenv("USE_CREDENTIALS")
+    TEMPLATES_DIR: str | None = os.getenv("TEMPLATES_DIR")
 
 settings = Settings()

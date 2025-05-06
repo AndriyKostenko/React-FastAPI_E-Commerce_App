@@ -85,8 +85,8 @@ class UserLoginDetails(BaseModel):
     user_id: UUID
     
 class TokenPayload(BaseModel):
-    sub: str = None
-    exp: int = None
+    sub: str
+    exp: int 
 
 class EmailSchema(BaseModel):
-    addresses = List[str]
+    addresses: List[str]

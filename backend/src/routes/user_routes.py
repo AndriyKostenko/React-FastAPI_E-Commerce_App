@@ -5,7 +5,6 @@ from fastapi import Depends, APIRouter, status, BackgroundTasks
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 
-
 from src.security.authentication import auth_manager
 from src.config import settings
 from src.db.db_setup import get_db_session
@@ -17,7 +16,7 @@ from src.schemas.user_schemas import (UserSignUp,
                                       EmailSchema)
 from src.service.user_service import UserCRUDService
 from src.dependencies.user_dependencies import get_user_service
-from src.service.email import email_service
+from src.service.email_service import email_service
 
 
 user_routes = APIRouter(
@@ -43,36 +42,16 @@ async def create_user(user: UserSignUp,
                       background_tasks: BackgroundTasks, 
                       user_crud_service: UserCRUDService = Depends(get_user_service)
                       ) -> UserInfo:
-    
-    # generating verification token
-    verification_token = auth_manager.create_access_token(
-        email=user.email,
-        user_id="", # no user id yet
-        role='user',
-        expires_delta=timedelta(minutes=settings.VERIFICATION_TOKEN_EXPIRY_MINUTES)
-    )
-    
-    # creating activation url
-    activate_url = f"{settings.APP_HOST}:{settings.APP_PORT}/activate/{verification_token}"
-    
-    
-    email_data = {
-        "app_name": settings.MAIL_FROM_NAME,
-        "email": user.email,
-        "activate_url": activate_url
-    }
-    
-    # Send account verification email
-    await email_service.send_email(
-        recipients=[user.email],
-        subject="Verification of Email address",
-        template_name="verify_email.html",
-        context=email_data,
-        background_tasks=background_tasks
-    )
-    
     #  create user in db with verified = False flag
     new_db_user = await user_crud_service.create_user(user=user)
+    
+    # Send verification email using the EmailService method
+    await email_service.send_verification_email(
+        email=new_db_user.email,
+        user_id=new_db_user.id,
+        user_role=new_db_user.role,
+        background_tasks=background_tasks,
+    )
 
     return new_db_user
 
