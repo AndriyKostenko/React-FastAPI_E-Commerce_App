@@ -64,7 +64,6 @@ async def simple_send(email: EmailSchema,
     
     await email_service.send_verification_email(
         email=email.email,
-        template_body=email.body,
         user_id="test_id",
         user_role="user",
         background_tasks=background_tasks
