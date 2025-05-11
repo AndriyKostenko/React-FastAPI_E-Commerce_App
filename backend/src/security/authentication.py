@@ -35,17 +35,20 @@ class AuthenticationManager:
                             email: str, 
                             user_id: str, 
                             role: str, 
-                            expires_delta: timedelta):
+                            expires_delta: timedelta,
+                            purpose: str = "access") -> str:
         """Creating JWT access token"""
         encode = {'sub': email,
                   'id': user_id,
                   'role': role,
-                  'exp': datetime.utcnow() + expires_delta
+                  'exp': datetime.utcnow() + expires_delta,
+                  'purpose': purpose
                   }
         return jwt.encode(encode, self.secret_key, algorithm=self.algorithm)
     
     async def get_current_user(self, 
-                               token: Annotated[str, Depends(OAuth2PasswordBearer(tokenUrl=settings.TOKEN_URL))]) -> CurrentUserInfo:
+                               token: Annotated[str, Depends(OAuth2PasswordBearer(tokenUrl=settings.TOKEN_URL))],
+                               required_purpose: str = "access") -> CurrentUserInfo:
         """Checking if user is logged in and with valid token"""
         try:
             payload = jwt.decode(token, self.secret_key, algorithms=[self.algorithm])
@@ -53,14 +56,18 @@ class AuthenticationManager:
             user_id: int = payload.get('id')
             user_role: str = payload.get('role')
             exp: int = payload.get('exp')
+            purpose: str = payload.get('purpose')
             
             if not email or not user_id:
-                raise UserIsNotVerifiedError(detail=f"User's email or id is not provided.")
+                raise UserIsNotVerifiedError(detail=f"User's email or id is not provided / verified.")
+            
+            if purpose != required_purpose:
+                raise UserIsNotVerifiedError(detail=f"Token purpose is not valid. Expected: {required_purpose}, got: {purpose}")
 
             return CurrentUserInfo(email=email, 
-                                    id=user_id, 
-                                    user_role=user_role, 
-                                    exp=exp)
+                                   id=user_id, 
+                                   user_role=user_role, 
+                                   exp=exp)
         except (JWTError, ValidationError) as error:
             raise UserIsNotVerifiedError(detail=f"User is not verified due to: {str(error)}")
             

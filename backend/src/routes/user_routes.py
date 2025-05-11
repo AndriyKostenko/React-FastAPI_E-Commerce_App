@@ -5,7 +5,6 @@ from fastapi import Depends, APIRouter, status, BackgroundTasks
 from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
-from fastapi_mail import FastMail, MessageSchema, ConnectionConfig, MessageType
 
 from src.security.authentication import auth_manager
 from src.config import settings
@@ -16,7 +15,13 @@ from src.schemas.user_schemas import (UserSignUp,
                                       UserLoginDetails, 
                                       CurrentUserInfo
                                       )
-from src.schemas.email_schemas import EmailSchema
+from src.schemas.email_schemas import (EmailSchema, 
+                                       EmailVerificationResponse, 
+                                       ForgotPasswordRequest, 
+                                       ForgotPasswordResponse,
+                                       ResetPasswordRequest
+                                        )
+from src.schemas.user_schemas import PasswordUpdateResponse
 from src.service.user_service import UserCRUDService
 from src.dependencies.dependencies import get_user_service
 from src.service.email_service import email_service
@@ -93,9 +98,8 @@ async def login(form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
     # get token expiry
     token_data = await auth_manager.get_current_user(access_token)
     
-    return UserLoginDetails(access_token=access_token,
+    return UserLoginDetails(token=access_token,
                             token_type=settings.TOKEN_TYPE,
-                            user_role=user.role,
                             token_expiry=token_data.exp,
                             user_id=user.id)
     
@@ -104,85 +108,86 @@ async def login(form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
     
 @user_routes.get('/activate/{token}',
                  summary="Verify user email",
+                 response_model=EmailVerificationResponse,
                  status_code=status.HTTP_200_OK,
-                 response_description="Email verified successfully")
-async def verify_email(
-    token: str,
-    user_crud_service: UserCRUDService = Depends(get_user_service)
-):
-    # Verify token and get user email
-    token_data = await auth_manager.get_current_user(token)
+                 response_description="Email verified successfully",
+                 responses={
+                     200: {
+                         "description": "Email verified successfully",
+                         "content": {
+                             "application/json": {
+                                 "example": {
+                                     "detail": "Email verified successfully",
+                                     "email": "user@example.com",
+                                     "verified": True
+                                 }
+                             }
+                         }
+                     },
+                     401: {"detail": "User is not verified due to: Not enough segments"},
+                     401: {"detail": "User is not verified due to: Signature has expired"},
+                    })
+                 
+async def verify_email(token: str,
+                       user_crud_service: UserCRUDService = Depends(get_user_service)) -> EmailVerificationResponse:
+    token_data = await auth_manager.get_current_user(token=token, required_purpose="email_verification")
+    await user_crud_service.update_user_verified_status(user_email=token_data.email, verified=True)
+    return EmailVerificationResponse(
+        detail="Email verified successfully",
+        email=token_data.email,
+        verified=True
+    )
 
-    # Update user verification status
-    user = await user_crud_service.get_user_by_email(token_data['email'])
-    
-    # Update user's verified status
-    await user_crud_service.update_user_verification(user.id, verified=True)
 
-    return {"message": f"Email: {token_data['email']} verified successfully"}
-
-
-    
-    
-@user_routes.post("/password-reset-request",
-                  summary="Request password reset",
-                  status_code=status.HTTP_200_OK,
-                  response_description="Password reset request sent successfully",
-                  responses={
-                      404: {"description": "User not found"},
-                      200: {"description": "Password reset request sent successfully"}
-                  })
-async def request_password_reset(email: str,
-                                background_tasks: BackgroundTasks, 
+@user_routes.post("/forgot-password",
+                 summary="Request password reset email",
+                 status_code=status.HTTP_200_OK,
+                 response_model=ForgotPasswordResponse,
+                 responses={
+                     200: {"description": "Password reset email sent"},
+                     404: {"description": "User not found"},
+                 })
+async def request_password_reset(data: ForgotPasswordRequest,
+                                background_tasks: BackgroundTasks,
                                 user_crud_service: UserCRUDService = Depends(get_user_service)):
-    user = await user_crud_service.get_user_by_email(email=email)
+    # Verify user exists
+    user = await user_crud_service.get_user_by_email(data.email)
     
-    # generate reset token
-    reset_token = auth_manager.create_access_token(
+    # Send password reset email
+    await email_service.send_password_reset_email(
         email=user.email,
         user_id=user.id,
-        role=user.role,
-        expires_delta=timedelta(minutes=settings.RESET_TOKEN_EXPIRY_MINUTES)
+        user_role=user.role,
+        background_tasks=background_tasks
     )
     
-    forget_password_url = f"{settings.APP_HOST}:{settings.APP_PORT}/password-reset/{reset_token}"
-    
-    email_data = {
-        "app_name": settings.MAIL_FROM_NAME,
-        "email": user.email,
-        "forget_password_url": forget_password_url
-    }
-  
-    # Send password reset email
-    await email_service.send_email(
-        recipients=[user.email],
-        subject="Password Reset Request",
-        template_name="password_reset.html", # Use your password reset template name
-        context=email_data,
-        background_tasks=background_tasks # Pass background_tasks
+    return ForgotPasswordResponse(
+        detail="Password reset email sent",
+        email=user.email
     )
     
-    return {"message": f"Password reset instructions sent to email: {email}"}
-
+    
 @user_routes.post("/password-reset/{token}",
                   summary="Reset password with token",
                   status_code=status.HTTP_200_OK,
+                  response_model=PasswordUpdateResponse,
                   response_description="Password reset successfully",
                   responses={
                       401: {"description": "Invalid or expired token"},
+                      401: {"description": "User is not verified due to: Not enough segments"},
+                      401: {"description": "User is not verified due to: Signature has expired"},
                       200: {"description": "Password reset successfully"}
                   })
 async def reset_password(token: str,
-                        new_password: str,
-                        user_crud_service: UserCRUDService = Depends(get_user_service)):
+                        data: ResetPasswordRequest,
+                        user_crud_service: UserCRUDService = Depends(get_user_service)) -> PasswordUpdateResponse:
     """Reset password using token"""
-    # verify token
-    user = await auth_manager.get_current_user(token=token)
-
-    # update password
-    # Here you would typically hash the new password before saving it
-    await user_crud_service.update_user_password(user_id=user.id, new_password=new_password)
-    return {"message": "Password reset successfully"}
+    token_data = await auth_manager.get_current_user(token=token, required_purpose="password_reset")
+    await user_crud_service.update_user_password(user_email=token_data.email, new_password=data.new_password)
+    return PasswordUpdateResponse(
+        detail="Password reset successfully",
+        email=token_data.email
+    )
 
 
 
@@ -193,12 +198,18 @@ async def reset_password(token: str,
                       401: {"description": "Could not validate user"},
                       200: {"description": "New token generated successfully"}
                   })
-async def generate_token(user: UserInfo = Depends(auth_manager.get_authenticated_user)) -> TokenSchema:
+async def generate_token(required_purpose: str,
+                         user: UserInfo = Depends(auth_manager.get_authenticated_user)) -> TokenSchema:
+    """Generate new token for user"""
     token = auth_manager.create_access_token(user.email, 
                                              user.id, 
                                              user.role, 
-                                             timedelta(minutes=settings.TIME_DELTA_MINUTES))
-    return TokenSchema(access_token=token, token_type=settings.TOKEN_TYPE)
+                                             timedelta(minutes=settings.TIME_DELTA_MINUTES),
+                                             purpose=required_purpose)
+    return TokenSchema(token=token, 
+                       token_type=settings.TOKEN_TYPE,
+                       token_purpose=required_purpose
+                       )
 
 
 @user_routes.get("/me",

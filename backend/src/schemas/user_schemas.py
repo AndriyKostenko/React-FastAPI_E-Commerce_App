@@ -74,13 +74,13 @@ class DeleteUser(BaseModel):
 
 
 class TokenSchema(BaseModel):
-    access_token: str = Field(..., description="Access token", min_length=1)
+    token: str = Field(..., description="Token", min_length=1)
     token_type: str
+    token_purpose: str = Field(..., description="Token purpose", example="access")
     
 class UserLoginDetails(BaseModel):
-    access_token: str
+    token: str
     token_type: str
-    user_role: Optional[str]
     token_expiry: int
     user_id: UUID
     
@@ -90,3 +90,7 @@ class TokenPayload(BaseModel):
 
 class EmailSchema(BaseModel):
     addresses: List[str]
+    
+class PasswordUpdateResponse(BaseModel):
+    detail: str
+    email: EmailStr

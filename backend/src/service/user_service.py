@@ -75,11 +75,20 @@ class UserCRUDService:
         return db_user
     
 
-    async def update_user_verified_status(self, user_id: str, verified: bool):
-        db_user = await self.get_user_by_id(user_id)
+    async def update_user_verified_status(self, user_email: str, verified: bool):
+        db_user = await self.get_user_by_email(user_email)
         if not db_user:
-            raise UserNotFoundError(detail=f'User with id: "{user_id}" not found')
+            raise UserNotFoundError(detail=f'User with email: "{user_email}" not found')
         db_user.is_verified = verified
+        await self.session.commit()
+        await self.session.refresh(db_user)
+        return db_user
+    
+    async def update_user_password(self, user_email: str, new_password: str):
+        db_user = await self.get_user_by_email(user_email)
+        if not db_user:
+            raise UserNotFoundError(detail=f'User with email: {user_email} is not found')
+        db_user.hashed_password = self._hash_password(new_password)
         await self.session.commit()
         await self.session.refresh(db_user)
         return db_user
