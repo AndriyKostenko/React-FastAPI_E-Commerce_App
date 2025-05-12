@@ -144,3 +144,4 @@ database_session_manager = DatabaseSessionManager(settings.DATABASE_URL,
                                                                 "max_overflow": 0, #The maximum number of connections to allow in the connection pool above pool_size. It's set to 0, meaning no overflow connections are allowed.
                                                                 })
 
+

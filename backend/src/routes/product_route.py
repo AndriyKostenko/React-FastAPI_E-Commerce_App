@@ -31,7 +31,7 @@ product_routes = APIRouter(
                             404: {"description": "Category not found"},
                             422: {"description": "Validation error"},
                             500: {"description": "Internal server error"}})
-async def create_new_product(current_user: Annotated[dict, Depends(auth_manager.get_current_user)],
+async def create_new_product(current_user: Annotated[dict, Depends(auth_manager.get_current_user_from_token)],
                              background_tasks: BackgroundTasks,
                              name: str = Form(..., min_length=3, max_length=50),
                              description: str = Form(..., min_length=10, max_length=500),
@@ -209,7 +209,7 @@ async def update_product_availability(product_id: str,
                            404: {"description": "Product not found"},
                            500: {"description": "Internal server error"}})
 async def delete_product(product_id: str,
-                         current_user: Annotated[dict, Depends(auth_manager.get_current_user)],
+                         current_user: Annotated[dict, Depends(auth_manager.get_current_user_from_token)],
                          session: AsyncSession = Depends(get_db_session)) -> None:
     if current_user["user_role"] != "admin" or current_user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")

@@ -1,5 +1,6 @@
 import datetime
 import logging
+
 from typing import List, Dict
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -239,11 +240,11 @@ app.add_middleware(
 app.mount("/media", StaticFiles(directory="media"), name="media")
 
 # including all the routers to the app
-app.include_router(user_routes)
-app.include_router(admin_routes)
-app.include_router(payment_routes)
-app.include_router(product_routes)
-app.include_router(order_routes)
-app.include_router(category_routes)
-app.include_router(review_routes)
+app.include_router(user_routes, prefix="/api/v1")
+app.include_router(admin_routes, prefix="/api/v1")
+app.include_router(payment_routes, prefix="/api/v1")
+app.include_router(product_routes, prefix="/api/v1")
+app.include_router(order_routes, prefix="/api/v1")
+app.include_router(category_routes, prefix="/api/v1")
+app.include_router(review_routes, prefix="/api/v1")
 

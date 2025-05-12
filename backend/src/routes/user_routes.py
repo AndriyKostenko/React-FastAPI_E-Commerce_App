@@ -1,14 +1,15 @@
-from datetime import timedelta
+from datetime import timedelta, datetime
 from typing import Annotated
 
 from fastapi import Depends, APIRouter, status, BackgroundTasks
 from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordRequestForm
-from sqlalchemy.ext.asyncio import AsyncSession
+
 
 from src.security.authentication import auth_manager
 from src.config import settings
-from src.dependencies.dependencies import get_db_session
+from src.security.authentication import oauth2_scheme
+
 from src.schemas.user_schemas import (UserSignUp, 
                                       UserInfo, 
                                       TokenSchema, 
@@ -87,20 +88,18 @@ async def simple_send(email: EmailSchema,
                       200: {"description": "User logged in successfully"}
                   })
 async def login(form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
-                session: AsyncSession = Depends(get_db_session)) -> UserLoginDetails:
-    user = await auth_manager.get_authenticated_user(form_data=form_data, session=session)
- 
-    # create access token
-    access_token = auth_manager.create_access_token(user.email, 
+                user_service: UserCRUDService = Depends(get_user_service)) -> UserLoginDetails:
+    user = await auth_manager.get_authenticated_user(form_data=form_data, user_service=user_service)
+    expiry_time = datetime.utcnow() + timedelta(minutes=settings.TIME_DELTA_MINUTES)
+    expiry_timestamp = int(expiry_time.timestamp()) # converted to seconds and Unix timestamp
+    access_token = auth_manager.create_access_token(user.email,
                                                     user.id, 
                                                     user.role, 
                                                     timedelta(minutes=settings.TIME_DELTA_MINUTES))
-    # get token expiry
-    token_data = await auth_manager.get_current_user(access_token)
     
-    return UserLoginDetails(token=access_token,
+    return UserLoginDetails(access_token=access_token,
                             token_type=settings.TOKEN_TYPE,
-                            token_expiry=token_data.exp,
+                            token_expiry=expiry_timestamp,
                             user_id=user.id)
     
 
@@ -198,29 +197,21 @@ async def reset_password(token: str,
                       401: {"description": "Could not validate user"},
                       200: {"description": "New token generated successfully"}
                   })
-async def generate_token(required_purpose: str,
-                         user: UserInfo = Depends(auth_manager.get_authenticated_user)) -> TokenSchema:
+async def generate_token(form_data: Annotated[OAuth2PasswordRequestForm, Depends()], 
+                         user_service: UserCRUDService = Depends(get_user_service)) -> TokenSchema:
     """Generate new token for user"""
+    user = await auth_manager.get_authenticated_user(form_data=form_data, user_service=user_service)
+    # Check if user is verified
     token = auth_manager.create_access_token(user.email, 
                                              user.id, 
                                              user.role, 
                                              timedelta(minutes=settings.TIME_DELTA_MINUTES),
-                                             purpose=required_purpose)
-    return TokenSchema(token=token, 
-                       token_type=settings.TOKEN_TYPE,
-                       token_purpose=required_purpose
-                       )
+                                             )
+    return TokenSchema(access_token=token, token_type=settings.TOKEN_TYPE)
 
 
-@user_routes.get("/me",
-                  summary="Get current user data",
-                  response_model=CurrentUserInfo,
-                  response_description="Current user data retrieved successfully",
-                  responses={
-                      401: {"description": "Unauthorized"},
-                      200: {"description": "Current user data retrieved successfully"}
-                  })
-async def get_current_user_data(current_user: Annotated[dict, Depends(auth_manager.get_current_user)]) -> CurrentUserInfo:
+@user_routes.get("/me", response_model=CurrentUserInfo)
+async def get_current_user_data(current_user: Annotated[CurrentUserInfo, Depends(auth_manager.get_current_user_from_token)]) -> CurrentUserInfo:
     return current_user
 
 

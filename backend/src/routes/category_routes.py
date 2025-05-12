@@ -21,7 +21,7 @@ async def get_all_categories(session: AsyncSession = Depends(get_db_session)):
 
 
 @category_routes.post("/categories", status_code=status.HTTP_201_CREATED)
-async def create_category(current_user: Annotated[dict, Depends(auth_manager.get_current_user)],
+async def create_category(current_user: Annotated[dict, Depends(auth_manager.get_current_user_from_token)],
                           session: AsyncSession = Depends(get_db_session),
                           name: str = Form(...),
                           image: UploadFile = File(...)):
@@ -38,7 +38,7 @@ async def create_category(current_user: Annotated[dict, Depends(auth_manager.get
 
 @category_routes.get("/categories/{category_id}", status_code=status.HTTP_200_OK)
 async def get_category_by_id(category_id: str,
-                             current_user: Annotated[dict, Depends(auth_manager.get_current_user)],
+                             current_user: Annotated[dict, Depends(auth_manager.get_current_user_from_token)],
                              session: AsyncSession = Depends(get_db_session)):
     if current_user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
@@ -47,7 +47,7 @@ async def get_category_by_id(category_id: str,
 
 @category_routes.get("/categories/{category_id}", status_code=status.HTTP_200_OK)
 async def get_category_by_name(name: str,
-                               current_user: Annotated[dict, Depends(auth_manager.get_current_user)],
+                               current_user: Annotated[dict, Depends(auth_manager.get_current_user_from_token)],
                                session: AsyncSession = Depends(get_db_session)):
     if current_user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
@@ -57,7 +57,7 @@ async def get_category_by_name(name: str,
 
 @category_routes.delete("/categories/{category_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_category(category_id: str,
-                          current_user: Annotated[dict, Depends(auth_manager.get_current_user)],
+                          current_user: Annotated[dict, Depends(auth_manager.get_current_user_from_token)],
                           session: AsyncSession = Depends(get_db_session)):
     if current_user["user_role"] != "admin" or current_user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
@@ -69,7 +69,7 @@ async def delete_category(category_id: str,
 
 @category_routes.put("/categories/{category_id}", status_code=status.HTTP_200_OK)
 async def update_category(category_id: str,
-                          current_user: Annotated[dict, Depends(auth_manager.get_current_user)],
+                          current_user: Annotated[dict, Depends(auth_manager.get_current_user_from_token)],
                           session: AsyncSession = Depends(get_db_session),
                           name: Optional[str] = Form(None),
                           image: Optional[UploadFile] = File(None)):

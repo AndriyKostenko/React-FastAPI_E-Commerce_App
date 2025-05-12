@@ -28,7 +28,7 @@ async def get_product_reviews(product_id: str,
 async def create_product_review(product_id: str,
                                 review: CreateProductReview,
                                 db: AsyncSession = Depends(get_db_session),
-                                current_user: dict = Depends(auth_manager.get_current_user)):
+                                current_user: dict = Depends(auth_manager.get_current_user_from_token)):
     if current_user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="You need to be logged in to review a product")
 
@@ -51,7 +51,7 @@ async def update_product_review(product_id: str,
                                 review_id: str,
                                 review: CreateProductReview,
                                 db: AsyncSession = Depends(get_db_session),
-                                current_user: dict = Depends(auth_manager.get_current_user)):
+                                current_user: dict = Depends(auth_manager.get_current_user_from_token)):
     if current_user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="You need to be logged in to update a review")
     product = await ProductCRUDService(session=db).get_product_by_id(product_id)
@@ -69,7 +69,7 @@ async def update_product_review(product_id: str,
 async def delete_product_review(product_id: str,
                                 review_id: str,
                                 db: AsyncSession = Depends(get_db_session),
-                                current_user: dict = Depends(auth_manager.get_current_user)):
+                                current_user: dict = Depends(auth_manager.get_current_user_from_token)):
     if current_user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="You need to be logged in to delete a review")
     product = await ProductCRUDService(session=db).get_product_by_id(product_id)

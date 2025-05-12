@@ -74,12 +74,12 @@ class DeleteUser(BaseModel):
 
 
 class TokenSchema(BaseModel):
-    token: str = Field(..., description="Token", min_length=1)
+    access_token: str = Field(..., description="Token", min_length=1)
     token_type: str
-    token_purpose: str = Field(..., description="Token purpose", example="access")
+ 
     
 class UserLoginDetails(BaseModel):
-    token: str
+    access_token: str
     token_type: str
     token_expiry: int
     user_id: UUID

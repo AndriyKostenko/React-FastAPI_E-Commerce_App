@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     STRIPE_WEBHOOK_SECRET: str | None = os.getenv("STRIPE_WEBHOOK_SECRET")
     TIME_DELTA_MINUTES: int = int(os.getenv("TIME_DELTA_MINUTES"))
     TOKEN_TYPE: str | None = os.getenv("TOKEN_TYPE")
-    TOKEN_URL: str | None = os.getenv("TOKEN_URL")
+    TOKEN_URL: str = os.getenv("TOKEN_URL")
     CRYPT_CONTEXT_SCHEME: str | None = os.getenv("CRYPT_CONTEXT_SCHEME")
     RESET_TOKEN_EXPIRY_MINUTES: int | None = int(os.getenv("RESET_TOKEN_EXPIRY_MINUTES"))
     VERIFICATION_TOKEN_EXPIRY_MINUTES: int | None = int(os.getenv("VERIFICATION_TOKEN_EXPIRY_MINUTES"))
@@ -47,4 +47,6 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+
 

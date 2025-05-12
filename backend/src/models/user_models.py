@@ -44,3 +44,9 @@ class User(Base):
     payments: Mapped[List['Payment']] = relationship('Payment', back_populates='user') # type: ignore
     shippings: Mapped[List['Shipping']] = relationship('Shipping', back_populates='user') # type: ignore
     notifications: Mapped[List['Notification']] = relationship('Notification', back_populates='user') # type: ignore
+    
+    
+    def __repr__(self) -> str:
+        return f"User(id={self.id}, name={self.name}, email={self.email}, role={self.role}, is_active={self.is_active}, is_verified={self.is_verified})"
+    def __str__(self) -> str:
+        return f"User(id={self.id}, name={self.name}, email={self.email}, role={self.role}, is_active={self.is_active}, is_verified={self.is_verified})"

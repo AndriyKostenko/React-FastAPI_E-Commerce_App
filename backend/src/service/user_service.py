@@ -1,13 +1,10 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-import bcrypt
 from sqlalchemy import select, asc
 
+from src.security.authentication import auth_manager
 from src.models.user_models import User
-from src.schemas.user_schemas import UserSignUp, DeleteUser, UserUpdate
+from src.schemas.user_schemas import UserSignUp, UserUpdate
 from src.errors.user_service_errors import (UserNotFoundError, 
-                                            UserServiceDatabaseError, 
-                                            UserIsNotVerifiedError, 
-                                            UserPasswordError,
                                             UserAlreadyExistsError)
 
 
@@ -20,11 +17,6 @@ class UserCRUDService:
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    def _hash_password(self, entered_password: str) -> str:
-        return bcrypt.hashpw(entered_password.encode(), bcrypt.gensalt()).decode()
-
-    def _verify_password(self, entered_password: str, hashed_password: str) -> bool:
-        return bcrypt.checkpw(entered_password.encode(), hashed_password.encode())
 
     async def create_user(self, user: UserSignUp):
         db_user = await self.get_user_by_email(user.email)
@@ -32,7 +24,7 @@ class UserCRUDService:
         if db_user:
             raise UserAlreadyExistsError(detail=f'User with email: {user.email} already exists')
         
-        hashed_password = self._hash_password(user.password)
+        hashed_password = auth_manager.hash_password(user.password)
         
         new_user = User(name=user.name,
                         email=user.email,
@@ -69,7 +61,7 @@ class UserCRUDService:
         if not db_user:
             raise UserNotFoundError(detail=f'User with id: "{user_id}" not found')
         db_user.name = user_update_data.name
-        db_user.hashed_password = self._hash_password(user_update_data.password)
+        db_user.hashed_password = auth_manager.hash_password(user_update_data.password)
         await self.session.commit()
         await self.session.refresh(db_user)
         return db_user
@@ -88,7 +80,7 @@ class UserCRUDService:
         db_user = await self.get_user_by_email(user_email)
         if not db_user:
             raise UserNotFoundError(detail=f'User with email: {user_email} is not found')
-        db_user.hashed_password = self._hash_password(new_password)
+        db_user.hashed_password = auth_manager.hash_password(new_password)
         await self.session.commit()
         await self.session.refresh(db_user)
         return db_user
@@ -99,17 +91,6 @@ class UserCRUDService:
         await self.session.delete(user_to_delete)
         await self.session.commit()
 
-    #TODO: Probably ned to transfer this method to the authentication service
-    # taking email for authentication coz its unique (but in OAth2 form it will be written as 'username')
-    async def authenticate_user(self, email: str, entered_password: str):
-        db_user = await self.get_user_by_email(email)
-        if not db_user:
-            raise UserNotFoundError(detail=f'User with email: "{email}" not found')
-        if not self._verify_password(entered_password=entered_password, hashed_password=db_user.hashed_password):
-            raise UserPasswordError(detail='Invalid password')
-        if not db_user.is_verified:
-            raise UserIsNotVerifiedError(detail='User is not verified')
-        return db_user
 
 
 

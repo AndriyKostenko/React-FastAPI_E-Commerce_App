@@ -21,7 +21,7 @@ payment_routes = APIRouter(
 
 @payment_routes.post("/update_payment_intent", response_model=IntentSecret, status_code=status.HTTP_200_OK)
 async def update_payment_intent(data: PaymentIntentRequest,
-                                current_user: Annotated[dict, Depends(auth_manager.get_current_user)],
+                                current_user: Annotated[dict, Depends(auth_manager.get_current_user_from_token)],
                                 session: AsyncSession = Depends(get_db_session)):
 
     print('data>>>>>>>',data)
@@ -64,7 +64,7 @@ async def update_payment_intent(data: PaymentIntentRequest,
 
 @payment_routes.post("/create_payment_intent", response_model=IntentSecret, status_code=status.HTTP_201_CREATED)
 async def create_payment_intent(data: PaymentIntentRequest,
-                                current_user: Annotated[dict, Depends(auth_manager.get_current_user)],
+                                current_user: Annotated[dict, Depends(auth_manager.get_current_user_from_token)],
                                 session: AsyncSession = Depends(get_db_session)):
     if current_user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Unauthorized')
@@ -99,7 +99,7 @@ async def create_payment_intent(data: PaymentIntentRequest,
 
 @payment_routes.post('/webhook', status_code=status.HTTP_200_OK)
 async def webhook(request: Request,
-                  current_user: Annotated[dict, Depends(auth_manager.get_current_user)],
+                  current_user: Annotated[dict, Depends(auth_manager.get_current_user_from_token)],
                   stripe_signature: str = Header(None),
                   session: AsyncSession = Depends(get_db_session),
                   ):
