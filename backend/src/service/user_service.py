@@ -1,9 +1,10 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, asc
 
+
 from src.security.authentication import auth_manager
 from src.models.user_models import User
-from src.schemas.user_schemas import UserSignUp, UserUpdate
+from src.schemas.user_schemas import UserSignUp, UserUpdate, UserInfo
 from src.errors.user_service_errors import (UserNotFoundError, 
                                             UserAlreadyExistsError)
 
@@ -18,7 +19,7 @@ class UserCRUDService:
         self.session = session
 
 
-    async def create_user(self, user: UserSignUp):
+    async def create_user(self, user: UserSignUp) -> UserInfo:
         db_user = await self.get_user_by_email(user.email)
         
         if db_user:
@@ -38,7 +39,14 @@ class UserCRUDService:
         # changes to the database, which is an I/O operation
         await self.session.commit()
         await self.session.refresh(new_user)
-        return new_user
+        return UserInfo(id=new_user.id,
+                        name=new_user.name,
+                        email=new_user.email,
+                        role=new_user.role,
+                        phone_number=new_user.phone_number,
+                        date_created=new_user.date_created,
+                        image=new_user.image,
+                        date_updated=new_user.date_updated)
        
 
     async def get_all_users(self):

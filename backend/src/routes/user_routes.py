@@ -8,7 +8,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 
 from src.security.authentication import auth_manager
 from src.config import settings
-from src.security.authentication import oauth2_scheme
+
 
 from src.schemas.user_schemas import (UserSignUp, 
                                       UserInfo, 
@@ -57,7 +57,7 @@ async def create_user(user: UserSignUp,
     # Send verification email in background
     await email_service.send_verification_email(
         email=new_db_user.email,
-        user_id=new_db_user.id,
+        user_id=str(new_db_user.id),
         user_role=new_db_user.role,
         background_tasks=background_tasks
     )
@@ -179,10 +179,24 @@ async def request_password_reset(data: ForgotPasswordRequest,
                   })
 async def reset_password(token: str,
                         data: ResetPasswordRequest,
+                        background_tasks: BackgroundTasks,
                         user_crud_service: UserCRUDService = Depends(get_user_service)) -> PasswordUpdateResponse:
     """Reset password using token"""
-    token_data = await auth_manager.get_current_user(token=token, required_purpose="password_reset")
+    token_data = await auth_manager.get_current_user_from_token(token=token, required_purpose="password_reset")
+    
     await user_crud_service.update_user_password(user_email=token_data.email, new_password=data.new_password)
+    
+    
+    await email_service.send_password_reset_success_email(
+        email=token_data.email,
+        template_body={
+            "app_name": settings.MAIL_FROM_NAME,
+            "email": token_data.email,
+            "login_url": f"http://{settings.APP_HOST}:{settings.APP_PORT}/login",
+        },
+        background_tasks=background_tasks   
+    )
+    
     return PasswordUpdateResponse(
         detail="Password reset successfully",
         email=token_data.email

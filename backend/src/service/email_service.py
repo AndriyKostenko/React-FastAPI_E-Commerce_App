@@ -1,6 +1,6 @@
 import logging
 from datetime import timedelta
-from typing import List, Dict
+from typing import List, Dict, Optional
 
 from fastapi import BackgroundTasks
 from fastapi_mail import FastMail, MessageSchema, ConnectionConfig, MessageType
@@ -98,11 +98,12 @@ class EmailService:
             template_name=template_name,
             template_body=template_body
         )
+    
 
     async def send_verification_email(self,
                                       email: str,
                                       user_id: str,
-                                      user_role: str,
+                                      user_role: str | None,
                                       background_tasks: BackgroundTasks) -> None:
         if not email or not user_id or not user_role:
             logger.error("Email, user_id, or user_role is missing")
@@ -171,6 +172,24 @@ class EmailService:
             template_body=email_data,
             recipients=[email],
             template_name="password_reset.html"
+        )
+        
+    async def send_password_reset_success_email(self,
+                                        email: str,
+                                        template_body: Dict[str, str | None],
+                                        background_tasks: BackgroundTasks) -> None:
+        if not email:
+            logger.error("Email is missing")
+            raise EmailServiceError("Email is missing")
+        
+
+
+        self.send_email_background(
+            background_tasks=background_tasks,
+            subject="Password Reset Successful",
+            template_body=template_body,
+            recipients=[email],
+            template_name="password_reset_confirmation.html"
         )
             
 email_service = EmailService()

@@ -1,11 +1,12 @@
 from typing import List
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from datetime import datetime
-from datetime import timezone
+from datetime import datetime, timezone
 from sqlalchemy import String, Index
+from uuid import UUID, uuid4
+from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 
 from src.models import Base
-from src.utils.generate_uuid import generate_uuid
+
 
 
 class User(Base):
@@ -21,7 +22,7 @@ class User(Base):
         Index('idx_users_date_created', 'date_created'),
     )
 
-    id: Mapped[str] = mapped_column(String, primary_key=True, default=generate_uuid, unique=True)
+    id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4, unique=True)
     name: Mapped[str] = mapped_column(String(50),nullable=False)
     email: Mapped[str] = mapped_column(String(100),unique=True, nullable=False)
     hashed_password: Mapped[str] = mapped_column(nullable=False)

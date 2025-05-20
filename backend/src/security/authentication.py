@@ -75,7 +75,7 @@ class AuthenticationManager:
                             purpose: str = "access") -> str:
         """Creating JWT access token"""
         encode = {'sub': email,
-                  'id': user_id,
+                  'id': str(user_id),
                   'role': role,
                   'exp': datetime.utcnow() + expires_delta,
                   'purpose': purpose
@@ -91,7 +91,7 @@ class AuthenticationManager:
                                  self.secret_key, 
                                  algorithms=[self.algorithm])
             email: str = payload.get('sub')
-            user_id: int = payload.get('id')
+            user_id: str = payload.get('id')
             user_role: str = payload.get('role')
             exp: int = payload.get('exp')
             purpose: str = payload.get('purpose', 'access') # Default to "access" if not specified

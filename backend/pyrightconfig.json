@@ -1,0 +1,22 @@
+{
+  "typeCheckingMode": "basic",
+  "useLibraryCodeForTypes": true,
+  "reportMissingTypeStubs": false,
+  "reportMissingImports": "warning",
+  "reportUnboundVariable": true,
+  "reportUnusedImport": true,
+  "reportUnusedVariable": true,
+  "reportIncompatibleVariableOverride": true,
+  "reportGeneralTypeIssues": true,
+  "pythonVersion": "3.10",
+  "venvPath": ".",
+  "venv": "venv",
+  "include": ["src"],
+  "extraPaths": ["src"],
+  "exclude": [
+    "**/__pycache__/**",
+    "**/venv/**",
+    "**/node_modules/**",
+    "**/.pytest_cache/**"
+  ]
+}
