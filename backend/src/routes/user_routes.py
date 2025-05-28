@@ -26,6 +26,7 @@ from src.schemas.user_schemas import PasswordUpdateResponse
 from src.service.user_service import UserCRUDService
 from src.dependencies.dependencies import get_user_service
 from src.service.email_service import email_service
+from src.errors.user_service_errors import UserNotFoundError
 
 
 user_routes = APIRouter(
@@ -78,6 +79,7 @@ async def simple_send(email: EmailSchema,
     return JSONResponse(status_code=status.HTTP_200_OK, content={"message": "Email sent successfully"})
 
 
+
 @user_routes.post("/login",
                   summary="User login",
                   status_code=status.HTTP_200_OK,
@@ -89,13 +91,17 @@ async def simple_send(email: EmailSchema,
                   })
 async def login(form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
                 user_service: UserCRUDService = Depends(get_user_service)) -> UserLoginDetails:
+    # Authenticate user with credentials
     user = await auth_manager.get_authenticated_user(form_data=form_data, user_service=user_service)
-    expiry_time = datetime.utcnow() + timedelta(minutes=settings.TIME_DELTA_MINUTES)
-    expiry_timestamp = int(expiry_time.timestamp()) # converted to seconds and Unix timestamp
-    access_token = auth_manager.create_access_token(user.email,
-                                                    user.id, 
-                                                    user.role, 
-                                                    timedelta(minutes=settings.TIME_DELTA_MINUTES))
+    
+
+    # creating access token
+    access_token = auth_manager.create_access_token(email=user.email,
+                                                    user_id=user.id, 
+                                                    role=user.user_role, 
+                                                    expires_delta=timedelta(minutes=settings.TIME_DELTA_MINUTES))
+    # calculating expiry timestamp for reponse
+    expiry_timestamp = int((datetime.utcnow() + timedelta(minutes=settings.TIME_DELTA_MINUTES)).timestamp())
     
     return UserLoginDetails(access_token=access_token,
                             token_type=settings.TOKEN_TYPE,
@@ -126,7 +132,6 @@ async def login(form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
                      401: {"detail": "User is not verified due to: Not enough segments"},
                      401: {"detail": "User is not verified due to: Signature has expired"},
                     })
-                 
 async def verify_email(token: str,
                        user_crud_service: UserCRUDService = Depends(get_user_service)) -> EmailVerificationResponse:
     token_data = await auth_manager.get_current_user(token=token, required_purpose="email_verification")
@@ -229,7 +234,7 @@ async def get_current_user_data(current_user: Annotated[CurrentUserInfo, Depends
     return current_user
 
 
-@user_routes.get("/user/{user_email}",
+@user_routes.get("/user/email/{user_email}",
                   summary="Get user by email",
                   response_model=UserInfo,
                   response_description="User data retrieved successfully",
@@ -242,7 +247,7 @@ async def get_user_by_email(user_email: str,
     return await user_crud_service.get_user_by_email(user_email)
 
 
-@user_routes.post("/user/{id}",
+@user_routes.get("/user/id/{user_id}",
                   summary="Get user by id",
                   response_model=UserInfo,
                   response_description="User data retrieved successfully",
@@ -250,6 +255,9 @@ async def get_user_by_email(user_email: str,
                       404: {"description": "User not found"},
                       200: {"description": "User data retrieved successfully"}
                   })
-async def get_user_by_user_id(id: str, 
+async def get_user_by_user_id(user_id: str, 
                               user_crud_service: UserCRUDService = Depends(get_user_service)) -> UserInfo:
-    return await user_crud_service.get_user_by_id(user_id=id)
+    user = await user_crud_service.get_user_by_id(user_id=user_id)
+    if not user:
+        raise UserNotFoundError(detail=f'User with id: "{user_id}" not found')
+    return user

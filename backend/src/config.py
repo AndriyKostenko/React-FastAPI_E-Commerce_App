@@ -40,6 +40,7 @@ class Settings(BaseSettings):
     USE_CREDENTIALS: bool | None = os.getenv("USE_CREDENTIALS")
     TEMPLATES_DIR: Path = BASE_DIR / os.getenv("TEMPLATES_DIR", "templates")
     VALIDATE_CERTS: bool | None = os.getenv("VALIDATE_CERTS")
+    SECRET_ROLE: str = os.getenv("SECRET_ROLE")
     
     class Config:
         env_file = env_path

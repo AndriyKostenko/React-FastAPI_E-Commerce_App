@@ -1,9 +1,12 @@
-from fastapi import Depends
+from fastapi import Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from src.service.user_service import UserCRUDService
-# from src.db.db_setup import get_db_session
 from typing import AsyncGenerator
 from src.db.db_setup import database_session_manager
+from src.security.authentication import auth_manager
+from src.schemas.user_schemas import CurrentUserInfo
+from src.config import settings
+
 
 
 
@@ -18,3 +21,8 @@ def get_user_service(session: AsyncSession = Depends(get_db_session)) -> UserCRU
     return UserCRUDService(session=session)
 
 
+#dependency function provides admin previlages. 
+async def require_admin(current_user: CurrentUserInfo = Depends(auth_manager.get_current_user_from_token)):
+    if not current_user or current_user.user_role != settings.SECRET_ROLE:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required")
+    return current_user

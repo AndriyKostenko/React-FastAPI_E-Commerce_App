@@ -14,7 +14,8 @@ class UserInfo(BaseModel):
     phone_number: Optional[str]
     image: Optional[str]
     date_created: datetime
-    date_updated: Optional[datetime] 
+    date_updated: Optional[datetime]
+    is_verified: bool
 
     model_config = ConfigDict(from_attributes=True, 
                               json_schema_extra={
@@ -59,8 +60,10 @@ class CurrentUserInfo(BaseModel):
     email: str
     id: UUID
     user_role: Optional[str]
-    exp: int
- 
+    exp: Optional[int] = None
+
+class AllUsersInfo(BaseModel):
+    users: List[UserInfo]
 
 class UserSaveWithGoogle(BaseModel):
     email: str
@@ -70,6 +73,13 @@ class UserSaveWithGoogle(BaseModel):
 class UserUpdate(BaseModel):
     name: str
     password: str
+    
+    
+class UserBasicUpdate(BaseModel):
+    """Schema for basic user information updates"""
+    name: Optional[str] = None
+    phone_number: Optional[str] = None
+    image: Optional[str] = None
 
 
 class GetUser(BaseModel):
@@ -81,7 +91,7 @@ class DeleteUser(BaseModel):
 
 
 class TokenSchema(BaseModel):
-    access_token: str = Field(..., description="Token", min_length=1)
+    access_token: str
     token_type: str
  
     

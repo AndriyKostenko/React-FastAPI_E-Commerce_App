@@ -14,6 +14,8 @@ from src.config import settings
 from src.schemas.user_schemas import CurrentUserInfo
 from src.errors.user_service_errors import UserIsNotVerifiedError
 
+
+
 # OAuth2PasswordBearer is a class that provides a way to extract the token from the request
 oauth2_scheme = OAuth2PasswordBearer(
     tokenUrl=settings.TOKEN_URL,
@@ -53,9 +55,9 @@ class AuthenticationManager:
     async def authenticate_user(self, 
                                 email: str, 
                                 password: str, 
-                                user_service):
+                                user_service) -> CurrentUserInfo: # type: ignore
         """Authenticate user with email and password"""
-        user = await user_service.get_user_by_email(email)
+        user = await user_service._get_user_by_email_internal(email)
         if not user:
             raise UserNotFoundError(detail=f'User with email: "{email}" not found')
             
@@ -65,7 +67,11 @@ class AuthenticationManager:
         if not user.is_verified:
             raise UserIsNotVerifiedError(detail='User is not verified')
             
-        return user
+        return CurrentUserInfo(
+            email=user.email,
+            id=user.id,
+            user_role=user.role,
+            exp=None) ## exp will be set when creating token
             
     def create_access_token(self, 
                             email: str, 
@@ -74,10 +80,12 @@ class AuthenticationManager:
                             expires_delta: timedelta,
                             purpose: str = "access") -> str:
         """Creating JWT access token"""
+        expire = int((datetime.utcnow() + expires_delta).timestamp())
+        
         encode = {'sub': email,
                   'id': str(user_id),
                   'role': role,
-                  'exp': datetime.utcnow() + expires_delta,
+                  'exp': expire,
                   'purpose': purpose
                   }
         return jwt.encode(encode, self.secret_key, algorithm=self.algorithm)
@@ -87,28 +95,25 @@ class AuthenticationManager:
                                           required_purpose: str = "access") -> CurrentUserInfo:
         """Checking if user is logged in and with valid token"""
         try:
-            payload = jwt.decode(token, 
-                                 self.secret_key, 
-                                 algorithms=[self.algorithm])
+            payload = jwt.decode(token, self.secret_key, algorithms=[self.algorithm])
             email: str = payload.get('sub')
             user_id: str = payload.get('id')
             user_role: str = payload.get('role')
             exp: int = payload.get('exp')
-            purpose: str = payload.get('purpose', 'access') # Default to "access" if not specified
+            purpose: str = payload.get('purpose', required_purpose) # Default to "access" if not specified
             
             if not email or not user_id:
                 raise UserIsNotVerifiedError(detail=f"User's email or id is not provided / verified.")
             
             # Only check purpose if it's specifically required (for special tokens)
-            if required_purpose != "access" and purpose != required_purpose:
-                raise UserIsNotVerifiedError(
-                    detail=f"Invalid token purpose. Expected: {required_purpose}, got: {purpose}"
-                )
+            if purpose != required_purpose:
+                raise UserIsNotVerifiedError(detail=f"Invalid token purpose. Expected: {required_purpose}, got: {purpose}")
 
             return CurrentUserInfo(email=email, 
                                    id=user_id, 
                                    user_role=user_role, 
                                    exp=exp)
+            
         except JWTError as jwt_error:
             raise UserIsNotVerifiedError(
                 detail=f"Invalid token: {str(jwt_error)}"

@@ -3,28 +3,27 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Annotated, List
 from src.dependencies.dependencies import get_db_session
 from src.schemas.user_schemas import UserUpdate, UserInfo
-# from src.security.authentication import get_current_user
-from src.service.user_service import UserCRUDService
 from src.security.authentication import auth_manager
+from src.dependencies.dependencies import get_user_service
+from src.routes.user_routes import UserCRUDService
+from src.dependencies.dependencies import require_admin
 
 admin_routes = APIRouter(tags=['admin'],
-                         prefix='/admin')
+                         prefix='/admin',
+                         dependencies=[Depends(require_admin)]) # dependency function of automatically applying admin check to all routes
 
 
 @admin_routes.get('/users',
                   summary='Get all users from DB',
                   status_code=status.HTTP_200_OK,
                   response_model=List[UserInfo])
-async def read_users(current_user: Annotated[dict, Depends(auth_manager.get_current_user_from_token)],
-                     session: AsyncSession = Depends(get_db_session)):
-    if current_user is None or current_user.user_role != 'admin':
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Unauthorized')
-    return await UserCRUDService(session).get_all_users()
+async def get_all_users(user_service: UserCRUDService = Depends(get_user_service)):
+    return user_service.get_all_users()
 
 
 
 @admin_routes.get('/users/{user_id}', summary='Get user by ID', status_code=status.HTTP_200_OK)
-async def get_user_by_id(user_id: int,
+async def get_user_by_id(user_id: str,
                          current_user: Annotated[dict, Depends(auth_manager.get_current_user_from_token)],
                          session: AsyncSession = Depends(get_db_session)):
     if current_user is None or current_user.user_role != 'admin':
