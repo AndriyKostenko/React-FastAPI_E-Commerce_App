@@ -119,7 +119,6 @@ class EmailService:
 
         activate_url = f"http://{settings.APP_HOST}:{settings.APP_PORT}/activate/{token}"
         
-        print(f"Activate URL: {activate_url}")
         logger.info(f"Sending verification email to {email} with token {token}")
         
         email_data: Dict[str, str | None] = {

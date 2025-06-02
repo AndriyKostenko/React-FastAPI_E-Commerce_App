@@ -50,7 +50,7 @@ class UserCRUDService:
     async def get_all_users(self) -> AllUsersInfo:
         query = await self.session.execute(select(User).order_by(asc(User.id)))
         users = query.scalars().all() 
-        return AllUsersInfo(**users.__dict__)
+        return users
     
     
     async def get_user_by_email(self, email: str) -> UserInfo:
@@ -116,7 +116,7 @@ class UserCRUDService:
         return UserInfo(**db_user.__dict__)
     
 
-    async def delete_user_by_id(self, user_id: str):
+    async def delete_user_by_id(self, user_id: str) -> None:
         user_to_delete = await self.get_user_by_id(user_id)
         await self.session.delete(user_to_delete)
         await self.session.commit()

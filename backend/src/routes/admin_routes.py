@@ -18,7 +18,7 @@ admin_routes = APIRouter(tags=['admin'],
                   status_code=status.HTTP_200_OK,
                   response_model=List[UserInfo])
 async def get_all_users(user_service: UserCRUDService = Depends(get_user_service)):
-    return user_service.get_all_users()
+    return await user_service.get_all_users()
 
 
 
@@ -44,7 +44,11 @@ async def update_user_by_id(user_id: str,
     db_user = await UserCRUDService(session).get_user_by_id(user_id)
     if db_user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='User not found')
+    
     updated_user = await UserCRUDService(session).update_user_by_id(user_id=user_id, user_update_data=user_update_data)
+    
+    await invalidate_cache('users', user_id)  # Invalidate cache for the updated user
+    
     return updated_user
 
 

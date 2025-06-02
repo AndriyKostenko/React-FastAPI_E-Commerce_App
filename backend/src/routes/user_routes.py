@@ -1,15 +1,15 @@
 from datetime import timedelta, datetime
 from typing import Annotated
+from uuid import UUID
 
-from fastapi import Depends, APIRouter, status, BackgroundTasks
+from fastapi import Depends, APIRouter, status, BackgroundTasks, Request
 from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordRequestForm
+from pydantic import EmailStr
 
 
 from src.security.authentication import auth_manager
 from src.config import settings
-
-
 from src.schemas.user_schemas import (UserSignUp, 
                                       UserInfo, 
                                       TokenSchema, 
@@ -26,7 +26,8 @@ from src.schemas.user_schemas import PasswordUpdateResponse
 from src.service.user_service import UserCRUDService
 from src.dependencies.dependencies import get_user_service
 from src.service.email_service import email_service
-from src.errors.user_service_errors import UserNotFoundError
+from src.utils.cache_response import cache_response, invalidate_cache
+from src.utils.rate_limiter import ratelimiter
 
 
 user_routes = APIRouter(
@@ -34,25 +35,42 @@ user_routes = APIRouter(
 )
 
 
-# registering new user...response_model will return the neccesary data...
-# validation errors will be handeled automatically by pydantic and fastapi and sent 422
+
+"""
+Usefull tips / rules in that module:
+1. Using `Depends(get_user_service)` to inject the user service dependency.
+2. Using `BackgroundTasks` to send emails without blocking the request.
+3. Using `ratelimiter` decorator to apply rate limiting to endpoints.
+    - each endpoint should have "request: Request" parameter for rate limiting to work
+    - GET endpoints: Use both caching and rate limiting
+    - POST/PUT/DELETE endpoints: Use only rate limiting
+    - Security-sensitive endpoints (login, password reset): Stricter rate limits
+    - Data retrieval endpoints: More lenient rate limits with caching
+    - Email-related endpoints: Strict rate limits to prevent spam
+    
+4. Using `cache_response` decorator to cache GET responses.
+    - cache responses using aio Redis for mproving performance
+    - GET endpoints: Use both caching and rate limiting
+    - cache key should be unique per user, e.g. by email or user ID
+    - Use `invalidate_cache` to clear cache when user data changes.
+    
+5. All potential exceptions are handleled in the service layer, so no need to handle them here.
+6. All data returned according to response_model schemas.
+
+"""
+
 @user_routes.post('/register',
                   summary="Create new user",
                   status_code=status.HTTP_201_CREATED,
                   response_model=UserInfo,
                   response_description="New user created successfully",
-                  responses={
-                        409: {"description": "User already exists"},
-                        201: {"description": "New user created successfully"},
-                        500: {"description": "Internal server error"},
-                        422: {"description": "Validation error"}
-                        
-                  })
-async def create_user(user: UserSignUp,
+                  )
+@ratelimiter(times=5, seconds=3600)  # Limit to 5 registrations per hour
+async def create_user(request: Request,
+                      user: UserSignUp,
                       background_tasks: BackgroundTasks,
                       user_crud_service: UserCRUDService = Depends(get_user_service)
                       ) -> UserInfo:
-    #  create user in db with verified = False flag
     new_db_user = await user_crud_service.create_user(user=user)
     
     # Send verification email in background
@@ -65,8 +83,13 @@ async def create_user(user: UserSignUp,
 
     return new_db_user
 
-@user_routes.post("/send-email")
-async def simple_send(email: EmailSchema,
+
+@user_routes.post("/send-email",
+                  summary="Send verification email",
+                  status_code=status.HTTP_200_OK,)
+@ratelimiter(times=3, seconds=3600)
+async def simple_send(request: Request,
+                      email: EmailSchema,
                       background_tasks: BackgroundTasks) -> JSONResponse:
     
     await email_service.send_verification_email(
@@ -79,22 +102,21 @@ async def simple_send(email: EmailSchema,
     return JSONResponse(status_code=status.HTTP_200_OK, content={"message": "Email sent successfully"})
 
 
-
 @user_routes.post("/login",
                   summary="User login",
                   status_code=status.HTTP_200_OK,
                   response_model=UserLoginDetails,
-                  response_description="User logged in successfully",
-                  responses={
-                      401: {"description": "Could not validate user"},
-                      200: {"description": "User logged in successfully"}
-                  })
-async def login(form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
-                user_service: UserCRUDService = Depends(get_user_service)) -> UserLoginDetails:
+                  response_description="User logged in successfully",)
+@ratelimiter(times=5, seconds=60)  
+async def login(request: Request,
+                form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
+                user_service: UserCRUDService = Depends(get_user_service)) -> UserLoginDetails: # request is reqired for rate limiting decorator
     # Authenticate user with credentials
     user = await auth_manager.get_authenticated_user(form_data=form_data, user_service=user_service)
     
-
+    # updte last login might change user data, invalidating the redis cache
+    await invalidate_cache(namespace="users", key=user.email)
+    
     # creating access token
     access_token = auth_manager.create_access_token(email=user.email,
                                                     user_id=user.id, 
@@ -109,40 +131,6 @@ async def login(form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
                             user_id=user.id)
     
 
-    
-    
-@user_routes.get('/activate/{token}',
-                 summary="Verify user email",
-                 response_model=EmailVerificationResponse,
-                 status_code=status.HTTP_200_OK,
-                 response_description="Email verified successfully",
-                 responses={
-                     200: {
-                         "description": "Email verified successfully",
-                         "content": {
-                             "application/json": {
-                                 "example": {
-                                     "detail": "Email verified successfully",
-                                     "email": "user@example.com",
-                                     "verified": True
-                                 }
-                             }
-                         }
-                     },
-                     401: {"detail": "User is not verified due to: Not enough segments"},
-                     401: {"detail": "User is not verified due to: Signature has expired"},
-                    })
-async def verify_email(token: str,
-                       user_crud_service: UserCRUDService = Depends(get_user_service)) -> EmailVerificationResponse:
-    token_data = await auth_manager.get_current_user(token=token, required_purpose="email_verification")
-    await user_crud_service.update_user_verified_status(user_email=token_data.email, verified=True)
-    return EmailVerificationResponse(
-        detail="Email verified successfully",
-        email=token_data.email,
-        verified=True
-    )
-
-
 @user_routes.post("/forgot-password",
                  summary="Request password reset email",
                  status_code=status.HTTP_200_OK,
@@ -151,7 +139,9 @@ async def verify_email(token: str,
                      200: {"description": "Password reset email sent"},
                      404: {"description": "User not found"},
                  })
-async def request_password_reset(data: ForgotPasswordRequest,
+@ratelimiter(times=10, seconds=3600)  
+async def request_password_reset(request: Request,
+                                data: ForgotPasswordRequest,
                                 background_tasks: BackgroundTasks,
                                 user_crud_service: UserCRUDService = Depends(get_user_service)):
     # Verify user exists
@@ -176,13 +166,10 @@ async def request_password_reset(data: ForgotPasswordRequest,
                   status_code=status.HTTP_200_OK,
                   response_model=PasswordUpdateResponse,
                   response_description="Password reset successfully",
-                  responses={
-                      401: {"description": "Invalid or expired token"},
-                      401: {"description": "User is not verified due to: Not enough segments"},
-                      401: {"description": "User is not verified due to: Signature has expired"},
-                      200: {"description": "Password reset successfully"}
-                  })
-async def reset_password(token: str,
+                  )
+@ratelimiter(times=3, seconds=3600)  
+async def reset_password(request: Request,
+                        token: str,
                         data: ResetPasswordRequest,
                         background_tasks: BackgroundTasks,
                         user_crud_service: UserCRUDService = Depends(get_user_service)) -> PasswordUpdateResponse:
@@ -191,6 +178,7 @@ async def reset_password(token: str,
     
     await user_crud_service.update_user_password(user_email=token_data.email, new_password=data.new_password)
     
+    await invalidate_cache(namespace="users", key=token_data.email)  # Invalidate cache for user email
     
     await email_service.send_password_reset_success_email(
         email=token_data.email,
@@ -208,16 +196,15 @@ async def reset_password(token: str,
     )
 
 
-
 @user_routes.post("/token", 
                   response_model=TokenSchema,
                   response_description="New token generated successfully",
-                  responses={
-                      401: {"description": "Could not validate user"},
-                      200: {"description": "New token generated successfully"}
-                  })
-async def generate_token(form_data: Annotated[OAuth2PasswordRequestForm, Depends()], 
-                         user_service: UserCRUDService = Depends(get_user_service)) -> TokenSchema:
+                  status_code=status.HTTP_200_OK,
+                  )
+@ratelimiter(times=5, seconds=60)  # same as login
+async def generate_token(request: Request,
+                        form_data: Annotated[OAuth2PasswordRequestForm, Depends()], 
+                        user_service: UserCRUDService = Depends(get_user_service)) -> TokenSchema:
     """Generate new token for user"""
     user = await auth_manager.get_authenticated_user(form_data=form_data, user_service=user_service)
     # Check if user is verified
@@ -229,20 +216,26 @@ async def generate_token(form_data: Annotated[OAuth2PasswordRequestForm, Depends
     return TokenSchema(access_token=token, token_type=settings.TOKEN_TYPE)
 
 
-@user_routes.get("/me", response_model=CurrentUserInfo)
-async def get_current_user_data(current_user: Annotated[CurrentUserInfo, Depends(auth_manager.get_current_user_from_token)]) -> CurrentUserInfo:
+@user_routes.get("/me", 
+                 response_model=CurrentUserInfo,
+                 status_code=status.HTTP_200_OK,
+                 response_description="Current user data retrieved successfully",)
+@ratelimiter(times=10, seconds=60)  # Limit to 10 requests per minute
+@cache_response(namespace="users", key="current_user", ttl=60) # key should match parameter name
+async def get_current_user_data(request: Request,
+                                current_user: Annotated[CurrentUserInfo, Depends(auth_manager.get_current_user_from_token)]) -> CurrentUserInfo:
     return current_user
 
 
 @user_routes.get("/user/email/{user_email}",
                   summary="Get user by email",
                   response_model=UserInfo,
-                  response_description="User data retrieved successfully",
-                  responses={
-                      404: {"description": "User not found"},
-                      200: {"description": "User data retrieved successfully"}
-                  })
-async def get_user_by_email(user_email: str, 
+                  response_description="User data retrieved successfully"
+                  )
+@ratelimiter(times=25, seconds=60)
+@cache_response(namespace="users", key="user_email", ttl=60) # key should match parameter name
+async def get_user_by_email(request: Request,
+                            user_email: EmailStr, 
                             user_crud_service: UserCRUDService = Depends(get_user_service)) -> UserInfo:
     return await user_crud_service.get_user_by_email(user_email)
 
@@ -251,13 +244,34 @@ async def get_user_by_email(user_email: str,
                   summary="Get user by id",
                   response_model=UserInfo,
                   response_description="User data retrieved successfully",
-                  responses={
-                      404: {"description": "User not found"},
-                      200: {"description": "User data retrieved successfully"}
-                  })
-async def get_user_by_user_id(user_id: str, 
+                  status_code=status.HTTP_200_OK
+                  )
+@ratelimiter(times=25, seconds=60)  
+@cache_response(namespace="users", key="user_id", ttl=60) # key should match parameter name
+async def get_user_by_user_id(request: Request,
+                              user_id: UUID, 
                               user_crud_service: UserCRUDService = Depends(get_user_service)) -> UserInfo:
-    user = await user_crud_service.get_user_by_id(user_id=user_id)
-    if not user:
-        raise UserNotFoundError(detail=f'User with id: "{user_id}" not found')
-    return user
+    return await user_crud_service.get_user_by_id(user_id=user_id)
+
+
+@user_routes.get('/activate/{token}',
+                 summary="Verify user email",
+                 response_model=EmailVerificationResponse,
+                 status_code=status.HTTP_200_OK,
+                 response_description="Email verified successfully",
+                )
+@ratelimiter(times=5, seconds=3600)  # Limit to 5 verifications per hour
+@cache_response(namespace="users", key="email_verification", ttl=60)  # Cache for 1 minute
+async def verify_email(request: Request,
+                       token: str,
+                       user_crud_service: UserCRUDService = Depends(get_user_service)) -> EmailVerificationResponse:
+    token_data = await auth_manager.get_current_user(token=token, required_purpose="email_verification")
+    
+    await user_crud_service.update_user_verified_status(user_email=token_data.email, verified=True)
+    
+    return EmailVerificationResponse(
+        detail="Email verified successfully",
+        email=token_data.email,
+        verified=True
+    )
+

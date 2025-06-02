@@ -4,7 +4,7 @@ import logging
 from typing import List, Dict
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from fastapi import FastAPI, Request, status
+from fastapi import FastAPI, HTTPException, Request, status
 from contextlib import asynccontextmanager
 from fastapi.staticfiles import StaticFiles
 from pydantic import ValidationError
@@ -29,7 +29,7 @@ from src.errors.user_service_errors import (UserNotFoundError,
                                             UserUpdateError, 
                                             UserDeletionError, 
                                             UserAuthenticationError)
-
+from src.errors.rate_limiter_error import RateLimitExceededError
 from src.errors.database_errors import (DatabaseConnectionError,
                                         DatabaseSessionError)
 from src.errors.email_service_errors import EmailServiceError
@@ -209,7 +209,14 @@ def add_exception_handlers(app: FastAPI):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"detail": str(exc)}
         )
-
+        
+    # Custom Exception handlers for rate limit exceeded errors
+    @app.exception_handler(RateLimitExceededError)
+    async def rate_limit_handler(request: Request, exc: RateLimitExceededError): # type: ignore
+        return JSONResponse(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            content={"detail": str(exc)}
+        )
 
         
         

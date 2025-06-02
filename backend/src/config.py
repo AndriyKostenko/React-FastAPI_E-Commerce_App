@@ -40,7 +40,10 @@ class Settings(BaseSettings):
     USE_CREDENTIALS: bool | None = os.getenv("USE_CREDENTIALS")
     TEMPLATES_DIR: Path = BASE_DIR / os.getenv("TEMPLATES_DIR", "templates")
     VALIDATE_CERTS: bool | None = os.getenv("VALIDATE_CERTS")
-    SECRET_ROLE: str = os.getenv("SECRET_ROLE")
+    SECRET_ROLE: str | None = os.getenv("SECRET_ROLE")
+    REDIS_ENDPOINT: str | None = os.getenv("REDIS_ENDPOINT")
+    REDIS_PORT: int | None = int(os.getenv("REDIS_PORT"))
+    REDIS_DB: int | None = int(os.getenv("REDIS_DB"))
     
     class Config:
         env_file = env_path

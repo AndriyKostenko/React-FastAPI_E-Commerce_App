@@ -4,13 +4,13 @@ from contextlib import asynccontextmanager
 from sqlalchemy.ext.asyncio import AsyncConnection
 from sqlalchemy.exc import DBAPIError, SQLAlchemyError
 from typing import AsyncIterator, AsyncGenerator, Dict
-import logging
+from src.utils.logger_config import setup_logger
 
 from src.models.user_models import Base
 from src.errors.database_errors import DatabaseConnectionError, DatabaseSessionError
 
 
-logger = logging.getLogger(__name__)
+logger = setup_logger(__name__)
 
 
 class DatabaseSessionManager:
@@ -115,6 +115,7 @@ class DatabaseSessionManager:
             raise DatabaseSessionError("Session maker is not initialized.")
         
         session = self.async_session()
+        
         try:
             yield session
         except SQLAlchemyError as e:
