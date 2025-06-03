@@ -1,7 +1,7 @@
 from fastapi import HTTPException, APIRouter, Depends, status, Request, Header
 from typing import Dict, Annotated
 import stripe
-from src.config import settings
+from src.config import get_settings
 from src.dependencies.dependencies import get_db_session
 # from src.routes.user_routes import get_current_user
 from src.schemas.order_schemas import PaymentIntentRequest, CreateOrder, UpdateOrder
@@ -12,6 +12,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.utils.calculate_ttl_amount import calculate_total_amount
 from src.security.authentication import auth_manager
 
+
+settings = get_settings()
 stripe.api_key = settings.STRIPE_SECRET_KEY
 
 payment_routes = APIRouter(

@@ -1,5 +1,5 @@
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
-from src.config import settings
+from src.config import get_settings
 from contextlib import asynccontextmanager
 from sqlalchemy.ext.asyncio import AsyncConnection
 from sqlalchemy.exc import DBAPIError, SQLAlchemyError
@@ -51,6 +51,7 @@ class DatabaseSessionManager:
     async def init_db(self) -> None:
         """Initialize the database, creating all tables."""
         if self.async_engine is None:
+            logger.error("Database engine is not initialized.")
             raise DatabaseConnectionError("Database engine is not initialized.")
         
         try:
@@ -80,12 +81,15 @@ class DatabaseSessionManager:
             logger.info("Already connected to the database.")
             raise DatabaseConnectionError("Already connected to the database.")
         if self.async_engine is None:
+            logger.error("Database engine is not initialized.")
             raise DatabaseConnectionError("Database engine is not initialized.")
         
         if not self.is_connected:
+            logger.error("Database is not connected.")
             raise DatabaseConnectionError("Database is not connected.")
         
         if self.async_session is None:
+            logger.error("Session maker is not initialized.")
             raise DatabaseSessionError("Session maker is not initialized.")
         
         async with self.async_engine.begin() as connection:
@@ -112,6 +116,7 @@ class DatabaseSessionManager:
          # Handle exceptions and rollback if necessary
         """
         if self.async_session is None:
+            logger.error("Session maker is not initialized.")
             raise DatabaseSessionError("Session maker is not initialized.")
         
         session = self.async_session()
@@ -123,14 +128,17 @@ class DatabaseSessionManager:
             logger.error(f"SQLAlchemy error: {str(e)}")
             raise DatabaseSessionError(f"Database session error: {str(e)}")
         finally:
+            logger.info("Closing session")
             await session.close()
             
     async def close(self) -> None:
         """Close the database engine and session maker."""
         if self.async_engine is None:
+            logger.error("Database engine is not initialized.")
             raise DatabaseConnectionError("Database engine is not initialized.")
         
         # Dispose the engine and session maker
+        logger.info("Disposing the database engine and session maker")
         await self.async_engine.dispose()
         
         self.is_connected = False
@@ -138,8 +146,8 @@ class DatabaseSessionManager:
         self.async_session = None
         
 
-database_session_manager = DatabaseSessionManager(settings.DATABASE_URL, 
-                                                engine_settings={"echo": True,  # Set to True in develpment for logging SQL queries
+database_session_manager = DatabaseSessionManager(get_settings().DATABASE_URL, 
+                                                  engine_settings={"echo": True,  # Set to True in develpment for logging SQL queries
                                                                 "pool_pre_ping": True,  # If True, the connection pool will check for stale connections and refresh them.
                                                                 "pool_size": 100, # The maximum number of database connections to pool
                                                                 "max_overflow": 0, #The maximum number of connections to allow in the connection pool above pool_size. It's set to 0, meaning no overflow connections are allowed.

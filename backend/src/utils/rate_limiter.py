@@ -5,11 +5,12 @@ from fastapi import HTTPException, Request, status, Response
 from redis import asyncio as aioredis
 
 from src.errors.rate_limiter_error import RateLimitExceededError
-from src.config import settings
+from src.config import get_settings
 from src.utils.logger_config import setup_logger
 
 
 logger = setup_logger(__name__)
+settings = get_settings()
 
 class RateLimiter:
     def __init__(self, times: int, seconds: int):

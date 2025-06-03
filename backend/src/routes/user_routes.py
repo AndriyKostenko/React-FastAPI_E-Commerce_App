@@ -9,7 +9,7 @@ from pydantic import EmailStr
 
 
 from src.security.authentication import auth_manager
-from src.config import settings
+from src.config import get_settings
 from src.schemas.user_schemas import (UserSignUp, 
                                       UserInfo, 
                                       TokenSchema, 
@@ -26,7 +26,7 @@ from src.schemas.user_schemas import PasswordUpdateResponse
 from src.service.user_service import UserCRUDService
 from src.dependencies.dependencies import get_user_service
 from src.service.email_service import email_service
-from src.utils.cache_response import cache_response, invalidate_cache
+from src.utils.cache_response import cache_manager
 from src.utils.rate_limiter import ratelimiter
 
 
@@ -115,7 +115,7 @@ async def login(request: Request,
     user = await auth_manager.get_authenticated_user(form_data=form_data, user_service=user_service)
     
     # updte last login might change user data, invalidating the redis cache
-    await invalidate_cache(namespace="users", key=user.email)
+    await cache_manager.invalidate_cache(namespace="users", key=user.email)
     
     # creating access token
     access_token = auth_manager.create_access_token(email=user.email,
@@ -178,7 +178,7 @@ async def reset_password(request: Request,
     
     await user_crud_service.update_user_password(user_email=token_data.email, new_password=data.new_password)
     
-    await invalidate_cache(namespace="users", key=token_data.email)  # Invalidate cache for user email
+    await cache_manager.invalidate_cache(namespace="users", key=token_data.email)  # Invalidate cache for user email
     
     await email_service.send_password_reset_success_email(
         email=token_data.email,
@@ -221,7 +221,7 @@ async def generate_token(request: Request,
                  status_code=status.HTTP_200_OK,
                  response_description="Current user data retrieved successfully",)
 @ratelimiter(times=10, seconds=60)  # Limit to 10 requests per minute
-@cache_response(namespace="users", key="current_user", ttl=60) # key should match parameter name
+@cache_manager.cached(namespace="users", key="current_user", ttl=60) # key should match parameter name
 async def get_current_user_data(request: Request,
                                 current_user: Annotated[CurrentUserInfo, Depends(auth_manager.get_current_user_from_token)]) -> CurrentUserInfo:
     return current_user
@@ -232,8 +232,8 @@ async def get_current_user_data(request: Request,
                   response_model=UserInfo,
                   response_description="User data retrieved successfully"
                   )
-@ratelimiter(times=25, seconds=60)
-@cache_response(namespace="users", key="user_email", ttl=60) # key should match parameter name
+@ratelimiter(times=10, seconds=60)
+@cache_manager.cached(namespace="users", key="user_email", ttl=60) # key should match parameter name
 async def get_user_by_email(request: Request,
                             user_email: EmailStr, 
                             user_crud_service: UserCRUDService = Depends(get_user_service)) -> UserInfo:
@@ -246,8 +246,8 @@ async def get_user_by_email(request: Request,
                   response_description="User data retrieved successfully",
                   status_code=status.HTTP_200_OK
                   )
-@ratelimiter(times=25, seconds=60)  
-@cache_response(namespace="users", key="user_id", ttl=60) # key should match parameter name
+@ratelimiter(times=10, seconds=60)  
+@cache_manager.cached(namespace="users", key="user_id", ttl=60) # key should match parameter name
 async def get_user_by_user_id(request: Request,
                               user_id: UUID, 
                               user_crud_service: UserCRUDService = Depends(get_user_service)) -> UserInfo:
@@ -261,7 +261,7 @@ async def get_user_by_user_id(request: Request,
                  response_description="Email verified successfully",
                 )
 @ratelimiter(times=5, seconds=3600)  # Limit to 5 verifications per hour
-@cache_response(namespace="users", key="email_verification", ttl=60)  # Cache for 1 minute
+@cache_manager.cached(namespace="users", key="email_verification", ttl=60)  # Cache for 1 minute
 async def verify_email(request: Request,
                        token: str,
                        user_crud_service: UserCRUDService = Depends(get_user_service)) -> EmailVerificationResponse:

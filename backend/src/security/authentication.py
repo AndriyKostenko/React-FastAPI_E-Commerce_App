@@ -10,7 +10,7 @@ from src.errors.user_service_errors import (UserNotFoundError,
                                             UserPasswordError,
                                             )
 
-from src.config import settings
+from src.config import get_settings
 from src.schemas.user_schemas import CurrentUserInfo
 from src.errors.user_service_errors import UserIsNotVerifiedError
 
@@ -18,9 +18,9 @@ from src.errors.user_service_errors import UserIsNotVerifiedError
 
 # OAuth2PasswordBearer is a class that provides a way to extract the token from the request
 oauth2_scheme = OAuth2PasswordBearer(
-    tokenUrl=settings.TOKEN_URL,
+    tokenUrl=get_settings().TOKEN_URL,
     scheme_name="oauth2_scheme",   
-)
+) # sceme_name is similar to variable name
 
 # using a Singleton pattern to create only one instance of AuthenticationManager
 # this is to avoid creating multiple instances of the same class
@@ -35,10 +35,9 @@ class AuthenticationManager:
     
     def __init__(self):
         if not hasattr(self, 'initialized'):
+            self.settings = get_settings()
             self.initialized = True
-            self.secret_key = settings.SECRET_KEY
-            self.algorithm = settings.ALGORITHM
-            self.token_expire_minutes = settings.TIME_DELTA_MINUTES
+            self.token_expire_minutes = get_settings().TIME_DELTA_MINUTES
        
     
     @lru_cache(maxsize=None)     
@@ -88,14 +87,14 @@ class AuthenticationManager:
                   'exp': expire,
                   'purpose': purpose
                   }
-        return jwt.encode(encode, self.secret_key, algorithm=self.algorithm)
+        return jwt.encode(encode, self.settings.SECRET_KEY, algorithm=self.settings.ALGORITHM)
     
     async def get_current_user_from_token(self, 
                                           token: Annotated[str, Depends(oauth2_scheme)],
                                           required_purpose: str = "access") -> CurrentUserInfo:
         """Checking if user is logged in and with valid token"""
         try:
-            payload = jwt.decode(token, self.secret_key, algorithms=[self.algorithm])
+            payload = jwt.decode(token, self.settings.SECRET_KEY, algorithms=[self.settings.ALGORITHM])
             email: str = payload.get('sub')
             user_id: str = payload.get('id')
             user_role: str = payload.get('role')
@@ -134,9 +133,7 @@ class AuthenticationManager:
         )
             
             
-
-            
-            
+# Initialize the AuthenticationManager instance
 auth_manager = AuthenticationManager()
 
             

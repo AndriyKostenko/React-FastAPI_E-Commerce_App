@@ -386,3 +386,608 @@ WHERE users.id = $1::UUID]
 2025-06-01 18:40:46,447 - src.utils.rate_limiter - WARNING - Rate limit exceeded for: rate_limit:127.0.0.1:/api/v1/login
 2025-06-01 18:41:35,664 - src.db.db_setup - INFO - Database engine initialized
 2025-06-01 18:41:36,566 - src.db.db_setup - INFO - Database tables initialized successfully
+2025-06-03 12:45:17,954 - src.db.db_setup - INFO - Database engine initialized
+2025-06-03 12:45:19,438 - src.db.db_setup - INFO - Database engine initialized
+2025-06-03 12:45:20,369 - src.db.db_setup - INFO - Database tables initialized successfully
+2025-06-03 13:14:34,150 - src.db.db_setup - INFO - Database engine initialized
+2025-06-03 13:15:39,178 - src.db.db_setup - INFO - Database engine initialized
+2025-06-03 13:16:19,663 - src.db.db_setup - INFO - Database engine initialized
+2025-06-03 13:17:01,764 - src.db.db_setup - INFO - Database engine initialized
+2025-06-03 13:17:27,903 - src.db.db_setup - INFO - Database engine initialized
+2025-06-03 13:26:08,653 - src.db.db_setup - INFO - Database engine initialized
+2025-06-03 16:06:36,010 - src.db.db_setup - INFO - Database engine initialized
+2025-06-03 16:07:02,438 - src.db.db_setup - INFO - Database engine initialized
+2025-06-03 16:08:01,305 - src.db.db_setup - INFO - Database engine initialized
+2025-06-03 16:10:26,950 - src.db.db_setup - INFO - Database engine initialized
+2025-06-03 16:11:12,070 - src.db.db_setup - INFO - Database engine initialized
+2025-06-03 16:11:49,916 - src.db.db_setup - INFO - Database engine initialized
+2025-06-03 16:12:23,988 - src.db.db_setup - INFO - Database engine initialized
+2025-06-03 16:12:25,274 - src.db.db_setup - INFO - Database engine initialized
+2025-06-03 16:12:26,037 - src - INFO - Server has started at 2025-06-03 16:12:26.037253
+2025-06-03 16:12:26,082 - src.db.db_setup - INFO - Database tables initialized successfully
+2025-06-03 16:12:26,082 - src.db.db_setup - INFO - Database tables initialized successfully
+2025-06-03 16:12:26,082 - src - INFO - Database initialized succesfully at 2025-06-03 16:12:26.082556
+2025-06-03 16:13:26,893 - src.db.db_setup - INFO - Database engine initialized
+2025-06-03 16:13:28,228 - src.db.db_setup - INFO - Database engine initialized
+2025-06-03 16:13:29,007 - src - INFO - Server has started at 2025-06-03 16:13:29.007125
+2025-06-03 16:13:29,051 - src.db.db_setup - INFO - Database tables initialized successfully
+2025-06-03 16:13:29,051 - src.db.db_setup - INFO - Database tables initialized successfully
+2025-06-03 16:13:29,051 - src - INFO - Database initialized succesfully at 2025-06-03 16:13:29.051865
+2025-06-03 16:16:10,690 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 16:16:10,690 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 16:16:10,693 - src.utils.cache_response - DEBUG - Bound arguments: {'request': <starlette.requests.Request object at 0x7644eef907a0>, 'user_id': UUID('3f048850-cdcc-46e5-ab0c-64c63d579823'), 'user_crud_service': <src.service.user_service.UserCRUDService object at 0x7644eef93980>}
+2025-06-03 16:16:10,693 - src.utils.cache_response - DEBUG - Bound arguments: {'request': <starlette.requests.Request object at 0x7644eef907a0>, 'user_id': UUID('3f048850-cdcc-46e5-ab0c-64c63d579823'), 'user_crud_service': <src.service.user_service.UserCRUDService object at 0x7644eef93980>}
+2025-06-03 16:16:10,693 - src.utils.cache_response - ERROR - Namespace 'users' not found in arguments. Cannot cache response.
+2025-06-03 16:16:10,693 - src.utils.cache_response - ERROR - Namespace 'users' not found in arguments. Cannot cache response.
+2025-06-03 16:16:10,737 - src.db.db_setup - INFO - Closing session
+2025-06-03 16:16:10,737 - src.db.db_setup - INFO - Closing session
+2025-06-03 16:17:06,213 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 16:17:06,213 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 16:17:06,214 - src.utils.cache_response - DEBUG - Bound arguments: {'request': <starlette.requests.Request object at 0x7644eef907a0>, 'user_id': UUID('3f048850-cdcc-46e5-ab0c-64c63d579823'), 'user_crud_service': <src.service.user_service.UserCRUDService object at 0x7644eef30f20>}
+2025-06-03 16:17:06,214 - src.utils.cache_response - DEBUG - Bound arguments: {'request': <starlette.requests.Request object at 0x7644eef907a0>, 'user_id': UUID('3f048850-cdcc-46e5-ab0c-64c63d579823'), 'user_crud_service': <src.service.user_service.UserCRUDService object at 0x7644eef30f20>}
+2025-06-03 16:17:06,214 - src.utils.cache_response - ERROR - Namespace 'users' not found in arguments. Cannot cache response.
+2025-06-03 16:17:06,214 - src.utils.cache_response - ERROR - Namespace 'users' not found in arguments. Cannot cache response.
+2025-06-03 16:17:06,216 - src.db.db_setup - INFO - Closing session
+2025-06-03 16:17:06,216 - src.db.db_setup - INFO - Closing session
+2025-06-03 16:18:07,171 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/0849b6c2-8426-47c6-b90e-99cdfcd0f264
+2025-06-03 16:18:07,171 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/0849b6c2-8426-47c6-b90e-99cdfcd0f264
+2025-06-03 16:18:07,171 - src.utils.cache_response - DEBUG - Bound arguments: {'request': <starlette.requests.Request object at 0x7644eef908f0>, 'user_id': UUID('0849b6c2-8426-47c6-b90e-99cdfcd0f264'), 'user_crud_service': <src.service.user_service.UserCRUDService object at 0x7644eef30f20>}
+2025-06-03 16:18:07,171 - src.utils.cache_response - DEBUG - Bound arguments: {'request': <starlette.requests.Request object at 0x7644eef908f0>, 'user_id': UUID('0849b6c2-8426-47c6-b90e-99cdfcd0f264'), 'user_crud_service': <src.service.user_service.UserCRUDService object at 0x7644eef30f20>}
+2025-06-03 16:18:07,171 - src.utils.cache_response - ERROR - Namespace 'users' not found in arguments. Cannot cache response.
+2025-06-03 16:18:07,171 - src.utils.cache_response - ERROR - Namespace 'users' not found in arguments. Cannot cache response.
+2025-06-03 16:18:07,173 - src.db.db_setup - INFO - Closing session
+2025-06-03 16:18:07,173 - src.db.db_setup - INFO - Closing session
+2025-06-03 16:18:13,894 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/0849b6c2-8426-47c6-b90e-99cdfcd0f264
+2025-06-03 16:18:13,894 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/0849b6c2-8426-47c6-b90e-99cdfcd0f264
+2025-06-03 16:18:13,894 - src.utils.cache_response - DEBUG - Bound arguments: {'request': <starlette.requests.Request object at 0x7644eef939b0>, 'user_id': UUID('0849b6c2-8426-47c6-b90e-99cdfcd0f264'), 'user_crud_service': <src.service.user_service.UserCRUDService object at 0x7644eef30f20>}
+2025-06-03 16:18:13,894 - src.utils.cache_response - DEBUG - Bound arguments: {'request': <starlette.requests.Request object at 0x7644eef939b0>, 'user_id': UUID('0849b6c2-8426-47c6-b90e-99cdfcd0f264'), 'user_crud_service': <src.service.user_service.UserCRUDService object at 0x7644eef30f20>}
+2025-06-03 16:18:13,895 - src.utils.cache_response - ERROR - Namespace 'users' not found in arguments. Cannot cache response.
+2025-06-03 16:18:13,895 - src.utils.cache_response - ERROR - Namespace 'users' not found in arguments. Cannot cache response.
+2025-06-03 16:18:13,902 - src.db.db_setup - INFO - Closing session
+2025-06-03 16:18:13,902 - src.db.db_setup - INFO - Closing session
+2025-06-03 16:26:34,871 - src.db.db_setup - INFO - Disposing the database engine and session maker
+2025-06-03 16:26:34,871 - src.db.db_setup - INFO - Disposing the database engine and session maker
+2025-06-03 16:26:34,871 - src - INFO - Server has shut down at 2025-06-03 16:26:34.871825
+2025-06-03 16:26:35,453 - src.db.db_setup - INFO - Database engine initialized
+2025-06-03 16:26:36,299 - src - INFO - Server has started at 2025-06-03 16:26:36.299084
+2025-06-03 16:26:36,342 - src.db.db_setup - INFO - Database tables initialized successfully
+2025-06-03 16:26:36,342 - src.db.db_setup - INFO - Database tables initialized successfully
+2025-06-03 16:26:36,342 - src - INFO - Database initialized succesfully at 2025-06-03 16:26:36.342911
+2025-06-03 16:26:51,758 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/0849b6c2-8426-47c6-b90e-99cdfcd0f264
+2025-06-03 16:26:51,758 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/0849b6c2-8426-47c6-b90e-99cdfcd0f264
+2025-06-03 16:26:51,759 - src.utils.cache_response - ERROR - Namespace 'users' not found in arguments. Cannot cache response.
+2025-06-03 16:26:51,759 - src.utils.cache_response - ERROR - Namespace 'users' not found in arguments. Cannot cache response.
+2025-06-03 16:26:51,798 - src.db.db_setup - INFO - Closing session
+2025-06-03 16:26:51,798 - src.db.db_setup - INFO - Closing session
+2025-06-03 16:27:10,739 - src.db.db_setup - INFO - Disposing the database engine and session maker
+2025-06-03 16:27:10,739 - src.db.db_setup - INFO - Disposing the database engine and session maker
+2025-06-03 16:27:10,740 - src - INFO - Server has shut down at 2025-06-03 16:27:10.740290
+2025-06-03 16:28:12,785 - src.db.db_setup - INFO - Database engine initialized
+2025-06-03 16:28:14,145 - src.db.db_setup - INFO - Database engine initialized
+2025-06-03 16:28:14,945 - src - INFO - Server has started at 2025-06-03 16:28:14.945468
+2025-06-03 16:28:14,991 - src.db.db_setup - INFO - Database tables initialized successfully
+2025-06-03 16:28:14,991 - src.db.db_setup - INFO - Database tables initialized successfully
+2025-06-03 16:28:14,991 - src - INFO - Database initialized succesfully at 2025-06-03 16:28:14.991233
+2025-06-03 16:28:17,235 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 16:28:17,235 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 16:28:17,237 - src.utils.cache_response - ERROR - Namespace 'users' not found in arguments. Cannot cache response.
+2025-06-03 16:28:17,237 - src.utils.cache_response - ERROR - Namespace 'users' not found in arguments. Cannot cache response.
+2025-06-03 16:28:17,276 - src.db.db_setup - INFO - Closing session
+2025-06-03 16:28:17,276 - src.db.db_setup - INFO - Closing session
+2025-06-03 16:29:53,301 - src.db.db_setup - INFO - Disposing the database engine and session maker
+2025-06-03 16:29:53,301 - src.db.db_setup - INFO - Disposing the database engine and session maker
+2025-06-03 16:29:53,302 - src - INFO - Server has shut down at 2025-06-03 16:29:53.302389
+2025-06-03 16:29:53,884 - src.db.db_setup - INFO - Database engine initialized
+2025-06-03 16:29:54,725 - src - INFO - Server has started at 2025-06-03 16:29:54.725479
+2025-06-03 16:29:54,773 - src.db.db_setup - INFO - Database tables initialized successfully
+2025-06-03 16:29:54,773 - src.db.db_setup - INFO - Database tables initialized successfully
+2025-06-03 16:29:54,773 - src - INFO - Database initialized succesfully at 2025-06-03 16:29:54.773372
+2025-06-03 16:30:11,811 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 16:30:11,811 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 16:30:11,813 - src.utils.cache_response - ERROR - Namespace 'users' not found in arguments. Cannot cache response.
+2025-06-03 16:30:11,813 - src.utils.cache_response - ERROR - Namespace 'users' not found in arguments. Cannot cache response.
+2025-06-03 16:30:11,850 - src.db.db_setup - INFO - Closing session
+2025-06-03 16:30:11,850 - src.db.db_setup - INFO - Closing session
+2025-06-03 16:34:21,916 - src.db.db_setup - INFO - Disposing the database engine and session maker
+2025-06-03 16:34:21,916 - src.db.db_setup - INFO - Disposing the database engine and session maker
+2025-06-03 16:34:21,917 - src - INFO - Server has shut down at 2025-06-03 16:34:21.917604
+2025-06-03 16:34:22,504 - src.db.db_setup - INFO - Database engine initialized
+2025-06-03 16:34:23,310 - src - INFO - Server has started at 2025-06-03 16:34:23.310607
+2025-06-03 16:34:23,355 - src.db.db_setup - INFO - Database tables initialized successfully
+2025-06-03 16:34:23,355 - src.db.db_setup - INFO - Database tables initialized successfully
+2025-06-03 16:34:23,355 - src - INFO - Database initialized succesfully at 2025-06-03 16:34:23.355496
+2025-06-03 16:35:08,358 - src.db.db_setup - INFO - Disposing the database engine and session maker
+2025-06-03 16:35:08,358 - src.db.db_setup - INFO - Disposing the database engine and session maker
+2025-06-03 16:35:08,359 - src - INFO - Server has shut down at 2025-06-03 16:35:08.359493
+2025-06-03 16:35:08,948 - src.db.db_setup - INFO - Database engine initialized
+2025-06-03 16:35:09,833 - src - INFO - Server has started at 2025-06-03 16:35:09.833218
+2025-06-03 16:35:09,879 - src.db.db_setup - INFO - Database tables initialized successfully
+2025-06-03 16:35:09,879 - src.db.db_setup - INFO - Database tables initialized successfully
+2025-06-03 16:35:09,879 - src - INFO - Database initialized succesfully at 2025-06-03 16:35:09.879971
+2025-06-03 16:35:12,029 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 16:35:12,029 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 16:35:12,030 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 16:35:12,030 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 16:35:12,068 - src.utils.cache_response - DEBUG - Data for caching after serialization: {"id":"3f048850-cdcc-46e5-ab0c-64c63d579823","name":"jhon doe","email":"a.kostenkouk@gmail.com","role":"shiba_inu","phone_number":null,"image":null,"date_created":"2025-05-27T17:20:45.704422","date_updated":null,"is_verified":true}
+2025-06-03 16:35:12,068 - src.utils.cache_response - DEBUG - Data for caching after serialization: {"id":"3f048850-cdcc-46e5-ab0c-64c63d579823","name":"jhon doe","email":"a.kostenkouk@gmail.com","role":"shiba_inu","phone_number":null,"image":null,"date_created":"2025-05-27T17:20:45.704422","date_updated":null,"is_verified":true}
+2025-06-03 16:35:12,068 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 16:35:12,068 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 16:35:12,068 - src.utils.cache_response - ERROR - Cache error for users:3f048850-cdcc-46e5-ab0c-64c63d579823: name 'ttl_key' is not defined
+Traceback (most recent call last):
+  File "/home/andriy/Documents/VSProjects/E-commerce_app/backend/src/utils/cache_response.py", line 136, in wrapper
+    ttl=ttl_key
+        ^^^^^^^
+NameError: name 'ttl_key' is not defined
+2025-06-03 16:35:12,068 - src.utils.cache_response - ERROR - Cache error for users:3f048850-cdcc-46e5-ab0c-64c63d579823: name 'ttl_key' is not defined
+Traceback (most recent call last):
+  File "/home/andriy/Documents/VSProjects/E-commerce_app/backend/src/utils/cache_response.py", line 136, in wrapper
+    ttl=ttl_key
+        ^^^^^^^
+NameError: name 'ttl_key' is not defined
+2025-06-03 16:35:12,071 - src.db.db_setup - INFO - Closing session
+2025-06-03 16:35:12,071 - src.db.db_setup - INFO - Closing session
+2025-06-03 16:35:23,410 - src.db.db_setup - INFO - Disposing the database engine and session maker
+2025-06-03 16:35:23,410 - src.db.db_setup - INFO - Disposing the database engine and session maker
+2025-06-03 16:35:23,411 - src - INFO - Server has shut down at 2025-06-03 16:35:23.411566
+2025-06-03 16:35:23,975 - src.db.db_setup - INFO - Database engine initialized
+2025-06-03 16:35:24,825 - src - INFO - Server has started at 2025-06-03 16:35:24.825864
+2025-06-03 16:35:24,872 - src.db.db_setup - INFO - Database tables initialized successfully
+2025-06-03 16:35:24,872 - src.db.db_setup - INFO - Database tables initialized successfully
+2025-06-03 16:35:24,872 - src - INFO - Database initialized succesfully at 2025-06-03 16:35:24.872395
+2025-06-03 16:35:43,598 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 16:35:43,598 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 16:35:43,600 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 16:35:43,600 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 16:35:43,645 - src.utils.cache_response - DEBUG - Data for caching after serialization: {"id":"3f048850-cdcc-46e5-ab0c-64c63d579823","name":"jhon doe","email":"a.kostenkouk@gmail.com","role":"shiba_inu","phone_number":null,"image":null,"date_created":"2025-05-27T17:20:45.704422","date_updated":null,"is_verified":true}
+2025-06-03 16:35:43,645 - src.utils.cache_response - DEBUG - Data for caching after serialization: {"id":"3f048850-cdcc-46e5-ab0c-64c63d579823","name":"jhon doe","email":"a.kostenkouk@gmail.com","role":"shiba_inu","phone_number":null,"image":null,"date_created":"2025-05-27T17:20:45.704422","date_updated":null,"is_verified":true}
+2025-06-03 16:35:43,646 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 16:35:43,646 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 16:35:43,648 - src.db.db_setup - INFO - Closing session
+2025-06-03 16:35:43,648 - src.db.db_setup - INFO - Closing session
+2025-06-03 16:37:25,461 - src.db.db_setup - INFO - Disposing the database engine and session maker
+2025-06-03 16:37:25,461 - src.db.db_setup - INFO - Disposing the database engine and session maker
+2025-06-03 16:37:25,462 - src - INFO - Server has shut down at 2025-06-03 16:37:25.462212
+2025-06-03 16:37:26,024 - src.db.db_setup - INFO - Database engine initialized
+2025-06-03 16:37:26,853 - src - INFO - Server has started at 2025-06-03 16:37:26.853253
+2025-06-03 16:37:26,897 - src.db.db_setup - INFO - Database tables initialized successfully
+2025-06-03 16:37:26,897 - src.db.db_setup - INFO - Database tables initialized successfully
+2025-06-03 16:37:26,897 - src - INFO - Database initialized succesfully at 2025-06-03 16:37:26.897872
+2025-06-03 16:37:44,751 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 16:37:44,751 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 16:37:44,752 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 16:37:44,752 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 16:37:44,787 - src.utils.cache_response - DEBUG - Data for caching after serialization: {"id":"3f048850-cdcc-46e5-ab0c-64c63d579823","name":"jhon doe","email":"a.kostenkouk@gmail.com","role":"shiba_inu","phone_number":null,"image":null,"date_created":"2025-05-27T17:20:45.704422","date_updated":null,"is_verified":true}
+2025-06-03 16:37:44,787 - src.utils.cache_response - DEBUG - Data for caching after serialization: {"id":"3f048850-cdcc-46e5-ab0c-64c63d579823","name":"jhon doe","email":"a.kostenkouk@gmail.com","role":"shiba_inu","phone_number":null,"image":null,"date_created":"2025-05-27T17:20:45.704422","date_updated":null,"is_verified":true}
+2025-06-03 16:37:44,787 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 16:37:44,787 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 16:37:44,788 - src.db.db_setup - INFO - Closing session
+2025-06-03 16:37:44,788 - src.db.db_setup - INFO - Closing session
+2025-06-03 16:37:47,859 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 16:37:47,859 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 16:37:47,859 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 16:37:47,859 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 16:37:47,859 - src.utils.cache_response - DEBUG - Returning cached data : {'id': '3f048850-cdcc-46e5-ab0c-64c63d579823', 'name': 'jhon doe', 'email': 'a.kostenkouk@gmail.com', 'role': 'shiba_inu', 'phone_number': None, 'image': None, 'date_created': '2025-05-27T17:20:45.704422', 'date_updated': None, 'is_verified': True}
+2025-06-03 16:37:47,859 - src.utils.cache_response - DEBUG - Returning cached data : {'id': '3f048850-cdcc-46e5-ab0c-64c63d579823', 'name': 'jhon doe', 'email': 'a.kostenkouk@gmail.com', 'role': 'shiba_inu', 'phone_number': None, 'image': None, 'date_created': '2025-05-27T17:20:45.704422', 'date_updated': None, 'is_verified': True}
+2025-06-03 16:37:47,860 - src.db.db_setup - INFO - Closing session
+2025-06-03 16:37:47,860 - src.db.db_setup - INFO - Closing session
+2025-06-03 16:37:51,288 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 16:37:51,288 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 16:37:51,288 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 16:37:51,288 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 16:37:51,289 - src.utils.cache_response - DEBUG - Returning cached data : {'id': '3f048850-cdcc-46e5-ab0c-64c63d579823', 'name': 'jhon doe', 'email': 'a.kostenkouk@gmail.com', 'role': 'shiba_inu', 'phone_number': None, 'image': None, 'date_created': '2025-05-27T17:20:45.704422', 'date_updated': None, 'is_verified': True}
+2025-06-03 16:37:51,289 - src.utils.cache_response - DEBUG - Returning cached data : {'id': '3f048850-cdcc-46e5-ab0c-64c63d579823', 'name': 'jhon doe', 'email': 'a.kostenkouk@gmail.com', 'role': 'shiba_inu', 'phone_number': None, 'image': None, 'date_created': '2025-05-27T17:20:45.704422', 'date_updated': None, 'is_verified': True}
+2025-06-03 16:37:51,289 - src.db.db_setup - INFO - Closing session
+2025-06-03 16:37:51,289 - src.db.db_setup - INFO - Closing session
+2025-06-03 16:38:00,056 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 16:38:00,056 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 16:38:00,056 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 16:38:00,056 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 16:38:00,056 - src.utils.cache_response - DEBUG - Returning cached data : {'id': '3f048850-cdcc-46e5-ab0c-64c63d579823', 'name': 'jhon doe', 'email': 'a.kostenkouk@gmail.com', 'role': 'shiba_inu', 'phone_number': None, 'image': None, 'date_created': '2025-05-27T17:20:45.704422', 'date_updated': None, 'is_verified': True}
+2025-06-03 16:38:00,056 - src.utils.cache_response - DEBUG - Returning cached data : {'id': '3f048850-cdcc-46e5-ab0c-64c63d579823', 'name': 'jhon doe', 'email': 'a.kostenkouk@gmail.com', 'role': 'shiba_inu', 'phone_number': None, 'image': None, 'date_created': '2025-05-27T17:20:45.704422', 'date_updated': None, 'is_verified': True}
+2025-06-03 16:38:00,057 - src.db.db_setup - INFO - Closing session
+2025-06-03 16:38:00,057 - src.db.db_setup - INFO - Closing session
+2025-06-03 16:38:08,791 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 16:38:08,791 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 16:38:08,791 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 16:38:08,791 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 16:38:08,792 - src.utils.cache_response - DEBUG - Returning cached data : {'id': '3f048850-cdcc-46e5-ab0c-64c63d579823', 'name': 'jhon doe', 'email': 'a.kostenkouk@gmail.com', 'role': 'shiba_inu', 'phone_number': None, 'image': None, 'date_created': '2025-05-27T17:20:45.704422', 'date_updated': None, 'is_verified': True}
+2025-06-03 16:38:08,792 - src.utils.cache_response - DEBUG - Returning cached data : {'id': '3f048850-cdcc-46e5-ab0c-64c63d579823', 'name': 'jhon doe', 'email': 'a.kostenkouk@gmail.com', 'role': 'shiba_inu', 'phone_number': None, 'image': None, 'date_created': '2025-05-27T17:20:45.704422', 'date_updated': None, 'is_verified': True}
+2025-06-03 16:38:08,792 - src.db.db_setup - INFO - Closing session
+2025-06-03 16:38:08,792 - src.db.db_setup - INFO - Closing session
+2025-06-03 16:38:10,161 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 16:38:10,161 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 16:38:10,161 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 16:38:10,161 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 16:38:10,162 - src.utils.cache_response - DEBUG - Returning cached data : {'id': '3f048850-cdcc-46e5-ab0c-64c63d579823', 'name': 'jhon doe', 'email': 'a.kostenkouk@gmail.com', 'role': 'shiba_inu', 'phone_number': None, 'image': None, 'date_created': '2025-05-27T17:20:45.704422', 'date_updated': None, 'is_verified': True}
+2025-06-03 16:38:10,162 - src.utils.cache_response - DEBUG - Returning cached data : {'id': '3f048850-cdcc-46e5-ab0c-64c63d579823', 'name': 'jhon doe', 'email': 'a.kostenkouk@gmail.com', 'role': 'shiba_inu', 'phone_number': None, 'image': None, 'date_created': '2025-05-27T17:20:45.704422', 'date_updated': None, 'is_verified': True}
+2025-06-03 16:38:10,162 - src.db.db_setup - INFO - Closing session
+2025-06-03 16:38:10,162 - src.db.db_setup - INFO - Closing session
+2025-06-03 16:43:35,788 - src.db.db_setup - INFO - Disposing the database engine and session maker
+2025-06-03 16:43:35,788 - src.db.db_setup - INFO - Disposing the database engine and session maker
+2025-06-03 16:43:35,789 - src - INFO - Server has shut down at 2025-06-03 16:43:35.789763
+2025-06-03 16:43:36,541 - src.db.db_setup - INFO - Database engine initialized
+2025-06-03 16:43:37,349 - src - INFO - Server has started at 2025-06-03 16:43:37.349375
+2025-06-03 16:43:37,394 - src.db.db_setup - INFO - Database tables initialized successfully
+2025-06-03 16:43:37,394 - src - INFO - Database initialized succesfully at 2025-06-03 16:43:37.394198
+2025-06-03 16:44:11,283 - src.db.db_setup - INFO - Database engine initialized
+2025-06-03 16:44:12,609 - src.db.db_setup - INFO - Database engine initialized
+2025-06-03 16:44:13,430 - src - INFO - Server has started at 2025-06-03 16:44:13.430858
+2025-06-03 16:44:13,482 - src.db.db_setup - INFO - Database tables initialized successfully
+2025-06-03 16:44:13,482 - src - INFO - Database initialized succesfully at 2025-06-03 16:44:13.482764
+2025-06-03 16:44:18,201 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 16:44:18,202 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 16:44:18,237 - src.utils.cache_response - DEBUG - Data for caching after serialization: {"id":"3f048850-cdcc-46e5-ab0c-64c63d579823","name":"jhon doe","email":"a.kostenkouk@gmail.com","role":"shiba_inu","phone_number":null,"image":null,"date_created":"2025-05-27T17:20:45.704422","date_updated":null,"is_verified":true}
+2025-06-03 16:44:18,237 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 16:44:18,237 - src.db.db_setup - INFO - Closing session
+2025-06-03 16:45:36,770 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 16:45:36,770 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 16:45:36,772 - src.utils.cache_response - DEBUG - Data for caching after serialization: {"id":"3f048850-cdcc-46e5-ab0c-64c63d579823","name":"jhon doe","email":"a.kostenkouk@gmail.com","role":"shiba_inu","phone_number":null,"image":null,"date_created":"2025-05-27T17:20:45.704422","date_updated":null,"is_verified":true}
+2025-06-03 16:45:36,772 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 16:45:36,773 - src.db.db_setup - INFO - Closing session
+2025-06-03 16:45:53,522 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 16:45:53,522 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 16:45:53,523 - src.utils.cache_response - DEBUG - Returning cached data : {'id': '3f048850-cdcc-46e5-ab0c-64c63d579823', 'name': 'jhon doe', 'email': 'a.kostenkouk@gmail.com', 'role': 'shiba_inu', 'phone_number': None, 'image': None, 'date_created': '2025-05-27T17:20:45.704422', 'date_updated': None, 'is_verified': True}
+2025-06-03 16:45:53,523 - src.db.db_setup - INFO - Closing session
+2025-06-03 16:49:29,268 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 16:49:29,269 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 16:49:29,275 - src.utils.cache_response - DEBUG - Data for caching after serialization: {"id":"3f048850-cdcc-46e5-ab0c-64c63d579823","name":"jhon doe","email":"a.kostenkouk@gmail.com","role":"shiba_inu","phone_number":null,"image":null,"date_created":"2025-05-27T17:20:45.704422","date_updated":null,"is_verified":true}
+2025-06-03 16:49:29,278 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 16:49:29,279 - src.db.db_setup - INFO - Closing session
+2025-06-03 16:50:15,834 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 16:50:15,835 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 16:50:15,835 - src.utils.cache_response - DEBUG - Returning cached data : {'id': '3f048850-cdcc-46e5-ab0c-64c63d579823', 'name': 'jhon doe', 'email': 'a.kostenkouk@gmail.com', 'role': 'shiba_inu', 'phone_number': None, 'image': None, 'date_created': '2025-05-27T17:20:45.704422', 'date_updated': None, 'is_verified': True}
+2025-06-03 16:50:15,835 - src.db.db_setup - INFO - Closing session
+2025-06-03 16:51:31,214 - src.db.db_setup - INFO - Disposing the database engine and session maker
+2025-06-03 16:51:31,215 - src - INFO - Server has shut down at 2025-06-03 16:51:31.215235
+2025-06-03 16:51:31,763 - src.db.db_setup - INFO - Database engine initialized
+2025-06-03 16:51:32,556 - src - INFO - Server has started at 2025-06-03 16:51:32.556953
+2025-06-03 16:51:32,600 - src.db.db_setup - INFO - Database tables initialized successfully
+2025-06-03 16:51:32,600 - src - INFO - Database initialized succesfully at 2025-06-03 16:51:32.600720
+2025-06-03 16:52:22,176 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 16:52:22,177 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 16:52:22,221 - src.utils.cache_response - DEBUG - Data for caching after serialization: {"id":"3f048850-cdcc-46e5-ab0c-64c63d579823","name":"jhon doe","email":"a.kostenkouk@gmail.com","role":"shiba_inu","phone_number":null,"image":null,"date_created":"2025-05-27T17:20:45.704422","date_updated":null,"is_verified":true}
+2025-06-03 16:52:22,221 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 16:52:22,222 - src.db.db_setup - INFO - Closing session
+2025-06-03 16:52:26,911 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 16:52:26,912 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 16:52:26,912 - src.utils.cache_response - DEBUG - Returning cached data : {'id': '3f048850-cdcc-46e5-ab0c-64c63d579823', 'name': 'jhon doe', 'email': 'a.kostenkouk@gmail.com', 'role': 'shiba_inu', 'phone_number': None, 'image': None, 'date_created': '2025-05-27T17:20:45.704422', 'date_updated': None, 'is_verified': True}
+2025-06-03 16:52:26,913 - src.db.db_setup - INFO - Closing session
+2025-06-03 16:53:18,768 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 16:53:18,769 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 16:53:18,769 - src.utils.cache_response - DEBUG - Returning cached data : {'id': '3f048850-cdcc-46e5-ab0c-64c63d579823', 'name': 'jhon doe', 'email': 'a.kostenkouk@gmail.com', 'role': 'shiba_inu', 'phone_number': None, 'image': None, 'date_created': '2025-05-27T17:20:45.704422', 'date_updated': None, 'is_verified': True}
+2025-06-03 16:53:18,769 - src.db.db_setup - INFO - Closing session
+2025-06-03 16:53:19,136 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 16:53:19,137 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 16:53:19,137 - src.utils.cache_response - DEBUG - Returning cached data : {'id': '3f048850-cdcc-46e5-ab0c-64c63d579823', 'name': 'jhon doe', 'email': 'a.kostenkouk@gmail.com', 'role': 'shiba_inu', 'phone_number': None, 'image': None, 'date_created': '2025-05-27T17:20:45.704422', 'date_updated': None, 'is_verified': True}
+2025-06-03 16:53:19,137 - src.db.db_setup - INFO - Closing session
+2025-06-03 16:53:19,451 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 16:53:19,452 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 16:53:19,452 - src.utils.cache_response - DEBUG - Returning cached data : {'id': '3f048850-cdcc-46e5-ab0c-64c63d579823', 'name': 'jhon doe', 'email': 'a.kostenkouk@gmail.com', 'role': 'shiba_inu', 'phone_number': None, 'image': None, 'date_created': '2025-05-27T17:20:45.704422', 'date_updated': None, 'is_verified': True}
+2025-06-03 16:53:19,452 - src.db.db_setup - INFO - Closing session
+2025-06-03 16:53:19,837 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 16:53:19,837 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 16:53:19,838 - src.utils.cache_response - DEBUG - Returning cached data : {'id': '3f048850-cdcc-46e5-ab0c-64c63d579823', 'name': 'jhon doe', 'email': 'a.kostenkouk@gmail.com', 'role': 'shiba_inu', 'phone_number': None, 'image': None, 'date_created': '2025-05-27T17:20:45.704422', 'date_updated': None, 'is_verified': True}
+2025-06-03 16:53:19,838 - src.db.db_setup - INFO - Closing session
+2025-06-03 16:53:20,227 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 16:53:20,228 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 16:53:20,228 - src.utils.cache_response - DEBUG - Returning cached data : {'id': '3f048850-cdcc-46e5-ab0c-64c63d579823', 'name': 'jhon doe', 'email': 'a.kostenkouk@gmail.com', 'role': 'shiba_inu', 'phone_number': None, 'image': None, 'date_created': '2025-05-27T17:20:45.704422', 'date_updated': None, 'is_verified': True}
+2025-06-03 16:53:20,228 - src.db.db_setup - INFO - Closing session
+2025-06-03 16:53:20,551 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 16:53:20,552 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 16:53:20,552 - src.utils.cache_response - DEBUG - Returning cached data : {'id': '3f048850-cdcc-46e5-ab0c-64c63d579823', 'name': 'jhon doe', 'email': 'a.kostenkouk@gmail.com', 'role': 'shiba_inu', 'phone_number': None, 'image': None, 'date_created': '2025-05-27T17:20:45.704422', 'date_updated': None, 'is_verified': True}
+2025-06-03 16:53:20,552 - src.db.db_setup - INFO - Closing session
+2025-06-03 16:53:21,559 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 16:53:21,559 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 16:53:21,560 - src.utils.cache_response - DEBUG - Returning cached data : {'id': '3f048850-cdcc-46e5-ab0c-64c63d579823', 'name': 'jhon doe', 'email': 'a.kostenkouk@gmail.com', 'role': 'shiba_inu', 'phone_number': None, 'image': None, 'date_created': '2025-05-27T17:20:45.704422', 'date_updated': None, 'is_verified': True}
+2025-06-03 16:53:21,560 - src.db.db_setup - INFO - Closing session
+2025-06-03 16:53:21,922 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 16:53:21,923 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 16:53:21,923 - src.utils.cache_response - DEBUG - Returning cached data : {'id': '3f048850-cdcc-46e5-ab0c-64c63d579823', 'name': 'jhon doe', 'email': 'a.kostenkouk@gmail.com', 'role': 'shiba_inu', 'phone_number': None, 'image': None, 'date_created': '2025-05-27T17:20:45.704422', 'date_updated': None, 'is_verified': True}
+2025-06-03 16:53:21,923 - src.db.db_setup - INFO - Closing session
+2025-06-03 16:53:22,337 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 16:53:22,338 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 16:53:22,340 - src.utils.cache_response - DEBUG - Data for caching after serialization: {"id":"3f048850-cdcc-46e5-ab0c-64c63d579823","name":"jhon doe","email":"a.kostenkouk@gmail.com","role":"shiba_inu","phone_number":null,"image":null,"date_created":"2025-05-27T17:20:45.704422","date_updated":null,"is_verified":true}
+2025-06-03 16:53:22,340 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 16:53:22,340 - src.db.db_setup - INFO - Closing session
+2025-06-03 16:53:23,225 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 16:53:23,225 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 16:53:23,226 - src.utils.cache_response - DEBUG - Returning cached data : {'id': '3f048850-cdcc-46e5-ab0c-64c63d579823', 'name': 'jhon doe', 'email': 'a.kostenkouk@gmail.com', 'role': 'shiba_inu', 'phone_number': None, 'image': None, 'date_created': '2025-05-27T17:20:45.704422', 'date_updated': None, 'is_verified': True}
+2025-06-03 16:53:23,226 - src.db.db_setup - INFO - Closing session
+2025-06-03 16:53:23,686 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 16:53:23,687 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 16:53:23,687 - src.utils.cache_response - DEBUG - Returning cached data : {'id': '3f048850-cdcc-46e5-ab0c-64c63d579823', 'name': 'jhon doe', 'email': 'a.kostenkouk@gmail.com', 'role': 'shiba_inu', 'phone_number': None, 'image': None, 'date_created': '2025-05-27T17:20:45.704422', 'date_updated': None, 'is_verified': True}
+2025-06-03 16:53:23,687 - src.db.db_setup - INFO - Closing session
+2025-06-03 16:53:24,358 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 16:53:24,358 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 16:53:24,359 - src.utils.cache_response - DEBUG - Returning cached data : {'id': '3f048850-cdcc-46e5-ab0c-64c63d579823', 'name': 'jhon doe', 'email': 'a.kostenkouk@gmail.com', 'role': 'shiba_inu', 'phone_number': None, 'image': None, 'date_created': '2025-05-27T17:20:45.704422', 'date_updated': None, 'is_verified': True}
+2025-06-03 16:53:24,359 - src.db.db_setup - INFO - Closing session
+2025-06-03 16:53:24,655 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 16:53:24,655 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 16:53:24,656 - src.utils.cache_response - DEBUG - Returning cached data : {'id': '3f048850-cdcc-46e5-ab0c-64c63d579823', 'name': 'jhon doe', 'email': 'a.kostenkouk@gmail.com', 'role': 'shiba_inu', 'phone_number': None, 'image': None, 'date_created': '2025-05-27T17:20:45.704422', 'date_updated': None, 'is_verified': True}
+2025-06-03 16:53:24,656 - src.db.db_setup - INFO - Closing session
+2025-06-03 16:53:24,959 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 16:53:24,959 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 16:53:24,960 - src.utils.cache_response - DEBUG - Returning cached data : {'id': '3f048850-cdcc-46e5-ab0c-64c63d579823', 'name': 'jhon doe', 'email': 'a.kostenkouk@gmail.com', 'role': 'shiba_inu', 'phone_number': None, 'image': None, 'date_created': '2025-05-27T17:20:45.704422', 'date_updated': None, 'is_verified': True}
+2025-06-03 16:53:24,960 - src.db.db_setup - INFO - Closing session
+2025-06-03 16:53:25,300 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 16:53:25,300 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 16:53:25,301 - src.utils.cache_response - DEBUG - Returning cached data : {'id': '3f048850-cdcc-46e5-ab0c-64c63d579823', 'name': 'jhon doe', 'email': 'a.kostenkouk@gmail.com', 'role': 'shiba_inu', 'phone_number': None, 'image': None, 'date_created': '2025-05-27T17:20:45.704422', 'date_updated': None, 'is_verified': True}
+2025-06-03 16:53:25,301 - src.db.db_setup - INFO - Closing session
+2025-06-03 16:53:26,605 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 16:53:26,605 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 16:53:26,606 - src.utils.cache_response - DEBUG - Returning cached data : {'id': '3f048850-cdcc-46e5-ab0c-64c63d579823', 'name': 'jhon doe', 'email': 'a.kostenkouk@gmail.com', 'role': 'shiba_inu', 'phone_number': None, 'image': None, 'date_created': '2025-05-27T17:20:45.704422', 'date_updated': None, 'is_verified': True}
+2025-06-03 16:53:26,606 - src.db.db_setup - INFO - Closing session
+2025-06-03 16:53:51,718 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 16:53:51,719 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 16:53:51,719 - src.utils.cache_response - DEBUG - Returning cached data : {'id': '3f048850-cdcc-46e5-ab0c-64c63d579823', 'name': 'jhon doe', 'email': 'a.kostenkouk@gmail.com', 'role': 'shiba_inu', 'phone_number': None, 'image': None, 'date_created': '2025-05-27T17:20:45.704422', 'date_updated': None, 'is_verified': True}
+2025-06-03 16:53:51,720 - src.db.db_setup - INFO - Closing session
+2025-06-03 16:54:02,503 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 16:54:02,503 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 16:54:02,504 - src.utils.cache_response - DEBUG - Returning cached data : {'id': '3f048850-cdcc-46e5-ab0c-64c63d579823', 'name': 'jhon doe', 'email': 'a.kostenkouk@gmail.com', 'role': 'shiba_inu', 'phone_number': None, 'image': None, 'date_created': '2025-05-27T17:20:45.704422', 'date_updated': None, 'is_verified': True}
+2025-06-03 16:54:02,504 - src.db.db_setup - INFO - Closing session
+2025-06-03 16:54:07,489 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 16:54:07,490 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 16:54:07,490 - src.utils.cache_response - DEBUG - Returning cached data : {'id': '3f048850-cdcc-46e5-ab0c-64c63d579823', 'name': 'jhon doe', 'email': 'a.kostenkouk@gmail.com', 'role': 'shiba_inu', 'phone_number': None, 'image': None, 'date_created': '2025-05-27T17:20:45.704422', 'date_updated': None, 'is_verified': True}
+2025-06-03 16:54:07,490 - src.db.db_setup - INFO - Closing session
+2025-06-03 16:54:35,219 - src.db.db_setup - INFO - Disposing the database engine and session maker
+2025-06-03 16:54:35,220 - src - INFO - Server has shut down at 2025-06-03 16:54:35.220655
+2025-06-03 16:54:35,795 - src.db.db_setup - INFO - Database engine initialized
+2025-06-03 16:54:36,695 - src - INFO - Server has started at 2025-06-03 16:54:36.695817
+2025-06-03 16:54:36,740 - src.db.db_setup - INFO - Database tables initialized successfully
+2025-06-03 16:54:36,740 - src - INFO - Database initialized succesfully at 2025-06-03 16:54:36.740723
+2025-06-03 16:54:38,649 - src.db.db_setup - INFO - Disposing the database engine and session maker
+2025-06-03 16:54:38,650 - src - INFO - Server has shut down at 2025-06-03 16:54:38.650334
+2025-06-03 16:54:39,229 - src.db.db_setup - INFO - Database engine initialized
+2025-06-03 16:54:40,066 - src - INFO - Server has started at 2025-06-03 16:54:40.066830
+2025-06-03 16:54:40,111 - src.db.db_setup - INFO - Database tables initialized successfully
+2025-06-03 16:54:40,111 - src - INFO - Database initialized succesfully at 2025-06-03 16:54:40.111634
+2025-06-03 16:54:46,083 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 16:54:46,084 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 16:54:46,118 - src.utils.cache_response - DEBUG - Data for caching after serialization: {"id":"3f048850-cdcc-46e5-ab0c-64c63d579823","name":"jhon doe","email":"a.kostenkouk@gmail.com","role":"shiba_inu","phone_number":null,"image":null,"date_created":"2025-05-27T17:20:45.704422","date_updated":null,"is_verified":true}
+2025-06-03 16:54:46,118 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 16:54:46,119 - src.db.db_setup - INFO - Closing session
+2025-06-03 16:54:48,201 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 16:54:48,202 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 16:54:48,202 - src.utils.cache_response - DEBUG - Returning cached data : {'id': '3f048850-cdcc-46e5-ab0c-64c63d579823', 'name': 'jhon doe', 'email': 'a.kostenkouk@gmail.com', 'role': 'shiba_inu', 'phone_number': None, 'image': None, 'date_created': '2025-05-27T17:20:45.704422', 'date_updated': None, 'is_verified': True}
+2025-06-03 16:54:48,202 - src.db.db_setup - INFO - Closing session
+2025-06-03 16:54:48,961 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 16:54:48,962 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 16:54:48,962 - src.utils.cache_response - DEBUG - Returning cached data : {'id': '3f048850-cdcc-46e5-ab0c-64c63d579823', 'name': 'jhon doe', 'email': 'a.kostenkouk@gmail.com', 'role': 'shiba_inu', 'phone_number': None, 'image': None, 'date_created': '2025-05-27T17:20:45.704422', 'date_updated': None, 'is_verified': True}
+2025-06-03 16:54:48,962 - src.db.db_setup - INFO - Closing session
+2025-06-03 16:54:56,928 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 16:54:56,928 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 16:54:56,929 - src.utils.cache_response - DEBUG - Returning cached data : {'id': '3f048850-cdcc-46e5-ab0c-64c63d579823', 'name': 'jhon doe', 'email': 'a.kostenkouk@gmail.com', 'role': 'shiba_inu', 'phone_number': None, 'image': None, 'date_created': '2025-05-27T17:20:45.704422', 'date_updated': None, 'is_verified': True}
+2025-06-03 16:54:56,929 - src.db.db_setup - INFO - Closing session
+2025-06-03 16:54:57,301 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 16:54:57,302 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 16:54:57,302 - src.utils.cache_response - DEBUG - Returning cached data : {'id': '3f048850-cdcc-46e5-ab0c-64c63d579823', 'name': 'jhon doe', 'email': 'a.kostenkouk@gmail.com', 'role': 'shiba_inu', 'phone_number': None, 'image': None, 'date_created': '2025-05-27T17:20:45.704422', 'date_updated': None, 'is_verified': True}
+2025-06-03 16:54:57,302 - src.db.db_setup - INFO - Closing session
+2025-06-03 16:54:57,767 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 16:54:57,768 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 16:54:57,768 - src.utils.cache_response - DEBUG - Returning cached data : {'id': '3f048850-cdcc-46e5-ab0c-64c63d579823', 'name': 'jhon doe', 'email': 'a.kostenkouk@gmail.com', 'role': 'shiba_inu', 'phone_number': None, 'image': None, 'date_created': '2025-05-27T17:20:45.704422', 'date_updated': None, 'is_verified': True}
+2025-06-03 16:54:57,768 - src.db.db_setup - INFO - Closing session
+2025-06-03 16:54:58,134 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 16:54:58,135 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 16:54:58,135 - src.utils.cache_response - DEBUG - Returning cached data : {'id': '3f048850-cdcc-46e5-ab0c-64c63d579823', 'name': 'jhon doe', 'email': 'a.kostenkouk@gmail.com', 'role': 'shiba_inu', 'phone_number': None, 'image': None, 'date_created': '2025-05-27T17:20:45.704422', 'date_updated': None, 'is_verified': True}
+2025-06-03 16:54:58,135 - src.db.db_setup - INFO - Closing session
+2025-06-03 16:54:58,482 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 16:54:58,482 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 16:54:58,483 - src.utils.cache_response - DEBUG - Returning cached data : {'id': '3f048850-cdcc-46e5-ab0c-64c63d579823', 'name': 'jhon doe', 'email': 'a.kostenkouk@gmail.com', 'role': 'shiba_inu', 'phone_number': None, 'image': None, 'date_created': '2025-05-27T17:20:45.704422', 'date_updated': None, 'is_verified': True}
+2025-06-03 16:54:58,483 - src.db.db_setup - INFO - Closing session
+2025-06-03 16:54:58,833 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 16:54:58,833 - src.utils.rate_limiter - WARNING - Rate limit exceeded for: rate_limit:127.0.0.1:/api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 16:54:58,834 - src.db.db_setup - INFO - Closing session
+2025-06-03 16:54:59,199 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 16:54:59,200 - src.utils.rate_limiter - WARNING - Rate limit exceeded for: rate_limit:127.0.0.1:/api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 16:54:59,200 - src.db.db_setup - INFO - Closing session
+2025-06-03 16:55:00,222 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 16:55:00,223 - src.utils.rate_limiter - WARNING - Rate limit exceeded for: rate_limit:127.0.0.1:/api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 16:55:00,223 - src.db.db_setup - INFO - Closing session
+2025-06-03 16:55:00,921 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 16:55:00,922 - src.utils.rate_limiter - WARNING - Rate limit exceeded for: rate_limit:127.0.0.1:/api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 16:55:00,922 - src.db.db_setup - INFO - Closing session
+2025-06-03 16:55:01,510 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 16:55:01,511 - src.utils.rate_limiter - WARNING - Rate limit exceeded for: rate_limit:127.0.0.1:/api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 16:55:01,511 - src.db.db_setup - INFO - Closing session
+2025-06-03 16:55:03,638 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 16:55:03,638 - src.utils.rate_limiter - WARNING - Rate limit exceeded for: rate_limit:127.0.0.1:/api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 16:55:03,638 - src.db.db_setup - INFO - Closing session
+2025-06-03 16:55:25,217 - src.db.db_setup - INFO - Disposing the database engine and session maker
+2025-06-03 16:55:25,218 - src - INFO - Server has shut down at 2025-06-03 16:55:25.218272
+2025-06-03 16:55:25,780 - src.db.db_setup - INFO - Database engine initialized
+2025-06-03 16:55:26,635 - src - INFO - Server has started at 2025-06-03 16:55:26.635865
+2025-06-03 16:55:26,681 - src.db.db_setup - INFO - Database tables initialized successfully
+2025-06-03 16:55:26,681 - src - INFO - Database initialized succesfully at 2025-06-03 16:55:26.681736
+2025-06-03 16:56:09,367 - src.db.db_setup - INFO - Disposing the database engine and session maker
+2025-06-03 16:56:09,368 - src - INFO - Server has shut down at 2025-06-03 16:56:09.368762
+2025-06-03 16:56:09,917 - src.db.db_setup - INFO - Database engine initialized
+2025-06-03 16:56:10,762 - src - INFO - Server has started at 2025-06-03 16:56:10.762539
+2025-06-03 16:56:10,806 - src.db.db_setup - INFO - Database tables initialized successfully
+2025-06-03 16:56:10,806 - src - INFO - Database initialized succesfully at 2025-06-03 16:56:10.806621
+2025-06-03 16:57:29,869 - src.db.db_setup - INFO - Disposing the database engine and session maker
+2025-06-03 16:57:29,870 - src - INFO - Server has shut down at 2025-06-03 16:57:29.870020
+2025-06-03 16:57:30,494 - src.db.db_setup - INFO - Database engine initialized
+2025-06-03 16:57:31,379 - src - INFO - Server has started at 2025-06-03 16:57:31.379167
+2025-06-03 16:57:31,424 - src.db.db_setup - INFO - Database tables initialized successfully
+2025-06-03 16:57:31,425 - src - INFO - Database initialized succesfully at 2025-06-03 16:57:31.425046
+2025-06-03 17:00:04,739 - src.db.db_setup - INFO - Disposing the database engine and session maker
+2025-06-03 17:00:04,740 - src - INFO - Server has shut down at 2025-06-03 17:00:04.740404
+2025-06-03 17:00:05,330 - src.db.db_setup - INFO - Database engine initialized
+2025-06-03 17:00:06,227 - src - INFO - Server has started at 2025-06-03 17:00:06.227305
+2025-06-03 17:00:06,279 - src.db.db_setup - INFO - Database tables initialized successfully
+2025-06-03 17:00:06,279 - src - INFO - Database initialized succesfully at 2025-06-03 17:00:06.279625
+2025-06-03 17:00:14,002 - src.db.db_setup - INFO - Disposing the database engine and session maker
+2025-06-03 17:00:14,003 - src - INFO - Server has shut down at 2025-06-03 17:00:14.003174
+2025-06-03 17:00:14,562 - src.db.db_setup - INFO - Database engine initialized
+2025-06-03 17:00:15,395 - src - INFO - Server has started at 2025-06-03 17:00:15.395175
+2025-06-03 17:00:15,440 - src.db.db_setup - INFO - Database tables initialized successfully
+2025-06-03 17:00:15,440 - src - INFO - Database initialized succesfully at 2025-06-03 17:00:15.440283
+2025-06-03 17:00:21,102 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 17:00:21,104 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 17:00:21,155 - src.utils.cache_response - DEBUG - Data for caching after serialization: {'id': UUID('3f048850-cdcc-46e5-ab0c-64c63d579823'), 'name': 'jhon doe', 'email': 'a.kostenkouk@gmail.com', 'role': 'shiba_inu', 'phone_number': None, 'image': None, 'date_created': datetime.datetime(2025, 5, 27, 17, 20, 45, 704422), 'date_updated': None, 'is_verified': True}
+2025-06-03 17:00:21,155 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 17:00:21,155 - src.utils.cache_response - ERROR - Cache error for users:3f048850-cdcc-46e5-ab0c-64c63d579823: Object of type UUID is not JSON serializable
+Traceback (most recent call last):
+  File "/home/andriy/Documents/VSProjects/E-commerce_app/backend/src/utils/cache_response.py", line 132, in wrapper
+    await self.redis.set(
+  File "/home/andriy/Documents/VSProjects/E-commerce_app/backend/venv/lib/python3.12/site-packages/aiocache/base.py", line 64, in _enabled
+    return await func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/andriy/Documents/VSProjects/E-commerce_app/backend/venv/lib/python3.12/site-packages/aiocache/base.py", line 48, in _timeout
+    return await asyncio.wait_for(func(self, *args, **kwargs), timeout)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/asyncio/tasks.py", line 520, in wait_for
+    return await fut
+           ^^^^^^^^^
+  File "/home/andriy/Documents/VSProjects/E-commerce_app/backend/venv/lib/python3.12/site-packages/aiocache/base.py", line 78, in _plugins
+    ret = await func(self, *args, **kwargs)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/andriy/Documents/VSProjects/E-commerce_app/backend/venv/lib/python3.12/site-packages/aiocache/base.py", line 277, in set
+    ns_key, dumps(value), ttl=self._get_ttl(ttl), _cas_token=_cas_token, _conn=_conn
+            ^^^^^^^^^^^^
+  File "/home/andriy/Documents/VSProjects/E-commerce_app/backend/venv/lib/python3.12/site-packages/aiocache/serializers/serializers.py", line 148, in dumps
+    return json.dumps(value)
+           ^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/json/__init__.py", line 231, in dumps
+    return _default_encoder.encode(obj)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/json/encoder.py", line 200, in encode
+    chunks = self.iterencode(o, _one_shot=True)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/json/encoder.py", line 258, in iterencode
+    return _iterencode(o, 0)
+           ^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/json/encoder.py", line 180, in default
+    raise TypeError(f'Object of type {o.__class__.__name__} '
+TypeError: Object of type UUID is not JSON serializable
+2025-06-03 17:00:21,167 - src.db.db_setup - INFO - Closing session
+2025-06-03 17:00:35,785 - src.db.db_setup - INFO - Disposing the database engine and session maker
+2025-06-03 17:00:35,786 - src - INFO - Server has shut down at 2025-06-03 17:00:35.786471
+2025-06-03 17:00:36,415 - src.db.db_setup - INFO - Database engine initialized
+2025-06-03 17:00:37,317 - src - INFO - Server has started at 2025-06-03 17:00:37.317543
+2025-06-03 17:00:37,360 - src.db.db_setup - INFO - Database tables initialized successfully
+2025-06-03 17:00:37,360 - src - INFO - Database initialized succesfully at 2025-06-03 17:00:37.360950
+2025-06-03 17:00:38,328 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 17:00:38,329 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 17:00:38,366 - src.utils.cache_response - DEBUG - Data for caching after serialization: {"id":"3f048850-cdcc-46e5-ab0c-64c63d579823","name":"jhon doe","email":"a.kostenkouk@gmail.com","role":"shiba_inu","phone_number":null,"image":null,"date_created":"2025-05-27T17:20:45.704422","date_updated":null,"is_verified":true}
+2025-06-03 17:00:38,366 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 17:00:38,366 - src.db.db_setup - INFO - Closing session
+2025-06-03 17:00:52,592 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 17:00:52,593 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 17:00:52,593 - src.utils.cache_response - DEBUG - Returning cached data : {'id': '3f048850-cdcc-46e5-ab0c-64c63d579823', 'name': 'jhon doe', 'email': 'a.kostenkouk@gmail.com', 'role': 'shiba_inu', 'phone_number': None, 'image': None, 'date_created': '2025-05-27T17:20:45.704422', 'date_updated': None, 'is_verified': True}
+2025-06-03 17:00:52,594 - src.db.db_setup - INFO - Closing session
+2025-06-03 17:11:50,958 - src.db.db_setup - INFO - Disposing the database engine and session maker
+2025-06-03 17:11:50,959 - src - INFO - Server has shut down at 2025-06-03 17:11:50.959119
+2025-06-03 17:11:51,589 - src.db.db_setup - INFO - Database engine initialized
+2025-06-03 17:11:52,421 - src - INFO - Server has started at 2025-06-03 17:11:52.421573
+2025-06-03 17:11:52,469 - src.db.db_setup - INFO - Database tables initialized successfully
+2025-06-03 17:11:52,469 - src - INFO - Database initialized succesfully at 2025-06-03 17:11:52.469188
+2025-06-03 17:15:03,860 - src.db.db_setup - INFO - Disposing the database engine and session maker
+2025-06-03 17:15:03,861 - src - INFO - Server has shut down at 2025-06-03 17:15:03.861764
+2025-06-03 17:15:04,478 - src.db.db_setup - INFO - Database engine initialized
+2025-06-03 17:15:05,332 - src - INFO - Server has started at 2025-06-03 17:15:05.332869
+2025-06-03 17:15:05,377 - src.db.db_setup - INFO - Database tables initialized successfully
+2025-06-03 17:15:05,378 - src - INFO - Database initialized succesfully at 2025-06-03 17:15:05.378020
+2025-06-03 17:17:54,821 - src.db.db_setup - INFO - Disposing the database engine and session maker
+2025-06-03 17:17:54,822 - src - INFO - Server has shut down at 2025-06-03 17:17:54.822898
+2025-06-03 17:17:55,414 - src.db.db_setup - INFO - Database engine initialized
+2025-06-03 17:17:56,221 - src - INFO - Server has started at 2025-06-03 17:17:56.221922
+2025-06-03 17:17:56,265 - src.db.db_setup - INFO - Database tables initialized successfully
+2025-06-03 17:17:56,265 - src - INFO - Database initialized succesfully at 2025-06-03 17:17:56.265764
+2025-06-03 17:18:32,243 - src.db.db_setup - INFO - Disposing the database engine and session maker
+2025-06-03 17:18:32,244 - src - INFO - Server has shut down at 2025-06-03 17:18:32.244619
+2025-06-03 17:18:32,822 - src.db.db_setup - INFO - Database engine initialized
+2025-06-03 17:18:33,631 - src - INFO - Server has started at 2025-06-03 17:18:33.631280
+2025-06-03 17:18:33,674 - src.db.db_setup - INFO - Database tables initialized successfully
+2025-06-03 17:18:33,674 - src - INFO - Database initialized succesfully at 2025-06-03 17:18:33.674870
+2025-06-03 17:22:28,359 - src.db.db_setup - INFO - Disposing the database engine and session maker
+2025-06-03 17:22:28,360 - src - INFO - Server has shut down at 2025-06-03 17:22:28.360253
+2025-06-03 17:22:28,955 - src.db.db_setup - INFO - Database engine initialized
+2025-06-03 17:22:29,905 - src - INFO - Server has started at 2025-06-03 17:22:29.905756
+2025-06-03 17:22:29,954 - src.db.db_setup - INFO - Database tables initialized successfully
+2025-06-03 17:22:29,954 - src - INFO - Database initialized succesfully at 2025-06-03 17:22:29.954680
+2025-06-03 17:22:29,959 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 17:22:29,960 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 17:22:29,997 - src.utils.cache_response - DEBUG - Data for caching after serialization: {'id': '3f048850-cdcc-46e5-ab0c-64c63d579823', 'name': 'jhon doe', 'email': 'a.kostenkouk@gmail.com', 'role': 'shiba_inu', 'phone_number': None, 'image': None, 'date_created': '2025-05-27T17:20:45.704422', 'date_updated': None, 'is_verified': True}
+2025-06-03 17:22:29,997 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 17:22:29,997 - src.db.db_setup - INFO - Closing session
+2025-06-03 17:23:48,427 - src.db.db_setup - INFO - Disposing the database engine and session maker
+2025-06-03 17:23:48,428 - src - INFO - Server has shut down at 2025-06-03 17:23:48.428400
+2025-06-03 17:23:49,024 - src.db.db_setup - INFO - Database engine initialized
+2025-06-03 17:23:49,854 - src - INFO - Server has started at 2025-06-03 17:23:49.854098
+2025-06-03 17:23:49,903 - src.db.db_setup - INFO - Database tables initialized successfully
+2025-06-03 17:23:49,903 - src - INFO - Database initialized succesfully at 2025-06-03 17:23:49.903428
+2025-06-03 17:23:54,915 - src.db.db_setup - INFO - Disposing the database engine and session maker
+2025-06-03 17:23:54,916 - src - INFO - Server has shut down at 2025-06-03 17:23:54.916497
+2025-06-03 17:23:55,494 - src.db.db_setup - INFO - Database engine initialized
+2025-06-03 17:23:56,352 - src - INFO - Server has started at 2025-06-03 17:23:56.352157
+2025-06-03 17:23:56,397 - src.db.db_setup - INFO - Database tables initialized successfully
+2025-06-03 17:23:56,397 - src - INFO - Database initialized succesfully at 2025-06-03 17:23:56.397666
+2025-06-03 17:24:20,243 - src.db.db_setup - INFO - Disposing the database engine and session maker
+2025-06-03 17:24:20,244 - src - INFO - Server has shut down at 2025-06-03 17:24:20.244902
+2025-06-03 17:24:20,879 - src.db.db_setup - INFO - Database engine initialized
+2025-06-03 17:24:21,734 - src - INFO - Server has started at 2025-06-03 17:24:21.734798
+2025-06-03 17:24:21,779 - src.db.db_setup - INFO - Database tables initialized successfully
+2025-06-03 17:24:21,779 - src - INFO - Database initialized succesfully at 2025-06-03 17:24:21.779542
+2025-06-03 17:24:22,495 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 17:24:22,497 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 17:24:22,540 - src.utils.cache_response - DEBUG - Data for caching after serialization: {"id": "3f048850-cdcc-46e5-ab0c-64c63d579823", "name": "jhon doe", "email": "a.kostenkouk@gmail.com", "role": "shiba_inu", "phone_number": null, "image": null, "date_created": "2025-05-27T17:20:45.704422", "date_updated": null, "is_verified": true}
+2025-06-03 17:24:22,540 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 17:24:22,540 - src.db.db_setup - INFO - Closing session
+2025-06-03 17:24:37,701 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 17:24:37,702 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 17:24:37,702 - src.utils.cache_response - DEBUG - Returning cached data : {'id': '3f048850-cdcc-46e5-ab0c-64c63d579823', 'name': 'jhon doe', 'email': 'a.kostenkouk@gmail.com', 'role': 'shiba_inu', 'phone_number': None, 'image': None, 'date_created': '2025-05-27T17:20:45.704422', 'date_updated': None, 'is_verified': True}
+2025-06-03 17:24:37,702 - src.db.db_setup - INFO - Closing session
+2025-06-03 17:25:28,722 - src.db.db_setup - INFO - Disposing the database engine and session maker
+2025-06-03 17:25:28,723 - src - INFO - Server has shut down at 2025-06-03 17:25:28.723040
+2025-06-03 17:25:29,309 - src.db.db_setup - INFO - Database engine initialized
+2025-06-03 17:25:30,123 - src - INFO - Server has started at 2025-06-03 17:25:30.123741
+2025-06-03 17:25:30,170 - src.db.db_setup - INFO - Database tables initialized successfully
+2025-06-03 17:25:30,170 - src - INFO - Database initialized succesfully at 2025-06-03 17:25:30.170508
+2025-06-03 17:25:34,660 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 17:25:34,662 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 17:25:34,720 - src.utils.cache_response - DEBUG - Data for caching after serialization: {"id": "3f048850-cdcc-46e5-ab0c-64c63d579823", "name": "jhon doe", "email": "a.kostenkouk@gmail.com", "role": "shiba_inu", "phone_number": null, "image": null, "date_created": "2025-05-27T17:20:45.704422", "date_updated": null, "is_verified": true}
+2025-06-03 17:25:34,720 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 17:25:34,721 - src.db.db_setup - INFO - Closing session
+2025-06-03 17:25:50,339 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 17:25:50,340 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 17:25:50,340 - src.utils.cache_response - DEBUG - Returning cached data : {"id": "3f048850-cdcc-46e5-ab0c-64c63d579823", "name": "jhon doe", "email": "a.kostenkouk@gmail.com", "role": "shiba_inu", "phone_number": null, "image": null, "date_created": "2025-05-27T17:20:45.704422", "date_updated": null, "is_verified": true}
+2025-06-03 17:25:50,340 - src.db.db_setup - INFO - Closing session
+2025-06-03 17:26:50,561 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 17:26:50,561 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 17:26:50,564 - src.utils.cache_response - DEBUG - Data for caching after serialization: {"id": "3f048850-cdcc-46e5-ab0c-64c63d579823", "name": "jhon doe", "email": "a.kostenkouk@gmail.com", "role": "shiba_inu", "phone_number": null, "image": null, "date_created": "2025-05-27T17:20:45.704422", "date_updated": null, "is_verified": true}
+2025-06-03 17:26:50,564 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 17:26:50,565 - src.db.db_setup - INFO - Closing session
+2025-06-03 17:27:20,031 - src.db.db_setup - INFO - Disposing the database engine and session maker
+2025-06-03 17:27:20,032 - src - INFO - Server has shut down at 2025-06-03 17:27:20.032302
+2025-06-03 17:27:20,588 - src.db.db_setup - INFO - Database engine initialized
+2025-06-03 17:27:21,428 - src - INFO - Server has started at 2025-06-03 17:27:21.428079
+2025-06-03 17:27:21,476 - src.db.db_setup - INFO - Database tables initialized successfully
+2025-06-03 17:27:21,476 - src - INFO - Database initialized succesfully at 2025-06-03 17:27:21.476197
+2025-06-03 17:36:18,998 - src.db.db_setup - INFO - Disposing the database engine and session maker
+2025-06-03 17:36:18,999 - src - INFO - Server has shut down at 2025-06-03 17:36:18.999281
+2025-06-03 17:36:19,569 - src.db.db_setup - INFO - Database engine initialized
+2025-06-03 17:36:20,390 - src - INFO - Server has started at 2025-06-03 17:36:20.390006
+2025-06-03 17:36:20,434 - src.db.db_setup - INFO - Database tables initialized successfully
+2025-06-03 17:36:20,434 - src - INFO - Database initialized succesfully at 2025-06-03 17:36:20.434977
+2025-06-03 17:37:30,190 - src.db.db_setup - INFO - Disposing the database engine and session maker
+2025-06-03 17:37:30,191 - src - INFO - Server has shut down at 2025-06-03 17:37:30.191609
+2025-06-03 17:37:30,751 - src.db.db_setup - INFO - Database engine initialized
+2025-06-03 17:37:31,565 - src - INFO - Server has started at 2025-06-03 17:37:31.565410
+2025-06-03 17:37:31,609 - src.db.db_setup - INFO - Database tables initialized successfully
+2025-06-03 17:37:31,609 - src - INFO - Database initialized succesfully at 2025-06-03 17:37:31.609728
+2025-06-03 17:37:37,971 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 17:37:37,973 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 17:37:38,010 - src.utils.cache_response - DEBUG - Data for caching after serialization: {"id":"3f048850-cdcc-46e5-ab0c-64c63d579823","name":"jhon doe","email":"a.kostenkouk@gmail.com","role":"shiba_inu","phone_number":null,"image":null,"date_created":"2025-05-27T17:20:45.704422","date_updated":null,"is_verified":true}
+2025-06-03 17:37:38,010 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 17:37:38,010 - src.db.db_setup - INFO - Closing session
+2025-06-03 17:38:06,811 - src.utils.rate_limiter - DEBUG - Generating rate limit key for request: 127.0.0.1 : /api/v1/user/id/3f048850-cdcc-46e5-ab0c-64c63d579823
+2025-06-03 17:38:06,812 - src.utils.cache_response - DEBUG - Using Redis connection: RedisCache (127.0.0.1:6379)
+2025-06-03 17:38:06,812 - src.utils.cache_response - DEBUG - Returning cached data : {"id":"3f048850-cdcc-46e5-ab0c-64c63d579823","name":"jhon doe","email":"a.kostenkouk@gmail.com","role":"shiba_inu","phone_number":null,"image":null,"date_created":"2025-05-27T17:20:45.704422","date_updated":null,"is_verified":true}
+2025-06-03 17:38:06,812 - src.db.db_setup - INFO - Closing session
+2025-06-03 17:38:28,528 - src.db.db_setup - INFO - Disposing the database engine and session maker
+2025-06-03 17:38:28,529 - src - INFO - Server has shut down at 2025-06-03 17:38:28.529340
+2025-06-03 17:38:29,155 - src.db.db_setup - INFO - Database engine initialized
+2025-06-03 17:38:30,033 - src - INFO - Server has started at 2025-06-03 17:38:30.033197
+2025-06-03 17:38:30,079 - src.db.db_setup - INFO - Database tables initialized successfully
+2025-06-03 17:38:30,079 - src - INFO - Database initialized succesfully at 2025-06-03 17:38:30.079523

@@ -31,7 +31,8 @@ class UserInfo(BaseModel):
                             },
                             json_encoders={
                                 datetime: lambda v: v.isoformat(), # convert datetime to ISO format
-                                UUID: lambda v: str(v) # convert UUID to string
+                                UUID: lambda v: str(v), # convert UUID to string
+                                EmailStr: lambda v: str(v)  # convert EmailStr to string
                             }
 
 

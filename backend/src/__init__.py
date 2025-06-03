@@ -1,11 +1,10 @@
 import datetime
-import logging
-
 from typing import List, Dict
+from contextlib import asynccontextmanager
+
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from fastapi import FastAPI, HTTPException, Request, status
-from contextlib import asynccontextmanager
+from fastapi import FastAPI, Request, status
 from fastapi.staticfiles import StaticFiles
 from pydantic import ValidationError
 from fastapi.exceptions import ResponseValidationError, RequestValidationError
@@ -33,8 +32,13 @@ from src.errors.rate_limiter_error import RateLimitExceededError
 from src.errors.database_errors import (DatabaseConnectionError,
                                         DatabaseSessionError)
 from src.errors.email_service_errors import EmailServiceError
+from src.utils.logger_config import setup_logger
+from src.config import get_settings
 
-logger = logging.getLogger(__name__)
+
+# Configure logging
+logger = setup_logger(__name__)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -42,7 +46,8 @@ async def lifespan(app: FastAPI):
     This is a context manager that will run the startup and shutdown
     events of a FastAPI application.
     """
-    print(f"Server has started at {datetime.datetime.now()}")
+   
+    logger.info(f"Server has started at {datetime.datetime.now()}")
     
     # Use a boolean to track connection success
     db_initialized = False
@@ -53,7 +58,7 @@ async def lifespan(app: FastAPI):
             # Initialize the database
             await database_session_manager.init_db()
             db_initialized = True
-            logger.info('Database initialized succesfully.')
+            logger.info(f'Database initialized succesfully at {datetime.datetime.now()}')
         except DatabaseConnectionError as e:
             logger.error(f"Database connection error: {str(e)}")
         except Exception as e:
@@ -67,7 +72,9 @@ async def lifespan(app: FastAPI):
     # Cleanup
     if database_session_manager.is_connected:
         await database_session_manager.close()
-    print(f"Server has shut down at {datetime.datetime.now()}")
+    
+    logger.info(f"Server has shut down at {datetime.datetime.now()}")
+
 
 
 app = FastAPI(
@@ -228,19 +235,16 @@ def add_exception_handlers(app: FastAPI):
 add_exception_handlers(app)
         
 
-# CORS configuration
-origins = [
-    "http://localhost:3000",
-    "http://localhost:3001"
-]
 
-# Allow all origins (for development purposes, restrict in production)
+# CORS or "Cross-Origin Resource Sharing" is a mechanism that 
+# allows restricted resources on a web page to be requested from another domain 
+# outside the domain from which the first resource was served.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins="http://localhost:3000",
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE"],
-    allow_headers=["*"],
+    allow_origins=get_settings().CORS_ALLOWED_ORIGINS,
+    allow_credentials=get_settings().CORS_ALLOW_CREDENTIALS,
+    allow_methods=get_settings().CORS_ALLOWED_METHODS,
+    allow_headers=get_settings().CORS_ALLOWED_HEADERS,
 )
 
 # Static files configuration

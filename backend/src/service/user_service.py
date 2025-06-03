@@ -1,3 +1,4 @@
+from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, asc
 
@@ -61,7 +62,7 @@ class UserCRUDService:
         return UserInfo(**user.__dict__)
         
   
-    async def get_user_by_id(self, user_id: str) -> UserInfo:
+    async def get_user_by_id(self, user_id: UUID) -> UserInfo:
         result = await self.session.execute(select(User).where(User.id == user_id))
         user = result.scalars().first()
         if not user:

@@ -20,12 +20,12 @@ This checklist covers all essential and advanced items to get your FastAPI micro
 - [ ] Strong request/response validation (Pydantic models)
 - [ ] Sensible HTTP status codes for all responses
 - [ ] Proper use of response models (no leaking sensitive info)
-- [ ] Rate limiting (e.g., [slowapi](https://pypi.org/project/slowapi/), API gateway)
+- [ ] Rate limiting Redis / ([slowapi](https://pypi.org/project/slowapi/), API gateway) 
 - [ ] CORS securely configured
 - [ ] HTTPS enforced (SSL/TLS)
 - [✅] Authentication (JWT/OAuth2, external IdP, or internal)
-- [ ] Role-based access control (RBAC) and authorization checks
-- [ ] Secure handling of user passwords (hashing, salting)
+- [✅] Role-based access control (RBAC) and authorization checks
+- [✅] Secure handling of user passwords (hashing, salting)
 - [ ] Input sanitation (to prevent injection attacks)
 
 ---
@@ -34,8 +34,8 @@ This checklist covers all essential and advanced items to get your FastAPI micro
 
 - [ ] Each service uses its own database (database-per-service)
 - [ ] Production-grade RDBMS (Postgres, MySQL) or NoSQL (MongoDB, etc.)
-- [ ] Async ORM (SQLAlchemy 2.x async, Tortoise ORM, etc.)
-- [ ] Database migrations (Alembic, Tortoise-ORM migrations, etc.)
+- [✅] Async ORM (SQLAlchemy 2.x async, Tortoise ORM, etc.)
+- [✅] Database migrations (Alembic, Tortoise-ORM migrations, etc.)
 - [ ] Backups and recovery plan
 - [ ] Connection pooling configured
 

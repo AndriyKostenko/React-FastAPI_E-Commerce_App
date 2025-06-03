@@ -8,7 +8,7 @@ from fastapi_mail.errors import ConnectionErrors
 from pydantic import ValidationError
 from jinja2 import Environment, FileSystemLoader, TemplateNotFound
 
-from src.config import settings
+from src.config import get_settings
 from src.errors.email_service_errors import EmailServiceError
 from src.security.authentication import auth_manager
 
@@ -19,19 +19,20 @@ logger = logging.getLogger(__name__)
 
 class EmailService:
     def __init__(self):
+        self.settings = get_settings()
         self.config = ConnectionConfig(
-            MAIL_USERNAME=settings.MAIL_USERNAME,
-            MAIL_PASSWORD=settings.MAIL_PASSWORD,
-            MAIL_FROM=settings.MAIL_FROM,
-            MAIL_PORT=settings.MAIL_PORT,
-            MAIL_SERVER=settings.MAIL_SERVER,
-            MAIL_FROM_NAME=settings.MAIL_FROM_NAME,
-            MAIL_STARTTLS=settings.MAIL_STARTTLS,
-            MAIL_SSL_TLS=settings.MAIL_SSL_TLS,
-            USE_CREDENTIALS=settings.USE_CREDENTIALS,
-            MAIL_DEBUG=settings.MAIL_DEBUG,
-            TEMPLATE_FOLDER=settings.TEMPLATES_DIR,
-            VALIDATE_CERTS=settings.VALIDATE_CERTS
+            MAIL_USERNAME=self.settings.MAIL_USERNAME,
+            MAIL_PASSWORD=self.settings.MAIL_PASSWORD,
+            MAIL_FROM=self.settings.MAIL_FROM,
+            MAIL_PORT=self.settings.MAIL_PORT,
+            MAIL_SERVER=self.settings.MAIL_SERVER,
+            MAIL_FROM_NAME=self.settings.MAIL_FROM_NAME,
+            MAIL_STARTTLS=self.settings.MAIL_STARTTLS,
+            MAIL_SSL_TLS=self.settings.MAIL_SSL_TLS,
+            USE_CREDENTIALS=self.settings.USE_CREDENTIALS,
+            MAIL_DEBUG=self.settings.MAIL_DEBUG,
+            TEMPLATE_FOLDER=self.settings.TEMPLATES_DIR,
+            VALIDATE_CERTS=self.settings.VALIDATE_CERTS
         )
         self.jinja_env = Environment(loader=FileSystemLoader(self.config.TEMPLATE_FOLDER))
         self.fast_mail = FastMail(self.config)
