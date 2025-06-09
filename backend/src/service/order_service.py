@@ -42,7 +42,7 @@ class OrderCRUDService:
         await self.session.refresh(new_order)
         return new_order
 
-    async def get_all_orders(self, start_date: str = None, end_date: str = None):
+    async def get_all_orders(self, start_date: str | None = None, end_date: str | None = None):
 
         # if start_date and end_date are provided, filter orders by date range and status 'complete'
         if start_date and end_date:
