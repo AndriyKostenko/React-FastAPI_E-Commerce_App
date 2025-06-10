@@ -1,13 +1,16 @@
+from hmac import new
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, asc
+from pydantic import EmailStr
 
 from authentication import auth_manager
 from models import User
-from schemas import UserSignUp, UserInfo, UserBasicUpdate, AllUsersInfo
+from schemas import UserSignUp, UserBasicUpdate
 from errors import (UserNotFoundError, 
                     UserAlreadyExistsError)
+
 
 
 
@@ -27,9 +30,8 @@ class UserCRUDService:
         user = query.scalars().first()
         return user is not None
     
-    async def create_user(self, user: UserSignUp) -> UserInfo:
+    async def create_user(self, user: UserSignUp) -> User:
         if await self._check_user_exists(user.email):
-            # if user already exists, raise an exception
             raise UserAlreadyExistsError(detail=f'User with email: {user.email} already exists')
         
         hashed_password = auth_manager.hash_password(user.password)
@@ -46,42 +48,24 @@ class UserCRUDService:
         # changes to the database, which is an I/O operation
         await self.session.commit()
         await self.session.refresh(new_user)
-        return UserInfo(**new_user.__dict__)
+        return new_user
        
 
-    async def get_all_users(self) -> AllUsersInfo:
+    async def get_all_users(self) -> list[User]:
         query = await self.session.execute(select(User).order_by(asc(User.id)))
         users = query.scalars().all() 
-        return AllUsersInfo(**users.__dict__)
+        return users
     
     
-    async def get_user_by_email(self, email: str) -> UserInfo:
+    async def get_user_by_email(self, email: str) -> User:
         query = await self.session.execute(select(User).where(User.email == email))
         user = query.scalars().first()
         if not user:
             raise UserNotFoundError(detail=f'User with email: "{email}" not found')
-        return UserInfo(**user.__dict__)
+        return user
         
   
-    async def get_user_by_id(self, user_id: UUID) -> UserInfo:
-        result = await self.session.execute(select(User).where(User.id == user_id))
-        user = result.scalars().first()
-        if not user:
-            raise UserNotFoundError(detail=f'User with id: "{user_id}" not found')
-        return UserInfo(**user.__dict__)
-    
-    # returning the whole User object ONLY for updating the password, unlike in other methods
-    async def _get_user_by_email_internal(self, email: str) -> User:
-        """Internal method that returns the full User model"""
-        result = await self.session.execute(select(User).where(User.email == email))
-        user = result.scalars().first()
-        if not user:
-            raise UserNotFoundError(detail=f'User with email: "{email}" not found')
-        return user
-    
-    # returning the whole User object ONLY for updating the password, unlike in other methods
-    async def _get_user_by_id_internal(self, user_id: str) -> User:
-        """Internal method that returns the full User model"""
+    async def get_user_by_id(self, user_id: UUID) -> User:
         result = await self.session.execute(select(User).where(User.id == user_id))
         user = result.scalars().first()
         if not user:
@@ -89,7 +73,7 @@ class UserCRUDService:
         return user
 
 
-    async def update_user_basic_info(self, user_id: UUID, user_update_data: UserBasicUpdate) -> UserInfo:
+    async def update_user_basic_info(self, user_id: UUID, user_update_data: UserBasicUpdate) -> User:
         """Update basic user information like name, phone, image"""
         db_user = await self.get_user_by_id(user_id)
         
@@ -99,23 +83,23 @@ class UserCRUDService:
             
         await self.session.commit()
         await self.session.refresh(db_user)
-        return UserInfo(**db_user.__dict__)
+        return db_user
     
 
-    async def update_user_verified_status(self, user_id: UUID, verified: bool) -> UserInfo:
-        db_user = await self.get_user_by_id(user_id)
-        db_user.is_verified = verified
+    async def update_user_verified_status(self, user_email: EmailStr) -> User:
+        db_user = await self.get_user_by_email(user_email)
+        db_user.is_verified = True
         await self.session.commit()
         await self.session.refresh(db_user)
-        return UserInfo(**db_user.__dict__)
+        return db_user
     
     
-    async def update_user_password(self, user_id: str, new_password: str) -> UserInfo:
-        db_user = await self._get_user_by_id_internal(user_id=user_id)
+    async def update_user_password(self, user_id: UUID, new_password: str) -> User:
+        db_user = await self.get_user_by_id(user_id)
         db_user.hashed_password = auth_manager.hash_password(new_password)
         await self.session.commit()
         await self.session.refresh(db_user)
-        return UserInfo(**db_user.__dict__)
+        return db_user
     
 
     async def delete_user_by_id(self, user_id: UUID) -> None:

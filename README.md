@@ -13,8 +13,8 @@
 - Mark current DB as up-to-date without running migrations: alembic stamp head (if got error about not matching your current models with existing, u can stamp specific idwith: alembic stamp <revision_id> )
 
 ## Redis
- - redis-cli : to check and interact with redis
- - redis-cli
+ - docker exec -it backend-redis-1 redis-cli : to check and interact with redis
+ - 
     KEYS *    : check keys in Redis
 
    Remember to:
@@ -32,3 +32,17 @@
 
    # Make sure Redis is enabled on startup
    sudo systemctl enable redis
+
+## Docker
+   - docker build -t user-service . (building the image)
+   - docker run --env-file .env user-service (running with .env file)
+   - docker compose up --build
+   - docker compose down
+   - docker volume rm backend_postgres_data (Remove the DB volume (WARNING: deletes all Postgres data!))
+
+## UV
+ - uv pip install <package name>
+
+
+## PG Admin
+   - http://localhost:5050

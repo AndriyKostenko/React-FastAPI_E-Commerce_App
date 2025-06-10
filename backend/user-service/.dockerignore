@@ -17,3 +17,5 @@ docs/
 *.log
 docker-compose*.yml
 Dockerfile*
+logs/*
+!logs/.gitkeep

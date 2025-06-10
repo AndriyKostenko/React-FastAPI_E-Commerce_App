@@ -3,3 +3,7 @@
 /.pytest_cache
 /venv
 /.mypy_cache
+.venv/
+.env.*
+!.env.example 
+ 

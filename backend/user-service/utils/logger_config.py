@@ -3,9 +3,17 @@ import sys
 from pathlib import Path
 from typing import Dict
 
-# Create logs directory if it doesn't exist
-LOG_DIR = Path(__file__).parent.parent.parent / "logs"
-LOG_DIR.mkdir(exist_ok=True)
+# Get the project root directory
+PROJECT_ROOT = Path(__file__).parent.parent
+
+# Create logs directory relative to the project root
+LOG_DIR = PROJECT_ROOT / "logs"
+try:
+    LOG_DIR.mkdir(exist_ok=True, mode=0o755)
+except PermissionError:
+    # Fallback to /app/logs for containerized environment
+    LOG_DIR = Path("/app/logs")
+    LOG_DIR.mkdir(exist_ok=True, mode=0o755)
 
 # Store configured loggers
 _loggers: Dict[str, logging.Logger] = {}

@@ -1,6 +1,5 @@
 from datetime import datetime
 from contextlib import asynccontextmanager
-from fastapi_cache import FastAPICache
 
 import uvicorn
 from fastapi.middleware.cors import CORSMiddleware
@@ -82,7 +81,7 @@ async def host_validation_middleware(request: Request, call_next):
     - Works at the HTTP request level before any route handling occurs.
     """
     host = request.headers.get("host", "").split(":")[0]
-    if settings.DEBUG_MODE or host in settings.CORS_ALLOWED_ORIGINS:
+    if settings.DEBUG_MODE or host in settings.ALLOWED_HOSTS:
         response = await call_next(request)
         return response
     
@@ -93,6 +92,12 @@ async def host_validation_middleware(request: Request, call_next):
         headers={"X-Error": "Invalid Host header"}
     )
     
+@app.get("/health", tags=["Health Check"])  
+async def health_check():
+    """
+    A simple health check endpoint to verify that the service is running.
+    """
+    return {"status": "ok", "timestamp": datetime.now().isoformat()}
     
 def add_exception_handlers(app: FastAPI):
     """
@@ -191,7 +196,7 @@ app.include_router(user_routes, prefix="/api/v1")
 
 
 if __name__ == "__main__":
-    uvicorn.run(app,
+    uvicorn.run("main:app",
                 host=settings.APP_HOST,
                 port=settings.APP_PORT,
                 reload=True)

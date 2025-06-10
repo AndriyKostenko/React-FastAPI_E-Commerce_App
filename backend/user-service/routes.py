@@ -263,13 +263,11 @@ async def get_user_by_user_id(request: Request,
 async def verify_email(request: Request,
                        token: str,
                        user_crud_service: UserCRUDService = Depends(get_user_service)) -> EmailVerificationResponse:
-    token_data = await auth_manager.get_current_user(token=token, required_purpose="email_verification")
-    
-    await user_crud_service.update_user_verified_status(user_email=token_data.email, verified=True)
-    
+    token_data = await auth_manager.get_current_user_from_token(token=token, required_purpose="email_verification")
+    db_user = await user_crud_service.update_user_verified_status(user_email=token_data.email)
     return EmailVerificationResponse(
         detail="Email verified successfully",
-        email=token_data.email,
-        verified=True
+        email=db_user.email,
+        verified=db_user.is_verified
     )
 

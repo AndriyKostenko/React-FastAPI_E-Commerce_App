@@ -73,7 +73,6 @@ class EmailService:
                                 template_body: Dict[str, str]) -> None:
         try:
             rendered_html = self.render_template(template_name=template_name, template_body=template_body)
-            logger.debug(f"Rendered HTML: {rendered_html}")
             message = self.create_message(recipients, subject, rendered_html)
             await self.fast_mail.send_message(message, template_name=template_name)
         except ConnectionErrors as e:
@@ -118,9 +117,9 @@ class EmailService:
             purpose="email_verification"
         )
 
-        activate_url = f"http://{self.settings.APP_HOST}:{self.settings.APP_PORT}/activate/{token}"
+        activate_url = f"http://{self.settings.APP_HOST}:{self.settings.APP_PORT}/api/v1/activate/{token}"
         
-        logger.info(f"Sending verification email to {email} with token {token}")
+        logger.info(f"Sending verification email to: {email} with token: {token}")
         
         email_data: Dict[str, str | None] = {
             "app_name": self.settings.MAIL_FROM_NAME,
@@ -153,7 +152,7 @@ class EmailService:
             expires_delta=timedelta(minutes=self.settings.RESET_TOKEN_EXPIRY_MINUTES),
             purpose="password_reset"
         )
-        reset_url = f"http://{self.settings.APP_HOST}:{self.settings.APP_PORT}/password-reset/{token}"
+        reset_url = f"http://{self.settings.APP_HOST}:{self.settings.APP_PORT}/api/v1/password-reset/{token}"
         
    
         logger.info(f"Sending password reset email to {email} with token {token}")

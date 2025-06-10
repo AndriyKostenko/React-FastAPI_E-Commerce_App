@@ -1,54 +1,123 @@
-version: '3.8'
+version: "3.8"
 
 services:
-  traefik:
-    image: traefik:v2.10
-    command:
-      - "--api.insecure=false"
-      - "--providers.docker=true"
-      - "--providers.docker.exposedbydefault=false"
-      - "--entrypoints.web.address=:80"
-      - "--entrypoints.websecure.address=:443"
-    ports:
-      - "80:80"
-      - "443:443"
+
+  db:
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./traefik.yml:/etc/traefik/traefik.yml:ro
-      - ./acme.json:/acme.json
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - usernet
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    restart: always
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
+    ports:
+      - "5050:80"
+    networks:
+      - usernet
+    # depends_on:
+    #   db:
+    #     condition: service_healthy
+
+
+  redis:
+    image: redis:7-alpine
+    restart: always
+    ports:
+      - "6379:6379"
+    networks:
+      - usernet
 
   user-service:
-    build: ./user-service
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.service1.rule=PathPrefix(`/api/service1`)"
-      - "traefik.http.services.service1.loadbalancer.server.port=8000"
-      - "traefik.http.middlewares.secure-headers.headers.sslredirect=true"
-      - "traefik.http.middlewares.secure-headers.headers.stsincludesubdomains=true"
-      - "traefik.http.middlewares.secure-headers.headers.stspreload=true"
-      - "traefik.http.middlewares.secure-headers.headers.stsseconds=31536000"
-      - "traefik.http.middlewares.ratelimit.ratelimit.average=100"
-      - "traefik.http.middlewares.ratelimit.ratelimit.burst=50"
+    build:
+      context: ./user-service
+      dockerfile: Dockerfile
+    restart: always  
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - ./user-service/.env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+    ports:
+      - "8000:8000"
+    networks:
+      - usernet
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
-  prometheus:
-    image: prom/prometheus
-    volumes:
-      - ./prometheus:/etc/prometheus
-      - prometheus_data:/prometheus
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.prometheus.rule=Host(`prometheus.yourdomain.com`)"
-
-  grafana:
-    image: grafana/grafana
-    volumes:
-      - grafana_data:/var/lib/grafana
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.grafana.rule=Host(`grafana.yourdomain.com`)"
-
+networks:
+  usernet:
+    
 volumes:
-  prometheus_data:
-  grafana_data:
+  postgres_data:
+
+
+  # traefik:
+  #   image: traefik:v2.10
+  #   command:
+  #     - "--api.insecure=false"
+  #     - "--providers.docker=true"
+  #     - "--providers.docker.exposedbydefault=false"
+  #     - "--entrypoints.web.address=:80"
+  #     - "--entrypoints.websecure.address=:443"
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #   volumes:
+  #     - /var/run/docker.sock:/var/run/docker.sock:ro
+  #     - ./traefik.yml:/etc/traefik/traefik.yml:ro
+  #     - ./acme.json:/acme.json
+
+
+    # labels:
+    #   - "traefik.enable=true"
+    #   - "traefik.http.routers.service1.rule=PathPrefix(`/api/service1`)"
+    #   - "traefik.http.services.service1.loadbalancer.server.port=8000"
+    #   - "traefik.http.middlewares.secure-headers.headers.sslredirect=true"
+    #   - "traefik.http.middlewares.secure-headers.headers.stsincludesubdomains=true"
+    #   - "traefik.http.middlewares.secure-headers.headers.stspreload=true"
+    #   - "traefik.http.middlewares.secure-headers.headers.stsseconds=31536000"
+    #   - "traefik.http.middlewares.ratelimit.ratelimit.average=100"
+    #   - "traefik.http.middlewares.ratelimit.ratelimit.burst=50"
+
+  # prometheus:
+  #   image: prom/prometheus
+  #   volumes:
+  #     - ./prometheus:/etc/prometheus
+  #     - prometheus_data:/prometheus
+  #   command:
+  #     - '--config.file=/etc/prometheus/prometheus.yml'
+  #   labels:
+  #     - "traefik.enable=true"
+  #     - "traefik.http.routers.prometheus.rule=Host(`prometheus.yourdomain.com`)"
+
+  # grafana:
+  #   image: grafana/grafana
+  #   volumes:
+  #     - grafana_data:/var/lib/grafana
+  #   labels:
+  #     - "traefik.enable=true"
+  #     - "traefik.http.routers.grafana.rule=Host(`grafana.yourdomain.com`)"
+
+# volumes:
+#   prometheus_data:
+#   grafana_data:

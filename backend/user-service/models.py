@@ -40,15 +40,14 @@ class User(Base):
     )
     date_updated: Mapped[datetime] = mapped_column(nullable=True)
 
-    reviews: Mapped[List['ProductReview']] = relationship('ProductReview', back_populates='user') 
-    addresses: Mapped[List['OrderAddress']] = relationship('OrderAddress', back_populates='user') 
-    orders: Mapped[List['Order']] = relationship('Order', back_populates='user') 
-    wishlist: Mapped['Wishlist'] = relationship('Wishlist', back_populates='user', uselist=False) 
-    cart: Mapped['Cart'] = relationship('Cart', back_populates='user', uselist=False) 
-    payments: Mapped[List['Payment']] = relationship('Payment', back_populates='user') 
-    shippings: Mapped[List['Shipping']] = relationship('Shipping', back_populates='user') 
-    notifications: Mapped[List['Notification']] = relationship('Notification', back_populates='user') 
-    
+    # reviews: Mapped[List['ProductReview']] = relationship('ProductReview', back_populates='user') 
+    # addresses: Mapped[List['OrderAddress']] = relationship('OrderAddress', back_populates='user') 
+    # orders: Mapped[List['Order']] = relationship('Order', back_populates='user') 
+    # wishlist: Mapped['Wishlist'] = relationship('Wishlist', back_populates='user', uselist=False) 
+    # cart: Mapped['Cart'] = relationship('Cart', back_populates='user', uselist=False) 
+    # payments: Mapped[List['Payment']] = relationship('Payment', back_populates='user') 
+    # shippings: Mapped[List['Shipping']] = relationship('Shipping', back_populates='user') 
+    # notifications: Mapped[List['Notification']] = relationship('Notification', back_populates='user') 
     
     def __repr__(self) -> str:
         return f"User(id={self.id}, name={self.name}, email={self.email}, role={self.role}, is_active={self.is_active}, is_verified={self.is_verified}), date_created={self.date_created}, date_updated={self.date_updated})"

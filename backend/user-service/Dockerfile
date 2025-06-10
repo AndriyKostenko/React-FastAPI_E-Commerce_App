@@ -1,43 +1,40 @@
 # Build stage
-FROM python:3.11-slim-bookworm AS builder
+FROM python:3.12-slim AS builder
 
-# Set working directory
 WORKDIR /app
 
-# Set build environment variables
+# Environment variables 
 ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
+    PYTHONUNBUFFERED=1 \ 
+    PATH="/root/.local/bin:${PATH}"
 
-# Install system dependencies with security updates
+# Install system build dependencies and uv
 RUN apt-get update \
     && apt-get upgrade -y \
     && apt-get install -y --no-install-recommends \
         gcc \
         python3-dev \
         libpq-dev \
+        curl \
+    && curl -LsSf https://astral.sh/uv/install.sh | sh \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies
 COPY requirements.txt .
-RUN pip install --user --no-warn-script-location -r requirements.txt
 
-# Final stage
-FROM python:3.11-slim-bookworm
+RUN uv pip install --system -r requirements.txt
+
+
+
+
+# Final runtime stage
+FROM python:3.12-slim
 
 WORKDIR /app
 
-# Copy installed packages from builder
-COPY --from=builder /root/.local /root/.local
-
-# Set runtime environment variables
-ENV PATH=/root/.local/bin:$PATH \
-    PYTHONDONTWRITEBYTECODE=1 \
+ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
-# Install runtime dependencies with security updates
 RUN apt-get update \
     && apt-get upgrade -y \
     && apt-get install -y --no-install-recommends \
@@ -47,20 +44,24 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/* \
     && addgroup --system --gid 1001 appgroup \
     && adduser --system --uid 1001 --ingroup appgroup appuser \
+    && mkdir -p /app/logs \
     && chown -R appuser:appgroup /app
 
-# Copy application code
+#Copy only the necessary files from the builder stage
+COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
+
+# Create a non-root user and set permissions 
 COPY --chown=appuser:appgroup . .
 
-# Switch to non-root user
+# Ensure the app runs as a non-root user
 USER appuser
 
-# Expose port
+# Port configuration
 EXPOSE 8000
 
-# Health check
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
-# Command to run the application with security optimizations
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4", "--proxy-headers", "--forwarded-allow-ips", "*"]
+# Use Gunicorn for multi-worker production server 
+CMD ["gunicorn", "-k", "uvicorn.workers.UvicornWorker", "main:app", "--bind", "0.0.0.0:8000", "--workers", "4", "--timeout", "60", "--access-logfile", "-"]

@@ -34,9 +34,8 @@ class UserInfo(BaseModel):
                                 UUID: lambda v: str(v), # convert UUID to string
                                 EmailStr: lambda v: str(v)  # convert EmailStr to string
                             }
-
-
     )
+    
 
 
 class UserSignUp(BaseModel):
@@ -46,15 +45,15 @@ class UserSignUp(BaseModel):
     is_verified: Optional[bool] = Field(False, description="User's verification status")
     role: Optional[str] 
 
-    model_config = ConfigDict(from_attributes=True, json_schema_extra={
-        "example": {
-            "name": "jhon doe",
-            "email": "a.kostenkouk@gmail.com",
-            "password": "12345678",
-            "is_verified": True,
-            "role": "admin"
-        }
-
+    model_config = ConfigDict(from_attributes=True, 
+                              json_schema_extra={
+                                "example": {
+                                    "name": "jhon doe",
+                                    "email": "a.kostenkouk@gmail.com",
+                                    "password": "12345678",
+                                    "is_verified": False,
+                                    "role": "admin"
+                                }
     })
 
 class CurrentUserInfo(BaseModel):
@@ -62,6 +61,8 @@ class CurrentUserInfo(BaseModel):
     id: UUID
     user_role: Optional[str]
     exp: Optional[int] = None
+    
+    
 
 class AllUsersInfo(BaseModel):
     users: List[UserInfo]
