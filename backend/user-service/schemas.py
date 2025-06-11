@@ -52,15 +52,14 @@ class UserSignUp(BaseModel):
                                     "email": "a.kostenkouk@gmail.com",
                                     "password": "12345678",
                                     "is_verified": False,
-                                    "role": "admin"
+                                    "role": "user"
                                 }
     })
 
 class CurrentUserInfo(BaseModel):
     email: str
     id: UUID
-    user_role: Optional[str]
-    exp: Optional[int] = None
+    user_role: str
     
     
 
@@ -135,3 +134,7 @@ class ForgotPasswordResponse(BaseModel):
 class ResetPasswordRequest(BaseModel):
     email: EmailStr
     new_password: str = Field(..., min_length=8)
+    
+class TokenData(BaseModel):
+    token: str
+    expires: datetime

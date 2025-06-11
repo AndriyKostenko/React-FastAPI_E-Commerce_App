@@ -42,7 +42,8 @@ class Settings(BaseSettings):
     CORS_ALLOW_CREDENTIALS: bool 
     CORS_ALLOWED_METHODS: list[str] 
     CORS_ALLOWED_HEADERS: list[str] 
-    ALLOWED_HOSTS: list[str] 
+    ALLOWED_HOSTS: list[str]
+    CRYPT_CONTEXT_SCHEME: str
     
     class Config:
         env_file = ".env"

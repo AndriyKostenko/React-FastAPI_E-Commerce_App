@@ -1,37 +1,31 @@
-from datetime import timedelta, datetime
+from datetime import timedelta, datetime, timezone
 from typing import Annotated
+from uuid import UUID
 from passlib.context import CryptContext
 
 from fastapi import Depends
-from pydantic import ValidationError
+from pydantic import ValidationError, EmailStr
 from jose import jwt, JWTError
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-import bcrypt
 
-from errors import (UserNotFoundError,
-                    UserPasswordError,
-                    )
 
+from errors import UserPasswordError
 from config import get_settings
-from schemas import CurrentUserInfo
+from schemas import CurrentUserInfo, TokenData
 from errors import UserIsNotVerifiedError
 
 
-
-
-
-
 # Password hashing context
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-
+pwd_context = CryptContext(schemes=get_settings().CRYPT_CONTEXT_SCHEME, deprecated="auto")
 
 # OAuth2PasswordBearer is a class that provides a way to extract the token from the request
 # sceme_name is similar to variable name
 oauth2_scheme = OAuth2PasswordBearer(
     tokenUrl=get_settings().TOKEN_URL,
     scheme_name="oauth2_scheme",   
-) 
+)
+
+ 
 
 # using a Singleton pattern to create only one instance of AuthenticationManager
 # this is to avoid creating multiple instances of the same class
@@ -48,26 +42,22 @@ class AuthenticationManager:
             self.settings = get_settings()
             self.initialized = True
             self.token_expire_minutes = self.settings.TIME_DELTA_MINUTES
-       
+           
        
     def hash_password(self, entered_password: str) -> str:
         """Hash password using bcrypt with caching for frequently used passwords"""
-        return bcrypt.hashpw(entered_password.encode(), bcrypt.gensalt()).decode()
+        return pwd_context.hash(entered_password)
     
     @staticmethod
     def _verify_password(entered_password: str, hashed_password: str) -> bool:
-        return bcrypt.checkpw(entered_password.encode(), hashed_password.encode())
+        return pwd_context.verify(entered_password, hashed_password)
     
-    
-  
     async def authenticate_user(self, 
-                                email: str, 
+                                email: EmailStr, 
                                 password: str, 
-                                user_service) -> CurrentUserInfo: # type: ignore
+                                user_service) -> CurrentUserInfo: 
         """Authenticate user with email and password"""
-        user = await user_service._get_user_by_email_internal(email)
-        if not user:
-            raise UserNotFoundError(detail=f'User with email: "{email}" not found')
+        user = await user_service.get_user_by_email(email=email)
             
         if not self._verify_password(password, user.hashed_password):
             raise UserPasswordError(detail='Invalid password')
@@ -78,25 +68,24 @@ class AuthenticationManager:
         return CurrentUserInfo(
             email=user.email,
             id=user.id,
-            user_role=user.role,
-            exp=None) ## exp will be set when creating token
+            user_role=user.role)
             
     def create_access_token(self, 
-                            email: str, 
-                            user_id: str, 
+                            email: EmailStr, 
+                            user_id: UUID, 
                             role: str, 
                             expires_delta: timedelta,
-                            purpose: str = "access") -> str:
+                            purpose: str = "access"):
         """Creating JWT access token"""
-        expire = int((datetime.utcnow() + expires_delta).timestamp())
-        
-        encode = {'sub': email,
+        expire_timestamp = int((datetime.now(timezone.utc) + expires_delta).timestamp())
+        payload = {'sub': email,
                   'id': str(user_id),
                   'role': role,
-                  'exp': expire,
+                  'exp': expire_timestamp,
                   'purpose': purpose
                   }
-        return jwt.encode(encode, self.settings.SECRET_KEY, algorithm=self.settings.ALGORITHM)
+        token = jwt.encode(payload, self.settings.SECRET_KEY, algorithm=self.settings.ALGORITHM)
+        return token, expire_timestamp
     
     async def get_current_user_from_token(self, 
                                           token: Annotated[str, Depends(oauth2_scheme)],

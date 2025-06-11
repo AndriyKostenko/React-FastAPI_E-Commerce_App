@@ -1,10 +1,11 @@
 from datetime import timedelta
 from typing import List, Dict
+from uuid import UUID
 
 from fastapi import BackgroundTasks
 from fastapi_mail import FastMail, MessageSchema, ConnectionConfig, MessageType
 from fastapi_mail.errors import ConnectionErrors
-from pydantic import ValidationError
+from pydantic import ValidationError, EmailStr
 from jinja2 import Environment, FileSystemLoader, TemplateNotFound
 
 from config import get_settings
@@ -101,15 +102,16 @@ class EmailService:
     
 
     async def send_verification_email(self,
-                                      email: str,
-                                      user_id: str,
+                                      email: EmailStr,
+                                      user_id: UUID,
                                       user_role: str | None,
                                       background_tasks: BackgroundTasks) -> None:
         if not email or not user_id or not user_role:
             logger.error("Email, user_id, or user_role is missing")
             raise EmailServiceError("Email, user_id, or user_role is missing")
 
-        token = auth_manager.create_access_token(
+        # returns token and exparation time, needed only token
+        token, _ = auth_manager.create_access_token(
             email=email,
             user_id=user_id,
             role=user_role,
@@ -136,8 +138,8 @@ class EmailService:
         )
         
     async def send_password_reset_email(self,
-                                        email: str,
-                                        user_id: str,
+                                        email: EmailStr,
+                                        user_id: UUID,
                                         user_role: str,
                                         background_tasks: BackgroundTasks) -> None:
         
@@ -145,7 +147,8 @@ class EmailService:
             logger.error("Email, user_id, or user_role is missing")
             raise EmailServiceError("Email, user_id, or user_role is missing")
         
-        token = auth_manager.create_access_token(
+        # returns token and exparation time, needed only token
+        token, _ = auth_manager.create_access_token(
             email=email,
             user_id=user_id,
             role=user_role,

@@ -1,4 +1,4 @@
-from datetime import timedelta, datetime
+from datetime import timedelta, datetime, timezone
 from typing import Annotated
 from uuid import UUID
 
@@ -116,12 +116,11 @@ async def login(request: Request,
     await cache_manager.invalidate_cache(namespace="users", key=user.email)
     
     # creating access token
-    access_token = auth_manager.create_access_token(email=user.email,
-                                                    user_id=user.id, 
-                                                    role=user.user_role, 
-                                                    expires_delta=timedelta(minutes=settings.TIME_DELTA_MINUTES))
-    # calculating expiry timestamp for reponse
-    expiry_timestamp = int((datetime.utcnow() + timedelta(minutes=settings.TIME_DELTA_MINUTES)).timestamp())
+    access_token, expiry_timestamp = auth_manager.create_access_token(email=user.email,
+                                                                      user_id=user.id, 
+                                                                      role=user.user_role, 
+                                                                      expires_delta=timedelta(minutes=settings.TIME_DELTA_MINUTES))
+   
     
     return UserLoginDetails(access_token=access_token,
                             token_type=settings.TOKEN_TYPE,
@@ -259,7 +258,7 @@ async def get_user_by_user_id(request: Request,
                  response_description="Email verified successfully",
                 )
 @ratelimiter(times=5, seconds=3600)  # Limit to 5 verifications per hour
-@cache_manager.cached(namespace="users", key="email_verification", ttl=60)  # Cache for 1 minute
+@cache_manager.cached(namespace="users", key="token", ttl=60)  # Cache for 1 minute
 async def verify_email(request: Request,
                        token: str,
                        user_crud_service: UserCRUDService = Depends(get_user_service)) -> EmailVerificationResponse:

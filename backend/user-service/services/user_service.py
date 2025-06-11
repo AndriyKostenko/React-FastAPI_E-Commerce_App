@@ -33,9 +33,7 @@ class UserCRUDService:
     async def create_user(self, user: UserSignUp) -> User:
         if await self._check_user_exists(user.email):
             raise UserAlreadyExistsError(detail=f'User with email: {user.email} already exists')
-        
         hashed_password = auth_manager.hash_password(user.password)
-        
         new_user = User(name=user.name,
                         email=user.email,
                         hashed_password=hashed_password,
@@ -43,7 +41,6 @@ class UserCRUDService:
                         role=user.role,)
         # not using await coz it's an in-memory operation and doesn't interact with db
         self.session.add(new_user)
-
         # the commit and refresh methods are an asynchronous operations because they involve writing the
         # changes to the database, which is an I/O operation
         await self.session.commit()
@@ -57,7 +54,7 @@ class UserCRUDService:
         return users
     
     
-    async def get_user_by_email(self, email: str) -> User:
+    async def get_user_by_email(self, email: EmailStr) -> User:
         query = await self.session.execute(select(User).where(User.email == email))
         user = query.scalars().first()
         if not user:
@@ -76,11 +73,9 @@ class UserCRUDService:
     async def update_user_basic_info(self, user_id: UUID, user_update_data: UserBasicUpdate) -> User:
         """Update basic user information like name, phone, image"""
         db_user = await self.get_user_by_id(user_id)
-        
         # Update only provided fields
         for field, value in user_update_data.model_dump(exclude_unset=True).items():
             setattr(db_user, field, value)
-            
         await self.session.commit()
         await self.session.refresh(db_user)
         return db_user
