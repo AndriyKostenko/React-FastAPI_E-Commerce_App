@@ -1,0 +1,64 @@
+from typing import List
+from uuid import UUID, uuid4
+from datetime import datetime, timezone
+
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy import ForeignKey, String
+from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
+from models import Base
+
+
+
+
+
+
+
+class Product(Base):
+    __tablename__ = 'products'
+
+    id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4, unique=True)
+    name: Mapped[str] = mapped_column(nullable=False)
+    description: Mapped[str] = mapped_column(nullable=True)
+    category_id: Mapped[str] = mapped_column(ForeignKey('product_categories.id'), nullable=False)
+    brand: Mapped[str] = mapped_column(nullable=False)
+    quantity: Mapped[int] = mapped_column(nullable=False)
+    price: Mapped[float] = mapped_column(nullable=False)
+    in_stock: Mapped[bool] = mapped_column(nullable=True)
+    date_created: Mapped[datetime] = mapped_column(
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False
+    )
+    date_updated: Mapped[datetime] = mapped_column(
+        nullable=True,
+        onupdate=lambda: datetime.now(timezone.utc)
+    )
+
+    reviews: Mapped[List['ProductReview']] = relationship('ProductReview', back_populates='product', cascade='all, delete-orphan') # type: ignore
+    images: Mapped[List['ProductImage']] = relationship('ProductImage', back_populates='product', cascade='all, delete-orphan')
+    category: Mapped['ProductCategory'] = relationship('ProductCategory', back_populates='products') # type: ignore
+
+
+class ProductImage(Base):
+    __tablename__ = 'product_images'
+
+    id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4, unique=True)
+    product_id: Mapped[str] = mapped_column(ForeignKey('products.id'), nullable=False)
+    image_url: Mapped[str] = mapped_column(nullable=False)
+    image_color: Mapped[str] = mapped_column(nullable=True)
+    image_color_code: Mapped[str] = mapped_column(nullable=True)
+    date_created: Mapped[datetime] = mapped_column(
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False
+    )
+    date_updated: Mapped[datetime] = mapped_column(
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=True
+    )
+
+    product: Mapped['Product'] = relationship('Product', back_populates='images')
+
+
+
+
+
+

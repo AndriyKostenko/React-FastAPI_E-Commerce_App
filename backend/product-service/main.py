@@ -10,7 +10,7 @@ from pydantic import ValidationError
 from fastapi.exceptions import ResponseValidationError, RequestValidationError
 
 from database import database_session_manager
-from routes import user_routes
+from routes import product_routes
 from errors import (BaseAPIException,
                     DatabaseConnectionError,
                     RateLimitExceededError)
@@ -34,8 +34,6 @@ async def lifespan(app: FastAPI):
    
     logger.info(f"Server has started!")
     
-
-
     try:
         if database_session_manager.async_engine is not None:
             await database_session_manager.init_db()
@@ -54,15 +52,14 @@ async def lifespan(app: FastAPI):
         logger.info("Database connection closed on shutdown!")
     except Exception as e:
         logger.error(f"Error closing database connection: {str(e)}")
-        
 
     logger.info(f"Server has shut down !")
 
 
 
 app = FastAPI(
-    title="user-service",
-    description="This is a user service for managing users, authentication, and authorization.",
+    title="product-service",
+    description="This is a user service for managing products.",
     version="0.0.1",
     lifespan=lifespan
 )
@@ -90,12 +87,14 @@ async def host_validation_middleware(request: Request, call_next):
         headers={"X-Error": "Invalid Host header"}
     )
     
+    
 @app.get("/health", tags=["Health Check"])  
 async def health_check():
     """
     A simple health check endpoint to verify that the service is running.
     """
     return {"status": "ok", "timestamp": datetime.now().isoformat()}
+    
     
 def add_exception_handlers(app: FastAPI):
     """
@@ -190,7 +189,7 @@ app.add_middleware(
 app.mount("/media", StaticFiles(directory="media"), name="media")
 
 # including all the routers to the app
-app.include_router(user_routes, prefix="/api/v1")
+app.include_router(product_routes, prefix="/api/v1")
 
 
 if __name__ == "__main__":

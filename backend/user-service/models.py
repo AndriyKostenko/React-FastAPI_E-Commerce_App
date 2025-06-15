@@ -2,7 +2,7 @@ from typing import List
 from datetime import datetime, timezone
 from uuid import UUID, uuid4
 
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy import String, Index
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 from sqlalchemy.orm import DeclarativeBase
@@ -35,19 +35,14 @@ class User(Base):
     is_active: Mapped[bool] = mapped_column(default=True, nullable=False)
     is_verified: Mapped[bool] = mapped_column(default=False, nullable=False)
     date_created: Mapped[datetime] = mapped_column(
-        default=lambda: datetime.now(timezone.utc).astimezone(timezone.utc).replace(tzinfo=None),
+        default=lambda: datetime.now(timezone.utc),
         nullable=False
     )
-    date_updated: Mapped[datetime] = mapped_column(nullable=True)
+    date_updated: Mapped[datetime] = mapped_column(
+        nullable=True,
+        onupdate=lambda: datetime.now(timezone.utc)
+    )
 
-    # reviews: Mapped[List['ProductReview']] = relationship('ProductReview', back_populates='user') 
-    # addresses: Mapped[List['OrderAddress']] = relationship('OrderAddress', back_populates='user') 
-    # orders: Mapped[List['Order']] = relationship('Order', back_populates='user') 
-    # wishlist: Mapped['Wishlist'] = relationship('Wishlist', back_populates='user', uselist=False) 
-    # cart: Mapped['Cart'] = relationship('Cart', back_populates='user', uselist=False) 
-    # payments: Mapped[List['Payment']] = relationship('Payment', back_populates='user') 
-    # shippings: Mapped[List['Shipping']] = relationship('Shipping', back_populates='user') 
-    # notifications: Mapped[List['Notification']] = relationship('Notification', back_populates='user') 
     
     def __repr__(self) -> str:
         return f"User(id={self.id}, name={self.name}, email={self.email}, role={self.role}, is_active={self.is_active}, is_verified={self.is_verified}), date_created={self.date_created}, date_updated={self.date_updated})"

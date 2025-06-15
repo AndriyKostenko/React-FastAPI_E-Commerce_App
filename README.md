@@ -33,14 +33,24 @@
    # Make sure Redis is enabled on startup
    sudo systemctl enable redis
 
+   # Find process using port 6379
+   sudo lsof -i :6379
+
+   # Stop the process (if it's another Redis instance)
+   sudo systemctl stop redis-server
+
 ## Docker
-   - docker build -t user-service . (building the image)
-   - docker run --env-file .env user-service (running with .env file)
+   - docker build -t user-service . : (building the image)
+   - docker run --env-file .env user-service : (running with .env file)
    - docker compose up --build
    - docker compose down
    - docker volume rm backend_postgres_data (Remove the DB volume (WARNING: deletes all Postgres data!))
 
 ## UV
+ 
+ - uv venv : creating virtual env
+ - source .venv/bin/activate
+ - uv pip install -r requirements.txt
  - uv pip install <package name>
 
 

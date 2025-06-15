@@ -63,5 +63,5 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
-# Use Gunicorn for multi-worker production server 
+# Use Gunicorn for multi-worker production server (without Kubernetes!...if with Kubernetes, use uvicorn directly, use uvicorn !)
 CMD ["gunicorn", "-k", "uvicorn.workers.UvicornWorker", "main:app", "--bind", "0.0.0.0:8000", "--workers", "4", "--timeout", "60", "--access-logfile", "-"]

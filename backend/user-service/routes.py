@@ -74,7 +74,7 @@ async def create_user(request: Request,
     # Send verification email in background
     await email_service.send_verification_email(
         email=new_db_user.email,
-        user_id=str(new_db_user.id),
+        user_id=new_db_user.id,
         user_role=new_db_user.role,
         background_tasks=background_tasks
     )
