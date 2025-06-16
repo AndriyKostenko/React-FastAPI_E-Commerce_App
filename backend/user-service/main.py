@@ -186,9 +186,6 @@ app.add_middleware(
     allow_headers=settings.CORS_ALLOWED_HEADERS,
 )
 
-# Static files configuration
-app.mount("/media", StaticFiles(directory="media"), name="media")
-
 # including all the routers to the app
 app.include_router(user_routes, prefix="/api/v1")
 

@@ -11,6 +11,19 @@ from config import get_settings
 
 
 
+"""
+FLow Diagram for Database Session Management in FastAPI:
+
+    A[HTTP Request] --> B[FastAPI Router]
+    B --> C[get_db_session Dependency]
+    C --> D[DatabaseSessionManager.session]
+    D --> E[Database Operations]
+    E --> F[Commit/Rollback]
+    F --> G[Session Cleanup]
+    G --> H[HTTP Response]
+"""
+
+
 # dependency that will be used to get the database session from the request
 async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
     """Providing a transactional scope around for each series (request) of operations with database."""

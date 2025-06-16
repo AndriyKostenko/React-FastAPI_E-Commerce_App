@@ -3,18 +3,24 @@ from uuid import UUID, uuid4
 from datetime import datetime, timezone
 
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import ForeignKey, String
+from sqlalchemy import ForeignKey, Index
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
+
 from models import Base
-
-
-
-
-
 
 
 class Product(Base):
     __tablename__ = 'products'
+    
+    # Creating indexes for the Product table 
+    __table_args__ = (
+        Index('idx_product_name', 'name'),
+        Index('idx_product_category', 'category_id'),
+        Index('idx_product_brand', 'brand'),
+        Index('idx_product_in_stock', 'in_stock'),
+        Index('idx_product_date_created', 'date_created'),
+        Index('idx_product_date_updated', 'date_updated'),
+    )
 
     id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4, unique=True)
     name: Mapped[str] = mapped_column(nullable=False)
@@ -40,6 +46,12 @@ class Product(Base):
 
 class ProductImage(Base):
     __tablename__ = 'product_images'
+    
+    __table_args__ = (
+        Index('idx_product_image_product_id', 'product_id'),
+        Index('idx_product_image_date_created', 'date_created'),
+        Index('idx_product_image_date_updated', 'date_updated'),
+    )
 
     id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4, unique=True)
     product_id: Mapped[str] = mapped_column(ForeignKey('products.id'), nullable=False)
