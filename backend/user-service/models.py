@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Set
 from datetime import datetime, timezone
 from uuid import UUID, uuid4
 
@@ -9,7 +9,25 @@ from sqlalchemy.orm import DeclarativeBase
 
 # Base class for all models
 class Base(DeclarativeBase):
-    pass
+    
+    # Default fields to exclude for all models
+    default_exclude: Set[str] = set()
+    
+    def to_dict(self, exclude: Set[str] = None) -> dict:
+        """Convert model instance to dictionary for caching serizlization"""
+        all_excludes = self.default_exclude | (exclude or set())
+        data = {}
+        for key, value in self.__dict__.items():
+            if not key.startswith("_") and key not in all_excludes: # skip SQLAlchemy attributes and exlude fields
+                if isinstance(value, datetime):
+                    data[key] = value.isoformat()
+                elif isinstance(value, UUID):
+                    data[key] = str(value)
+                else:
+                    data[key] = value
+        return data
+
+
 
 # User model representing a user in the system
 class User(Base):
@@ -24,6 +42,8 @@ class User(Base):
         Index('idx_users_is_verified', 'is_verified'),
         Index('idx_users_date_created', 'date_created'),
     )
+    # exclude fields for caching etc.
+    default_exclude = {"hashed_password"}
 
     id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4, unique=True)
     name: Mapped[str] = mapped_column(String(50),nullable=False)
@@ -42,7 +62,7 @@ class User(Base):
         nullable=True,
         onupdate=lambda: datetime.now(timezone.utc)
     )
-
+    
     
     def __repr__(self) -> str:
         return f"User(id={self.id}, name={self.name}, email={self.email}, role={self.role}, is_active={self.is_active}, is_verified={self.is_verified}), date_created={self.date_created}, date_updated={self.date_updated})"

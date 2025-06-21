@@ -1,12 +1,14 @@
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator, AsyncIterator, Dict
+from typing import AsyncGenerator, Dict
 
-from sqlalchemy.exc import DBAPIError, SQLAlchemyError
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker, AsyncConnection, AsyncEngine
+from sqlalchemy.ext.asyncio import (create_async_engine, 
+                                    AsyncSession, 
+                                    async_sessionmaker, 
+                                    AsyncEngine)
 
 from utils.logger_config import setup_logger
 from models import Base
-from errors import DatabaseConnectionError, DatabaseSessionError
+from errors.base import DatabaseConnectionError, DatabaseSessionError
 from config import get_settings
 
 logger = setup_logger(__name__)
@@ -59,7 +61,7 @@ class DatabaseSessionManager:
 
 
     @asynccontextmanager
-    async def session(self) -> AsyncGenerator[AsyncSession]:
+    async def session(self) -> AsyncGenerator[AsyncSession, None]:
         """Provide a transactional scope for ORM operations.
             - low level session manager
             - creates the actual db session
@@ -71,12 +73,8 @@ class DatabaseSessionManager:
             raise DatabaseSessionError("Session maker is not initialized.")
         
         async with self.async_session() as session:
-            try:
-                yield session
-            except SQLAlchemyError as e:
-                await session.rollback()
-                logger.error(f"Database transaction error: {str(e)}")
-                raise DatabaseSessionError(f"Database transaction failed: {str(e)}") from e
+            yield session
+
             
             
     async def close(self) -> None:

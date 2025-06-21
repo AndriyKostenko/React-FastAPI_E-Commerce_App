@@ -17,7 +17,7 @@ admin_routes = APIRouter(tags=['admin'],
                   summary='Get all users from DB',
                   status_code=status.HTTP_200_OK,
                   response_model=List[UserInfo])
-async def get_all_users(user_service: UserCRUDService = Depends(get_user_service)):
+async def get_all_users(user_service: user_crud_dependency):
     return await user_service.get_all_users()
 
 

@@ -1,16 +1,17 @@
-from typing import List, Optional, Dict
+from typing import List, Optional
+from uuid import UUID
 
-from sqlalchemy.exc import SQLAlchemyError
+
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlalchemy import select, asc, desc
 
 
-from errors import (ProductNotFoundError,
-                    ProductCreationError)
+from errors.product_errors import (ProductNotFoundError,
+                                  ProductCreationError)
 from models.product_models import Product, ProductImage
 from models.review_models import ProductReview
-from schemas import CreateProduct, ImageType
+from schemas.product_schemas import CreateProduct, ImageType
 
 
 class ProductCRUDService:
@@ -28,8 +29,10 @@ class ProductCRUDService:
         self.session.add(new_product)
         await self.session.commit()
         await self.session.refresh(new_product)
+        
         # creating and adding product images
         await self.create_product_image(product_id=new_product.id, image_data=images)
+        
         # Refresh product to get the related images
         await self.session.refresh(new_product)
         return new_product
@@ -63,7 +66,7 @@ class ProductCRUDService:
         return products
 
 
-    async def get_product_by_id(self, product_id: str) -> Product | None:
+    async def get_product_by_id(self, product_id: UUID) -> Product | None:
         # Querying product with related images, reviews (including users), and category
         db_product = await self.session.execute(
             select(Product)
@@ -75,7 +78,8 @@ class ProductCRUDService:
             ))
         if not db_product:
             raise ProductNotFoundError(f"Product with id: {product_id} not found")
-        return db_product.scalars().first()
+        product = db_product.scalars().first()
+        return product
 
 
     async def get_product_by_name(self, name: str) -> Product | None:
@@ -97,14 +101,14 @@ class ProductCRUDService:
         # Iterate over the images and save each one
         for data in image_data:
             new_product_image = ProductImage(product_id=product_id,
-                                                image_url=data.image,
-                                                image_color=data.color,
-                                                image_color_code=data.color_code)
+                                             image_url=data.image,
+                                             image_color=data.color,
+                                             image_color_code=data.color_code)
             self.session.add(new_product_image)
         await self.session.commit()
             
  
-    async def update_product_availability(self, product_id: str, in_stock: bool) -> Product:
+    async def update_product_availability(self, product_id: UUID, in_stock: bool) -> Product:
         product = await self.get_product_by_id(product_id)
         product.in_stock = in_stock
         await self.session.commit()
@@ -112,7 +116,7 @@ class ProductCRUDService:
         return product
   
 
-    async def delete_product(self, product_id: str) -> Optional[Product]:
+    async def delete_product(self, product_id: UUID) -> Optional[Product]:
         product = await self.get_product_by_id(product_id)
         await self.session.delete(product)
         await self.session.commit()

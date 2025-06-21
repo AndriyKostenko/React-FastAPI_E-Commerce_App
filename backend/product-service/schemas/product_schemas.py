@@ -3,8 +3,8 @@ from typing import Optional, List, Dict
 from uuid import UUID
 from pydantic import BaseModel, PositiveInt, PositiveFloat, Field
 
-from src.schemas.review_schemas import Review
-from src.schemas.category_schema import CategoryProps
+from schemas.review_schemas import ReviewSchema
+from schemas.category_schema import CategorySchema
 
 class ImageType(BaseModel):
     color: str = Field(..., min_length=3, max_length=50, description="Image color must be between 3 and 50 characters", example="Black")
@@ -39,13 +39,13 @@ class ProductSchema(BaseModel):
     price: float = PositiveFloat
     quantity: int = PositiveInt
     brand: str = Field(..., description="Product brand is required", example="Nike", min_length=3, max_length=50)
-    category: CategoryProps
+    category: CategorySchema = Field(..., description="Category schema is required")
     date_created: datetime
     date_updated: Optional[datetime] = None
     in_stock: bool = Field(..., description="Product in_stock status is required", example=True)
     selected_image: Optional[CartImages] = None
     images: List[CartImages] 
-    reviews: Optional[List[Review]] = None
+    reviews: Optional[List[ReviewSchema]] = None
     
 class CreatedProduct(BaseModel):
     id: UUID = Field(..., description="Product ID is required", example="123e4567-e89b-12d3-a456-426614174000", min_length=10, max_length=100)

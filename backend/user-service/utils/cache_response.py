@@ -1,13 +1,19 @@
+from datetime import datetime
 import json
 from typing import Any, Callable, Optional
 from functools import wraps
+from uuid import UUID
 
+from fastapi.responses import JSONResponse
+from fastapi.encoders import jsonable_encoder
 from aiocache import RedisCache
 from aiocache.serializers import JsonSerializer
 from pydantic import BaseModel 
 
 from config import get_settings
 from utils.logger_config import setup_logger
+from errors import BaseAPIException
+
 
 # getting settings from config
 settings = get_settings()
@@ -68,13 +74,15 @@ class CacheManager:
     @staticmethod
     def prepare_data_for_caching(data: Any) -> Any:
         """Prepare data for caching by converting to serializable format"""
+        if hasattr(data, "to_dict"):
+            # Handling SQLAlchemy models with to_dict() method inside and using default exclusions defined in models to prevent sharing the sensitive data
+            return json.dumps(data.to_dict())
         if isinstance(data, BaseModel):
             # If data is a Pydantic model, use model_dump_json() for serialization
             return data.model_dump_json()
         if hasattr(data, "dict"):
             # Convert to dict and then to JSON to ensure consistency for old pydantic versions
             return json.dumps(data.dict())
-        # For other types, ensure JSON serialization
         return json.dumps(data)
         
     
@@ -90,52 +98,34 @@ class CacheManager:
         def decorator(func):
             @wraps(func)
             async def wrapper(*args: Any, **kwargs: Any):
-                # getting the cache key from function params
                 key_value = kwargs.get(key)
-                
-                if key_value is None:
-                    self.logger.error(f"Key '{key}' not found in arguments. Cannot cache response.")
-                    return await func(*args, **kwargs)
-                if not namespace:
-                    self.logger.error(f"Namespace '{namespace}' not found in arguments. Cannot cache response.")
-                    return await func(*args, **kwargs)
-                if not ttl:
-                    self.logger.error(f"TTL '{ttl}' not found in arguments. Cannot cache response.")
+                if key_value is None or not namespace or not ttl:
+                    self.logger.error(f"Cache config error for {namespace}:{key}. Skipping cache.")
                     return await func(*args, **kwargs)
                 
                 cache_key = f"{namespace}:{key_value}"
-                
                 try:
-                    # getting chached data
                     cached_data = await self.redis.get(cache_key)
-                    
                     if cached_data is not None:
                         self.logger.debug(f"Returning cached data : {cached_data}")
-                        return cached_data
+                        return JSONResponse(
+                            content=json.loads(cached_data),
+                            status_code=200
+                        )
                 
-                    # Cache is missing -> execute the function
-                    # Getting the response via Pydantic model
+                    # Getting the response from SQLAlchemy model
                     response = await func(*args, **kwargs)
-                    
-                    # preparing data for caching
+                    self.logger.debug(f"Response from function for caching: {response}")
                     to_cache = self.prepare_data_for_caching(response)
-                    
-                    self.logger.debug(f"Data for caching after serialization: {to_cache}")
-                    
-                    #caching the response
-                    await self.redis.set(
-                        cache_key,
-                        to_cache, # Ensure JSON string storage
-                        ttl=ttl
-                    )
-                    
+                    await self.redis.set(cache_key,to_cache,ttl=ttl)
                     return response
                 
-                except Exception as e:
-                    self.logger.error(f"Cache error for {cache_key}: {str(e)}", exc_info=True)
-                    # Return the original response if any exception occurs
-                    return await func(*args, **kwargs)
-                                      
+                # monitoring only base exception for all custom errors coz all of them inhereted from it 
+                except BaseAPIException as e:
+                    self.logger.debug(f"Not caching error reponse: {str(e)}")
+                    # not chaching and re-rasing an error
+                    raise
+
             return wrapper
         return decorator
     

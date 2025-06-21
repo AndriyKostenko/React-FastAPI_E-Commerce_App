@@ -89,8 +89,8 @@ class UserCRUDService:
         return db_user
     
     
-    async def update_user_password(self, user_id: UUID, new_password: str) -> User:
-        db_user = await self.get_user_by_id(user_id)
+    async def update_user_password(self, email: EmailStr, new_password: str) -> User:
+        db_user = await self.get_user_by_email(email=email)
         db_user.hashed_password = auth_manager.hash_password(new_password)
         await self.session.commit()
         await self.session.refresh(db_user)

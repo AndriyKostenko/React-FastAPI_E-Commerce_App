@@ -10,10 +10,10 @@ from pydantic import ValidationError
 from fastapi.exceptions import ResponseValidationError, RequestValidationError
 
 from database import database_session_manager
-from routes import product_routes
-from errors import (BaseAPIException,
-                    DatabaseConnectionError,
-                    RateLimitExceededError)
+from routes.product_routes import product_routes
+from errors.base import (BaseAPIException,
+                        DatabaseConnectionError,
+                        RateLimitExceededError)
 from utils.logger_config import setup_logger
 from config import get_settings
 
@@ -35,16 +35,13 @@ async def lifespan(app: FastAPI):
     logger.info(f"Server has started!")
     
     try:
-        if database_session_manager.async_engine is not None:
-            await database_session_manager.init_db()
-            logger.info("Database initialized successfully")
-        else:
-            logger.error("Database engine is not initialized at startup.")
+        await database_session_manager.init_db()
+        logger.info("Database initialized successfully")
     except DatabaseConnectionError as e:
         logger.error(f"Database connection error: {str(e)}")
-    except Exception as e:
-        logger.error(f"Unexpected error during database initialization: {str(e)}")
         
+    logger.info('Server startup complete!')
+    
     yield
     
     try:
@@ -186,7 +183,7 @@ app.add_middleware(
 )
 
 # Static files configuration
-app.mount("/media", StaticFiles(directory="media"), name="media")
+app.mount("/media", StaticFiles(directory="/media"), name="media")
 
 # including all the routers to the app
 app.include_router(product_routes, prefix="/api/v1")

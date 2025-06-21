@@ -39,6 +39,7 @@ python-dotenv==1.1.0
 python-jose==3.5.0
 python-multipart==0.0.20
 pyyaml==6.0.2
+Pillow==10.2.0
 redis==6.2.0
 rsa==4.9.1
 six==1.17.0

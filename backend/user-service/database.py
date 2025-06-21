@@ -1,7 +1,6 @@
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator, Dict, Any
+from typing import AsyncGenerator, Dict
 
-from sqlalchemy.exc import DBAPIError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker, AsyncEngine
 
 from utils.logger_config import setup_logger
@@ -28,13 +27,13 @@ class DatabaseSessionManager:
         """Initialize the engine and session maker."""
         try:
             self.async_engine: AsyncEngine = create_async_engine(url=self.database_url,
-                                                **self.engine_settings)
+                                                                **self.engine_settings)
             self.async_session: async_sessionmaker[AsyncSession] = async_sessionmaker(
-                                            autocommit=False, #If True, each transaction will be automatically committed.
-                                            autoflush=False, #If True, the session will automatically flush changes to the database. 
-                                            bind=self.async_engine,
-                                            class_=AsyncSession,
-                                            expire_on_commit=False #If True, the session will expire all instances after commit. 
+                                                                                    autocommit=False, #If True, each transaction will be automatically committed.
+                                                                                    autoflush=False, #If True, the session will automatically flush changes to the database. 
+                                                                                    bind=self.async_engine,
+                                                                                    class_=AsyncSession,
+                                                                                    expire_on_commit=False #If True, the session will expire all instances after commit. 
                                             )
             logger.info("Database engine initialized")
         except Exception as e:
@@ -59,7 +58,7 @@ class DatabaseSessionManager:
 
 
     @asynccontextmanager
-    async def session(self) -> AsyncGenerator[AsyncSession]:
+    async def session(self) -> AsyncGenerator[AsyncSession, None]:
         """Provide a transactional scope for ORM operations.
             - low level session manager
             - creates the actual db session
@@ -71,14 +70,9 @@ class DatabaseSessionManager:
             raise DatabaseSessionError("Session maker is not initialized.")
         
         async with self.async_session() as session:
-            try:
-                yield session
-            except SQLAlchemyError as e:
-                await session.rollback()
-                logger.error(f"Database transaction error: {str(e)}")
-                raise DatabaseSessionError(f"Database transaction failed: {str(e)}") from e
-                
-            
+            yield session
+
+        
             
     async def close(self) -> None:
         """Dispose the database engine."""

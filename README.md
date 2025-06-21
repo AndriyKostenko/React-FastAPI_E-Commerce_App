@@ -40,11 +40,19 @@
    sudo systemctl stop redis-server
 
 ## Docker
-   - docker build -t user-service . : (building the image)
-   - docker run --env-file .env user-service : (running with .env file)
+   # building the image
+   - docker build -t user-service .
+
+   # running with .env file
+   - docker run --env-file .env user-service : 
+
    - docker compose up --build
-   - docker compose down
-   - docker volume rm backend_postgres_data (Remove the DB volume (WARNING: deletes all Postgres data!))
+
+   # Stop containers and remove volumes
+   - docker compose down -v -
+
+   # Remove the DB volume (WARNING: deletes all Postgres data!)
+   - docker volume rm backend_postgres_data 
 
 ## UV
  

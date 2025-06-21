@@ -34,19 +34,14 @@ async def lifespan(app: FastAPI):
    
     logger.info(f"Server has started!")
     
-
-
     try:
-        if database_session_manager.async_engine is not None:
-            await database_session_manager.init_db()
-            logger.info("Database initialized successfully")
-        else:
-            logger.error("Database engine is not initialized at startup.")
+        await database_session_manager.init_db()
+        logger.info("Database initialized successfully")
     except DatabaseConnectionError as e:
         logger.error(f"Database connection error: {str(e)}")
-    except Exception as e:
-        logger.error(f"Unexpected error during database initialization: {str(e)}")
         
+    logger.info('Server startup complete!')
+    
     yield
     
     try:
@@ -54,7 +49,6 @@ async def lifespan(app: FastAPI):
         logger.info("Database connection closed on shutdown!")
     except Exception as e:
         logger.error(f"Error closing database connection: {str(e)}")
-        
 
     logger.info(f"Server has shut down !")
 

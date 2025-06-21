@@ -1,23 +1,49 @@
+from datetime import datetime
 from typing import Optional
-from src.schemas.user_schemas import UserInfo
+from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, EmailStr
 
 
 
-class CreateProductReview(BaseModel):
-    product_id: str
+class UserInfo(BaseModel):
+    id: UUID 
+    name: str = Field(..., min_length=3, max_length=50, description="User name must be between 3 and 50 characters")
+    email: EmailStr = Field(..., description="User email")
+    role: Optional[str]
+    phone_number: Optional[str]
+    image: Optional[str]
+    date_created: datetime
+    date_updated: Optional[datetime]
+    is_verified: bool
+
+class ReviewBase(BaseModel):
+    """Base review schema with common attributes"""
+    product_id: UUID
+    user_id: UUID
     comment: Optional[str] = None
-    rating: Optional[float] = None
-    user_id: str
+    rating: Optional[float] = Field(None, ge=0, le=5)  # Rating between 0 and 5
 
 
-class Review(BaseModel):
-    id: str
-    user_id: str
-    product_id: str
-    rating: int
-    comment: str
-    date_created: str
-    date_updated: Optional[str] = None
+class CreateReview(ReviewBase):
+    """Schema for creating a new review"""
+    pass
+
+
+class UpdateReview(ReviewBase):
+    """Schema for updating an existing review"""
+    product_id: Optional[UUID] = None
+    user_id: Optional[UUID] = None
+    comment: Optional[str] = None
+    rating: Optional[float] = Field(None, ge=0, le=5)
+
+
+class ReviewSchema(ReviewBase):
+    """Schema for review responses"""
+    id: UUID
+    date_created: datetime
+    date_updated: Optional[datetime] = None
     user: UserInfo
+
+    class Config:
+        from_attributes = True
