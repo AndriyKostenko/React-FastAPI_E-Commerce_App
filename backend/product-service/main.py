@@ -1,5 +1,6 @@
 from datetime import datetime
 from contextlib import asynccontextmanager
+from sys import prefix
 
 import uvicorn
 from fastapi.middleware.cors import CORSMiddleware
@@ -11,6 +12,8 @@ from fastapi.exceptions import ResponseValidationError, RequestValidationError
 
 from database import database_session_manager
 from routes.product_routes import product_routes
+from routes.category_routes import category_routes
+from routes.review_routes import review_routes
 from errors.base import (BaseAPIException,
                         DatabaseConnectionError,
                         RateLimitExceededError)
@@ -105,7 +108,7 @@ def add_exception_handlers(app: FastAPI):
             status_code=422,
             content={
                 "detail": "Validation error",
-                "errors": [{"field": err["loc"][0], "message": err["msg"]} for err in exc.errors()],
+                "errors": [{"field": err["loc"][-1] if err.get("loc") else "unknown", "message": err.get("msg", "Unknown validation error")} for err in exc.errors()],
                 "timestamp": datetime.now().isoformat(),
                 "path": request.url.path
             }
@@ -119,7 +122,7 @@ def add_exception_handlers(app: FastAPI):
             status_code=422,
             content={
                 "detail": "Validation response error",
-                "errors": [{"field": err["loc"][0], "message": err["msg"]} for err in exc.errors()],
+                "errors": [{"field": err["loc"][-1] if err.get("loc") else "unknown", "message": err.get("msg", "Unknown validation error")} for err in exc.errors()],
                 "timestamp": datetime.now().isoformat(),
                 "path": request.url.path
             }
@@ -133,7 +136,7 @@ def add_exception_handlers(app: FastAPI):
             status_code=422,
             content={
                 "detail": "Validation request error",
-                "errors": [{"field": err["loc"][0], "message": err["msg"]} for err in exc.errors()],
+                "errors": [{"field": err["loc"][-1] if err.get("loc") else "unknown", "message": err.get("msg", "Unknown validation error")} for err in exc.errors()],
                 "timestamp": datetime.now().isoformat(),
                 "path": request.url.path
             }
@@ -187,6 +190,8 @@ app.mount("/media", StaticFiles(directory="/media"), name="media")
 
 # including all the routers to the app
 app.include_router(product_routes, prefix="/api/v1")
+app.include_router(category_routes, prefix="/api/v1")
+app.include_router(review_routes, prefix="/api/v1")
 
 
 if __name__ == "__main__":

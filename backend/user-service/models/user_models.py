@@ -1,36 +1,15 @@
-from typing import List, Set
-from datetime import datetime, timezone
 from uuid import UUID, uuid4
 
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy import String, Index
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
-from sqlalchemy.orm import DeclarativeBase
 
-# Base class for all models
-class Base(DeclarativeBase):
-    
-    # Default fields to exclude for all models
-    default_exclude: Set[str] = set()
-    
-    def to_dict(self, exclude: Set[str] = None) -> dict:
-        """Convert model instance to dictionary for caching serizlization"""
-        all_excludes = self.default_exclude | (exclude or set())
-        data = {}
-        for key, value in self.__dict__.items():
-            if not key.startswith("_") and key not in all_excludes: # skip SQLAlchemy attributes and exlude fields
-                if isinstance(value, datetime):
-                    data[key] = value.isoformat()
-                elif isinstance(value, UUID):
-                    data[key] = str(value)
-                else:
-                    data[key] = value
-        return data
-
+from models import Base
+from models.mixins import TimestampMixin
 
 
 # User model representing a user in the system
-class User(Base):
+class User(Base, TimestampMixin):
     __tablename__ = 'users'
     
     # Creating indexes for the columns
@@ -54,14 +33,6 @@ class User(Base):
     image: Mapped[str] = mapped_column(nullable=True)
     is_active: Mapped[bool] = mapped_column(default=True, nullable=False)
     is_verified: Mapped[bool] = mapped_column(default=False, nullable=False)
-    date_created: Mapped[datetime] = mapped_column(
-        default=lambda: datetime.now(timezone.utc),
-        nullable=False
-    )
-    date_updated: Mapped[datetime] = mapped_column(
-        nullable=True,
-        onupdate=lambda: datetime.now(timezone.utc)
-    )
     
     
     def __repr__(self) -> str:

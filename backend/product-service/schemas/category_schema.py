@@ -1,14 +1,17 @@
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class CategoryBase(BaseModel):
     """Base category schema with common attributes"""
     name: str
     image_url: Optional[str] = None
+    
+    # adding config for model serialization from ORM attributes
+    model_config = ConfigDict(from_attributes=True)
 
 
 class CreateCategory(CategoryBase):
@@ -30,8 +33,9 @@ class CategorySchema(CategoryBase):
     date_created: datetime
     date_updated: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
 
-
-
+class AllCategories(BaseModel):
+    """Schema for returning a list of categories"""
+    categories: List[CategorySchema]
+    
+    model_config = ConfigDict(from_attributes=True)

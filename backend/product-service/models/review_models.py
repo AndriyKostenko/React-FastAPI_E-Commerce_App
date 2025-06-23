@@ -18,8 +18,8 @@ class ProductReview(Base):
     )
 
     id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4, unique=True)
-    user_id: Mapped[str] = mapped_column(ForeignKey('users.id', ), nullable=False)
-    product_id: Mapped[str] = mapped_column(ForeignKey('products.id'), nullable=False)
+    user_id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), nullable=False)
+    product_id: Mapped[UUID] = mapped_column(ForeignKey('products.id'), nullable=False)
     comment: Mapped[str] = mapped_column(nullable=True)
     rating: Mapped[float] = mapped_column(nullable=True)
     date_created: Mapped[datetime] = mapped_column(
@@ -31,4 +31,4 @@ class ProductReview(Base):
         onupdate=lambda: datetime.now(timezone.utc)
     )
 
-    product: Mapped['Product'] = relationship('Product', back_populates='reviews') 
+    product: Mapped['Product'] = relationship('Product', back_populates='reviews')

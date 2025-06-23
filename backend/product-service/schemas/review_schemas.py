@@ -1,21 +1,24 @@
 from datetime import datetime
+from pyexpat import model
 from typing import Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field, EmailStr
+from pydantic import BaseModel, Field, EmailStr, ConfigDict
 
 
 
 class UserInfo(BaseModel):
     id: UUID 
-    name: str = Field(..., min_length=3, max_length=50, description="User name must be between 3 and 50 characters")
-    email: EmailStr = Field(..., description="User email")
+    name: str
+    email: EmailStr 
     role: Optional[str]
     phone_number: Optional[str]
     image: Optional[str]
     date_created: datetime
     date_updated: Optional[datetime]
     is_verified: bool
+    
+    model_config = ConfigDict(from_attributes=True)
 
 class ReviewBase(BaseModel):
     """Base review schema with common attributes"""
@@ -45,5 +48,8 @@ class ReviewSchema(ReviewBase):
     date_updated: Optional[datetime] = None
     user: UserInfo
 
-    class Config:
-        from_attributes = True
+class AllReviewsSchema(BaseModel):
+    """Schema for returning all reviews for a product"""
+    reviews: list[ReviewSchema]
+
+    model_config = ConfigDict(from_attributes=True)

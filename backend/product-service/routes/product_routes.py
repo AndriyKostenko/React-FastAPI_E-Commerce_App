@@ -1,3 +1,4 @@
+from decimal import Decimal
 from typing import List, Optional
 from uuid import UUID
 
@@ -24,8 +25,8 @@ async def create_new_product(product_crud_service: product_crud_dependency,
                              category_id: str = Form(...),
                              brand: str = Form(...),
                              quantity: int = Form(..., ge=0, le=100),
-                             price: float = Form(..., ge=0, le=100),
-                             in_stock: str = Form(...),
+                             price: Decimal = Form(..., ge=0, le=100),
+                             in_stock: bool = Form(...),
                              images_color: List[str] = Form(...),
                              images_color_code: List[str] = Form(...),
                              images: List[UploadFile] = File(...),

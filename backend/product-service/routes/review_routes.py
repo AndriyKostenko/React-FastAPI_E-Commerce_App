@@ -1,5 +1,5 @@
 from uuid import UUID
-from fastapi import Depends, APIRouter, status, HTTPException
+from fastapi import APIRouter, status, HTTPException
 
 from schemas.review_schemas import ReviewSchema, CreateReview
 from dependencies import review_crud_dependency, product_crud_dependency
@@ -29,7 +29,7 @@ async def create_product_review(product_id: UUID,
     product = await product_crud_service.get_product_by_id(product_id=product_id)
     
     # Check if the user already reviewed this product
-    existing_review = await review_crud_service.get_product_review_by_user_id(product.id, current_user_id)
+    existing_review = await review_crud_service.get_product_review_by_user_id(product_id, current_user_id)
     if existing_review:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="You have already reviewed this product")
 

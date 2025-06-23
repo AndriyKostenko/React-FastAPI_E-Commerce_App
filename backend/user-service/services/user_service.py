@@ -6,12 +6,11 @@ from sqlalchemy import select, asc
 from pydantic import EmailStr
 
 from authentication import auth_manager
-from models import User
 from schemas import UserSignUp, UserBasicUpdate
 from errors import (UserNotFoundError, 
                     UserAlreadyExistsError)
 
-
+from models.user_models import User
 
 
 

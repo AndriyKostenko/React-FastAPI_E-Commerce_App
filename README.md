@@ -54,6 +54,9 @@
    # Remove the DB volume (WARNING: deletes all Postgres data!)
    - docker volume rm backend_postgres_data 
 
+   # Remove all existing containers, networks, and volumes
+   - docker system prune -af --volumes
+
 ## UV
  
  - uv venv : creating virtual env

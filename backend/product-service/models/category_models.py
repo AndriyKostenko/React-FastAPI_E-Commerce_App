@@ -3,13 +3,14 @@ from uuid import uuid4, UUID
 from datetime import timezone, datetime
 
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import String, Index
+from sqlalchemy import Index, DateTime
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 
 from models import Base
+from models.mixins import TimestampMixin
 
 
-class ProductCategory(Base):
+class ProductCategory(Base, TimestampMixin):
     __tablename__ = 'product_categories'
     
     __table_args__ = (
@@ -21,13 +22,5 @@ class ProductCategory(Base):
     id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4, unique=True)
     name: Mapped[str] = mapped_column(unique=True, nullable=False)
     image_url: Mapped[str] = mapped_column(nullable=False)
-    date_created: Mapped[datetime] = mapped_column(
-        default=lambda: datetime.now(timezone.utc),
-        nullable=False
-    )
-    date_updated: Mapped[datetime] = mapped_column(
-        nullable=True,
-        onupdate=lambda: datetime.now(timezone.utc)
-    )
 
     products: Mapped[List['Product']] = relationship('Product', back_populates='category', cascade='all, delete-orphan')

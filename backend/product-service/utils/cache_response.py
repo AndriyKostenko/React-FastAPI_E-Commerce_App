@@ -3,15 +3,16 @@ import json
 from typing import Any, Callable, Optional
 from functools import wraps
 from uuid import UUID
-from fastapi.responses import JSONResponse
 
+from fastapi.responses import JSONResponse
+from fastapi.encoders import jsonable_encoder
 from aiocache import RedisCache
 from aiocache.serializers import JsonSerializer
 from pydantic import BaseModel 
 
 from config import get_settings
 from utils.logger_config import setup_logger
-from errors import BaseAPIException
+from errors.base import BaseAPIException
 
 
 # getting settings from config
@@ -71,17 +72,16 @@ class CacheManager:
             return False
     
     @staticmethod
-    def prepare_data_for_caching(data: Any) -> Any:
+    def prepare_data_for_caching(data: Any) -> str:
         """Prepare data for caching by converting to serializable format"""
-        if hasattr(data, "to_dict"):
-            # Handling SQLAlchemy models with to_dict() method inside and using default exclusions defined in models to prevent sharing the sensitive data
-            return json.dumps(data.to_dict())
+        # if hasattr(data, "to_dict"):
+        #     # Handling SQLAlchemy models with to_dict() method inside and using default exclusions defined in models to prevent sharing the sensitive data
+        #     return json.dumps(data.to_dict())
         if isinstance(data, BaseModel):
             # If data is a Pydantic model, use model_dump_json() for serialization
             return data.model_dump_json()
-        if hasattr(data, "dict"):
-            # Convert to dict and then to JSON to ensure consistency for old pydantic versions
-            return json.dumps(data.dict())
+        if isinstance(data, (list, dict)):
+            return json.dumps(jsonable_encoder(data))
         return json.dumps(data)
         
     
