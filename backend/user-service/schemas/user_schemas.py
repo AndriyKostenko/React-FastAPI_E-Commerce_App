@@ -65,6 +65,9 @@ class CurrentUserInfo(BaseModel):
 
 class AllUsersInfo(BaseModel):
     users: List[UserInfo]
+    
+    model_config = ConfigDict(from_attributes=True)
+
 
 class UserSaveWithGoogle(BaseModel):
     email: str
