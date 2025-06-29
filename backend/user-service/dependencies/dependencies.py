@@ -4,9 +4,9 @@ from fastapi import Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from services.user_service import UserCRUDService
-from database import database_session_manager
+from db.database import database_session_manager
 from authentication import auth_manager
-from schemas import CurrentUserInfo
+from schemas.user_schemas import CurrentUserInfo
 from config import get_settings
 
 
@@ -54,4 +54,5 @@ async def require_admin(current_user: CurrentUserInfo = Depends(auth_manager.get
 
 
 user_crud_dependency = Annotated[UserCRUDService, Depends(get_user_service)]
+
 

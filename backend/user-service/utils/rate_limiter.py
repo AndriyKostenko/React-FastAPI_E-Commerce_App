@@ -1,10 +1,11 @@
 from functools import wraps
 from time import time
+from math import ceil
 
 from fastapi import Request
 from redis import asyncio as aioredis
 
-from errors import RateLimitExceededError
+from errors.errors import RateLimitExceededError
 from config import get_settings
 from utils.logger_config import setup_logger
 
@@ -50,17 +51,25 @@ class RateLimiter:
         pipe.zcard(key)
         # set key expiration
         pipe.expire(key, self.seconds)
-        
+        # getting the oldest timestamp
+        pipe.zrange(key, 0, 0)
         # execute the pipeline
         results = await pipe.execute()
-        
         # results[0] is the result of zadd, we don't need it
         # results[1] is the result of zremrangebyscore, we don't need it
         # results[2] is the count of requests in the current window
         request_count = results[2]
-        
+        oldest = results[4]
+        if request_count <= self.times:
+            return True,0
+        if oldest:
+            oldest_ts = float(oldest[0])
+            retry_after = ceil((oldest_ts + self.seconds) - now)
+            retry_after = max(retry_after , 1)
+        else:
+            retry_after = self.seconds
         # check if the request count is within the limit
-        return request_count <= self.times
+        return False, retry_after
     
     
     # getting reauest from the FastAPI endpoint parameters
@@ -71,10 +80,12 @@ class RateLimiter:
         #generating the key
         key = self._generate_key(request)
         
+        allowed, retry_after = await self._check_rate_limit(key)
+        
         # check if the rate limit is exceeded
-        if not await self._check_rate_limit(key):
+        if not allowed:
             self.logger.warning(f"Rate limit exceeded for: {key}")
-            raise RateLimitExceededError(client_ip=request.client.host, retry_after=self.seconds)
+            raise RateLimitExceededError(client_ip=request.client.host, retry_after=retry_after)
  
             
   

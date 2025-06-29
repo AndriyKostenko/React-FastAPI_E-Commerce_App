@@ -9,10 +9,10 @@ from jose import jwt, JWTError
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 
 
-from errors import UserPasswordError
+from errors.errors import UserPasswordError, UserIsNotVerifiedError
 from config import get_settings
-from schemas import CurrentUserInfo, TokenData
-from errors import UserIsNotVerifiedError
+from schemas.user_schemas import CurrentUserInfo
+
 
 
 # Password hashing context
@@ -57,18 +57,22 @@ class AuthenticationManager:
                                 password: str, 
                                 user_service) -> CurrentUserInfo: 
         """Authenticate user with email and password"""
+        users_hashed_password = await user_service.get_users_hashed_password(email=email)
+            
+        if not self._verify_password(password, users_hashed_password):
+            raise UserPasswordError(detail='Invalid password')
+        
+        
+        #TODO : check if needed verification logic of user
         user = await user_service.get_user_by_email(email=email)
             
-        if not self._verify_password(password, user.hashed_password):
-            raise UserPasswordError(detail='Invalid password')
-            
-        if not user.is_verified:
-            raise UserIsNotVerifiedError(detail='User is not verified')
+        # if not user.is_verified:
+        #     raise UserIsNotVerifiedError(detail='User is not verified')
             
         return CurrentUserInfo(
             email=user.email,
             id=user.id,
-            user_role=user.role)
+            role=user.role)
             
     def create_access_token(self, 
                             email: EmailStr, 
@@ -95,7 +99,7 @@ class AuthenticationManager:
             payload = jwt.decode(token, self.settings.SECRET_KEY, algorithms=[self.settings.ALGORITHM])
             email: str = payload.get('sub')
             user_id: str = payload.get('id')
-            user_role: str = payload.get('role')
+            role: str = payload.get('role')
             exp: int = payload.get('exp')
             purpose: str = payload.get('purpose', required_purpose) # Default to "access" if not specified
             
@@ -108,26 +112,23 @@ class AuthenticationManager:
 
             return CurrentUserInfo(email=email, 
                                    id=user_id, 
-                                   user_role=user_role, 
+                                   role=role, 
                                    exp=exp)
             
         except JWTError as jwt_error:
             raise UserIsNotVerifiedError(
                 detail=f"Invalid token: {str(jwt_error)}"
             )
-        except ValidationError as val_error:
-            raise UserIsNotVerifiedError(
-                detail=f"Invalid token data: {str(val_error)}"
-            )
+
     
     async def get_authenticated_user(self,
                                     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
-                                    user_service):
+                                    user_crud_service):
         """Authenticate user with credentials"""
         return await self.authenticate_user(
             email=form_data.username,
             password=form_data.password,
-            user_service=user_service
+            user_service=user_crud_service
         )
             
             

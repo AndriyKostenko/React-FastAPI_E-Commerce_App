@@ -1,17 +1,17 @@
-from hmac import new
 from uuid import UUID
+from typing import List
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, asc
 from pydantic import EmailStr
 
 from authentication import auth_manager
-from schemas import UserSignUp, UserBasicUpdate
-from errors import (UserNotFoundError, 
+from schemas.user_schemas import UserSignUp, UserBasicUpdate
+from errors.errors import (UserNotFoundError, 
                     UserAlreadyExistsError)
 
 from models.user_models import User
-from schemas.user_schemas import UserInfo, AllUsersInfo
+from schemas.user_schemas import UserInfo
 
 
 
@@ -48,10 +48,11 @@ class UserCRUDService:
         return UserInfo.model_validate(new_user)
        
 
-    async def get_all_users(self) -> AllUsersInfo:
+    async def get_all_users(self) -> List[UserInfo]:
         query = await self.session.execute(select(User).order_by(asc(User.id)))
         users = query.scalars().all() 
-        return AllUsersInfo(users=[AllUsersInfo.model_validate(user) for user in users])
+        return [UserInfo.model_validate(user) for user in users]
+        
     
     
     async def get_user_by_email(self, email: EmailStr) -> UserInfo:
@@ -60,6 +61,13 @@ class UserCRUDService:
         if not user:
             raise UserNotFoundError(detail=f'User with email: "{email}" not found')
         return UserInfo.model_validate(user)
+    
+    async def get_users_hashed_password(self, email: EmailStr) -> str:
+        query = await self.session.execute(select(User).where(User.email == email))
+        user = query.scalars().first()
+        if not user:
+            raise UserNotFoundError(detail=f'User with email: "{email}" not found')
+        return user.hashed_password
         
   
     async def get_user_by_id(self, user_id: UUID) -> UserInfo:
@@ -90,7 +98,10 @@ class UserCRUDService:
     
     
     async def update_user_password(self, email: EmailStr, new_password: str) -> UserInfo:
-        db_user = await self.get_user_by_email(email=email)
+        query = await self.session.execute(select(User).where(User.email == email))
+        db_user = query.scalars().first()
+        if not db_user:
+            raise UserNotFoundError(detail=f'User with email: "{email}" not found')
         db_user.hashed_password = auth_manager.hash_password(new_password)
         await self.session.commit()
         await self.session.refresh(db_user)

@@ -12,7 +12,7 @@ from pydantic import BaseModel
 
 from config import get_settings
 from utils.logger_config import setup_logger
-from errors import BaseAPIException
+from errors.errors import BaseAPIException
 
 
 # getting settings from config
@@ -71,21 +71,6 @@ class CacheManager:
             self.logger.error(f"Redis connection check failed: {str(e)}")
             return False
     
-    @staticmethod
-    def prepare_data_for_caching(data: Any) -> Any:
-        """Prepare data for caching by converting to serializable format"""
-        if hasattr(data, "to_dict"):
-            # Handling SQLAlchemy models with to_dict() method inside and using default exclusions defined in models to prevent sharing the sensitive data
-            return json.dumps(data.to_dict())
-        if isinstance(data, BaseModel):
-            # If data is a Pydantic model, use model_dump_json() for serialization
-            return data.model_dump_json()
-        if hasattr(data, "dict"):
-            # Convert to dict and then to JSON to ensure consistency for old pydantic versions
-            return json.dumps(data.dict())
-        return json.dumps(data)
-        
-    
     def cached(self, namespace: str, key: str, ttl: int) -> Callable:
         """
         Decorator for caching endpoint responses.
@@ -116,7 +101,10 @@ class CacheManager:
                     # Getting the response from SQLAlchemy model
                     response = await func(*args, **kwargs)
                     self.logger.debug(f"Response from function for caching: {response}")
-                    to_cache = self.prepare_data_for_caching(response)
+                    
+                    # serializing data to json
+                    to_cache = response.model_dump_json()
+                    
                     await self.redis.set(cache_key,to_cache,ttl=ttl)
                     return response
                 

@@ -9,7 +9,7 @@ from pydantic import ValidationError, EmailStr
 from jinja2 import Environment, FileSystemLoader, TemplateNotFound
 
 from config import get_settings
-from errors import EmailServiceError
+from errors.errors import EmailServiceError
 from authentication import auth_manager
 from utils.logger_config import setup_logger
 

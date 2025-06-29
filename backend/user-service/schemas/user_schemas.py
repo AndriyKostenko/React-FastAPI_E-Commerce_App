@@ -17,24 +17,7 @@ class UserInfo(BaseModel):
     date_updated: Optional[datetime]
     is_verified: bool
 
-    model_config = ConfigDict(from_attributes=True, 
-                              json_schema_extra={
-                                "example": {
-                                    "id": "dfsdfgdft5646rh",
-                                    "name": "Test Test",
-                                    "email": "tests@gmail.com",
-                                    "hashed_password": "!dff45e",
-                                    "role": "user",
-                                    "phone_number": "07000000000",
-                                    "date_created": "2021-04-24T11:46:07.770741"
-                                }
-                            },
-                            json_encoders={
-                                datetime: lambda v: v.isoformat(), # convert datetime to ISO format
-                                UUID: lambda v: str(v), # convert UUID to string
-                                EmailStr: lambda v: str(v)  # convert EmailStr to string
-                            }
-    )
+    model_config = ConfigDict(from_attributes=True)
     
 
 
@@ -45,28 +28,13 @@ class UserSignUp(BaseModel):
     is_verified: Optional[bool] = Field(False, description="User's verification status")
     role: Optional[str] 
 
-    model_config = ConfigDict(from_attributes=True, 
-                              json_schema_extra={
-                                "example": {
-                                    "name": "jhon doe",
-                                    "email": "a.kostenkouk@gmail.com",
-                                    "password": "12345678",
-                                    "is_verified": False,
-                                    "role": "user"
-                                }
-    })
+    model_config = ConfigDict(from_attributes=True)
 
 class CurrentUserInfo(BaseModel):
-    email: str
+    email: EmailStr
     id: UUID
-    user_role: str
+    role: str
     
-    
-
-class AllUsersInfo(BaseModel):
-    users: List[UserInfo]
-    
-    model_config = ConfigDict(from_attributes=True)
 
 
 class UserSaveWithGoogle(BaseModel):

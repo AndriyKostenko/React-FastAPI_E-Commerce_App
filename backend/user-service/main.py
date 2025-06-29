@@ -5,13 +5,13 @@ import uvicorn
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi import FastAPI, Request, HTTPException
-from fastapi.staticfiles import StaticFiles
 from pydantic import ValidationError
 from fastapi.exceptions import ResponseValidationError, RequestValidationError
 
-from database import database_session_manager
-from routes import user_routes
-from errors import (BaseAPIException,
+from db.database import database_session_manager
+from routes.user_routes import user_routes
+from routes.admin_routes import admin_routes
+from errors.errors import (BaseAPIException,
                     DatabaseConnectionError,
                     RateLimitExceededError)
 from utils.logger_config import setup_logger
@@ -182,6 +182,7 @@ app.add_middleware(
 
 # including all the routers to the app
 app.include_router(user_routes, prefix="/api/v1")
+app.include_router(admin_routes, prefix="/api/v1")
 
 
 if __name__ == "__main__":

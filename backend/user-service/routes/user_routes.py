@@ -9,7 +9,7 @@ from pydantic import EmailStr
 
 
 from authentication import auth_manager
-from schemas import (UserSignUp, 
+from schemas.user_schemas import (UserSignUp, 
                     UserInfo, 
                     TokenSchema, 
                     UserLoginDetails, 
@@ -20,7 +20,7 @@ from schemas import (UserSignUp,
                     ForgotPasswordResponse,
                     ResetPasswordRequest,
                     PasswordUpdateResponse)
-from dependencies import user_crud_dependency
+from dependencies.dependencies import user_crud_dependency
 from services.email_service import email_service
 from utils.cache_response import cache_manager
 from utils.rate_limiter import ratelimiter
@@ -80,9 +80,28 @@ async def create_user(request: Request,
 
     return new_db_user
 
+@user_routes.get('/activate/{token}',
+                 summary="Verify user email",
+                 response_model=EmailVerificationResponse,
+                 status_code=status.HTTP_200_OK,
+                 response_description="Email verified successfully",
+                )
+@ratelimiter(times=5, seconds=3600)  # Limit to 5 verifications per hour
+@cache_manager.cached(namespace="users", key="token", ttl=60)  # Cache for 1 minute
+async def verify_email(request: Request,
+                       token: str,
+                       user_crud_service: user_crud_dependency) -> EmailVerificationResponse:
+    token_data = await auth_manager.get_current_user_from_token(token=token, required_purpose="email_verification")
+    db_user = await user_crud_service.update_user_verified_status(user_email=token_data.email, status=True)
+    return EmailVerificationResponse(
+        detail="Email verified successfully",
+        email=db_user.email,
+        verified=db_user.is_verified
+    )
+
 
 @user_routes.post("/send-email",
-                  summary="Send verification email",
+                  summary="Send test verification email",
                   status_code=status.HTTP_200_OK,)
 @ratelimiter(times=3, seconds=3600)
 async def simple_send(request: Request,
@@ -109,7 +128,7 @@ async def login(request: Request,
                 form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
                 user_service: user_crud_dependency) -> UserLoginDetails: # request is reqired for rate limiting decorator
     # Authenticate user with credentials
-    user = await auth_manager.get_authenticated_user(form_data=form_data, user_service=user_service)
+    user = await auth_manager.get_authenticated_user(form_data=form_data, user_crud_service=user_service)
     
     # updte last login might change user data, invalidating the redis cache
     await cache_manager.invalidate_cache(namespace="users", key=user.email)
@@ -117,10 +136,8 @@ async def login(request: Request,
     # creating access token
     access_token, expiry_timestamp = auth_manager.create_access_token(email=user.email,
                                                                       user_id=user.id, 
-                                                                      role=user.user_role, 
+                                                                      role=user.role, 
                                                                       expires_delta=timedelta(minutes=settings.TIME_DELTA_MINUTES))
-   
-    
     return UserLoginDetails(access_token=access_token,
                             token_type=settings.TOKEN_TYPE,
                             token_expiry=expiry_timestamp,
@@ -172,7 +189,7 @@ async def reset_password(request: Request,
     """Reset password using token"""
     token_data = await auth_manager.get_current_user_from_token(token=token, required_purpose="password_reset")
     
-    await user_crud_service.update_user_password(user_email=token_data.email, new_password=data.new_password)
+    await user_crud_service.update_user_password(email=token_data.email, new_password=data.new_password)
     
     await cache_manager.invalidate_cache(namespace="users", key=token_data.email)  # Invalidate cache for user email
     
@@ -202,13 +219,15 @@ async def generate_token(request: Request,
                         form_data: Annotated[OAuth2PasswordRequestForm, Depends()], 
                         user_service: user_crud_dependency) -> TokenSchema:
     """Generate new token for user"""
-    user = await auth_manager.get_authenticated_user(form_data=form_data, user_service=user_service)
-    # Check if user is verified
-    token = auth_manager.create_access_token(user.email, 
-                                             user.id, 
-                                             user.role, 
-                                             timedelta(minutes=settings.TIME_DELTA_MINUTES),
+    user = await auth_manager.get_authenticated_user(form_data=form_data, user_crud_service=user_service)
+ 
+    token, _ = auth_manager.create_access_token(email=user.email, 
+                                             user_id=user.id, 
+                                             role=user.role, 
+                                             expires_delta=timedelta(minutes=settings.TIME_DELTA_MINUTES),
+                                             purpose="access"
                                              )
+    
     return TokenSchema(access_token=token, token_type=settings.TOKEN_TYPE)
 
 
@@ -250,22 +269,5 @@ async def get_user_by_user_id(request: Request,
     return await user_crud_service.get_user_by_id(user_id=user_id)
 
 
-@user_routes.get('/activate/{token}',
-                 summary="Verify user email",
-                 response_model=EmailVerificationResponse,
-                 status_code=status.HTTP_200_OK,
-                 response_description="Email verified successfully",
-                )
-@ratelimiter(times=5, seconds=3600)  # Limit to 5 verifications per hour
-@cache_manager.cached(namespace="users", key="token", ttl=60)  # Cache for 1 minute
-async def verify_email(request: Request,
-                       token: str,
-                       user_crud_service: user_crud_dependency) -> EmailVerificationResponse:
-    token_data = await auth_manager.get_current_user_from_token(token=token, required_purpose="email_verification")
-    db_user = await user_crud_service.update_user_verified_status(user_email=token_data.email)
-    return EmailVerificationResponse(
-        detail="Email verified successfully",
-        email=db_user.email,
-        verified=db_user.is_verified
-    )
+
 

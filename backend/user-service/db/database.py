@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sess
 
 from utils.logger_config import setup_logger
 from models import Base
-from errors import DatabaseConnectionError, DatabaseSessionError
+from errors.errors import DatabaseConnectionError, DatabaseSessionError
 from config import get_settings
 
 logger = setup_logger(__name__)

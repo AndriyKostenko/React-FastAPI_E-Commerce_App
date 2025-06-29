@@ -30,6 +30,8 @@
    # If not running, start it
    sudo systemctl start redis
 
+   sudo systemctl stop redis
+
    # Make sure Redis is enabled on startup
    sudo systemctl enable redis
 
