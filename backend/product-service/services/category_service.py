@@ -8,7 +8,7 @@ from sqlalchemy import select
 
 from models.category_models import ProductCategory
 from errors.category_errors import CategoryNotFoundError, CategoryCreationError
-from schemas.category_schema import AllCategories, CategorySchema
+from schemas.category_schema import CategorySchema
 
 class CategoryCRUDService:
     def __init__(self, session: AsyncSession):
@@ -26,11 +26,11 @@ class CategoryCRUDService:
         await self.session.refresh(new_category)
         return CategorySchema.model_validate(new_category)
    
-    async def get_all_categories(self) -> AllCategories:
+    async def get_all_categories(self) -> List[CategorySchema]:
         """Fetch all product categories from the database."""
         result = await self.session.execute(select(ProductCategory))
         categories = result.scalars().all()
-        return AllCategories(categories=[CategorySchema.model_validate(cat) for cat in categories])
+        return [CategorySchema.model_validate(category) for category in categories]
     
     async def _check_category_exists_by_name(self, name: str) -> bool:
         """Internal method to check if category exists without raising exceptions"""
@@ -65,7 +65,7 @@ class CategoryCRUDService:
         await self.session.delete(category)
         await self.session.commit()
 
-    async def update_category(self, category_id: UUID, name: str, image_url: str) -> CategorySchema:
+    async def update_category(self, category_id: UUID, name: str | None, image_url: str | None) -> CategorySchema:
         """Update a category's name and/or image URL."""
         category = await self.get_category_by_id(category_id)
         if name:

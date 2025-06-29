@@ -4,8 +4,8 @@ from uuid import UUID
 
 from fastapi import APIRouter, status, HTTPException, Form, UploadFile, File
 
-from dependencies import product_crud_dependency
-from schemas.product_schemas import ProductSchema, CreateProduct
+from dependencies.dependencies import product_crud_dependency
+from schemas.product_schemas import ProductBase, ProductSchema, CreateProduct
 from utils.image_pathes import create_image_paths
 from utils.image_metadata import create_image_metadata
 
@@ -87,14 +87,14 @@ async def get_all_products(product_crud_service: product_crud_dependency,
                            ) -> List[ProductSchema]:
   
     return await product_crud_service.get_all_products(category=category,
-                                                           searchTerm=searchTerm,
-                                                           page_size=page_size,
-                                                           page=page)
+                                                       searchTerm=searchTerm,
+                                                       page_size=page_size,
+                                                       page=page)
         
 
 
 
-@product_routes.get("/products/{product_id}", 
+@product_routes.get("/products/id/{product_id}", 
                     status_code=status.HTTP_200_OK,
                     response_model=ProductSchema,
                     response_description="Product by ID")
@@ -103,27 +103,23 @@ async def get_product_by_id(product_id: UUID,
     return await product_crud_service.get_product_by_id(product_id=product_id)
     
 
-@product_routes.get("/products/name/{name}", 
+@product_routes.get("/products/name/{product_name}", 
                     status_code=status.HTTP_200_OK,
                     response_model=ProductSchema,
                     response_description="Product by name")
-async def get_product_by_name(name: str,
+async def get_product_by_name(product_name: str,
                               product_crud_service: product_crud_dependency) -> ProductSchema:
-    return await product_crud_service.get_product_by_name(name=name)
+    return await product_crud_service.get_product_by_name(name=product_name)
 
  
 
-@product_routes.put("/products/{product_id}", 
+@product_routes.patch("/products/{product_id}", 
                     status_code=status.HTTP_200_OK,
-                    response_model=ProductSchema,
-                    response_description="Product availability updated",
-                    responses={
-                        200: {"description": "Product availability updated"},
-                        404: {"description": "Product not found"},
-                        500: {"description": "Internal server error"}})
+                    response_model=ProductBase,
+                    response_description="Product availability updated")
 async def update_product_availability(product_id: UUID,
                                       in_stock: bool,
-                                      product_crud_service: product_crud_dependency) -> ProductSchema:
+                                      product_crud_service: product_crud_dependency) -> ProductBase:
     return await product_crud_service.update_product_availability(product_id=product_id, in_stock=in_stock)
 
         
@@ -132,8 +128,7 @@ async def update_product_availability(product_id: UUID,
                        status_code=status.HTTP_204_NO_CONTENT,
                        response_description="Product deleted")
 async def delete_product(product_id: UUID,
-                         product_crud_service: product_crud_dependency
-                         ) -> None:
+                         product_crud_service: product_crud_dependency) -> None:
     return await product_crud_service.delete_product(product_id=product_id)
 
 

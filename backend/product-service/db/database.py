@@ -11,6 +11,7 @@ from models import Base
 from errors.base import DatabaseConnectionError, DatabaseSessionError
 from config import get_settings
 
+
 logger = setup_logger(__name__)
 settings = get_settings()
 

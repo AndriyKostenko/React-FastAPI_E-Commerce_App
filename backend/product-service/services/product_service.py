@@ -1,5 +1,3 @@
-from hmac import new
-from itertools import product
 from typing import List, Optional
 from uuid import UUID
 
@@ -13,7 +11,7 @@ from errors.product_errors import (ProductNotFoundError,
                                   ProductCreationError)
 from models.product_models import Product, ProductImage
 from models.review_models import ProductReview
-from schemas.product_schemas import AllProducts, CreateProduct, ImageType, ProductSchema
+from schemas.product_schemas import CreateProduct, ProductBase, ProductSchema
 
 
 class ProductCRUDService:
@@ -38,22 +36,33 @@ class ProductCRUDService:
             )
             self.session.add(new_product_image)
         await self.session.commit()
-        await self.session.refresh(new_product)
-        return ProductSchema.model_validate(new_product)
+        
+        # 3. Now re-query with relationships loaded
+        result = await self.session.execute(
+            select(Product)
+            .where(Product.id == new_product.id)
+            .options(
+                selectinload(Product.images),
+                selectinload(Product.reviews),
+                selectinload(Product.category)
+            )
+        )
+        product = result.scalars().first()
+        return ProductSchema.model_validate(product)
 
 
     async def get_all_products(self,
                                category: Optional[str] = None,
                                searchTerm: Optional[str] = None,
                                page: int = 1,
-                               page_size: int = 10) -> AllProducts | None:
+                               page_size: int = 10) -> List[ProductSchema]:
         # validating page and page_size
         page = max(1, page)
         page_size = min(max(1, page_size), 50) # limiting page size to 50
 
         query = select(Product).options(
             selectinload(Product.images),
-            selectinload(Product.reviews).selectinload(ProductReview.user),  # product review is connected with user
+            selectinload(Product.reviews),
             selectinload(Product.category)
         ).order_by(desc(Product.date_created))
 
@@ -67,47 +76,48 @@ class ProductCRUDService:
         query = query.offset((page - 1) * page_size).limit(page_size)
         result = await self.session.execute(query)
         products = result.scalars().all()
-        return AllProducts(products=[ProductSchema.model_validate(product) for product in products])
+        if not products:
+            raise ProductNotFoundError(f'Products with category: {category} and/or search term.: {searchTerm} not found.')
+        return [ProductSchema.model_validate(product) for product in products]
 
 
-    async def get_product_by_id(self, product_id: UUID) -> ProductSchema | None:
-        # Querying product with related images, reviews (including users), and category
+    async def get_product_by_id(self, product_id: UUID) -> ProductSchema:
         db_product = await self.session.execute(
             select(Product)
             .where(Product.id == product_id)
             .options(
                 selectinload(Product.images),
-                selectinload(Product.reviews).selectinload(ProductReview.user),
+                selectinload(Product.reviews),
                 selectinload(Product.category)
             ))
+        product = db_product.scalars().first()
         if not db_product:
             raise ProductNotFoundError(f"Product with id: {product_id} not found")
-        product = db_product.scalars().first()
         return ProductSchema.model_validate(product)
 
 
-    async def get_product_by_name(self, name: str) -> ProductSchema | None:
-        # Querying product with related images, reviews (including users), and category
+    async def get_product_by_name(self, name: str) -> ProductSchema:
         db_product = await self.session.execute(
             select(Product)
             .where(Product.name == name)
             .options(
                 selectinload(Product.images),
-                selectinload(Product.reviews).selectinload(ProductReview.user),
+                selectinload(Product.reviews),
                 selectinload(Product.category)
             ))
-        if not db_product:
-            raise ProductNotFoundError(f"Product with name: {name} not found")
         product = db_product.scalars().first()
+        if not product:
+            raise ProductNotFoundError(f"Product with name: {name} not found")
         return ProductSchema.model_validate(product)
             
  
-    async def update_product_availability(self, product_id: UUID, in_stock: bool) -> ProductSchema:
-        product = await self.get_product_by_id(product_id)
+    async def update_product_availability(self, product_id: UUID, in_stock: bool) -> ProductBase:
+        result = await self.session.execute(select(Product).where(Product.id == product_id))
+        product = result.scalars().first()
         product.in_stock = in_stock
         await self.session.commit()
         await self.session.refresh(product)
-        return ProductSchema.model_validate(product)
+        return ProductBase.model_validate(product)
   
 
     async def delete_product(self, product_id: UUID) -> None:

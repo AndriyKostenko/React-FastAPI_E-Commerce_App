@@ -6,9 +6,10 @@ from sqlalchemy import ForeignKey, String, Index
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 
 from models import Base
+from models.mixins import TimestampMixin
 
 
-class ProductReview(Base):
+class ProductReview(Base, TimestampMixin):
     __tablename__ = 'product_reviews'
     
     __table_args__ = (
@@ -22,13 +23,6 @@ class ProductReview(Base):
     product_id: Mapped[UUID] = mapped_column(ForeignKey('products.id'), nullable=False)
     comment: Mapped[str] = mapped_column(nullable=True)
     rating: Mapped[float] = mapped_column(nullable=True)
-    date_created: Mapped[datetime] = mapped_column(
-        default=lambda: datetime.now(timezone.utc),
-        nullable=False
-    )
-    date_updated: Mapped[datetime] = mapped_column(
-        nullable=True,
-        onupdate=lambda: datetime.now(timezone.utc)
-    )
+
 
     product: Mapped['Product'] = relationship('Product', back_populates='reviews')

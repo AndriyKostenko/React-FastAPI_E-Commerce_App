@@ -1,11 +1,11 @@
-from typing import Annotated, Optional
+from typing import Annotated, Optional, List
 from uuid import UUID
 
 from fastapi import Depends, APIRouter, status, HTTPException, Form, UploadFile, File
 
-from dependencies import category_crud_dependency
+from dependencies.dependencies import category_crud_dependency
 from utils.image_pathes import create_image_paths
-from schemas.category_schema import AllCategories, CategorySchema
+from schemas.category_schema import CategorySchema
 
 
 
@@ -15,7 +15,7 @@ category_routes = APIRouter(
 
 @category_routes.get("/categories", 
                      status_code=status.HTTP_200_OK,
-                     response_model=AllCategories)
+                     response_model=List[CategorySchema])
 async def get_all_categories(categories_crud_service: category_crud_dependency):
     return await categories_crud_service.get_all_categories()
    

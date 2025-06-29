@@ -34,8 +34,3 @@ class CategorySchema(CategoryBase):
     date_updated: Optional[datetime] = None
 
 
-class AllCategories(BaseModel):
-    """Schema for returning a list of categories"""
-    categories: List[CategorySchema]
-    
-    model_config = ConfigDict(from_attributes=True)

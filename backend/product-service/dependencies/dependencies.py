@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from services.product_service import ProductCRUDService
 from services.category_service import CategoryCRUDService
 from services.review_service import ReviewCRUDService
-from database import database_session_manager
+from db.database import database_session_manager
 
 
 

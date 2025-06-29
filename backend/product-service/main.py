@@ -1,6 +1,5 @@
 from datetime import datetime
 from contextlib import asynccontextmanager
-from sys import prefix
 
 import uvicorn
 from fastapi.middleware.cors import CORSMiddleware
@@ -10,7 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import ValidationError
 from fastapi.exceptions import ResponseValidationError, RequestValidationError
 
-from database import database_session_manager
+from db.database import database_session_manager
 from routes.product_routes import product_routes
 from routes.category_routes import category_routes
 from routes.review_routes import review_routes

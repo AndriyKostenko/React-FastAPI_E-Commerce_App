@@ -17,6 +17,8 @@ class ImageType(BaseModel):
     color_code: str = Field(..., min_length=3, max_length=50, description="Image color code must be between 3 and 50 characters" , example="#000000")
     image: str = Field(..., min_length=3, max_length=100, description="Image URL must be between 3 and 500 characters", example="https://example.com/image.jpg")
 
+    model_config = ConfigDict(from_attributes=True)
+
 class CartImages(BaseModel):
     product_id: UUID 
     image_url: str = Field(..., min_length=3, max_length=100, description="Image URL must be between 3 and 500 characters", example="https://example.com/image.jpg")
@@ -24,7 +26,7 @@ class CartImages(BaseModel):
     id: UUID 
     image_color: str = Field(..., min_length=3, max_length=50, description="Image color must be between 3 and 50 characters", example="Black")
 
-
+    model_config = ConfigDict(from_attributes=True)
 
 # --- Product Schemas ---
 
@@ -68,11 +70,13 @@ class CreatedProduct(ProductBase):
     id: UUID
     date_created: datetime
     date_updated: Optional[datetime] = None
+    
+# class ProductBasicInfo(BaseModel):
+#     id: UUID
+#     name: str
+#     in_stock: bool
 
-class AllProducts(BaseModel):
-    products: List[ProductSchema]
-
-    model_config = ConfigDict(from_attributes=True)
+#     model_config = ConfigDict(from_attributes=True)
 
 # Optional: For query params etc
 class ProductParams(BaseModel):
