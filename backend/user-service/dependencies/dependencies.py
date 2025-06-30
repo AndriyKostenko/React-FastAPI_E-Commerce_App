@@ -3,12 +3,15 @@ from typing import Annotated, AsyncGenerator
 from fastapi import Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from services.user_service import UserCRUDService
+from services.user_service import UserService
+from repositories.user_repository import UserRepository
 from db.database import database_session_manager
 from authentication import auth_manager
 from schemas.user_schemas import CurrentUserInfo
 from config import get_settings
 
+
+settings = get_settings()
 
 
 """
@@ -42,17 +45,17 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
         yield session
 
 # dependency function that provides an instance of UserCRUDService
-def get_user_service(session: AsyncSession = Depends(get_db_session)) -> UserCRUDService:
-    return UserCRUDService(session=session)
+def get_user_service(session: AsyncSession = Depends(get_db_session)) -> UserService:
+    return UserService(UserRepository(session=session))
 
 
 #dependency function provides admin previlages. 
 async def require_admin(current_user: CurrentUserInfo = Depends(auth_manager.get_current_user_from_token)):
-    if not current_user or current_user.user_role != get_settings().SECRET_ROLE:
+    if not current_user or current_user.role != settings.SECRET_ROLE:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required")
     return current_user
 
 
-user_crud_dependency = Annotated[UserCRUDService, Depends(get_user_service)]
+user_crud_dependency = Annotated[UserService, Depends(get_user_service)]
 
 

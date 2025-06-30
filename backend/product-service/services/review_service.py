@@ -1,66 +1,79 @@
 from uuid import UUID
-from typing import List
+from typing import List, Optional
 
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-
+from schemas.review_schemas import CreateReview, ReviewSchema, UpdateReview
+from errors.review_errors import ReviewNotFoundError, ReviewAlreadyExistsError
+from repositories.review_repository import ReviewRepository
 from models.review_models import ProductReview
-from schemas.review_schemas import CreateReview, ReviewSchema
-from errors.review_errors import ReviewNotFoundError
 
 
-class ReviewCRUDService:
-    def __init__(self, session: AsyncSession):
-        self.session = session
+class ReviewService:
+    """Service layer for review management operations, business logic and data validation."""
+    def __init__(self, repo: ReviewRepository):
+        self.repo = repo
 
     async def create_product_review(self, review: CreateReview) -> ReviewSchema:
+        # Check if review already exists
+        existing_review = await self.repo.get_review_by_product_and_user_id(
+            review.product_id, 
+            review.user_id
+        )
+        if existing_review:
+            raise ReviewAlreadyExistsError(f"User {review.user_id} has already reviewed product {review.product_id}")
+        
         product_review = ProductReview(
-            user_id=review.user_id,
             product_id=review.product_id,
+            user_id=review.user_id,
             comment=review.comment,
             rating=review.rating
         )
-        self.session.add(product_review)
-        await self.session.commit()
-        await self.session.refresh(product_review)
+        product_review = await self.repo.add_review(product_review)
         return ReviewSchema.model_validate(product_review)
 
+
     async def get_review_by_id(self, review_id: UUID) -> ReviewSchema:
-        result = await self.session.execute(select(ProductReview).filter(ProductReview.id == review_id))
-        review = result.scalars().first()
-        if not review:
+        db_review = await self.repo.get_review_by_id(review_id)
+        if not db_review:
             raise ReviewNotFoundError(f"Review with ID: {review_id} not found.")
-        return ReviewSchema.model_validate(review)
+        return ReviewSchema.model_validate(db_review)
 
-    async def get_product_review_by_user_id(self, product_id: UUID, user_id: UUID) -> List[ReviewSchema]:
-        result = await self.session.execute(
-            select(ProductReview)
-            .filter(ProductReview.product_id == product_id)
-            .filter(ProductReview.user_id == user_id))
-        reviews = result.scalars().all()
-        if not reviews:
-            raise ReviewNotFoundError(f"No reviews found for product ID: {product_id} by user ID: {user_id}.")
-        return [ReviewSchema.model_validate(review) for review in reviews]
 
-    async def get_product_reviews(self, product_id: UUID) -> List[ReviewSchema]:
-        result = await self.session.execute(select(ProductReview).filter(ProductReview.product_id == product_id))
-        reviews = result.scalars().all()
-        if not reviews:
-            raise ReviewNotFoundError(f"No reviews found for product ID: {product_id}.")
-        return [ReviewSchema.model_validate(review) for review in reviews]
+    async def get_review_by_user_id(self, user_id: UUID) -> List[ReviewSchema]:
+        db_reviews = await self.repo.get_reviews_by_user_id(user_id)
+        return [ReviewSchema.model_validate(review) for review in db_reviews]
+    
+    
+    async def get_reviews_by_product_id(self, product_id: UUID) -> List[ReviewSchema]:
+        db_reviews = await self.repo.get_reviews_by_product_id(product_id)
+        return [ReviewSchema.model_validate(review) for review in db_reviews]
 
-    async def update_product_review(self, review_id: UUID, update_data: CreateReview) -> ReviewSchema:
-        review = await self.get_review_by_id(review_id)
-        review.comment = update_data.comment
-        review.rating = update_data.rating
-        await self.session.commit()
-        await self.session.refresh(review)
-        return ReviewSchema.model_validate(review)
+
+    async def get_review_by_product_id_and_user_id(self, product_id: UUID, user_id: UUID) -> Optional[ReviewSchema]:
+        """Get review if exists, return None if not found"""
+        db_review = await self.repo.get_review_by_product_and_user_id(product_id, user_id)
+        return ReviewSchema.model_validate(db_review) if db_review else None
+
+
+    async def update_product_review(self, product_id: UUID, user_id: UUID, update_data: UpdateReview) -> ReviewSchema:
+        existing_review = await self.repo.get_review_by_product_and_user_id(product_id, user_id)
+        if not existing_review:
+            raise ReviewNotFoundError(
+                f"Review for product {product_id} by user {user_id} not found"
+            )
+        
+        # Update fields
+        existing_review.comment = update_data.comment
+        existing_review.rating = update_data.rating
+        
+        updated_review = await self.repo.update_review(existing_review)
+        return ReviewSchema.model_validate(updated_review)
+
 
     async def delete_product_review(self, review_id: UUID) -> None:
-        product_review = await self.get_review_by_id(review_id)
-        await self.session.delete(product_review)
-        await self.session.commit()
+        db_review = await self.repo.get_review_by_id(review_id)
+        if not db_review:
+            raise ReviewNotFoundError(f"Review with ID: {review_id} not found.")
+        await self.repo.delete_review(db_review)    
 
 
 

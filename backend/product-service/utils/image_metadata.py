@@ -1,12 +1,12 @@
-from typing import List
+from schemas.product_schemas import ImageType
 
 
-async def create_image_metadata(image_paths: List[str], images_color: List[str], images_color_code: List[str]):
+async def create_image_metadata(image_paths: list[str], images_color: list[str], images_color_code: list[str]):
     return [
-        {
-            "color": images_color[i],
-            "color_code": images_color_code[i],
-            "image": path,
-        }
+        ImageType(
+            color=images_color[i],
+            color_code=images_color_code[i],
+            image_url=path
+        )
         for i, path in enumerate(image_paths)
     ]

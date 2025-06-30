@@ -42,29 +42,29 @@ services:
       timeout: 5s
       retries: 5
 
-  user-service:
-    build:
-      context: ./user-service
-      dockerfile: Dockerfile
-    restart: always  
-    depends_on:
-      db:
-        condition: service_healthy
-    env_file:
-    # specifing common and specifig settings
-      - .env
-      - ./user-service/.env
-    environment:
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${USER_SERVICE_DB}
-    ports:
-      - "8000:8000"
-    networks:
-      - usernet
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+  # user-service:
+  #   build:
+  #     context: ./user-service
+  #     dockerfile: Dockerfile
+  #   restart: always  
+  #   depends_on:
+  #     db:
+  #       condition: service_healthy
+  #   env_file:
+  #   # specifing common and specifig settings
+  #     - .env
+  #     - ./user-service/.env
+  #   environment:
+  #     DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${USER_SERVICE_DB}
+  #   ports:
+  #     - "8000:8000"
+  #   networks:
+  #     - usernet
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
 
   product-service:
     build:

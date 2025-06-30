@@ -19,9 +19,9 @@ admin_routes = APIRouter(tags=['admin'],
 @admin_routes.get('/users',
                   summary='Get all users from DB',
                   status_code=status.HTTP_200_OK,
-                  response_model=List[UserInfo])
-async def get_all_users(user_crud_service: user_crud_dependency):
-    return await user_crud_service.get_all_users() 
+                  response_model=list[UserInfo])
+async def get_all_users(user_service: user_crud_dependency) -> list[UserInfo]:
+    return await user_service.get_all_users() 
 
 
 
@@ -31,13 +31,13 @@ async def get_all_users(user_crud_service: user_crud_dependency):
                   status_code=status.HTTP_200_OK)
 async def update_user_by_id(user_id: UUID,
                             user_update_data: UserBasicUpdate,
-                            user_crud_service: user_crud_dependency):
-    return await user_crud_service.update_user_basic_info(user_id=user_id, user_update_data=user_update_data)
+                            user_service: user_crud_dependency) -> UserInfo:
+    return await user_service.update_user_basic_info(user_id=user_id, update_data=user_update_data)
 
 
 @admin_routes.delete('/users/{user_id}',
                      summary='Delete user by ID', 
                      status_code=status.HTTP_204_NO_CONTENT)
 async def delete_user_by_id(user_id: UUID,
-                            user_crud_service: user_crud_dependency):
-    return await user_crud_service.delete_user_by_id(user_id=user_id)
+                            user_service: user_crud_dependency):
+    return await user_service.delete_user_by_id(user_id=user_id)

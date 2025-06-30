@@ -1,3 +1,4 @@
+from decimal import Decimal
 from typing import List
 from uuid import UUID, uuid4
 
@@ -28,8 +29,8 @@ class Product(Base, TimestampMixin):
     category_id: Mapped[UUID] = mapped_column(ForeignKey('product_categories.id'), nullable=False)
     brand: Mapped[str] = mapped_column(nullable=False)
     quantity: Mapped[int] = mapped_column(nullable=False)
-    price: Mapped[float] = mapped_column(nullable=False)
-    in_stock: Mapped[bool] = mapped_column(nullable=True)
+    price: Mapped[Decimal] = mapped_column(nullable=False)
+    in_stock: Mapped[bool] = mapped_column(nullable=False)
 
     reviews: Mapped[List['ProductReview']] = relationship('ProductReview', back_populates='product', cascade='all, delete-orphan') # type: ignore
     images: Mapped[List['ProductImage']] = relationship('ProductImage', back_populates='product', cascade='all, delete-orphan')

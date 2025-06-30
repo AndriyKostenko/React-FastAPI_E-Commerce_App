@@ -64,11 +64,11 @@ the service layer, so no need to handle them here.
                   )
 @ratelimiter(times=5, seconds=3600)  # Limit to 5 registrations per hour
 async def create_user(request: Request,
-                      user: UserSignUp,
+                      data: UserSignUp,
                       background_tasks: BackgroundTasks,
-                      user_crud_service: user_crud_dependency
+                      user_service: user_crud_dependency
                       ) -> UserInfo:
-    new_db_user = await user_crud_service.create_user(user=user)
+    new_db_user = await user_service.create_user(data=data)
     
     # Send verification email in background
     await email_service.send_verification_email(
@@ -86,13 +86,13 @@ async def create_user(request: Request,
                  status_code=status.HTTP_200_OK,
                  response_description="Email verified successfully",
                 )
-@ratelimiter(times=5, seconds=3600)  # Limit to 5 verifications per hour
 @cache_manager.cached(namespace="users", key="token", ttl=60)  # Cache for 1 minute
+@ratelimiter(times=5, seconds=3600)  # Limit to 5 verifications per hour
 async def verify_email(request: Request,
                        token: str,
-                       user_crud_service: user_crud_dependency) -> EmailVerificationResponse:
+                       user_service: user_crud_dependency) -> EmailVerificationResponse:
     token_data = await auth_manager.get_current_user_from_token(token=token, required_purpose="email_verification")
-    db_user = await user_crud_service.update_user_verified_status(user_email=token_data.email, status=True)
+    db_user = await user_service.update_user_verified_status(email=token_data.email, status=True)
     return EmailVerificationResponse(
         detail="Email verified successfully",
         email=db_user.email,
@@ -128,7 +128,7 @@ async def login(request: Request,
                 form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
                 user_service: user_crud_dependency) -> UserLoginDetails: # request is reqired for rate limiting decorator
     # Authenticate user with credentials
-    user = await auth_manager.get_authenticated_user(form_data=form_data, user_crud_service=user_service)
+    user = await auth_manager.get_authenticated_user(form_data=form_data, user_service=user_service)
     
     # updte last login might change user data, invalidating the redis cache
     await cache_manager.invalidate_cache(namespace="users", key=user.email)
@@ -156,9 +156,9 @@ async def login(request: Request,
 async def request_password_reset(request: Request,
                                 data: ForgotPasswordRequest,
                                 background_tasks: BackgroundTasks,
-                                user_crud_service: user_crud_dependency):
+                                user_service: user_crud_dependency):
     # Verify user exists
-    user = await user_crud_service.get_user_by_email(data.email)
+    user = await user_service.get_user_by_email(data.email)
     
     # Send password reset email
     await email_service.send_password_reset_email(
@@ -185,11 +185,11 @@ async def reset_password(request: Request,
                         token: str,
                         data: ResetPasswordRequest,
                         background_tasks: BackgroundTasks,
-                        user_crud_service: user_crud_dependency) -> PasswordUpdateResponse:
+                        user_service: user_crud_dependency) -> PasswordUpdateResponse:
     """Reset password using token"""
     token_data = await auth_manager.get_current_user_from_token(token=token, required_purpose="password_reset")
     
-    await user_crud_service.update_user_password(email=token_data.email, new_password=data.new_password)
+    await user_service.update_user_password(email=token_data.email, new_password=data.new_password)
     
     await cache_manager.invalidate_cache(namespace="users", key=token_data.email)  # Invalidate cache for user email
     
@@ -219,7 +219,7 @@ async def generate_token(request: Request,
                         form_data: Annotated[OAuth2PasswordRequestForm, Depends()], 
                         user_service: user_crud_dependency) -> TokenSchema:
     """Generate new token for user"""
-    user = await auth_manager.get_authenticated_user(form_data=form_data, user_crud_service=user_service)
+    user = await auth_manager.get_authenticated_user(form_data=form_data, user_service=user_service)
  
     token, _ = auth_manager.create_access_token(email=user.email, 
                                              user_id=user.id, 
@@ -235,8 +235,8 @@ async def generate_token(request: Request,
                  response_model=CurrentUserInfo,
                  status_code=status.HTTP_200_OK,
                  response_description="Current user data retrieved successfully",)
-@ratelimiter(times=10, seconds=60)  # Limit to 10 requests per minute
 @cache_manager.cached(namespace="users", key="current_user", ttl=60) # key should match parameter name
+@ratelimiter(times=10, seconds=60)  # Limit to 10 requests per minute
 async def get_current_user_data(request: Request,
                                 current_user: Annotated[CurrentUserInfo, Depends(auth_manager.get_current_user_from_token)]) -> CurrentUserInfo:
     return current_user
@@ -247,12 +247,12 @@ async def get_current_user_data(request: Request,
                   response_model=UserInfo,
                   response_description="User data retrieved successfully"
                   )
-@ratelimiter(times=10, seconds=60)
 @cache_manager.cached(namespace="users", key="user_email", ttl=60) # key should match parameter name
+@ratelimiter(times=10, seconds=60)
 async def get_user_by_email(request: Request,
                             user_email: EmailStr, 
-                            user_crud_service: user_crud_dependency) -> UserInfo:
-    return await user_crud_service.get_user_by_email(user_email)
+                            user_service: user_crud_dependency) -> UserInfo:
+    return await user_service.get_user_by_email(user_email)
 
 
 @user_routes.get("/user/id/{user_id}",
@@ -261,12 +261,12 @@ async def get_user_by_email(request: Request,
                   response_description="User data retrieved successfully",
                   status_code=status.HTTP_200_OK
                   )
-@ratelimiter(times=10, seconds=60)  
 @cache_manager.cached(namespace="users", key="user_id", ttl=60) # key should match parameter name
+@ratelimiter(times=10, seconds=60) 
 async def get_user_by_user_id(request: Request,
                               user_id: UUID, 
-                              user_crud_service: user_crud_dependency) -> UserInfo:
-    return await user_crud_service.get_user_by_id(user_id=user_id)
+                              user_service: user_crud_dependency) -> UserInfo:
+    return await user_service.get_user_by_id(user_id=user_id)
 
 
 

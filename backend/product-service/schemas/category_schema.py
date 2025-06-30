@@ -8,7 +8,7 @@ from pydantic import BaseModel, ConfigDict
 class CategoryBase(BaseModel):
     """Base category schema with common attributes"""
     name: str
-    image_url: Optional[str] = None
+    image_url: str
     
     # adding config for model serialization from ORM attributes
     model_config = ConfigDict(from_attributes=True)
@@ -21,10 +21,8 @@ class CreateCategory(CategoryBase):
 
 class UpdateCategory(CategoryBase):
     """Schema for updating an existing category"""
-    name: Optional[str] = None  # Make name optional for updates
-    delivery_status: Optional[str] = None
-    status: Optional[str] = None
-    amount: Optional[float] = None
+    name: Optional[str] = None
+    image_url: Optional[str] = None
 
 
 class CategorySchema(CategoryBase):

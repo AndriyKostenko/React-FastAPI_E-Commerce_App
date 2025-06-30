@@ -2,9 +2,8 @@ from typing import List, Optional
 from uuid import UUID
 
 
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
-from sqlalchemy import select, asc, desc
+
+
 
 
 from errors.product_errors import (ProductNotFoundError,
@@ -12,117 +11,101 @@ from errors.product_errors import (ProductNotFoundError,
 from models.product_models import Product, ProductImage
 from models.review_models import ProductReview
 from schemas.product_schemas import CreateProduct, ProductBase, ProductSchema
+from repositories.product_repository import ProductRepository
 
-
-class ProductCRUDService:
-    def __init__(self, session: AsyncSession):
-        self.session = session
+class ProductService:
+    """Service layer for product management operations, business logic and data validation."""
+    def __init__(self, repo: ProductRepository):
+        self.repo = repo
 
     async def create_product_item(self, product_data: CreateProduct) -> ProductSchema:
+        db_product = await self.repo.get_product_by_name(name=product_data.name.lower())
+        if db_product:
+            raise ProductCreationError(f'Product with name: "{product_data.name}" already exists.')
         # 1. creating product
-        product_dict = product_data.dict(exclude={"images"})
-        new_product = Product(**product_dict)
-        self.session.add(new_product)
-        await self.session.commit()
-        await self.session.refresh(new_product)
+        new_product = Product(name=product_data.name,
+                              description=product_data.description,
+                              category_id=product_data.category_id,
+                              brand=product_data.brand,
+                              quantity=product_data.quantity,
+                              price=product_data.price,
+                              in_stock=product_data.in_stock)
         
-        # 2. creating images
-        for img in product_data.images:
-            new_product_image = ProductImage(
-                product_id=new_product.id,
-                image_url=img.image,
-                image_color=img.color,
-                image_color_code=img.color_code
-            )
-            self.session.add(new_product_image)
-        await self.session.commit()
+        new_db_product = await self.repo.add_product(new_product)
+        
+        # 2. adding product images
+        product_images = [
+            ProductImage(
+                product_id=new_db_product.id,
+                image_url=image.image_url,
+                image_color=image.image_color,
+                image_color_code=image.image_color_code
+            ) 
+            for image in product_data.images
+        ]
+        await self.repo.add_product_images(images=product_images)
         
         # 3. Now re-query with relationships loaded
-        result = await self.session.execute(
-            select(Product)
-            .where(Product.id == new_product.id)
-            .options(
-                selectinload(Product.images),
-                selectinload(Product.reviews),
-                selectinload(Product.category)
-            )
-        )
-        product = result.scalars().first()
-        return ProductSchema.model_validate(product)
+        product_with_relations = await self.repo.get_product_by_id_with_relations(product_id=new_db_product.id)
+        return ProductSchema.model_validate(product_with_relations)
 
 
     async def get_all_products(self,
                                category: Optional[str] = None,
                                searchTerm: Optional[str] = None,
                                page: int = 1,
-                               page_size: int = 10) -> List[ProductSchema]:
-        # validating page and page_size
-        page = max(1, page)
-        page_size = min(max(1, page_size), 50) # limiting page size to 50
-
-        query = select(Product).options(
-            selectinload(Product.images),
-            selectinload(Product.reviews),
-            selectinload(Product.category)
-        ).order_by(desc(Product.date_created))
-
-        if category:
-            query = query.filter(Product.category.has(name=category))
-
-        if searchTerm:
-            query = query.filter(Product.name.ilike(f"%{searchTerm}%"))
-
-        # Apply pagination using offset and limit
-        query = query.offset((page - 1) * page_size).limit(page_size)
-        result = await self.session.execute(query)
-        products = result.scalars().all()
-        if not products:
+                               page_size: int = 10) -> List[ProductBase]:
+        db_products = await self.repo.get_all_products(category=category,
+                                                       searchTerm=searchTerm,
+                                                       page=page,
+                                                       page_size=page_size)
+        if not db_products or len(db_products) == 0:
             raise ProductNotFoundError(f'Products with category: {category} and/or search term.: {searchTerm} not found.')
-        return [ProductSchema.model_validate(product) for product in products]
+        return [ProductBase.model_validate(product) for product in db_products]
+    
+    
+    async def get_all_products_with_relations(self,
+                                               category: Optional[str] = None,
+                                               searchTerm: Optional[str] = None,
+                                               page: int = 1,
+                                               page_size: int = 10) -> List[ProductSchema]:
+        db_products = await self.repo.get_all_products_with_relations(category=category,
+                                                                      searchTerm=searchTerm,
+                                                                      page=page,
+                                                                      page_size=page_size)
+        if not db_products or len(db_products) == 0:
+            raise ProductNotFoundError(f'Products with category: {category} and/or search term.: {searchTerm} not found.')
+        return [ProductSchema.model_validate(product) for product in db_products]
 
 
-    async def get_product_by_id(self, product_id: UUID) -> ProductSchema:
-        db_product = await self.session.execute(
-            select(Product)
-            .where(Product.id == product_id)
-            .options(
-                selectinload(Product.images),
-                selectinload(Product.reviews),
-                selectinload(Product.category)
-            ))
-        product = db_product.scalars().first()
+    async def get_product_by_id(self, product_id: UUID) -> ProductBase:
+        db_product = await self.repo.get_product_by_id(product_id)
         if not db_product:
             raise ProductNotFoundError(f"Product with id: {product_id} not found")
-        return ProductSchema.model_validate(product)
+        return ProductBase.model_validate(db_product)
 
 
-    async def get_product_by_name(self, name: str) -> ProductSchema:
-        db_product = await self.session.execute(
-            select(Product)
-            .where(Product.name == name)
-            .options(
-                selectinload(Product.images),
-                selectinload(Product.reviews),
-                selectinload(Product.category)
-            ))
-        product = db_product.scalars().first()
-        if not product:
+    async def get_product_by_name(self, name: str) -> ProductBase:
+        db_product = await self.repo.get_product_by_name(name=name)
+        if not db_product:
             raise ProductNotFoundError(f"Product with name: {name} not found")
-        return ProductSchema.model_validate(product)
-            
+        return ProductBase.model_validate(db_product)
+ 
  
     async def update_product_availability(self, product_id: UUID, in_stock: bool) -> ProductBase:
-        result = await self.session.execute(select(Product).where(Product.id == product_id))
-        product = result.scalars().first()
-        product.in_stock = in_stock
-        await self.session.commit()
-        await self.session.refresh(product)
-        return ProductBase.model_validate(product)
-  
+        db_product = await self.repo.get_product_by_id(product_id)
+        if not db_product:
+            raise ProductNotFoundError(f"Product with id: {product_id} not found")
+        db_product.in_stock = in_stock
+        updated_product = await self.repo.update_product(db_product)
+        return ProductBase.model_validate(updated_product)
 
+  
     async def delete_product(self, product_id: UUID) -> None:
-        product = await self.get_product_by_id(product_id)
-        await self.session.delete(product)
-        await self.session.commit()
+        db_product = await self.repo.get_product_by_id(product_id)
+        if not db_product:
+            raise ProductNotFoundError(f"Product with id: {product_id} not found")
+        await self.repo.delete_product(db_product)
+        return None
    
  

@@ -57,7 +57,7 @@ class AuthenticationManager:
                                 password: str, 
                                 user_service) -> CurrentUserInfo: 
         """Authenticate user with email and password"""
-        users_hashed_password = await user_service.get_users_hashed_password(email=email)
+        users_hashed_password = await user_service.get_user_hashed_password(email=email)
             
         if not self._verify_password(password, users_hashed_password):
             raise UserPasswordError(detail='Invalid password')
@@ -123,12 +123,12 @@ class AuthenticationManager:
     
     async def get_authenticated_user(self,
                                     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
-                                    user_crud_service):
+                                    user_service):
         """Authenticate user with credentials"""
         return await self.authenticate_user(
             email=form_data.username,
             password=form_data.password,
-            user_service=user_crud_service
+            user_service=user_service
         )
             
             
