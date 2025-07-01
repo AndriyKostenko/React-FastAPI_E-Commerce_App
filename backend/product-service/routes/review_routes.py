@@ -23,12 +23,15 @@ async def create_product_review(
 ) -> ReviewSchema:
     # Verify product exists
     await product_service.get_product_by_id(product_id=product_id)
-    
-    # Set product_id and user_id
-    review.product_id = product_id
-    review.user_id = user_id
-    return await review_service.create_product_review(review=review)
+    return await review_service.create_product_review(user_id=user_id, product_id=product_id, data=review)
 
+
+@review_routes.get("/reviews/",
+                   status_code=status.HTTP_200_OK,
+                   response_model=List[ReviewSchema])
+async def get_all_reviews(review_service: review_service_dependency) -> List[ReviewSchema]:
+    return await review_service.get_all_reviews()
+    
 
 @review_routes.get("/products/{product_id}/reviews/{review_id}",
                    status_code=status.HTTP_200_OK,
@@ -51,7 +54,7 @@ async def get_reviews_by_product_id(product_id: UUID,
                    response_model=list[ReviewSchema])
 async def get_reviews_by_user_id(user_id: UUID,
                                  review_service: review_service_dependency) -> list[ReviewSchema]:
-    return await review_service.get_review_by_user_id(user_id=user_id)
+    return await review_service.get_reviews_by_user_id(user_id=user_id)
 
 
 @review_routes.get("/products/{product_id}/users/{user_id}/reviews",
@@ -60,7 +63,8 @@ async def get_reviews_by_user_id(user_id: UUID,
 async def get_review_by_product_id_and_user_id(product_id: UUID,
                                                user_id: UUID,
                                                review_service: review_service_dependency) -> ReviewSchema:
-    return await review_service.get_review_by_product_id_and_user_id(product_id=product_id, user_id=user_id)
+    return await review_service.get_review_by_product_id_and_user_id(product_id=product_id, 
+                                                                     user_id=user_id)
 
 
 @review_routes.put("/products/{product_id}/users/{user_id}/reviews", 
@@ -76,19 +80,15 @@ async def update_product_review(
     # Verify product exists
     await product_service.get_product_by_id(product_id=product_id)
     
-    # Get existing review
-    existing_review = await review_service.get_review_by_product_id_and_user_id(
+    # Verify existing review
+    await review_service.get_review_by_product_id_and_user_id(
         product_id=product_id,
         user_id=user_id
     )
-    if not existing_review:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Review not found"
-        )
-    
+
     return await review_service.update_product_review(
-        review_id=existing_review.id,
+        product_id=product_id,
+        user_id=user_id,
         update_data=review_data
     )
 
@@ -109,10 +109,5 @@ async def delete_product_review(
         product_id=product_id,
         user_id=user_id
     )
-    if not existing_review:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Review not found"
-        )
     
     await review_service.delete_product_review(review_id=existing_review.id)

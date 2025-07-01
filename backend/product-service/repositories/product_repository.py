@@ -3,7 +3,7 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-from sqlalchemy import select, asc, desc
+from sqlalchemy import select, desc
 
 from models.product_models import Product, ProductImage
 

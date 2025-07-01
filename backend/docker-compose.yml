@@ -42,56 +42,71 @@ services:
       timeout: 5s
       retries: 5
 
-  # user-service:
-  #   build:
-  #     context: ./user-service
-  #     dockerfile: Dockerfile
-  #   restart: always  
-  #   depends_on:
-  #     db:
-  #       condition: service_healthy
-  #   env_file:
-  #   # specifing common and specifig settings
-  #     - .env
-  #     - ./user-service/.env
-  #   environment:
-  #     DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${USER_SERVICE_DB}
-  #   ports:
-  #     - "8000:8000"
-  #   networks:
-  #     - usernet
-  #   healthcheck:
-  #     test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-  #     interval: 30s
-  #     timeout: 10s
-  #     retries: 3
-
-  product-service:
+  user-service:
     build:
-      context: ./product-service
+      context: ./user-service
       dockerfile: Dockerfile
-    restart: always
+    restart: always  
     depends_on:
       db:
         condition: service_healthy
     env_file:
-    # specifing common '.env' and specifig '.env' settings
+    # specifing common and specifig settings
       - .env
-      - ./product-service/.env
+      - ./user-service/.env
     environment:
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${PRODUCT_SERVICE_DB}
-      MEDIA_ROOT: /media
-    volumes:
-      - product_media:/media
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${USER_SERVICE_DB}
     ports:
-      - "8001:8001"
+      - "8000:8000"
     networks:
       - usernet
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
+
+  # product-service:
+  #   build:
+  #     context: ./product-service
+  #     dockerfile: Dockerfile
+  #   restart: always
+  #   depends_on:
+  #     db:
+  #       condition: service_healthy
+  #   env_file:
+  #   # specifing common '.env' and specifig '.env' settings
+  #     - .env
+  #     - ./product-service/.env
+  #   environment:
+  #     DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${PRODUCT_SERVICE_DB}
+  #     MEDIA_ROOT: /media
+  #   volumes:
+  #     - product_media:/media
+  #   ports:
+  #     - "8001:8001"
+  #   networks:
+  #     - usernet
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
+
+  admin-js-service:
+    build:
+      context: ./admin-js-service
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+      - ./admin-js-service/.env
+    ports:
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - usernet
 
 networks:
   usernet:

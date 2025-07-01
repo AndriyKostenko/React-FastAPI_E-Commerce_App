@@ -16,17 +16,18 @@ class ReviewBase(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class CreateReview(ReviewBase):
-    """Schema for creating a new review"""
-    pass
-
-
-class UpdateReview(ReviewBase):
-    """Schema for updating an existing review"""
-    product_id: UUID
-    user_id: UUID
-    comment: Optional[str] 
+class CreateReview(BaseModel):
+    comment: Optional[str] = None
     rating: Optional[float] = Field(None, ge=0, le=5)
+    
+    model_config = ConfigDict(from_attributes=True)
+
+
+class UpdateReview(BaseModel):
+    comment: Optional[str] = None
+    rating: Optional[float] = Field(None, ge=0, le=5)
+    
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ReviewSchema(ReviewBase):

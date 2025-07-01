@@ -12,20 +12,20 @@ class ReviewService:
     def __init__(self, repo: ReviewRepository):
         self.repo = repo
 
-    async def create_product_review(self, review: CreateReview) -> ReviewSchema:
+    async def create_product_review(self, user_id: UUID, product_id: UUID, data: CreateReview) -> ReviewSchema:
         # Check if review already exists
         existing_review = await self.repo.get_review_by_product_and_user_id(
-            review.product_id, 
-            review.user_id
+            product_id=product_id,
+            user_id=user_id
         )
         if existing_review:
-            raise ReviewAlreadyExistsError(f"User {review.user_id} has already reviewed product {review.product_id}")
+            raise ReviewAlreadyExistsError(f"User with id: {user_id} has already reviewed product id: {product_id}")
         
         product_review = ProductReview(
-            product_id=review.product_id,
-            user_id=review.user_id,
-            comment=review.comment,
-            rating=review.rating
+            product_id=product_id,
+            user_id=user_id,
+            comment=data.comment,
+            rating=data.rating
         )
         product_review = await self.repo.add_review(product_review)
         return ReviewSchema.model_validate(product_review)
@@ -38,27 +38,42 @@ class ReviewService:
         return ReviewSchema.model_validate(db_review)
 
 
-    async def get_review_by_user_id(self, user_id: UUID) -> List[ReviewSchema]:
+    async def get_reviews_by_user_id(self, user_id: UUID) -> List[ReviewSchema]:
         db_reviews = await self.repo.get_reviews_by_user_id(user_id)
+        if not db_reviews:
+            raise ReviewNotFoundError(f"No reviews found for user with ID: {user_id}")
         return [ReviewSchema.model_validate(review) for review in db_reviews]
     
     
     async def get_reviews_by_product_id(self, product_id: UUID) -> List[ReviewSchema]:
         db_reviews = await self.repo.get_reviews_by_product_id(product_id)
+        if not db_reviews:
+            raise ReviewNotFoundError(f"No reviews found for product with ID: {product_id}")
         return [ReviewSchema.model_validate(review) for review in db_reviews]
 
 
-    async def get_review_by_product_id_and_user_id(self, product_id: UUID, user_id: UUID) -> Optional[ReviewSchema]:
+    async def get_review_by_product_id_and_user_id(self, product_id: UUID, user_id: UUID) -> ReviewSchema:
         """Get review if exists, return None if not found"""
         db_review = await self.repo.get_review_by_product_and_user_id(product_id, user_id)
-        return ReviewSchema.model_validate(db_review) if db_review else None
+        if not db_review:
+            raise ReviewNotFoundError(
+                f"Review for product id: {product_id} by user id: {user_id} not found"
+            )
+        return ReviewSchema.model_validate(db_review)
+    
+    async def get_all_reviews(self) -> List[ReviewSchema]:
+        """Get all reviews in the system"""
+        db_reviews = await self.repo.get_all_reviews()
+        if not db_reviews:
+            raise ReviewNotFoundError("No reviews found in the system.")
+        return [ReviewSchema.model_validate(review) for review in db_reviews]
 
 
     async def update_product_review(self, product_id: UUID, user_id: UUID, update_data: UpdateReview) -> ReviewSchema:
         existing_review = await self.repo.get_review_by_product_and_user_id(product_id, user_id)
         if not existing_review:
             raise ReviewNotFoundError(
-                f"Review for product {product_id} by user {user_id} not found"
+                f"Review for product id: {product_id} by user id: {user_id} not found"
             )
         
         # Update fields
