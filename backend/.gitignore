@@ -7,3 +7,5 @@
 .env.*
 !.env.example 
 .env.common
+/node_modules
+./admin-js-service/node_modules

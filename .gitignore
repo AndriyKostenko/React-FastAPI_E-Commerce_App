@@ -5,6 +5,7 @@
 /backend/__pycache__
 /backend/.venv
 /backend/venv
+/backend/admin-js-service/node_modules
 /node_modules
 /frontend/node_modules
 
