@@ -66,32 +66,32 @@ services:
       timeout: 10s
       retries: 3
 
-  # product-service:
-  #   build:
-  #     context: ./product-service
-  #     dockerfile: Dockerfile
-  #   restart: always
-  #   depends_on:
-  #     db:
-  #       condition: service_healthy
-  #   env_file:
-  #   # specifing common '.env' and specifig '.env' settings
-  #     - .env
-  #     - ./product-service/.env
-  #   environment:
-  #     DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${PRODUCT_SERVICE_DB}
-  #     MEDIA_ROOT: /media
-  #   volumes:
-  #     - product_media:/media
-  #   ports:
-  #     - "8001:8001"
-  #   networks:
-  #     - usernet
-  #   healthcheck:
-  #     test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
-  #     interval: 30s
-  #     timeout: 10s
-  #     retries: 3
+  product-service:
+    build:
+      context: ./product-service
+      dockerfile: Dockerfile
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+    # specifing common '.env' and specifig '.env' settings
+      - .env
+      - ./product-service/.env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${PRODUCT_SERVICE_DB}
+      MEDIA_ROOT: /media
+    volumes:
+      - product_media:/media
+    ports:
+      - "8001:8001"
+    networks:
+      - usernet
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   admin-js-service:
     build:
