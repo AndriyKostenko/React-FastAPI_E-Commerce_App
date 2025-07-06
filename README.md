@@ -24,47 +24,51 @@
    4. Monitor cache hit/miss rates
    5. Consider cache size and memory usage
 
-   # Check if Redis is running
-   sudo systemctl status redis
+   Check if Redis is running
+   ` sudo systemctl status redis `
 
-   # If not running, start it
-   sudo systemctl start redis
+   If not running, start it
+   ` sudo systemctl start redis `
 
-   sudo systemctl stop redis
+   ` sudo systemctl stop redis `
 
-   # Make sure Redis is enabled on startup
-   sudo systemctl enable redis
+   Make sure Redis is enabled on startup
+   `sudo systemctl enable redis`
 
-   # Find process using port 6379
-   sudo lsof -i :6379
+   Find process using port 6379
+   ` sudo lsof -i :6379 `
 
-   # Stop the process (if it's another Redis instance)
-   sudo systemctl stop redis-server
+   Stop the process (if it's another Redis instance)
+   `sudo systemctl stop redis-server`
 
 ## Docker
-   # building the image
-   - docker build -t user-service .
+   building the image
+   ` docker build -t user-service . `
 
-   # running with .env file
-   - docker run --env-file .env user-service : 
+   running with .env file
+   ` docker run --env-file .env user-service ` 
 
-   - docker compose up --build
+   ` docker compose up --build`
 
-   # Stop containers and remove volumes
-   - docker compose down -v -
+   Stop containers and remove volumes
+   ` docker compose down -v `
 
-   # Remove the DB volume (WARNING: deletes all Postgres data!)
-   - docker volume rm backend_postgres_data 
+   Remove the DB volume (WARNING: deletes all Postgres data!)
+   ` docker volume rm backend_postgres_data `
 
-   # Remove all existing containers, networks, and volumes
-   - docker system prune -af --volumes
+   Remove all existing containers, networks, and volumes
+   ` docker system prune -af --volumes `
 
 ## UV
- 
- - uv venv : creating virtual env
+
+ - uv init
+ - uv venv
  - source .venv/bin/activate
- - uv pip install -r requirements.txt
- - uv pip install <package name>
+ - uv add <package_name>
+ - uv lock
+ - uv pip list
+
+
 
 
 ## PG Admin
