@@ -98,7 +98,7 @@ class AuthenticationManager:
         try:
             payload = jwt.decode(token, self.settings.SECRET_KEY, algorithms=[self.settings.ALGORITHM])
             email: str = payload.get('sub')
-            user_id: str = payload.get('id')
+            user_id: UUID = payload.get('id')
             role: str = payload.get('role')
             exp: int = payload.get('exp')
             purpose: str = payload.get('purpose', required_purpose) # Default to "access" if not specified
@@ -112,8 +112,7 @@ class AuthenticationManager:
 
             return CurrentUserInfo(email=email, 
                                    id=user_id, 
-                                   role=role, 
-                                   exp=exp)
+                                   role=role)
             
         except JWTError as jwt_error:
             raise UserIsNotVerifiedError(

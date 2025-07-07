@@ -52,7 +52,7 @@ RUN apt-get update \
 # Copy dependencies from builder
 COPY --from=builder /app/.venv /app/.venv
 
-# Make sure we use venv
+# Set up PATH to include both uv and venv
 ENV PATH="/app/.venv/bin:$PATH"
 
 # Copy source code and set permissions
@@ -74,5 +74,7 @@ HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
 
 # ( automatically detects the number of CPU cores and sets the number of workers accordingly )
 # CMD ["sh", "-c", "gunicorn -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:8000 --workers $(nproc) --timeout 60 --access-logfile -"]
+
+# CMD ["uv", "run", "gunicorn", "-k", "uvicorn.workers.UvicornWorker", "main:app", "--bind", "0.0.0.0:8000", "--workers", "1", "--timeout", "60", "--access-logfile"]
 
 CMD ["gunicorn", "-k", "uvicorn.workers.UvicornWorker", "main:app", "--bind", "0.0.0.0:8000", "--workers", "1", "--timeout", "60", "--access-logfile", "-"]
