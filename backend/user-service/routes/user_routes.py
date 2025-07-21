@@ -22,15 +22,16 @@ from schemas.user_schemas import (UserSignUp,
                     PasswordUpdateResponse)
 from dependencies.dependencies import user_crud_dependency
 from services.email_service import email_service
-from utils.cache_response import cache_manager
-from utils.rate_limiter import ratelimiter
+from shared.redis_manager import RedisManager
 from config import get_settings
 
 user_routes = APIRouter(
     tags=["users"]
 )
+
 settings = get_settings()
 
+redis_manager = RedisManager(service_prefix="user_service", redis_url=settings.REDIS_URL)
 
 
 """
@@ -62,7 +63,7 @@ the service layer, so no need to handle them here.
                   response_model=UserInfo,
                   response_description="New user created successfully",
                   )
-@ratelimiter(times=5, seconds=3600)  # Limit to 5 registrations per hour
+@redis_manager.ratelimiter(times=5, seconds=3600)  # Limit to 5 registrations per hour
 async def create_user(request: Request,
                       data: UserSignUp,
                       background_tasks: BackgroundTasks,
@@ -80,14 +81,15 @@ async def create_user(request: Request,
 
     return new_db_user
 
+
 @user_routes.get('/activate/{token}',
                  summary="Verify user email",
                  response_model=EmailVerificationResponse,
                  status_code=status.HTTP_200_OK,
                  response_description="Email verified successfully",
                 )
-@cache_manager.cached(namespace="users", key="token", ttl=60)  # Cache for 1 minute
-@ratelimiter(times=5, seconds=3600)  # Limit to 5 verifications per hour
+@redis_manager.cached(ttl=60)  # Cache for 1 minute
+@redis_manager.ratelimiter(times=5, seconds=3600)  # Limit to 5 verifications per hour
 async def verify_email(request: Request,
                        token: str,
                        user_service: user_crud_dependency) -> EmailVerificationResponse:
@@ -103,7 +105,7 @@ async def verify_email(request: Request,
 @user_routes.post("/send-email",
                   summary="Send test verification email",
                   status_code=status.HTTP_200_OK,)
-@ratelimiter(times=3, seconds=3600)
+@redis_manager.ratelimiter(times=3, seconds=3600)
 async def simple_send(request: Request,
                       email: EmailSchema,
                       background_tasks: BackgroundTasks) -> JSONResponse:
@@ -123,7 +125,7 @@ async def simple_send(request: Request,
                   status_code=status.HTTP_200_OK,
                   response_model=UserLoginDetails,
                   response_description="User logged in successfully",)
-@ratelimiter(times=5, seconds=60)  
+@redis_manager.ratelimiter(times=5, seconds=60)  
 async def login(request: Request,
                 form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
                 user_service: user_crud_dependency) -> UserLoginDetails: # request is reqired for rate limiting decorator
@@ -131,7 +133,7 @@ async def login(request: Request,
     user = await auth_manager.get_authenticated_user(form_data=form_data, user_service=user_service)
     
     # updte last login might change user data, invalidating the redis cache
-    await cache_manager.invalidate_cache(namespace="users", key=user.email)
+    await redis_manager.invalidate_cache(namespace="users", key=user.email)
     
     # creating access token
     access_token, expiry_timestamp = auth_manager.create_access_token(email=user.email,
@@ -152,7 +154,7 @@ async def login(request: Request,
                      200: {"description": "Password reset email sent"},
                      404: {"description": "User not found"},
                  })
-@ratelimiter(times=10, seconds=3600)  
+@redis_manager.ratelimiter(times=10, seconds=3600)  
 async def request_password_reset(request: Request,
                                 data: ForgotPasswordRequest,
                                 background_tasks: BackgroundTasks,
@@ -180,7 +182,7 @@ async def request_password_reset(request: Request,
                   response_model=PasswordUpdateResponse,
                   response_description="Password reset successfully",
                   )
-@ratelimiter(times=3, seconds=3600)  
+@redis_manager.ratelimiter(times=3, seconds=3600)  
 async def reset_password(request: Request,
                         token: str,
                         data: ResetPasswordRequest,
@@ -191,8 +193,8 @@ async def reset_password(request: Request,
     
     await user_service.update_user_password(email=token_data.email, new_password=data.new_password)
     
-    await cache_manager.invalidate_cache(namespace="users", key=token_data.email)  # Invalidate cache for user email
-    
+    await redis_manager.invalidate_cache(namespace="users", key=token_data.email)  # Invalidate cache for user email
+   
     await email_service.send_password_reset_success_email(
         email=token_data.email,
         template_body={
@@ -214,7 +216,7 @@ async def reset_password(request: Request,
                   response_description="New token generated successfully",
                   status_code=status.HTTP_200_OK,
                   )
-@ratelimiter(times=5, seconds=60)  # same as login
+@redis_manager.ratelimiter(times=5, seconds=60)  # same as login
 async def generate_token(request: Request,
                         form_data: Annotated[OAuth2PasswordRequestForm, Depends()], 
                         user_service: user_crud_dependency) -> TokenSchema:
@@ -235,34 +237,34 @@ async def generate_token(request: Request,
                  response_model=CurrentUserInfo,
                  status_code=status.HTTP_200_OK,
                  response_description="Current user data retrieved successfully",)
-@cache_manager.cached(namespace="users", key="current_user", ttl=60) # key should match parameter name
-@ratelimiter(times=10, seconds=60)  # Limit to 10 requests per minute
+@redis_manager.cached(ttl=60) # key should match parameter name
+@redis_manager.ratelimiter(times=10, seconds=60)  # Limit to 10 requests per minute
 async def get_current_user_data(request: Request,
                                 current_user: Annotated[CurrentUserInfo, Depends(auth_manager.get_current_user_from_token)]) -> CurrentUserInfo:
     return current_user
 
 
-@user_routes.get("/user/email/{user_email}",
+@user_routes.get("/users/email/{user_email}",
                   summary="Get user by email",
                   response_model=UserInfo,
                   response_description="User data retrieved successfully"
                   )
-@cache_manager.cached(namespace="users", key="user_email", ttl=60) # key should match parameter name
-@ratelimiter(times=10, seconds=60)
+@redis_manager.cached(ttl=60) # key should match parameter name
+@redis_manager.ratelimiter(times=10, seconds=60)
 async def get_user_by_email(request: Request,
                             user_email: EmailStr, 
                             user_service: user_crud_dependency) -> UserInfo:
     return await user_service.get_user_by_email(user_email)
 
 
-@user_routes.get("/user/id/{user_id}",
+@user_routes.get("/users/id/{user_id}",
                   summary="Get user by id",
                   response_model=UserInfo,
                   response_description="User data retrieved successfully",
                   status_code=status.HTTP_200_OK
                   )
-@cache_manager.cached(namespace="users", key="user_id", ttl=60) # key should match parameter name
-@ratelimiter(times=10, seconds=60) 
+@redis_manager.cached(ttl=60) # key should match parameter name
+@redis_manager.ratelimiter(times=10, seconds=60) 
 async def get_user_by_user_id(request: Request,
                               user_id: UUID, 
                               user_service: user_crud_dependency) -> UserInfo:

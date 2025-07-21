@@ -11,7 +11,7 @@ from jinja2 import Environment, FileSystemLoader, TemplateNotFound
 from config import get_settings
 from errors.errors import EmailServiceError
 from authentication import auth_manager
-from utils.logger_config import setup_logger
+from shared.logger_config import setup_logger
 
 
 # Configure logging
@@ -140,7 +140,7 @@ class EmailService:
     async def send_password_reset_email(self,
                                         email: EmailStr,
                                         user_id: UUID,
-                                        user_role: str,
+                                        user_role: str | None,
                                         background_tasks: BackgroundTasks) -> None:
         
         if not email or not user_id or not user_role:

@@ -3,7 +3,7 @@ from typing import AsyncGenerator, Dict
 
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker, AsyncEngine
 
-from utils.logger_config import setup_logger
+from shared.logger_config import setup_logger
 from models import Base
 from errors.errors import DatabaseConnectionError, DatabaseSessionError
 from config import get_settings

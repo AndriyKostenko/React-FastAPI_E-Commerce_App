@@ -16,7 +16,7 @@ from routes.review_routes import review_routes
 from errors.base import (BaseAPIException,
                         DatabaseConnectionError,
                         RateLimitExceededError)
-from utils.logger_config import setup_logger
+from shared.logger_config import setup_logger
 from config import get_settings
 
 

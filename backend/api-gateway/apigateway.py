@@ -1,44 +1,101 @@
 from urllib.parse import urljoin
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import HTTPException
 from fastapi.responses import JSONResponse
 import httpx
 from circuitbreaker import circuit
 
 from config import get_settings
-from utils.logger_config import setup_logger
+from shared.logger_config import setup_logger
+from schemas.schemas import GatewayConfig, ServiceConfig
 
 
-MICROSERVICES = {
-    "user_service": "http://user-service:8000",
-    "product_service": "http://product-service:8001",
-}
+
 
 
 class ApiGateway:
-    """A class representing the API Gateway that forwards requests to microservices."""  
+    """
+    A class representing the API Gateway that forwards requests to microservices.
+    """  
+    
     def __init__(self):
         self.settings = get_settings()
         self.logger = setup_logger(__name__)
+        self.config = GatewayConfig(
+            services={
+                "user-service": ServiceConfig(
+                    name="user-service",
+                    instances=[self.settings.USER_SERVICE_URL],
+                    health_check_path="/health"
+                    ),
+                "product-service": ServiceConfig(
+                    name="product-service",
+                    instances=[self.settings.PRODUCT_SERVICE_URL],
+                    health_check_path="/health"
+                    )
+                
+            }
+        )
 
     @circuit(failure_threshold=5, recovery_timeout=30)
-    async def forward_request(self, service_url: str, method: str, path: str, body=None, headers=None):
-    # Remove trailing slash from service_url and leading slash from path
-        service_url = service_url.rstrip('/')
+    async def forward_request(self, service_key: str, method: str, path: str, body=None, headers=None, current_user=None) -> JSONResponse:
         
-        if service_url not in MICROSERVICES.values():
-            self.logger.error(f"Service URL: {service_url} is not recognized.")
+        self.logger.debug(f"Available services: {list(self.config.services.keys())}")
+        self.logger.debug(f"Requested service key: {service_key}")
+        
+        if service_key not in self.config.services:
+            self.logger.error(f"Service key: {service_key} is not recognized.")
             raise HTTPException(status_code=404, detail="Service not found")
         
+        # Get the actual service configuration
+        service_config = self.config.services[service_key]
         
-        url = urljoin(service_url, path.lstrip('/'))
+        # Use the first instance URL (you can add load balancing logic later)
+        service_url = service_config.instances[0]
         
-        self.logger.info(f"Forwarding request to: {url} with method: {method} and body: {body}")
+        # Build the full URL
+        url = urljoin(service_url, path)
         
-        async with httpx.AsyncClient() as client:
-            await client.request(method=method, 
-                                        url=url, 
-                                        body=body, 
-                                        headers=headers)
+        self.logger.info(f"Forwarding request to {service_key}: {path} with method: {method} and body: {body}")
+        
+        # Add user context if authenticated
+        if current_user:
+            if headers is None:
+                headers = {}
+            headers["X-User-ID"] = str(current_user.get("user_id", ""))
+            headers["X-User-Role"] = current_user.get("user_role", "user")
+        
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            try:
+                response = await client.request(
+                    method=method, 
+                    url=url, 
+                    content=body,  # Use content instead of body
+                    headers=headers
+                )
+                
+                # Handle different response types
+                try:
+                    content = response.json() if response.content else {}
+                except ValueError:
+                    # If not JSON, return text content
+                    content = {"message": response.text}
+                    
+                return JSONResponse(
+                    content=content,
+                    status_code=response.status_code,
+                    headers=dict(response.headers)
+                )
+                
+            except httpx.HTTPStatusError as e:
+                self.logger.error(f"HTTP error occurred: {e}")
+                raise HTTPException(status_code=e.response.status_code, detail=str(e))
+            except httpx.RequestError as e:
+                self.logger.error(f"Request error occurred: {e}")
+                raise HTTPException(status_code=500, detail="Internal Server Error")
+            except Exception as e:
+                self.logger.error(f"Unexpected error: {e}")
+                raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
+api_gateway_manager = ApiGateway()

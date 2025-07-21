@@ -1,5 +1,6 @@
 from datetime import datetime
 from contextlib import asynccontextmanager
+from functools import cache
 
 import uvicorn
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,8 +15,9 @@ from routes.admin_routes import admin_routes
 from errors.errors import (BaseAPIException,
                     DatabaseConnectionError,
                     RateLimitExceededError)
-from utils.logger_config import setup_logger
+from shared.logger_config import setup_logger
 from config import get_settings
+
 
 
 # Configure logging
@@ -47,6 +49,8 @@ async def lifespan(app: FastAPI):
     try:
         await database_session_manager.close()
         logger.info("Database connection closed on shutdown!")
+        await cache_manager.close()
+        logger.info("Cache connection closed on shutdown!")
     except Exception as e:
         logger.error(f"Error closing database connection: {str(e)}")
 
@@ -84,12 +88,14 @@ async def host_validation_middleware(request: Request, call_next):
         headers={"X-Error": "Invalid Host header"}
     )
     
+    
 @app.get("/health", tags=["Health Check"])  
 async def health_check():
     """
     A simple health check endpoint to verify that the service is running.
     """
     return {"status": "ok", "timestamp": datetime.now().isoformat()}
+    
     
 def add_exception_handlers(app: FastAPI):
     """

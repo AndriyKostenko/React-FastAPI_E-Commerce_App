@@ -33,7 +33,10 @@ services:
     image: redis:7-alpine
     restart: always
     ports:
-      - "6379:6379"
+      - "6380:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
     networks:
       - usernet
     healthcheck:
@@ -48,11 +51,19 @@ services:
       dockerfile: Dockerfile
     restart: always
     depends_on:
-      - user-service
-      - product-service
+      user-service:
+        condition: service_healthy
+      product-service:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     env_file:
       - .env
       - ./api-gateway/.env
+    environment:
+      REDIS_URL: redis://:${REDIS_PASSWORD}@${REDIS_HOST}:${REDIS_PORT}/${APIGATEWAY_SERVICE_REDIS_DB}
+    volumes:
+      - ./shared:/app/shared:ro
     ports:
       - "8002:8002"
     networks:
@@ -72,12 +83,17 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     env_file:
     # specifing common and specifig settings
       - .env
       - ./user-service/.env
     environment:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${USER_SERVICE_DB}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@${REDIS_HOST}:${REDIS_PORT}/{USER_SERVICE_REDIS_DB}
+    volumes:
+      - ./shared:/app/shared:ro
     ports:
       - "8000:8000"
     networks:
@@ -96,6 +112,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     env_file:
     # specifing common '.env' and specifig '.env' settings
       - .env
@@ -103,8 +121,10 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${PRODUCT_SERVICE_DB}
       MEDIA_ROOT: /media
+      REDIS_URL: redis://:${REDIS_PASSWORD}@${REDIS_HOST}:${REDIS_PORT}/${PRODUCT_SERVICE_REDIS_DB}
     volumes:
       - product_media:/media
+      - ./shared:/app/shared:ro
     ports:
       - "8001:8001"
     networks:
@@ -136,6 +156,7 @@ networks:
 volumes:
   postgres_data:
   product_media:
+  redis_data:
 
 
   # traefik:

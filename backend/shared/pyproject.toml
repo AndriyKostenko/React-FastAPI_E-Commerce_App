@@ -1,0 +1,10 @@
+[project]
+name = "shared"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.116.0",
+    "redis>=6.2.0",
+]

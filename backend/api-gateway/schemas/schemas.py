@@ -1,12 +1,12 @@
-from pydantic import BaseModel, BaseSettings
+from pydantic import BaseModel
 
 
 class ServiceConfig(BaseModel):
     name: str
     instances: list[str]
     health_check_path: str = "/health"
-    timeout: int = 30
-    retries: int = 3
+
+
 
 class GatewayConfig(BaseModel):
     services: dict[str, ServiceConfig]

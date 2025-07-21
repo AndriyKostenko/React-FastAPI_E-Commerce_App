@@ -11,15 +11,15 @@ class Settings(BaseSettings):
     POSTGRES_PORT: int
     PRODUCT_SERVICE_DB: str
     PRODUCT_SERVICE_TEST_DB: str
-
     APP_HOST: str 
     APP_PORT: int 
     USE_CREDENTIALS: bool 
-    TEMPLATES_DIR: str = "templates"
+    TEMPLATES_DIR: str 
     SECRET_ROLE: str 
-    REDIS_ENDPOINT: str 
+    REDIS_HOST: str 
     REDIS_PORT: int
-    REDIS_DB: int 
+    PRODUCT_SERVICE_REDIS_DB: int
+    PRODUCT_SERVICE_REDIS_PREFIX: str 
     DEBUG_MODE: bool 
     CORS_ALLOWED_ORIGINS: list[str] 
     CORS_ALLOW_CREDENTIALS: bool 
@@ -39,6 +39,10 @@ class Settings(BaseSettings):
     @property
     def ALEMBIC_DATABASE_URL(self) -> str:
         return self.DATABASE_URL
+    
+    @property
+    def REDIS_URL(self) -> str:
+        return f"redis://{self.REDIS_HOST}:{self.REDIS_PORT}/{self.PRODUCT_SERVICE_REDIS_DB}"   
     
     # ovveriding by adding an option to get a common .env settings
     @classmethod
