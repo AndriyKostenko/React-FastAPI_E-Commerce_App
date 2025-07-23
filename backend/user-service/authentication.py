@@ -10,47 +10,45 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 
 
 from errors.errors import UserPasswordError, UserIsNotVerifiedError
-from config import get_settings
+from shared.shared_instances import settings
 from schemas.user_schemas import CurrentUserInfo
 
 
 
 # Password hashing context
-pwd_context = CryptContext(schemes=get_settings().CRYPT_CONTEXT_SCHEME, deprecated="auto")
+pwd_context = CryptContext(schemes=settings.CRYPT_CONTEXT_SCHEME, deprecated="auto")
 
 # OAuth2PasswordBearer is a class that provides a way to extract the token from the request
-# sceme_name is similar to variable name
+# scheme_name is similar to variable name
 oauth2_scheme = OAuth2PasswordBearer(
-    tokenUrl=get_settings().TOKEN_URL,
+    tokenUrl=settings.TOKEN_URL,
     scheme_name="oauth2_scheme",   
 )
 
  
 
-# using a Singleton pattern to create only one instance of AuthenticationManager
-# this is to avoid creating multiple instances of the same class
+
 class AuthenticationManager:
-    _instance = None
+    """
+    This class handles password hashing, token creation, and user authentication.
+    It uses the settings from the shared settings module for configuration.
+    """
     
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super(AuthenticationManager, cls).__new__(cls)
-        return cls._instance
-    
-    def __init__(self):
-        if not hasattr(self, 'initialized'):
-            self.settings = get_settings()
-            self.initialized = True
-            self.token_expire_minutes = self.settings.TIME_DELTA_MINUTES
+    def __init__(self, settings):
+        self.settings = settings
+        self.initialized = True
+        self.token_expire_minutes = self.settings.TIME_DELTA_MINUTES
            
        
     def hash_password(self, entered_password: str) -> str:
         """Hash password using bcrypt with caching for frequently used passwords"""
         return pwd_context.hash(entered_password)
     
+    
     @staticmethod
     def _verify_password(entered_password: str, hashed_password: str) -> bool:
         return pwd_context.verify(entered_password, hashed_password)
+    
     
     async def authenticate_user(self, 
                                 email: EmailStr, 
@@ -74,6 +72,7 @@ class AuthenticationManager:
             id=user.id,
             role=user.role)
             
+            
     def create_access_token(self, 
                             email: EmailStr, 
                             user_id: UUID, 
@@ -90,6 +89,7 @@ class AuthenticationManager:
                   }
         token = jwt.encode(payload, self.settings.SECRET_KEY, algorithm=self.settings.ALGORITHM)
         return token, expire_timestamp
+    
     
     async def get_current_user_from_token(self, 
                                           token: Annotated[str, Depends(oauth2_scheme)],
@@ -130,9 +130,8 @@ class AuthenticationManager:
             user_service=user_service
         )
             
-            
-# Initialize the AuthenticationManager instance
-auth_manager = AuthenticationManager()
+
+auth_manager = AuthenticationManager(settings=settings)
 
             
             

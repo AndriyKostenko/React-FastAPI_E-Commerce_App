@@ -3,15 +3,13 @@ from typing import Annotated, AsyncGenerator
 from fastapi import Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from services.user_service import UserService
-from repositories.user_repository import UserRepository
-from db.database import database_session_manager
+from service_layer.user_service import UserService
+from database_layer.user_database_layer import UserRepository
+from shared.shared_instances import user_service_database_session_manager
 from authentication import auth_manager
 from schemas.user_schemas import CurrentUserInfo
-from config import get_settings
+from shared.shared_instances import settings
 
-
-settings = get_settings()
 
 
 """
@@ -41,7 +39,7 @@ FLow Diagram for Database Session Management in FastAPI:
 # dependency that will be used to get the database session from the request
 async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
     """Providing a transactional scope around for each series (request) of operations with database."""
-    async with database_session_manager.session() as session:
+    async with user_service_database_session_manager.session() as session:
         yield session
 
 # dependency function that provides an instance of UserCRUDService

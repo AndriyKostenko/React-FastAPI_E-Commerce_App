@@ -1,8 +1,9 @@
 import json
-from typing import Any, Callable, Optional
+from typing import Any, AsyncGenerator, Callable, Optional
 from functools import wraps
 from time import perf_counter
 from math import ceil
+
 
 from fastapi import Request
 from fastapi.responses import JSONResponse
@@ -17,7 +18,7 @@ from shared.base_exceptions import BaseAPIException, RateLimitExceededError
 class RedisManager:
     """
     Unified Redis manager for caching and rate limiting across microservices.
-    Provides decorators for both caching and rate limiting functionality.
+    Provides decorators for both caching and rate limiting functionality (for endpoints) and cache / ratelimiting methods for api-gateway.
     """
     def __init__(self, service_prefix: str, redis_url: str):
         self.logger = setup_logger(__name__)
@@ -46,73 +47,138 @@ class RedisManager:
         
     # ==================== CACHING FUNCTIONALITY ====================
     
+    async def _async_gen_wrapper(self, data: list[bytes]) -> AsyncGenerator[bytes, None]:
+        """
+        Helper method to recreate body iterator
+        """
+        for chunk in data:
+            yield chunk
+    
+    
     def _generate_cache_key(self, request: Request) -> str:
-        client_ip = request.client.host
+        #For API Gateway, cache based on endpoint and query params
         endpoint = request.url.path
-        return f"{self.service_prefix}:cache:{client_ip}:{endpoint}"
+        query_params = str(request.query_params) if request.query_params else ""
+        return f"{self.service_prefix}:cache:{endpoint}:{query_params}"
         
-    # default caching for each api-gateway proxy is 5 mins
+        
+    def _should_skip_caching(self, request: Request, response) -> bool:
+        """
+        Determining if response should be cached
+        """
+        # Defining paths that should never be cached
+        not_monitoring_patterns = ["/health", "/metrics", "/status", "/ping", "/ready", "/live"]
+        is_not_monitoring_endpoint = any(request.url.path.startswith(pattern) for pattern in not_monitoring_patterns)
+        
+        return (
+            request.method != "GET" 
+            or not (200 <= response.status_code < 300) 
+            or response.headers.get("Cache-Control") == "no-cache"
+            or "Authorization" in request.headers
+            or is_not_monitoring_endpoint
+        )
+    
     async def cache_response(self, request: Request, response, ttl: int = 300):
         """
         Cache a response for a given request.
         For usage in API Gateway middleware
+        default caching for each api-gateway proxy is 5 mins
         """
         
-        # Skip streaming responses
-        if hasattr(response, 'body_iterator'):
-            self.logger.debug("Skipping cache for streaming response")
+        if self._should_skip_caching(request, response):
+            self.logger.warning(f"Skipping caching response for method: {request.method}, path: {request.url.path} coz of non applicable: method | path | status code | headers")
             return
+            
         
         try:
-            if hasattr(response, "body"):
+            cache_key = self._generate_cache_key(request)
+            status_code = response.status_code
+            self.logger.debug(f"Caching response for key: {cache_key} with status code: {status_code} ...")
+            
+            response_body = None
+            
+            # 1. Regular JSONResponse
+            if hasattr(response, "body") and response.body:
                 response_body = response.body
-            elif hasattr(response, "content"):
+                self.logger.debug(f"Found response.body: {len(response_body)} bytes")
+            
+            # 2. Custom response with content
+            elif hasattr(response, "content") and response.content:
                 response_body = response.content
+                self.logger.debug(f"Found response.content: {len(response_body)} bytes")
+                
+            # TODO: not clear do i need to save a streaming responses...   
+            # 3. Streaming response
+            elif hasattr(response, "body_iterator") and response.body_iterator:
+                self.logger.debug("Found streaming response, consuming iterator...")
+                try:
+                    body_parts = []
+                    async for chunk in response.body_iterator:
+                        body_parts.append(chunk)
+                        
+                    response_body = b"".join(body_parts)
+                    self.logger.debug(f"Consumed streaming response: {len(response_body)} bytes")
+                    
+                    # Important: Recreate the body_iterator for the actual response
+                    response.body_iterator = self._async_gen_wrapper(body_parts)
+                    
+                except Exception as e:
+                    self.logger.warning(f"Cannot consume streaming response: {str(e)})")
+                    return 
+                
             else:
-                self.logger.warning(f"Unknown response type: {type(response)}")
+                self.logger.warning(f"Cannot access response body for caching: {cache_key}")
+                
+            #4. Ensure we have content to cache
+            if not response_body:
+                self.logger.warning(f"Response body is empty, skipping cache for: {cache_key}")
                 return
             
-            # Convert bytes to string if needed  
+            # 5. converting to bytes if needed
             if isinstance(response_body, bytes):
-                response_body = response_body.decode("utf-8") 
-                           
-            cache_key = self._generate_cache_key(request)
-            self.logger.debug(f"Caching response for key: {cache_key}")
+                response_body = response_body.decode("utf-8")
+                
+            # 6. Attempting to cache JSON response
+            try:
+                content = json.loads(response_body)
+            except json.JSONDecodeError as e:
+                self.logger.warning(f"Response not JSON serializable, skipping cache for: {cache_key} - {str(e)}")
+                return
             
-            json_dict = json.loads(response.body)
-            status_code = getattr(response, "status_code")
+            # 7. Saving to Redis
+            await self.redis.setex(
+                name=cache_key,
+                time=ttl,
+                value=json.dumps({
+                    "content": content,
+                    "status_code": status_code
+                })
+            )
+            self.logger.debug(f"Successfully cached response for: {cache_key}")
             
-            await self.redis.setex(cache_key, ttl, json.dumps({"data": json_dict,
-                                                               "status_code": status_code}))
-            return 
-        except json.JSONDecodeError:
-            self.logger.warning(f"Cannot cache non-JSON response for: {cache_key}")
-            return
         except Exception as e:
             self.logger.error(f"Error caching response: {str(e)}")
-            return
-        
-          
-    
+
+            
     async def get_cached_response(self, request: Request) -> Optional[JSONResponse]:
         """
         Check if a response for this request is cached and return it.
         For use in API Gateway middleware.
         """
+        if request.method != "GET" or "Authorization" in request.headers:
+            self.logger.info(f"Skipping getting the cached response coz of non GET or Authorization in headers...")
+            return None
         
-        try:
-            cache_key = self._generate_cache_key(request=request)
-            cached_data = await self.redis.get(cache_key)
-            
-            if cached_data:
-                cached_dict = json.loads(cached_data)
-                self.logger.debug(f"Gateway returnes cached data for: {cache_key}")
-                return JSONResponse(content=cached_dict["data"],
-                                    status_code=cached_dict["status_code"])
+        cache_key = self._generate_cache_key(request=request)
+        cached_data = await self.redis.get(cache_key)
         
-        except Exception as e:
-            self.logger.error(f"Error retrieving from cache: {str(e)}")
+        if cached_data:
+            cached_dict = json.loads(cached_data)
+            self.logger.debug(f"Gateway returnes cached data for: {cache_key}")
+            return JSONResponse(content=cached_dict["content"],
+                                status_code=cached_dict["status_code"])
         
+        self.logger.debug(f"No cached data for key: {cache_key}")
         return None
             
     
@@ -136,25 +202,45 @@ class RedisManager:
                     return await func(*args, **kwargs)
                 
                 cache_key = self._generate_cache_key(request=request)
+                
                 try:
                     cached_data = await self.redis.get(cache_key)
-                    if cached_data is not None:
-                        self.logger.debug(f"Returning cached data : {cached_data}")
+                    
+                    if cached_data:
+                        cached_dict = json.loads(cached_data)
+                        self.logger.debug(f"Returning cached data : {cached_dict["content"]}")
+     
                         return JSONResponse(
-                            content=json.loads(cached_data["data"]),
-                            status_code=cached_data["status_code"]
+                            content=cached_dict["content"],
+                            status_code=cached_dict["status_code"]
                         )
+                        
                     # Getting the fresh data
                     response = await func(*args, **kwargs)
-                    self.logger.debug(f"Caching response for key: {cache_key}")
-                    # serializing data to json (all data passed as a Pydantic)
-                    to_cache = response.model_dump_json()
-                    # getting status code
-                    status_code = getattr(response, "status_code")
-                    await self.redis.setex(cache_key, 
-                                           ttl , 
-                                           json.dumps({"data": to_cache, "status_code": status_code}))
-                
+                    self.logger.debug(f"Response body object in decorator: {response.body}")
+                    
+                    # Handle JSONResponse object - use content directly
+                    if isinstance(response, JSONResponse):
+                        
+                        # Parse the body to get the actual content
+                        body_str = response.body.decode() if isinstance(response.body, bytes) else response.body
+                        content = json.loads(body_str)
+                        self.logger.debug(f"Content for caching: {content}")
+                        status_code = response.status_code
+                        
+                        # Only cache successful responses
+                        if 200 <= status_code < 300:
+                            await self.redis.setex(
+                                cache_key, 
+                                ttl, 
+                                json.dumps({
+                                    "content": content,  # Content is already serializable
+                                    "status_code": status_code
+                                })
+                            )
+                    else:
+                        self.logger.warning(f"Unexpected response type: {type(response)} for endpoint: {func.__name__}")
+                    
                     return response
                 
                 # monitoring only base exception for all custom errors coz all of them inhereted from it 
@@ -165,18 +251,18 @@ class RedisManager:
 
             return wrapper
         return decorator
-    
-    
-    async def invalidate_cache(self, namespace: str, key: str) -> bool:
+
+
+    async def invalidate_cache(self, request: Request) -> bool:
         """
         Invalidate cache for a specific key in the given namespace.
         """
-        if not namespace or not key:
-            self.logger.error(f"Namespace: {namespace} and key: {key} must be provided for cache invalidation.")
+        if not request:
+            self.logger.error(f"Request must be provided for cache invalidation.")
             return False
         # Construct the cache key
-        cache_key = f"{self.service_prefix}:cache:{namespace}:{key}"
-    
+        cache_key = self._generate_cache_key(request=request)
+
         success = await self.redis.delete(cache_key)
         if success:
             self.logger.info(f"Invalidated cache for key: {cache_key}")
@@ -244,6 +330,7 @@ class RedisManager:
     async def is_rate_limited(self, request: Request,times: int = 100, seconds: int = 60) -> bool | Exception:
         """Check if the rate limit is exceeded using sliding window"""
         try:
+            self.logger.debug(f'Checking if endpoint: {request.url} is rate limited...')
             key = self._generate_rate_limit_key(request)
             pipe = self.redis.pipeline()
             now = perf_counter()
@@ -302,6 +389,7 @@ class RedisManager:
             response_time = perf_counter() - start_time
             
             info = await redis_client.info()
+            self.logger.debug(f"Redis is healthy")
             
             return {
                 "status": "healthy",
@@ -311,6 +399,7 @@ class RedisManager:
                 "redis_version": info.get("redis_version", "unknown")
             }
         except Exception as e:
+            self.logger.error(f"Redis is not healthy")
             return {
                 "status": "unhealthy",
                 "error": str(e),

@@ -6,29 +6,26 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy import select, desc
 
 from models.product_models import Product, ProductImage
+from shared.database_layer import BaseRepository
 
 
 
-class ProductRepository:
-    """ Handles direct DB access for Product entity. No business logic. """
+class ProductRepository(BaseRepository):
+    """
+    Product-specific repository with additional methods.
+    Inherits from BaseRepository to manage database CRUD operations for Product entities.
+    """
     
     def __init__(self, session: AsyncSession):
+        super().__init__(session, Product)
         self.session = session
 
-    # CREATE
-    async def add_product(self, product: Product) -> Product:
-        self.session.add(product)
-        await self.session.commit()
-        await self.session.refresh(product)
-        return product
     
     async def add_product_images(self, images: list[ProductImage]) -> list[ProductImage]:
         self.session.add_all(images)
         await self.session.commit()
         return images
         
-    
-    # READ
     async def get_all_products(self,
                                category: Optional[str] = None,
                                searchTerm: Optional[str] = None,
@@ -77,13 +74,17 @@ class ProductRepository:
         result = await self.session.execute(query)
         return result.scalars().all()
 
-    async def get_product_by_id(self, product_id: UUID) -> Optional[Product]:
-        result = await self.session.execute(select(Product).where(Product.id == product_id))
-        return result.scalars().first()
-    
-    async def get_product_by_name(self, name: str) -> Optional[Product]:
-        result = await self.session.execute(select(Product).where(Product.name == name))
-        return result.scalars().first()
+    async def get_by_name(self, name: str) -> Optional[Product]:
+        """Get product by name"""
+        return await self.get_by_field("name", name)
+
+    async def get_by_category(self, category_id: UUID) -> list[Product]:
+        """Get products by category"""
+        return await self.filter_by(category_id=category_id)
+
+    async def get_in_stock(self) -> list[Product]:
+        """Get products that are in stock"""
+        return await self.filter_by(in_stock=True)
     
     async def get_product_by_id_with_relations(self, product_id: UUID) -> Optional[Product]:
         result = await self.session.execute(
@@ -97,14 +98,3 @@ class ProductRepository:
         )
         return result.scalars().first()
 
-    # UPDATE
-    async def update_product(self, product: Product) -> Product:
-        self.session.add(product)
-        await self.session.commit()
-        await self.session.refresh(product)
-        return product
-
-    # DELETE
-    async def delete_product(self, product: Product) -> None:
-        await self.session.delete(product)
-        await self.session.commit()

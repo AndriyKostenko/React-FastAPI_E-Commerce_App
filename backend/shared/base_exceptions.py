@@ -24,3 +24,16 @@ class RateLimitExceededError(BaseAPIException):
             detail=detail,
             headers=headers
         )
+        
+        
+#------Database Service Errors------
+
+class DatabaseConnectionError(BaseAPIException):
+    """Raised when there is a connection issue with the database"""
+    def __init__(self, detail: str = "Database connection error"):
+        super().__init__(detail=detail, status_code=500)
+
+class DatabaseSessionError(BaseAPIException):
+    """Raised when there is a session issue with the database"""
+    def __init__(self, detail: str = "Database session error"):
+        super().__init__(detail=detail, status_code=500)

@@ -3,7 +3,7 @@ from typing import List, Optional
 
 from schemas.review_schemas import CreateReview, ReviewSchema, UpdateReview
 from errors.review_errors import ReviewNotFoundError, ReviewAlreadyExistsError
-from repositories.review_repository import ReviewRepository
+from database_layer.review_repository import ReviewRepository
 from models.review_models import ProductReview
 
 

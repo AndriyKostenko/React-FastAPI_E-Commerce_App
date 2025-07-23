@@ -5,29 +5,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, asc
 
 from models.review_models import ProductReview
+from shared.database_layer import BaseRepository
 
 
-class ReviewRepository:
-    """Handles direct DB access for ProductReview entity. No business logic."""
+class ReviewRepository(BaseRepository):
+    """
+    Review-specific repository with additional methods.
+    Inherits from BaseRepository to manage database CRUD operations for Review entities.
+    """
 
     def __init__(self, session: AsyncSession):
+        super().__init__(session, ProductReview)
         self.session = session
 
-    # CREATE
-    async def add_review(self, review: ProductReview) -> ProductReview:
-        self.session.add(review)
-        await self.session.commit()
-        await self.session.refresh(review)
-        return review
-
-    # READ
-    async def get_all_reviews(self) -> list[ProductReview]:
-        result = await self.session.execute(select(ProductReview).order_by(asc(ProductReview.id)))
-        return result.scalars().all()
-
-    async def get_review_by_id(self, review_id: UUID) -> Optional[ProductReview]:
-        result = await self.session.execute(select(ProductReview).where(ProductReview.id == review_id))
-        return result.scalars().first()
 
     async def get_reviews_by_product_id(self, product_id: UUID) -> list[ProductReview]:
         result = await self.session.execute(select(ProductReview).where(ProductReview.product_id == product_id))
@@ -46,14 +36,4 @@ class ReviewRepository:
         )
         return result.scalars().first()
 
-    # UPDATE
-    async def update_review(self, review: ProductReview) -> ProductReview:
-        self.session.add(review)
-        await self.session.commit()
-        await self.session.refresh(review)
-        return review
-
-    # DELETE
-    async def delete_review(self, review: ProductReview) -> None:
-        await self.session.delete(review)
-        await self.session.commit()
+ 

@@ -1,16 +1,10 @@
-from urllib.parse import urljoin
-
 from fastapi import HTTPException
 from fastapi.responses import JSONResponse
 import httpx
 from circuitbreaker import circuit
 
-from config import get_settings
-from shared.logger_config import setup_logger
+from shared.shared_instances import settings, logger
 from schemas.schemas import GatewayConfig, ServiceConfig
-
-
-
 
 
 class ApiGateway:
@@ -18,9 +12,9 @@ class ApiGateway:
     A class representing the API Gateway that forwards requests to microservices.
     """  
     
-    def __init__(self):
-        self.settings = get_settings()
-        self.logger = setup_logger(__name__)
+    def __init__(self, settings, logger):
+        self.settings = settings
+        self.logger = logger
         self.config = GatewayConfig(
             services={
                 "user-service": ServiceConfig(
@@ -53,10 +47,13 @@ class ApiGateway:
         # Use the first instance URL (you can add load balancing logic later)
         service_url = service_config.instances[0]
         
-        # Build the full URL
-        url = urljoin(service_url, path)
+        # Build the full URL robustly
+
+        url = f"{service_url}/{path}"
+ 
+        self.logger.debug(f"Path url: {path}")
         
-        self.logger.info(f"Forwarding request to {service_key}: {path} with method: {method} and body: {body}")
+        self.logger.info(f"Forwarding request to: {url} with method: {method} and body: {body}")
         
         # Add user context if authenticated
         if current_user:
@@ -65,7 +62,7 @@ class ApiGateway:
             headers["X-User-ID"] = str(current_user.get("user_id", ""))
             headers["X-User-Role"] = current_user.get("user_role", "user")
         
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx.AsyncClient() as client:
             try:
                 response = await client.request(
                     method=method, 
@@ -73,14 +70,9 @@ class ApiGateway:
                     content=body,  # Use content instead of body
                     headers=headers
                 )
+            
+                content = response.json() if response.content else ''
                 
-                # Handle different response types
-                try:
-                    content = response.json() if response.content else {}
-                except ValueError:
-                    # If not JSON, return text content
-                    content = {"message": response.text}
-                    
                 return JSONResponse(
                     content=content,
                     status_code=response.status_code,
@@ -98,4 +90,4 @@ class ApiGateway:
                 raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
-api_gateway_manager = ApiGateway()
+api_gateway_manager = ApiGateway(settings=settings, logger=logger)

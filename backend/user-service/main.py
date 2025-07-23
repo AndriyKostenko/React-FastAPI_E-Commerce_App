@@ -1,6 +1,5 @@
 from datetime import datetime
 from contextlib import asynccontextmanager
-from functools import cache
 
 import uvicorn
 from fastapi.middleware.cors import CORSMiddleware
@@ -9,22 +8,17 @@ from fastapi import FastAPI, Request, HTTPException
 from pydantic import ValidationError
 from fastapi.exceptions import ResponseValidationError, RequestValidationError
 
-from db.database import database_session_manager
 from routes.user_routes import user_routes
 from routes.admin_routes import admin_routes
 from errors.errors import (BaseAPIException,
                     DatabaseConnectionError,
                     RateLimitExceededError)
-from shared.logger_config import setup_logger
-from config import get_settings
+from shared.shared_instances import (user_service_redis_manager,
+                                            user_service_database_session_manager,
+                                            logger,
+                                            settings)
 
 
-
-# Configure logging
-logger = setup_logger(__name__)
-
-# getting the settings from the config file
-settings = get_settings()
 
 
 @asynccontextmanager
@@ -34,27 +28,18 @@ async def lifespan(app: FastAPI):
     events of a FastAPI application.
     """
    
-    logger.info(f"Server has started!")
-    
-    try:
-        await database_session_manager.init_db()
-        logger.info("Database initialized successfully")
-    except DatabaseConnectionError as e:
-        logger.error(f"Database connection error: {str(e)}")
-        
+    logger.info(f"Server is starting up on {settings.APP_HOST}:{settings.USER_SERVICE_APP_PORT}...")
+    await user_service_redis_manager.health_check()
+    await user_service_database_session_manager.init_db()
     logger.info('Server startup complete!')
     
     yield
     
-    try:
-        await database_session_manager.close()
-        logger.info("Database connection closed on shutdown!")
-        await cache_manager.close()
-        logger.info("Cache connection closed on shutdown!")
-    except Exception as e:
-        logger.error(f"Error closing database connection: {str(e)}")
-
-    logger.info(f"Server has shut down !")
+    await user_service_database_session_manager.close()
+    logger.warning("Database connection closed on shutdown!")
+    await user_service_redis_manager.close()
+    logger.warning("Cache connection closed on shutdown!")
+    logger.warning(f"Server has shut down !")
 
 
 
@@ -94,7 +79,15 @@ async def health_check():
     """
     A simple health check endpoint to verify that the service is running.
     """
-    return {"status": "ok", "timestamp": datetime.now().isoformat()}
+    return JSONResponse(
+        content={
+            "status": "ok", 
+            "timestamp": datetime.now().isoformat(),
+            "service": "user-service"
+        },
+        status_code=200,
+        headers={"Cache-Control": "no-cache"}
+    )
     
     
 def add_exception_handlers(app: FastAPI):
@@ -194,5 +187,5 @@ app.include_router(admin_routes, prefix="/api/v1")
 if __name__ == "__main__":
     uvicorn.run("main:app",
                 host=settings.APP_HOST,
-                port=settings.APP_PORT,
+                port=settings.USER_SERVICE_APP_PORT,
                 reload=True)

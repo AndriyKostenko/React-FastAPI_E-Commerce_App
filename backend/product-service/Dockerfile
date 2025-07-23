@@ -66,10 +66,10 @@ COPY --chown=productuser:productgroup . .
 USER productuser
 
 # Port configuration
-EXPOSE 8001
+EXPOSE 8002
 
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8001/health || exit 1
+    CMD curl -f http://localhost:8002/health || exit 1
 
 # Use Gunicorn for multi-worker production server (without Kubernetes!...if with Kubernetes, use uvicorn with other settings instead !)
 # workers = (2 × CPU cores) + 1 - recommended baseline from Gunicorn’s official documentation. (4-5  are optimum )
@@ -77,8 +77,8 @@ HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
 # If you're using uvicorn.workers.UvicornWorker, then each worker runs a full async FastAPI app.
 
 # ( automatically detects the number of CPU cores and sets the number of workers accordingly )
-# CMD ["sh", "-c", "gunicorn -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:8000 --workers $(nproc) --timeout 60 --access-logfile -"]
+# CMD ["sh", "-c", "gunicorn -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:8002 --workers $(nproc) --timeout 60 --access-logfile -"]
 
-#CMD ["uv", "run", "gunicorn", "-k", "uvicorn.workers.UvicornWorker", "main:app", "--bind", "0.0.0.0:8001", "--workers", "1", "--timeout", "60", "--access-logfile"]
+#CMD ["uv", "run", "gunicorn", "-k", "uvicorn.workers.UvicornWorker", "main:app", "--bind", "0.0.0.0:8002", "--workers", "1", "--timeout", "60", "--access-logfile"]
 
-CMD ["gunicorn", "-k", "uvicorn.workers.UvicornWorker", "main:app", "--bind", "0.0.0.0:8001", "--workers", "1", "--timeout", "60", "--access-logfile", "-"]
+CMD ["gunicorn", "-k", "uvicorn.workers.UvicornWorker", "main:app", "--bind", "0.0.0.0:8002", "--workers", "1", "--timeout", "60", "--access-logfile", "-"]

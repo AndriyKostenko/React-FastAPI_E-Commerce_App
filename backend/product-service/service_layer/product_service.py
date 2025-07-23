@@ -1,17 +1,13 @@
 from typing import List, Optional
 from uuid import UUID
 
-
-
-
-
-
 from errors.product_errors import (ProductNotFoundError,
                                   ProductCreationError)
 from models.product_models import Product, ProductImage
 from models.review_models import ProductReview
 from schemas.product_schemas import CreateProduct, ProductBase, ProductSchema
-from repositories.product_repository import ProductRepository
+from database_layer.product_repository import ProductRepository
+
 
 class ProductService:
     """Service layer for product management operations, business logic and data validation."""

@@ -1,16 +1,15 @@
-import re
 from typing import Annotated, AsyncGenerator
 
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from services.product_service import ProductService
-from services.category_service import CategoryService
-from services.review_service import ReviewService
-from repositories.product_repository import ProductRepository
-from repositories.category_repository import CategoryRepository
-from repositories.review_repository import ReviewRepository
-from db.database import database_session_manager
+from service_layer.product_service import ProductService
+from service_layer.category_service import CategoryService
+from service_layer.review_service import ReviewService
+from database_layer.product_repository import ProductRepository
+from database_layer.category_repository import CategoryRepository
+from database_layer.review_repository import ReviewRepository
+from shared.shared_instances import product_service_database_session_manager
 
 
 
@@ -40,7 +39,7 @@ FLow Diagram for Database Session Management in FastAPI:
 
 async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
     """Providing a transactional scope around for each series (request) of operations with database."""
-    async with database_session_manager.session() as session:
+    async with product_service_database_session_manager.session() as session:
         yield session
         
 

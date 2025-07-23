@@ -13,16 +13,28 @@
 - Mark current DB as up-to-date without running migrations: alembic stamp head (if got error about not matching your current models with existing, u can stamp specific idwith: alembic stamp <revision_id> )
 
 ## Redis
- - docker exec -it backend-redis-1 redis-cli : to check and interact with redis
- - 
-    KEYS *    : check keys in Redis
 
    Remember to:
-   1. Cache only read operations
-   2. Set appropriate expiration times
-   3. Implement cache invalidation for write operations
-   4. Monitor cache hit/miss rates
-   5. Consider cache size and memory usage
+      1. Cache only read operations
+      2. Set appropriate expiration times
+      3. Implement cache invalidation for write operations
+      4. Monitor cache hit/miss rates
+      5. Consider cache size and memory usage
+
+   Redis docker container
+   ` docker exec -it backend-redis-1 redis-cli ` : to check and interact with redis
+ 
+   Auth in Redis
+   ` AUTH your_redis_password`
+
+   Select DB of Redis
+   ` SELECT N ` 
+
+   check keys in Redis
+   ` KEYS * `  
+
+   check value of the key
+   ` GET <KEY>`
 
    Check if Redis is running
    ` sudo systemctl status redis `
