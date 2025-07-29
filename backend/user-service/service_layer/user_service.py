@@ -1,4 +1,5 @@
 from uuid import UUID
+from typing import Optional
 
 from pydantic import EmailStr
 
@@ -64,7 +65,13 @@ class UserService:
     async def update_user_basic_info(self, user_id: UUID, update_data: UserBasicUpdate) -> UserInfo:
         updated_user = await self.repo.update_by_id(user_id, update_data)
         if not updated_user:
-            raise UserNotFoundError(f"User with id {user_id} not found.")
+            raise UserNotFoundError(f"User with id: {user_id} not found.")
+        return UserInfo.model_validate(updated_user)
+    
+    async def update_user_verified_status(self, email: EmailStr, status: bool) -> UserInfo:
+        updated_user = await self.repo.update_by_email(email=email, is_verified=status)
+        if not updated_user:
+            raise UserNotFoundError(f"User with email: {email} not found.")
         return UserInfo.model_validate(updated_user)
 
 

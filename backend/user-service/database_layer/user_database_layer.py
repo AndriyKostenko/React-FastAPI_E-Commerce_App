@@ -25,3 +25,5 @@ class UserRepository(BaseRepository):
     async def get_by_role(self, role: str) -> list[User]:
         """Get users by role"""
         return await self.filter_by(role=role)
+    
+    

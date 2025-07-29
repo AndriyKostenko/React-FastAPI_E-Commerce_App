@@ -55,8 +55,6 @@ the service layer, so no need to handle them here.
 
 @user_routes.post('/register',
                   summary="Create new user",
-                  status_code=status.HTTP_201_CREATED,
-                  response_model=UserInfo,
                   response_description="New user created successfully",
                   )
 @user_service_redis_manager.ratelimiter(times=5, seconds=3600)  # Limit to 5 registrations per hour
@@ -66,7 +64,6 @@ async def create_user(request: Request,
                       user_service: user_crud_dependency
                       ) -> UserInfo:
     new_db_user = await user_service.create_user(data=data)
-    
     # Send verification email in background
     await email_service.send_verification_email(
         email=new_db_user.email,
@@ -74,14 +71,12 @@ async def create_user(request: Request,
         user_role=new_db_user.role,
         background_tasks=background_tasks
     )
-
-    return new_db_user
+    return JSONResponse(content=new_db_user.model_dump(mode="json"),
+                        status_code=status.HTTP_201_CREATED)
 
 
 @user_routes.get('/activate/{token}',
                  summary="Verify user email",
-                 response_model=EmailVerificationResponse,
-                 status_code=status.HTTP_200_OK,
                  response_description="Email verified successfully",
                 )
 @user_service_redis_manager.cached(ttl=60)  # Cache for 1 minute
@@ -91,16 +86,16 @@ async def verify_email(request: Request,
                        user_service: user_crud_dependency) -> EmailVerificationResponse:
     token_data = await auth_manager.get_current_user_from_token(token=token, required_purpose="email_verification")
     db_user = await user_service.update_user_verified_status(email=token_data.email, status=True)
-    return EmailVerificationResponse(
-        detail="Email verified successfully",
-        email=db_user.email,
-        verified=db_user.is_verified
-    )
+    return JSONResponse(content=EmailVerificationResponse(
+                                    detail="Email verified successfully",
+                                    email=db_user.email,
+                                    verified=db_user.is_verified
+                                ),
+                        status_code=status.HTTP_200_OK) 
 
 
 @user_routes.post("/send-email",
-                  summary="Send test verification email",
-                  status_code=status.HTTP_200_OK,)
+                  summary="Send test verification email",)
 @user_service_redis_manager.ratelimiter(times=3, seconds=3600)
 async def simple_send(request: Request,
                       email: EmailSchema,
@@ -218,14 +213,12 @@ async def generate_token(request: Request,
                         user_service: user_crud_dependency) -> TokenSchema:
     """Generate new token for user"""
     user = await auth_manager.get_authenticated_user(form_data=form_data, user_service=user_service)
- 
     token, _ = auth_manager.create_access_token(email=user.email, 
                                              user_id=user.id, 
                                              role=user.role, 
                                              expires_delta=timedelta(minutes=settings.TIME_DELTA_MINUTES),
                                              purpose="access"
                                              )
-    
     return TokenSchema(access_token=token, token_type=settings.TOKEN_TYPE)
 
 
