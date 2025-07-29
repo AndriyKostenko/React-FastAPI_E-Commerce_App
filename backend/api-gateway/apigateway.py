@@ -62,6 +62,7 @@ class ApiGateway:
             headers["X-User-ID"] = str(current_user.get("user_id", ""))
             headers["X-User-Role"] = current_user.get("user_role", "user")
         
+        # perform the request using httpx
         async with httpx.AsyncClient() as client:
             try:
                 response = await client.request(

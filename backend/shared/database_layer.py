@@ -102,7 +102,6 @@ class BaseRepository(Generic[ModelType]):
         return result.scalar() if result else 0
     
     # UPDATE
-
     async def update(self, obj: ModelType) -> ModelType:
         """Update an existing record"""
         self.session.add(obj)

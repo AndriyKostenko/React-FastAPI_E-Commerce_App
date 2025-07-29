@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Request
 
 from apigateway import api_gateway_manager
-from shared.shared_instances import settings, logger
+from shared.shared_instances import logger
 
 
 user_proxy = APIRouter(tags=["User Service"])

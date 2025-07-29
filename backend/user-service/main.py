@@ -11,12 +11,12 @@ from fastapi.exceptions import ResponseValidationError, RequestValidationError
 from routes.user_routes import user_routes
 from routes.admin_routes import admin_routes
 from errors.errors import (BaseAPIException,
-                    DatabaseConnectionError,
-                    RateLimitExceededError)
+                            DatabaseConnectionError,
+                            RateLimitExceededError)
 from shared.shared_instances import (user_service_redis_manager,
-                                            user_service_database_session_manager,
-                                            logger,
-                                            settings)
+                                    user_service_database_session_manager,
+                                    logger,
+                                    settings)
 
 
 
