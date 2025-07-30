@@ -19,12 +19,12 @@ class ApiGateway:
             services={
                 "user-service": ServiceConfig(
                     name="user-service",
-                    instances=[self.settings.USER_SERVICE_URL],
+                    instances=[self.settings.FULL_USER_SERVICE_URL],
                     health_check_path="/health"
                     ),
                 "product-service": ServiceConfig(
                     name="product-service",
-                    instances=[self.settings.PRODUCT_SERVICE_URL],
+                    instances=[self.settings.FULL_PRODUCT_SERVICE_URL],
                     health_check_path="/health"
                     )
                 
@@ -50,8 +50,6 @@ class ApiGateway:
         # Build the full URL robustly
 
         url = f"{service_url}/{path}"
- 
-        self.logger.debug(f"Path url: {path}")
         
         self.logger.info(f"Forwarding request to: {url} with method: {method} and body: {body}")
         

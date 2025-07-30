@@ -139,19 +139,16 @@ class RedisManager:
                 
             # 6. Attempting to cache JSON response
             try:
-                content = json.loads(response_body)
-            except json.JSONDecodeError as e:
+                content = orjson.loads(response_body)
+            except orjson.JSONDecodeError as e:
                 self.logger.warning(f"Response not JSON serializable, skipping cache for: {cache_key} - {str(e)}")
                 return
             
             # 7. Saving to Redis
-            await self.redis.setex(
-                name=cache_key,
-                time=ttl,
-                value=json.dumps({
-                    "content": content,
-                    "status_code": status_code
-                })
+            await self.set_response_for_caching(
+                key=cache_key,
+                seconds=ttl,
+                value={"content": content, "status_code": status_code}
             )
             self.logger.debug(f"Successfully cached response for: {cache_key}")
             
@@ -172,7 +169,7 @@ class RedisManager:
         cached_data = await self.redis.get(cache_key)
         
         if cached_data:
-            cached_dict = json.loads(cached_data)
+            cached_dict = orjson.loads(cached_data)
             self.logger.debug(f"Gateway returnes cached data for: {cache_key}")
             return JSONResponse(content=cached_dict["content"],
                                 status_code=cached_dict["status_code"])
