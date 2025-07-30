@@ -74,6 +74,8 @@ class ApiGateway:
             
                 content = response.json() if response.content else ''
                 
+                self.logger.debug(f"Response in api-gateway from {service_key}, content:{content}, status code: {response.status_code}")
+                
                 return JSONResponse(
                     content=content,
                     status_code=response.status_code,

@@ -23,9 +23,9 @@ class UserService:
         self.repo = repo
 
     async def create_user(self, data: UserSignUp) -> UserInfo:
-        existing_user = await self.get_user_by_email(data.email)
+        existing_user = await self.repo.get_by_field("email", data.email)
         if existing_user:
-            raise UserAlreadyExistsError(f"User with email {data.email} already exists.")
+            raise UserAlreadyExistsError(f"User with email: {data.email} already exists.")
 
         hashed_password = auth_manager.hash_password(data.password)
         new_user = User(
@@ -61,9 +61,15 @@ class UserService:
             raise UserNotFoundError(f"User with email {email} not found.")
         return user.hashed_password
 
+    async def update_user_password(self, email: EmailStr, new_password: str) -> UserInfo:
+        hashed_password = auth_manager.hash_password(new_password)
+        updated_user = await self.repo.update_by_email(email=email, hashed_password=hashed_password)
+        if not updated_user:
+            raise UserNotFoundError(f"User with email {email} not found.")
+        return UserInfo.model_validate(updated_user)
 
     async def update_user_basic_info(self, user_id: UUID, update_data: UserBasicUpdate) -> UserInfo:
-        updated_user = await self.repo.update_by_id(user_id, update_data)
+        updated_user = await self.repo.update_by_id(id=user_id, update_data=update_data)
         if not updated_user:
             raise UserNotFoundError(f"User with id: {user_id} not found.")
         return UserInfo.model_validate(updated_user)

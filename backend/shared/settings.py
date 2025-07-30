@@ -18,6 +18,10 @@ class Settings(BaseSettings):
     API_GATEWAY_SERVICE_URL: str
     USER_SERVICE_URL: str
     PRODUCT_SERVICE_URL: str
+    
+    API_GATEWAY_SERVICE_URL_API_VERSION: str
+    USER_SERVICE_URL_API_VERSION: str
+    PRODUCT_SERVICE_URL_API_VERSION: str
 
     # Shared Database configuration
     POSTGRES_USER: str
@@ -114,6 +118,19 @@ class Settings(BaseSettings):
     @property
     def APIGATEWAY_SERVICE_REDIS_URL(self) -> str:
         return f"redis://:{self.REDIS_PASSWORD}@{self.REDIS_HOST}:{self.REDIS_PORT}/{self.APIGATEWAY_SERVICE_REDIS_DB}"
+
+    @property
+    def FULL_API_GATEWAY_SERVICE_URL(self) -> str:
+        return f"{self.API_GATEWAY_SERVICE_URL}{self.API_GATEWAY_SERVICE_URL_API_VERSION}"
+    
+    @property
+    def FULL_USER_SERVICE_URL(self) -> str:
+        return f"{self.USER_SERVICE_URL}{self.USER_SERVICE_URL_API_VERSION}"
+    
+    @property
+    def FULL_PRODUCT_SERVICE_URL(self) -> str:
+        return f"{self.PRODUCT_SERVICE_URL}{self.PRODUCT_SERVICE_URL_API_VERSION}"
+    
 
     # --- Customise sources to support shared and service-specific .env ---
     @classmethod

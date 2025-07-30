@@ -58,8 +58,7 @@ async def gateway_middleware(request: Request, call_next) -> Response:
     return response
 
 
-
-   
+ 
 @app.get("/health", tags=["Health Check"])  
 async def health_check():
     """
@@ -93,15 +92,12 @@ def add_exception_handlers(app: FastAPI):
             },
         )
 
-        
-
-
-
+   
 # adding exception handlers to the app      
 add_exception_handlers(app)
 
 # Include the user service proxy routes
-app.include_router(user_proxy, prefix="/api/v1", tags=["User Service Proxy"])
+app.include_router(user_proxy, prefix=settings.API_GATEWAY_SERVICE_URL_API_VERSION, tags=["User Service Proxy"])
 
 
 if __name__ == "__main__":

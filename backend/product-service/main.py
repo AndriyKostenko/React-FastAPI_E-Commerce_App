@@ -13,14 +13,11 @@ from routes.product_routes import product_routes
 from routes.category_routes import category_routes
 from routes.review_routes import review_routes
 from errors.base import (BaseAPIException,
-                        DatabaseConnectionError,
                         RateLimitExceededError)
 from shared.shared_instances import (product_service_redis_manager,
                                     product_service_database_session_manager,
                                     logger,
                                     settings)
-
-
 
 
 @asynccontextmanager
@@ -167,8 +164,7 @@ def add_exception_handlers(app: FastAPI):
 
         
 # adding exception handlers to the app      
-add_exception_handlers(app)
-        
+add_exception_handlers(app)     
 
 # CORS or "Cross-Origin Resource Sharing" is a mechanism that 
 # allows restricted resources on a web page to be requested from another domain 
@@ -185,9 +181,9 @@ app.add_middleware(
 app.mount("/media", StaticFiles(directory="/media"), name="media")
 
 # including all the routers to the app
-app.include_router(product_routes, prefix="/api/v1")
-app.include_router(category_routes, prefix="/api/v1")
-app.include_router(review_routes, prefix="/api/v1")
+app.include_router(product_routes, prefix=settings.PRODUCT_SERVICE_URL_API_VERSION)
+app.include_router(category_routes, prefix=settings.PRODUCT_SERVICE_URL_API_VERSION)
+app.include_router(review_routes, prefix=settings.PRODUCT_SERVICE_URL_API_VERSION)
 
 
 if __name__ == "__main__":

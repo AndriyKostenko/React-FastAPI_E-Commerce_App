@@ -180,8 +180,8 @@ app.add_middleware(
 )
 
 # including all the routers to the app
-app.include_router(user_routes, prefix="/api/v1")
-app.include_router(admin_routes, prefix="/api/v1")
+app.include_router(user_routes, prefix=settings.USER_SERVICE_URL_API_VERSION)
+app.include_router(admin_routes, prefix=settings.USER_SERVICE_URL_API_VERSION)
 
 
 if __name__ == "__main__":

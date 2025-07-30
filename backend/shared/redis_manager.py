@@ -1,15 +1,14 @@
-import json
 from typing import Any, AsyncGenerator, Callable, Optional
 from functools import wraps
 from time import perf_counter
 from math import ceil
 
-
+import orjson
 from fastapi import Request
-from fastapi.responses import JSONResponse
 from redis import asyncio as aioredis
 from shared.logger_config import setup_logger
 from shared.base_exceptions import BaseAPIException, RateLimitExceededError
+from shared.customized_json_response import JSONResponse
 
 
 
@@ -181,15 +180,37 @@ class RedisManager:
         self.logger.debug(f"No cached data for key: {cache_key}")
         return None
             
+    async def set_response_for_caching(self, key: str, seconds: int, value: dict) -> None:
+        """
+        Set a response in Redis for caching.
+        
+        Args:
+            key: Cache key
+            seconds: Time to live in seconds
+            value: Response data to cache
+        """
+        try:
+            await self.redis.setex(
+                name=key,
+                time=seconds,
+                value=orjson.dumps(value)
+            )
+            self.logger.debug(f"Set response for caching with key: {key}")
+        except Exception as e:
+            self.logger.error(f"Error setting response for caching: {str(e)}")
     
     def cached(self, ttl: int) -> Callable:
         """
         Decorator for caching endpoint responses.
+        Route returns JSONResponse(content= status_code=201) → Cache stores {"content": data, "status_code": 201}  
+        Route raises HTTPException(404) → Not cached → API Gateway receives 404
         
         Args:
             namespace: Cache namespace (e.g., 'users')
             key: Parameter name to use as cache key
-            ttl: Time to live in seconds 
+            ttl: Time to live in seconds
+            
+        
         """
         def decorator(func):
             @wraps(func)
@@ -207,9 +228,8 @@ class RedisManager:
                     cached_data = await self.redis.get(cache_key)
                     
                     if cached_data:
-                        cached_dict = json.loads(cached_data)
-                        self.logger.debug(f"Returning cached data : {cached_dict["content"]}")
-     
+                        cached_dict = orjson.loads(cached_data)
+                        self.logger.debug(f"Returning cached data for function ({func.__name__}): {cached_dict["content"]}")
                         return JSONResponse(
                             content=cached_dict["content"],
                             status_code=cached_dict["status_code"]
@@ -217,37 +237,44 @@ class RedisManager:
                         
                     # Getting the fresh data
                     response = await func(*args, **kwargs)
-                    self.logger.debug(f"Response body object in decorator: {response.body}")
-                    
-                    # Handle JSONResponse object - use content directly
+                                           
+                    # Handle custom JSONResponse object
                     if isinstance(response, JSONResponse):
-                        
-                        # Parse the body to get the actual content
-                        body_str = response.body.decode() if isinstance(response.body, bytes) else response.body
-                        content = json.loads(body_str)
-                        self.logger.debug(f"Content for caching: {content}")
                         status_code = response.status_code
-                        
                         # Only cache successful responses
                         if 200 <= status_code < 300:
-                            await self.redis.setex(
-                                cache_key, 
-                                ttl, 
-                                json.dumps({
-                                    "content": content,  # Content is already serializable
-                                    "status_code": status_code
-                                })
-                            )
+                            if response.body:
+                                try:
+                                    body_content = orjson.loads(response.body)
+                                    to_cache = {"content": body_content, "status_code": status_code}
+                                    self.logger.debug(f"Content for caching: {to_cache}")
+                                    await self.set_response_for_caching(
+                                            key=cache_key,
+                                            seconds=ttl,
+                                            value=to_cache
+                                        )
+                                except orjson.JSONDecodeError as e:
+                                    self.logger.warning(f"Response not JSON (orjson) serializable, skipping cache for: {cache_key} - {str(e)}")
+                                    return response
+                            return response
                     else:
                         self.logger.warning(f"Unexpected response type: {type(response)} for endpoint: {func.__name__}")
-                    
-                    return response
+                        # If response is not JSONResponse, just return it
+                        return response
+  
                 
+                # The except BaseAPIException block will catch all non-success responses and prevent them from being cached.
                 # monitoring only base exception for all custom errors coz all of them inhereted from it 
                 except BaseAPIException as e:
                     self.logger.debug(f"Not caching error reponse: {str(e)}")
                     # not chaching and re-rasing an error
                     raise
+                
+                except Exception as e:
+                    if self.logger:
+                        self.logger.error(f"Cache error in {func.__name__}: {str(e)}")
+                    # Return original function result on cache errors
+                    return await func(*args, **kwargs)
 
             return wrapper
         return decorator
@@ -296,7 +323,7 @@ class RedisManager:
         
     # ==================== RATE LIMITING FUNCTIONALITY ====================
     
-    def ratelimiter(self, times: int = 10, seconds: int = 60) -> Callable:
+    def ratelimiter(self, times: int , seconds: int ) -> Callable:
         """
         Decorator to apply rate limiting to a FastAPI route.
         

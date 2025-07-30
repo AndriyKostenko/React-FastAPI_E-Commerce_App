@@ -99,7 +99,6 @@ class EmailService:
             template_body=template_body
         )
     
-
     async def send_verification_email(self,
                                       email: EmailStr,
                                       user_id: UUID,
@@ -192,5 +191,6 @@ class EmailService:
             recipients=[email],
             template_name="password_reset_confirmation.html"
         )
+       
             
 email_service = EmailService(settings=settings, logger=logger)
