@@ -44,7 +44,7 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
 
 # dependency function that provides an instance of UserCRUDService
 def get_user_service(session: AsyncSession = Depends(get_db_session)) -> UserService:
-    return UserService(UserRepository(session=session))
+    return UserService(session=session)
 
 
 #dependency function provides admin previlages. 

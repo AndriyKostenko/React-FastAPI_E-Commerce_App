@@ -7,15 +7,17 @@ from models.product_models import Product, ProductImage
 from models.review_models import ProductReview
 from schemas.product_schemas import CreateProduct, ProductBase, ProductSchema
 from database_layer.product_repository import ProductRepository
+from 
 
 
 class ProductService:
     """Service layer for product management operations, business logic and data validation."""
     def __init__(self, repo: ProductRepository):
+        super().__init__()
         self.repo = repo
 
     async def create_product_item(self, product_data: CreateProduct) -> ProductSchema:
-        db_product = await self.repo.get_product_by_name(name=product_data.name.lower())
+        db_product = await self.repo.(name=product_data.name.lower())
         if db_product:
             raise ProductCreationError(f'Product with name: "{product_data.name}" already exists.')
         # 1. creating product

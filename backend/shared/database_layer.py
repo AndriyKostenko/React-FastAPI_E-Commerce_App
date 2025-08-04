@@ -4,6 +4,7 @@ from typing import Generic, Optional, Type, TypeVar
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, asc
 from pydantic import EmailStr
+from shared.base_exceptions import NoFieldInTheModelError
 from shared.models_base_class import Base
 
 # Generic type for SQLAlchemy models
@@ -62,7 +63,8 @@ class BaseRepository(Generic[ModelType]):
     async def get_by_field(self, field_name: str, value: str) -> Optional[ModelType]:
         """Get record by any field"""
         if not hasattr(self.model, field_name):
-            raise AttributeError(f"Model {self.model.__name__} has no field: '{field_name}'")
+            raise NoFieldInTheModelError(self.model.__name__, field_name)
+
         
         result = await self.session.execute(
             select(self.model).where(getattr(self.model, field_name) == value)
@@ -70,7 +72,6 @@ class BaseRepository(Generic[ModelType]):
         
         return result.scalar_one_or_none()
         
-    
     async def get_many_by_field(self, field_name: str, value: str) -> list[Optional[ModelType]]:
         """Get multiple records by field value"""
         if not hasattr(self.model, field_name):
@@ -108,6 +109,16 @@ class BaseRepository(Generic[ModelType]):
         await self.session.commit()
         await self.session.refresh(obj)
         return obj
+    
+    async def update_by_field(self, field_name: str, value: str, **kwargs) -> Optional[ModelType]:
+        """Update a record by field value with new values"""
+        existing_obj = await self.get_by_field(field_name, value)
+        if not existing_obj:
+            return None
+        for field, new_value in kwargs.items():
+            if hasattr(existing_obj, field):
+                setattr(existing_obj, field, new_value)
+        return await self.update(existing_obj)
     
     async def update_by_id(self, id: UUID, **kwargs) -> Optional[ModelType]:
         """Update a record by ID with new values"""

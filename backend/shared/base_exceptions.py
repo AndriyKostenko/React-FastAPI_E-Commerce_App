@@ -37,3 +37,9 @@ class DatabaseSessionError(BaseAPIException):
     """Raised when there is a session issue with the database"""
     def __init__(self, detail: str = "Database session error"):
         super().__init__(detail=detail, status_code=500)
+        
+class NoFieldInTheModelError(BaseAPIException):
+    """Raised when a field does not exist in the model"""
+    def __init__(self, model_name: str, field_name: str):
+        detail = f"Model {model_name} has no field: '{field_name}'"
+        super().__init__(detail=detail, status_code=400)
