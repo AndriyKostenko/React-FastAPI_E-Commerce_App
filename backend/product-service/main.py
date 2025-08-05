@@ -184,6 +184,7 @@ app.mount("/media", StaticFiles(directory="/media"), name="media")
 app.include_router(product_routes, prefix=settings.PRODUCT_SERVICE_URL_API_VERSION)
 app.include_router(category_routes, prefix=settings.PRODUCT_SERVICE_URL_API_VERSION)
 app.include_router(review_routes, prefix=settings.PRODUCT_SERVICE_URL_API_VERSION)
+app.include_router(product_images_routes, prefix=settings.PRODUCT_SERVICE_URL_API_VERSION)
 
 
 if __name__ == "__main__":

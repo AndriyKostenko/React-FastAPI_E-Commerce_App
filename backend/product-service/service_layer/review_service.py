@@ -1,16 +1,18 @@
 from uuid import UUID
 from typing import List, Optional
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from backend.shared.database_layer import BaseRepository
 from schemas.review_schemas import CreateReview, ReviewSchema, UpdateReview
 from errors.review_errors import ReviewNotFoundError, ReviewAlreadyExistsError
-from database_layer.review_repository import ReviewRepository
 from models.review_models import ProductReview
 
 
-class ReviewService:
+class ReviewService(BaseRepository):
     """Service layer for review management operations, business logic and data validation."""
-    def __init__(self, repo: ReviewRepository):
-        self.repo = repo
+    def __init__(self, session: AsyncSession):
+        super().__init__(session, ProductReview)
 
     async def create_product_review(self, user_id: UUID, product_id: UUID, data: CreateReview) -> ReviewSchema:
         # Check if review already exists

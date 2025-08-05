@@ -129,15 +129,6 @@ class BaseRepository(Generic[ModelType]):
             if hasattr(existing_obj, field):
                 setattr(existing_obj, field, value)
         return await self.update(existing_obj)
-    
-    async def update_by_email(self, email: EmailStr, **kwargs) -> Optional[ModelType]:
-        existing_obj = await self.get_by_field(field_name="email", value=email)
-        if not existing_obj:
-            return None
-        for field, value in kwargs.items():
-            if hasattr(existing_obj, field):
-                setattr(existing_obj, field, value)
-        return await self.update(existing_obj)
         
     
     # DELETE

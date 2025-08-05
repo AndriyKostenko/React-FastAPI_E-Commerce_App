@@ -80,6 +80,7 @@ async def create_new_product(product_service: product_service_dependency,
                                 in_stock=in_stock)
 
     created_product =  await product_service.create_product_item(product_data=product_data)
+    
     return JSONResponse(
         content=created_product,
         status_code=status.HTTP_201_CREATED

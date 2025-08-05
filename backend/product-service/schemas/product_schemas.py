@@ -7,26 +7,10 @@ from pydantic import BaseModel, PositiveInt, Field, ConfigDict, HttpUrl
 
 from schemas.review_schemas import ReviewSchema
 from schemas.category_schema import CategorySchema
+from schemas.product_image_schema import ImageType
 
 
 
-# --- Supporting Schemas ---
-
-class ImageType(BaseModel):
-    image_color: str = Field(..., min_length=3, max_length=50, description="Image color must be between 3 and 50 characters", example="Black")
-    image_color_code: str = Field(..., min_length=3, max_length=50, description="Image color code must be between 3 and 50 characters" , example="#000000")
-    image_url: str
-
-    model_config = ConfigDict(from_attributes=True)
-
-class CartImages(BaseModel):
-    product_id: UUID 
-    image_url: str
-    image_color_code: str = Field(..., min_length=3, max_length=50, description="Image color code must be between 3 and 50 characters" , example="#000000")
-    id: UUID 
-    image_color: str = Field(..., min_length=3, max_length=50, description="Image color must be between 3 and 50 characters", example="Black")
-
-    model_config = ConfigDict(from_attributes=True)
 
 # --- Product Schemas ---
 
@@ -44,7 +28,7 @@ class ProductBase(BaseModel):
 
 class CreateProduct(ProductBase):
     """Schema for creating a product"""
-    images: List[ImageType] = Field(..., min_items=1, max_items=5, description="List of product images with color and color code")
+    images: List[ImageType] 
 
 class UpdateProduct(ProductBase):
     """Schema for updating an existing product"""

@@ -4,7 +4,7 @@ from fastapi import Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from service_layer.user_service import UserService
-from database_layer.user_database_layer import UserRepository
+from database_layer.user_repository import UserRepository
 from shared.shared_instances import user_service_database_session_manager
 from authentication import auth_manager
 from schemas.user_schemas import CurrentUserInfo
@@ -36,18 +36,19 @@ FLow Diagram for Database Session Management in FastAPI:
 """
 
 
-# dependency that will be used to get the database session from the request
+
 async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
     """Providing a transactional scope around for each series (request) of operations with database."""
     async with user_service_database_session_manager.session() as session:
         yield session
 
-# dependency function that provides an instance of UserCRUDService
+
 def get_user_service(session: AsyncSession = Depends(get_db_session)) -> UserService:
-    return UserService(session=session)
+    """Dependency to provide UserService with UserRepository for database operations."""
+    return UserService(UserRepository(session=session))
 
 
-#dependency function provides admin previlages. 
+
 async def require_admin(current_user: CurrentUserInfo = Depends(auth_manager.get_current_user_from_token)):
     if not current_user or current_user.role != settings.SECRET_ROLE:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required")
