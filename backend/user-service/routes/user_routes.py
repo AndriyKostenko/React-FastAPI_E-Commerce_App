@@ -105,11 +105,12 @@ async def verify_email(request: Request,
 @user_service_redis_manager.ratelimiter(times=3, seconds=3600)
 async def simple_send(request: Request,
                       email: EmailSchema,
+                      user_id: UUID,
                       background_tasks: BackgroundTasks) -> JSONResponse:
     
     await email_service.send_verification_email(
         email=email.email,
-        user_id="7066e133-fd23-4db8-b5c9-e12633a922d7",
+        user_id=user_id,
         user_role="user",
         background_tasks=background_tasks
     )

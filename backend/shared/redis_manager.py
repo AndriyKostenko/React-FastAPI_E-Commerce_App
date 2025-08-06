@@ -345,7 +345,7 @@ class RedisManager:
 
     def _generate_rate_limit_key(self, request: Request) -> str:
         """Generate a unique rate limit key based on client IP and endpoint"""
-        client_ip = request.client.host
+        client_ip = request.client.host # type: ignore
         endpoint = request.url.path
         return f"{self.service_prefix}:ratelimit:{client_ip}:{endpoint}"
 
@@ -387,7 +387,7 @@ class RedisManager:
             
             self.logger.warning(f"Rate limit exceeded for: {key}")
             raise RateLimitExceededError(
-                client_ip=request.client.host, 
+                client_ip=request.client.host, # type: ignore
                 retry_after=retry_after
             )
         except RateLimitExceededError:

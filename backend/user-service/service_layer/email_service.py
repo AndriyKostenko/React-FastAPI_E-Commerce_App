@@ -35,7 +35,7 @@ class EmailService:
             TEMPLATE_FOLDER=self.settings.TEMPLATES_DIR,
             VALIDATE_CERTS=self.settings.VALIDATE_CERTS
         )
-        self.jinja_env = Environment(loader=FileSystemLoader(self.config.TEMPLATE_FOLDER))
+        self.jinja_env = Environment(loader=FileSystemLoader(self.config.TEMPLATE_FOLDER)) # type: ignore
         self.fast_mail = FastMail(self.config)
 
     def render_template(self, template_name: str, template_body: Dict[str, str]) -> str:
@@ -82,7 +82,7 @@ class EmailService:
     def send_email_background(self,
                               background_tasks: BackgroundTasks,
                               subject: str,
-                              template_body: Dict[str, str | None],
+                              template_body: Dict[str, str],
                               recipients: List[str],
                               template_name: str) -> None:
         """Send email in the background using FastAPI background tasks.
@@ -121,7 +121,7 @@ class EmailService:
 
         self.logger.info(f"Sending verification email to: {email} with token: {token}")
         
-        email_data: Dict[str, str | None] = {
+        email_data: Dict[str, str] = {
             "app_name": self.settings.MAIL_FROM_NAME,
             "email": email,
             "activate_url": activate_url
@@ -176,7 +176,7 @@ class EmailService:
         
     async def send_password_reset_success_email(self,
                                         email: str,
-                                        template_body: Dict[str, str | None],
+                                        template_body: Dict[str, str],
                                         background_tasks: BackgroundTasks) -> None:
         if not email:
             self.logger.error("Email is missing")

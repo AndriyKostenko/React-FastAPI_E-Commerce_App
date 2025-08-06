@@ -1,11 +1,14 @@
 from functools import lru_cache
 from pathlib import Path
 from typing import List, Optional
+import threading
 
 from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
+    
+    
     # Application configuration
     APP_HOST: str
     API_GATEWAY_SERVICE_APP_PORT: int
@@ -77,7 +80,7 @@ class Settings(BaseSettings):
     MAIL_FROM: str
     MAIL_FROM_NAME: str
     USE_CREDENTIALS: bool
-    TEMPLATES_DIR: str
+    TEMPLATES_DIR: str 
     VALIDATE_CERTS: bool
 
     # CORS
@@ -89,7 +92,16 @@ class Settings(BaseSettings):
     # Other
     SECRET_ROLE: str
 
-    # --- Properties for DSNs and URLs ---
+    # Singleton instance (thread-safe)
+    _instance: Optional['Settings'] = None
+    _lock = threading.Lock()
+    
+    def __new__(cls):
+        if cls._instance is None:
+            with cls._lock:
+                if cls._instance is None:
+                    cls._instance = super().__new__(cls)
+        return cls._instance
 
     @property
     def USER_SERVICE_DATABASE_URL(self) -> str:
@@ -140,12 +152,12 @@ class Settings(BaseSettings):
         return (
             init_settings,
             env_settings,
-            cls.env_file_settings_source(root_env),   # shared
-            cls.env_file_settings_source(local_env),  # service-specific
+            cls.env_file_settings_source(root_env),   # shared # type: ignore
+            cls.env_file_settings_source(local_env),  # service-specific # type: ignore
             file_secret_settings,
         )
-
+        
 
 @lru_cache()
 def get_settings():
-    return Settings()
+    return Settings() # type: ignore

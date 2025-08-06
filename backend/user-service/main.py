@@ -66,7 +66,7 @@ async def host_validation_middleware(request: Request, call_next):
         response = await call_next(request)
         return response
     
-    logger.warning(f"Invalid Host header: {host} from {request.client.host}")
+    logger.warning(f"Invalid Host header: {host} from {request.client.host}") # type: ignore
     raise HTTPException(
         status_code=400,
         detail="Invalid Host header",
@@ -156,8 +156,7 @@ def add_exception_handlers(app: FastAPI):
             status_code=exc.status_code,
             headers=exc.headers,
             content={
-                "error": exc.detail["message"],
-                "retry_after": exc.detail["retry_after"],
+                "detail": exc.detail,
                 "timestamp": datetime.now().isoformat(),
                 "path": request.url.path
             }

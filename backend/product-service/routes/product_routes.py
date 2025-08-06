@@ -6,8 +6,7 @@ from fastapi import APIRouter, status, HTTPException, Form, UploadFile, File
 
 from dependencies.dependencies import product_service_dependency
 from schemas.product_schemas import ImageType, ProductBase, ProductSchema, CreateProduct
-from utils.image_pathes import create_image_paths
-from utils.image_metadata import create_image_metadata
+
 from shared.customized_json_response import JSONResponse
 from shared.shared_instances import product_service_redis_manager
 
@@ -30,9 +29,6 @@ async def create_new_product(product_service: product_service_dependency,
                              quantity: int = Form(..., ge=0, le=100),
                              price: Decimal = Form(..., ge=0, le=100),
                              in_stock: bool = Form(...),
-                             images_color: List[str] = Form(...),
-                             images_color_code: List[str] = Form(...),
-                             images: List[UploadFile] = File(...),
                              ):
 
     # convert in_stock to boolean coz it will be passed as a string from client
@@ -42,39 +38,10 @@ async def create_new_product(product_service: product_service_dependency,
         else:
             in_stock = False
     
-    # creating image pasths
-    image_paths = await create_image_paths(images=images)
-
-    # processing color and color code lists
-    colors = [color.strip() for colors in images_color for color in colors.split(',')]
-    color_codes = [code.strip() for codes in images_color_code for code in codes.split(',')]
-    
-    print(f"Colors: {colors}, Color Codes: {color_codes}, Image Paths: {image_paths}")
-
-    # validating equal emaount of images and metadata
-    if len(image_paths) != len(colors) or len(image_paths) != len(color_codes) or len(colors) != len(color_codes):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
-                            detail=f"Number of images: {len(image_paths)} must match number of colors: {len(colors)} and color codes: {len(color_codes)}")
-
-    # Validate minimum length for colors and codes
-    if any(len(color) < 3 for color in images_color) or any(len(code) < 3 for code in images_color_code):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Colors and color codes must be at least 3 characters long"
-        )
-    
-    image_data = [
-        (ImageType(image_url=path, 
-                   image_color=color,
-                   image_color_code=code))
-        for color, code, path in zip(colors, color_codes, image_paths)
-    ]
-
     product_data = CreateProduct(name=name.lower(),
                                 description=description,
                                 category_id=category_id,
                                 brand=brand.lower(),
-                                images=image_data,
                                 quantity=quantity,
                                 price=price,
                                 in_stock=in_stock)
@@ -99,7 +66,7 @@ async def get_all_products(product_service: product_service_dependency,
                            page_size: int = 10,
                            ):
     products = await product_service.get_all_products(category=category,
-                                                      searchTerm=searchTerm,
+                                                      search_term=searchTerm,
                                                       page_size=page_size,
                                                       page=page)
     return JSONResponse(
@@ -118,7 +85,7 @@ async def get_all_products_with_relations(product_service: product_service_depen
                                           page_size: int = 10,
                                           ) -> list[ProductSchema]:
     return await product_service.get_all_products_with_relations(category=category,
-                                                                  searchTerm=searchTerm,
+                                                                  search_term=searchTerm,
                                                                   page_size=page_size,
                                                                   page=page)
 

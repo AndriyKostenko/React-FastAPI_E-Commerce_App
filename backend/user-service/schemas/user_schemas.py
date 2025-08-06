@@ -33,7 +33,7 @@ class UserSignUp(BaseModel):
 class CurrentUserInfo(BaseModel):
     email: EmailStr
     id: UUID
-    role: str
+    role: str | None
     
 
 

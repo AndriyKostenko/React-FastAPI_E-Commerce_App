@@ -23,8 +23,8 @@ class DatabaseSessionManager:
     - Uses a logger for logging database operations and errors.
     """
     def __init__(self, database_url: str, engine_settings: Dict[str, int], logger) -> None:
-        self.async_engine = None
-        self.async_session = None
+        self.async_engine: AsyncEngine | None = None
+        self.async_session: async_sessionmaker[AsyncSession] | None = None
         self.database_url = database_url
         self.engine_settings = engine_settings
         self.logger = logger
@@ -36,9 +36,9 @@ class DatabaseSessionManager:
     def _initialize_engine(self) -> None:
         """Initialize the engine and session maker."""
         try:
-            self.async_engine: AsyncEngine = create_async_engine(url=self.database_url,
-                                                                **self.engine_settings)
-            self.async_session: async_sessionmaker[AsyncSession] = async_sessionmaker(
+            self.async_engine = create_async_engine(url=self.database_url,
+                                                     **self.engine_settings)
+            self.async_session = async_sessionmaker(
                     autocommit=False, #If True, each transaction will be automatically committed.
                     autoflush=False, #If True, the session will automatically flush changes to the database. 
                     bind=self.async_engine,

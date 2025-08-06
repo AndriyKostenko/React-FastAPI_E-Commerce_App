@@ -2,7 +2,7 @@ from uuid import UUID
 from typing import Generic, Optional, Type, TypeVar
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, asc
+from sqlalchemy import func, select, asc
 from pydantic import EmailStr
 from shared.base_exceptions import NoFieldInTheModelError
 from shared.models_base_class import Base
@@ -41,7 +41,7 @@ class BaseRepository(Generic[ModelType]):
     # READ
     async def get_by_id(self, id: UUID) -> Optional[ModelType]:
         """Get a record by ID"""
-        result = await self.session.execute(select(self.model).where(self.model.id == id))
+        result = await self.session.execute(select(self.model).where(self.model.id == id)) # type: ignore
         return result.scalar_one_or_none()
     
     async def get_all(self,
@@ -58,9 +58,9 @@ class BaseRepository(Generic[ModelType]):
         if limit:
             query = query.limit(limit)
         result = await self.session.execute(query)
-        return result.scalars().all()
+        return list(result.scalars().all())
         
-    async def get_by_field(self, field_name: str, value: str) -> Optional[ModelType]:
+    async def get_by_field(self, field_name: str, value: str | UUID) -> Optional[ModelType]:
         """Get record by any field"""
         if not hasattr(self.model, field_name):
             raise NoFieldInTheModelError(self.model.__name__, field_name)
@@ -72,7 +72,7 @@ class BaseRepository(Generic[ModelType]):
         
         return result.scalar_one_or_none()
         
-    async def get_many_by_field(self, field_name: str, value: str) -> list[Optional[ModelType]]:
+    async def get_many_by_field(self, field_name: str, value: str | UUID) -> list[Optional[ModelType]]:
         """Get multiple records by field value"""
         if not hasattr(self.model, field_name):
             raise AttributeError(f"Model {self.model.__name__} has no field '{field_name}'")
@@ -80,7 +80,7 @@ class BaseRepository(Generic[ModelType]):
         result = await self.session.execute(
             select(self.model).where(getattr(self.model, field_name) == value)
         )
-        return result.scalars().all()
+        return list(result.scalars().all())
     
     async def filter_by(self, **kwargs) -> list[ModelType]:
         """Filter records by multiply fields"""
@@ -90,17 +90,18 @@ class BaseRepository(Generic[ModelType]):
                 query = query.where(getattr(self.model, field) == value)
         
         result = await self.session.execute(query)
-        return result.scalars().all()
+        return list(result.scalars().all())
 
     async def count(self, **kwargs) -> int:
         """Count records with optional filters"""
-        query = select(self.model)
+        # counting by primary key (id) as default
+        query = select(func.count(self.model.id))  # type: ignore
         for field, value in kwargs.items():
             if hasattr(self.model, field):
                 query = query.where(getattr(self.model, field) == value)
         
         result = await self.session.execute(query)
-        return result.scalar() if result else 0
+        return result.scalar() or 0
     
     # UPDATE
     async def update(self, obj: ModelType) -> ModelType:
@@ -145,7 +146,7 @@ class BaseRepository(Generic[ModelType]):
             return True
         return False
     
-    async def delete_many_by_field(self, field_name: str, value: str) -> int:
+    async def delete_many_by_field(self, field_name: str, value: str | UUID) -> int:
         """Delete multiple records by field value"""
         if hasattr(self.model, field_name):
             result = await self.session.execute(

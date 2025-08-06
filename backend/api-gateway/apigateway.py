@@ -1,6 +1,6 @@
 from fastapi import HTTPException
 from fastapi.responses import JSONResponse
-import httpx
+import httpx 
 from circuitbreaker import circuit
 
 from shared.shared_instances import settings, logger

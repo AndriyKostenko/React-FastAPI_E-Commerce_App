@@ -9,6 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import ValidationError
 from fastapi.exceptions import ResponseValidationError, RequestValidationError
 
+from routes.product_image_routes import product_images_routes
 from routes.product_routes import product_routes
 from routes.category_routes import category_routes
 from routes.review_routes import review_routes
@@ -65,7 +66,7 @@ async def host_validation_middleware(request: Request, call_next):
         response = await call_next(request)
         return response
     
-    logger.warning(f"Invalid Host header: {host} from {request.client.host}")
+    logger.warning(f"Invalid Host header: {host} from {request.client}")
     raise HTTPException(
         status_code=400,
         detail="Invalid Host header",
@@ -155,8 +156,7 @@ def add_exception_handlers(app: FastAPI):
             status_code=exc.status_code,
             headers=exc.headers,
             content={
-                "error": exc.detail["message"],
-                "retry_after": exc.detail["retry_after"],
+                "detail": exc.detail,
                 "timestamp": datetime.now().isoformat(),
                 "path": request.url.path
             }

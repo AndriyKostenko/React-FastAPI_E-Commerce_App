@@ -25,4 +25,4 @@ class ProductReview(Base, TimestampMixin):
     rating: Mapped[float] = mapped_column(nullable=True)
 
 
-    product: Mapped['Product'] = relationship('Product', back_populates='reviews')
+    product: Mapped['Product'] = relationship('Product', back_populates='reviews') # type: ignore

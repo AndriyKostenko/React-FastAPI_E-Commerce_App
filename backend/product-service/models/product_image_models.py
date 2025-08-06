@@ -25,4 +25,4 @@ class ProductImage(Base, TimestampMixin):
     image_color_code: Mapped[str] = mapped_column(nullable=True)
 
 
-    product: Mapped['Product'] = relationship('Product', back_populates='images')
+    product: Mapped['Product'] = relationship('Product', back_populates='images') # type: ignore

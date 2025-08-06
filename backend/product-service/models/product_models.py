@@ -33,7 +33,7 @@ class Product(Base, TimestampMixin):
     in_stock: Mapped[bool] = mapped_column(nullable=False)
 
     reviews: Mapped[List['ProductReview']] = relationship('ProductReview', back_populates='product', cascade='all, delete-orphan') # type: ignore
-    images: Mapped[List['ProductImage']] = relationship('ProductImage', back_populates='product', cascade='all, delete-orphan')
+    images: Mapped[List['ProductImage']] = relationship('ProductImage', back_populates='product', cascade='all, delete-orphan') # type: ignore
     category: Mapped['ProductCategory'] = relationship('ProductCategory', back_populates='products') # type: ignore
 
 

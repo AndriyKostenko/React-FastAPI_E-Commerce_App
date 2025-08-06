@@ -30,15 +30,13 @@ class DatabaseSessionError(BaseAPIException):
 class RateLimitExceededError(BaseAPIException):
     """Exception raised when rate limit is exceeded"""
     def __init__(self, client_ip: str, retry_after: int, status_code: int = 429):
-        detail = {
-            "message": f"Too many requests from: {client_ip}",
-            "retry_after": retry_after
-        }
-        headers = {"Retry-After": str(retry_after)}
         super().__init__(
             status_code=status_code,
-            detail=detail,
-            headers=headers
+            detail={
+                "message": f"Too many requests from: {client_ip}",
+                "retry_after": retry_after
+            },
+            headers= {"Retry-After": str(retry_after)}
         )
 
 

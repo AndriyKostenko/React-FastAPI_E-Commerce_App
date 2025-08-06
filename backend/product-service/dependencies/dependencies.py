@@ -10,6 +10,7 @@ from service_layer.product_image_service import ProductImageService
 from database_layer.product_repository import ProductRepository
 from database_layer.category_repository import CategoryRepository
 from database_layer.review_repository import ReviewRepository
+from database_layer.product_image_repository import ProductImageRepository
 from shared.shared_instances import product_service_database_session_manager
 
 

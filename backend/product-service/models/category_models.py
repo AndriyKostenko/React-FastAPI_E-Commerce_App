@@ -23,4 +23,4 @@ class ProductCategory(Base, TimestampMixin):
     name: Mapped[str] = mapped_column(unique=True, nullable=False)
     image_url: Mapped[str] = mapped_column(nullable=False)
 
-    products: Mapped[List['Product']] = relationship('Product', back_populates='category', cascade='all, delete-orphan')
+    products: Mapped[List['Product']] = relationship('Product', back_populates='category', cascade='all, delete-orphan') #type: ignore

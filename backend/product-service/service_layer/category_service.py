@@ -18,7 +18,7 @@ class CategoryService:
             raise CategoryCreationError(f'Category with name: "{category_data.name}" already exists.')
         new_category = ProductCategory(name=category_data.name.lower(), 
                                        image_url=category_data.image_url)
-        new_db_category = await self.create(new_category)
+        new_db_category = await self.repository.create(new_category)
         return CategorySchema.model_validate(new_db_category)
    
     async def get_all_categories(self) -> list[CategorySchema]:

@@ -1,4 +1,5 @@
 from datetime import timedelta, datetime, timezone
+from tkinter import N
 from typing import Annotated
 from uuid import UUID
 from passlib.context import CryptContext
@@ -76,7 +77,7 @@ class AuthenticationManager:
     def create_access_token(self, 
                             email: EmailStr, 
                             user_id: UUID, 
-                            role: str, 
+                            role: str | None, 
                             expires_delta: timedelta,
                             purpose: str = "access"):
         """Creating JWT access token"""
@@ -97,12 +98,12 @@ class AuthenticationManager:
         """Checking if user is logged in and with valid token"""
         try:
             payload = jwt.decode(token, self.settings.SECRET_KEY, algorithms=[self.settings.ALGORITHM])
-            email: str = payload.get('sub')
-            user_id: UUID = payload.get('id')
-            role: str = payload.get('role')
-            exp: int = payload.get('exp')
-            purpose: str = payload.get('purpose', required_purpose) # Default to "access" if not specified
-            
+            email: str | None = payload.get('sub')
+            user_id: UUID | None = payload.get('id')
+            role: str | None = payload.get('role')
+            exp: int | None = payload.get('exp')
+            purpose: str | None = payload.get('purpose', required_purpose) # Default to "access" if not specified
+
             if not email or not user_id:
                 raise UserIsNotVerifiedError(detail=f"User's email or id is not provided / verified.")
             

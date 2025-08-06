@@ -28,7 +28,7 @@ class ProductBase(BaseModel):
 
 class CreateProduct(ProductBase):
     """Schema for creating a product"""
-    images: List[ImageType] 
+    ...
 
 class UpdateProduct(ProductBase):
     """Schema for updating an existing product"""

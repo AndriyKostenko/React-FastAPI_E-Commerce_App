@@ -4,9 +4,9 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.product_image_models import ProductImage
-from schemas.product_image_schema import ProductImageSchema, CreateProductImage
+from schemas.product_image_schema import ProductImageSchema
 from database_layer.product_image_repository import ProductImageRepository
-from errors.product_image_errors import ProductImageNotFoundError
+from errors.product_image_errors import ProductImageNotFoundError, ProductImageAlreadyExistsError
 
 
 class ProductImageService:
@@ -15,10 +15,11 @@ class ProductImageService:
     def __init__(self, repository: ProductImageRepository):
         self.repository = repository
 
-    async def create_product_images(self, product_id: UUID, images: List[CreateProductImage]) -> List[ProductImageSchema]:
+    async def create_product_images(self, product_id: UUID, images: list) -> List[ProductImageSchema]:
         """Create multiple product images for a product"""
-        if not images:
-            return []
+        existing_images = await self.repository.get_many_by_field(field_name="product_id", value=product_id)
+        if existing_images:
+            raise ProductImageAlreadyExistsError(f"Product with id: {product_id} already has images associated with it.")
             
         product_images = [
             ProductImage(
@@ -35,9 +36,9 @@ class ProductImageService:
 
     async def get_product_images(self, product_id: UUID) -> List[ProductImageSchema]:
         """Get all images for a specific product"""
-        images = await self.repository.get_many_by_field("product_id", str(product_id))
+        images = await self.repository.get_many_by_field(field_name="product_id", value=product_id)
         return [ProductImageSchema.model_validate(img) for img in images]
-
+    
     async def get_image_by_id(self, image_id: UUID) -> ProductImageSchema:
         """Get a specific product image by ID"""
         image = await self.repository.get_by_id(image_id)
@@ -60,9 +61,9 @@ class ProductImageService:
 
     async def delete_all_product_images(self, product_id: UUID) -> int:
         """Delete all images for a specific product"""
-        return await self.repository.delete_many_by_field("product_id", str(product_id))
+        return await self.repository.delete_many_by_field(field_name="product_id", value=product_id)
 
-    async def replace_product_images(self, product_id: UUID, new_images: List[CreateProductImage]) -> List[ProductImageSchema]:
+    async def replace_product_images(self, product_id: UUID, new_images: list) -> List[ProductImageSchema]:
         """Replace all images for a product with new ones"""
         # Delete existing images
         await self.delete_all_product_images(product_id)

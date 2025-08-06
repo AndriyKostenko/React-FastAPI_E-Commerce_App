@@ -21,20 +21,17 @@ class ProductRepository(BaseRepository[Product]):
         
     
     async def get_product_with_relations(self, product_id: UUID) -> Optional[Product]:
-        query = (
-            select(Product)
+        result = await self.session.execute(select(Product)
             .options(
                 selectinload(Product.images),
                 selectinload(Product.reviews),
                 selectinload(Product.category)
             )
-            .where(Product.id == product_id)
-        )
-        result = await self.session.execute(query)
+            .where(Product.id == product_id))
         return result.scalar_one_or_none()
     
  
-    async def search_products(self, search_term: str, filters: dict, limit: int, offset: int) -> List[Product]:
+    async def search_products(self, search_term: str, filters: dict, limit: int, offset: int) -> list[Product]:
         query = select(Product)
 
         # Add search conditions
@@ -54,7 +51,7 @@ class ProductRepository(BaseRepository[Product]):
         query = query.offset(offset).limit(limit)
         
         result = await self.session.execute(query)
-        return result.scalars().all()
+        return list(result.scalars().all())
 
 
     async def search_products_with_relations(self, search_term: Optional[str], category: Optional[str], 
@@ -84,4 +81,4 @@ class ProductRepository(BaseRepository[Product]):
         query = query.offset(offset).limit(limit)
         
         result = await self.session.execute(query)
-        return result.scalars().all()
+        return list(result.scalars().all())
