@@ -40,7 +40,10 @@ class CategoryService:
         return CategorySchema.model_validate(category)
 
     async def update_category(self, category_id: UUID, data: UpdateCategory) -> CategorySchema:
-        updated_category = await self.repository.update_by_id(category_id, data=data)
+        # Converting Pydantic model to dictionary
+        update_fields = {key: value for key, value in data.model_dump().items() if value is not None}
+        
+        updated_category = await self.repository.update_by_id(category_id, **update_fields)
         if not updated_category:
             raise CategoryNotFoundError(f"Category id: {category_id} not found")
         return CategorySchema.model_validate(updated_category)

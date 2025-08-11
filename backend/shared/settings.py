@@ -92,16 +92,6 @@ class Settings(BaseSettings):
     # Other
     SECRET_ROLE: str
 
-    # Singleton instance (thread-safe)
-    _instance: Optional['Settings'] = None
-    _lock = threading.Lock()
-    
-    def __new__(cls):
-        if cls._instance is None:
-            with cls._lock:
-                if cls._instance is None:
-                    cls._instance = super().__new__(cls)
-        return cls._instance
 
     @property
     def USER_SERVICE_DATABASE_URL(self) -> str:

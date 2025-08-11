@@ -1,27 +1,27 @@
 from decimal import Decimal
-from typing import List, Optional
+from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, status, HTTPException, Form, UploadFile, File
+from fastapi import APIRouter, status, Form, Request
 
 from dependencies.dependencies import product_service_dependency
-from schemas.product_schemas import ImageType, ProductBase, ProductSchema, CreateProduct
-
+from schemas.product_schemas import ProductBase, ProductSchema, CreateProduct
 from shared.customized_json_response import JSONResponse
 from shared.shared_instances import product_service_redis_manager
 
 
 product_routes = APIRouter(
-    tags=["product"]
+    tags=["products"]
 )
 
 
 @product_routes.post("/products",  
-                     response_model=ProductSchema,
+                     response_model=ProductBase,
                      response_description="New product created")
-@product_service_redis_manager.cached(ttl=60)
-@product_service_redis_manager.ratelimiter(times=5, seconds=120)
-async def create_new_product(product_service: product_service_dependency,
+@product_service_redis_manager.cached(ttl=30)
+@product_service_redis_manager.ratelimiter(times=10, seconds=60)
+async def create_new_product(request: Request,
+                             product_service: product_service_dependency,
                              name: str = Form(..., min_length=3, max_length=50),
                              description: str = Form(..., min_length=10, max_length=500),
                              category_id: UUID = Form(...),
@@ -29,7 +29,7 @@ async def create_new_product(product_service: product_service_dependency,
                              quantity: int = Form(..., ge=0, le=100),
                              price: Decimal = Form(..., ge=0, le=100),
                              in_stock: bool = Form(...),
-                             ):
+                             ) -> JSONResponse:
 
     # convert in_stock to boolean coz it will be passed as a string from client
     if isinstance(in_stock, str):
@@ -46,8 +46,9 @@ async def create_new_product(product_service: product_service_dependency,
                                 price=price,
                                 in_stock=in_stock)
 
-    created_product =  await product_service.create_product_item(product_data=product_data)
-    
+    created_product = await product_service.create_product_item(product_data=product_data)
+    # Invalidating cache after successful creation
+    await product_service_redis_manager.invalidate_cache(request=request)
     return JSONResponse(
         content=created_product,
         status_code=status.HTTP_201_CREATED
@@ -57,73 +58,103 @@ async def create_new_product(product_service: product_service_dependency,
 @product_routes.get("/products", 
                     response_model=list[ProductBase],
                     response_description="All products")
-@product_service_redis_manager.cached(ttl=60)
-@product_service_redis_manager.ratelimiter(times=5, seconds=120)
-async def get_all_products(product_service: product_service_dependency,
-                           category: Optional[str] = None,
+@product_service_redis_manager.cached(ttl=300)
+@product_service_redis_manager.ratelimiter(times=100, seconds=60)
+async def get_all_products(request: Request,
+                           product_service: product_service_dependency,
+                           categoryId: Optional[UUID] = None,
                            searchTerm: Optional[str] = None,
                            page: int = 1,
-                           page_size: int = 10,
-                           ):
-    products = await product_service.get_all_products(category=category,
+                           pageSize: int = 10,
+                           ) -> JSONResponse:
+    products = await product_service.get_all_products(category_id=categoryId,
                                                       search_term=searchTerm,
-                                                      page_size=page_size,
+                                                      page_size=pageSize,
                                                       page=page)
     return JSONResponse(
         content=products,
         status_code=status.HTTP_200_OK
     )
         
+
 @product_routes.get("/products/with_relations", 
-                    status_code=status.HTTP_200_OK,
                     response_model=list[ProductSchema],
                     response_description="All products with relations")
-async def get_all_products_with_relations(product_service: product_service_dependency,
-                                          category: Optional[str] = None,
+@product_service_redis_manager.cached(ttl=600)
+@product_service_redis_manager.ratelimiter(times=50, seconds=60)
+async def get_all_products_with_relations(request: Request,product_service: product_service_dependency,
+                                          categoryId: Optional[UUID] = None,
                                           searchTerm: Optional[str] = None,
                                           page: int = 1,
                                           page_size: int = 10,
-                                          ) -> list[ProductSchema]:
-    return await product_service.get_all_products_with_relations(category=category,
+                                          ) -> JSONResponse:
+    product_with_relations =  await product_service.get_all_products_with_relations(category_id=categoryId,
                                                                   search_term=searchTerm,
                                                                   page_size=page_size,
                                                                   page=page)
+    return JSONResponse(
+        content=product_with_relations,
+        status_code=status.HTTP_200_OK
+    )
 
 
 @product_routes.get("/products/id/{product_id}", 
-                    status_code=status.HTTP_200_OK,
                     response_model=ProductBase,
                     response_description="Product by ID")
-async def get_product_by_id(product_id: UUID,
-                            product_service: product_service_dependency) -> ProductBase:
-    return await product_service.get_product_by_id(product_id=product_id)
-    
+@product_service_redis_manager.cached(ttl=180)
+@product_service_redis_manager.ratelimiter(times=200, seconds=60)
+async def get_product_by_id(request: Request,
+                            product_id: UUID,
+                            product_service: product_service_dependency) -> JSONResponse:
+    product = await product_service.get_product_by_id(product_id=product_id)
+    return JSONResponse(
+        content=product,
+        status_code=status.HTTP_200_OK
+    )
+
 
 @product_routes.get("/products/name/{product_name}", 
-                    status_code=status.HTTP_200_OK,
                     response_model=ProductBase,
                     response_description="Product by name")
-async def get_product_by_name(product_name: str,
-                              product_service: product_service_dependency) -> ProductBase:
-    return await product_service.get_product_by_name(name=product_name.lower())
+@product_service_redis_manager.cached(ttl=180)
+@product_service_redis_manager.ratelimiter(times=200, seconds=60)
+async def get_product_by_name(request: Request,product_name: str,
+                              product_service: product_service_dependency) -> JSONResponse:
+    product = await product_service.get_product_by_name(name=product_name.lower())
+    return JSONResponse(
+        content=product,
+        status_code=status.HTTP_200_OK
+    )
 
 
 @product_routes.patch("/products/{product_id}", 
-                    status_code=status.HTTP_200_OK,
-                    response_model=ProductBase,
-                    response_description="Product availability updated")
-async def update_product_availability(product_id: UUID,
+                      response_model=ProductBase,
+                      response_description="Product availability updated")
+@product_service_redis_manager.ratelimiter(times=30, seconds=60)
+async def update_product_availability(request: Request,
+                                      product_id: UUID,
                                       in_stock: bool,
-                                      product_service: product_service_dependency) -> ProductBase:
-    return await product_service.update_product_availability(product_id=product_id, in_stock=in_stock)
-
+                                      product_service: product_service_dependency) -> JSONResponse:
+    product = await product_service.update_product_availability(product_id=product_id, in_stock=in_stock)
+    # Clear ALL product-related cache
+    await product_service_redis_manager.clear_cache_namespace(namespace="/api/v1/products")
+    return JSONResponse(
+        content=product,
+        status_code=status.HTTP_200_OK
+    )
         
     
 @product_routes.delete("/products/{product_id}", 
-                       status_code=status.HTTP_204_NO_CONTENT,
                        response_description="Product deleted")
-async def delete_product(product_id: UUID,
-                         product_service: product_service_dependency) -> None:
-    return await product_service.delete_product(product_id=product_id)
-
+@product_service_redis_manager.ratelimiter(times=10, seconds=60)
+async def delete_product(request: Request,
+                         product_id: UUID,
+                         product_service: product_service_dependency) -> JSONResponse:
+    await product_service.delete_product(product_id=product_id)
+    # Clear ALL product-related cache
+    await product_service_redis_manager.clear_cache_namespace(namespace="/api/v1/products")
+    return JSONResponse(
+        content={"message": "Product deleted successfully"},
+        status_code=status.HTTP_200_OK
+    )
 

@@ -19,8 +19,8 @@ class RedisManager:
     Unified Redis manager for caching and rate limiting across microservices.
     Provides decorators for both caching and rate limiting functionality (for endpoints) and cache / ratelimiting methods for api-gateway.
     """
-    def __init__(self, service_prefix: str, redis_url: str):
-        self.logger = setup_logger(__name__)
+    def __init__(self, service_prefix: str, redis_url: str, logger):
+        self.logger = logger
         self.service_prefix = service_prefix
         self.redis_url = redis_url
         self._redis: Optional[aioredis.Redis] = None
@@ -58,6 +58,7 @@ class RedisManager:
         #For API Gateway, cache based on endpoint and query params
         endpoint = request.url.path
         query_params = str(request.query_params) if request.query_params else ""
+        self.logger.debug(f"Generating cache key:{self.service_prefix}:cache:{endpoint}:{query_params}")
         return f"{self.service_prefix}:cache:{endpoint}:{query_params}"
         
         
@@ -76,6 +77,7 @@ class RedisManager:
             or "Authorization" in request.headers
             or is_not_monitoring_endpoint
         )
+    
     
     async def cache_response(self, request: Request, response, ttl: int = 300):
         """
@@ -176,6 +178,7 @@ class RedisManager:
         
         self.logger.debug(f"No cached data for key: {cache_key}")
         return None
+           
             
     async def set_response_for_caching(self, key: str, seconds: int, value: dict) -> None:
         """
@@ -195,6 +198,7 @@ class RedisManager:
             self.logger.debug(f"Set response for caching with key: {key}")
         except Exception as e:
             self.logger.error(f"Error setting response for caching: {str(e)}")
+    
     
     def cached(self, ttl: int) -> Callable:
         """
@@ -398,9 +402,6 @@ class RedisManager:
             self.logger.error(f"Rate limit check failed: {str(e)}")
             # Allow request on Redis failure (fail-open approach)
             return False
-
-
-
 
     # ==================== CONNECTION MANAGEMENT ====================
 

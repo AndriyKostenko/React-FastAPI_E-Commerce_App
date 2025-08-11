@@ -214,7 +214,6 @@ async def reset_password(request: Request,
     )
 
 
-
 @user_routes.post("/token", 
                   response_model=TokenSchema,
                   response_description="New token generated successfully",
@@ -296,4 +295,4 @@ async def get_all_users(request: Request,
                         status_code=status.HTTP_200_OK)
 
 
-
+# TODO: update user data endpoint (name, email, role) - only admin can update role

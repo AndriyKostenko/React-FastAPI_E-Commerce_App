@@ -1,7 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.category_models import ProductCategory
-from backend.shared.database_layer import BaseRepository
+from shared.database_layer import BaseRepository
 
 
 class CategoryRepository(BaseRepository[ProductCategory]):

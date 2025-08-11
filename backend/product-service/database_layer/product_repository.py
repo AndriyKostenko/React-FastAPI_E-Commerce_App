@@ -31,7 +31,11 @@ class ProductRepository(BaseRepository[Product]):
         return result.scalar_one_or_none()
     
  
-    async def search_products(self, search_term: str, filters: dict, limit: int, offset: int) -> list[Product]:
+    async def search_products(self, 
+                              search_term: str, 
+                              filters: dict,
+                              limit: int, 
+                              offset: int) -> list[Product]:
         query = select(Product)
 
         # Add search conditions
@@ -54,8 +58,11 @@ class ProductRepository(BaseRepository[Product]):
         return list(result.scalars().all())
 
 
-    async def search_products_with_relations(self, search_term: Optional[str], category: Optional[str], 
-                                            limit: int, offset: int) -> List[Product]:
+    async def search_products_with_relations(self, 
+                                             search_term: Optional[str], 
+                                             category_id: Optional[UUID], 
+                                             limit: int, 
+                                             offset: int) -> List[Product]:
         query = (
             select(Product)
             .options(
@@ -75,9 +82,9 @@ class ProductRepository(BaseRepository[Product]):
             query = query.where(search_conditions)
         
         # Add category filter
-        if category:
-            query = query.where(Product.category_id == category)
-        
+        if category_id:
+            query = query.where(Product.category_id == category_id)
+
         query = query.offset(offset).limit(limit)
         
         result = await self.session.execute(query)

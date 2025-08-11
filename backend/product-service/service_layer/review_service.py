@@ -61,6 +61,7 @@ class ReviewService:
         # Should only be one review per user per product
         return ReviewSchema.model_validate(db_reviews[0])
 
+
     async def get_all_reviews(self) -> List[ReviewSchema]:
         """Get all reviews in the system"""
         db_reviews = await self.repository.get_all()

@@ -1,11 +1,12 @@
 from typing import List
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, status, Form, UploadFile, File
+from fastapi import APIRouter, HTTPException, Request, status, Form, UploadFile, File
 
 from schemas.product_image_schema import ProductImageSchema, ImageType
 from dependencies.dependencies import product_image_service_dependency
 from utils.image_pathes import create_image_paths
+from shared.shared_instances import product_service_redis_manager
 from shared.customized_json_response import JSONResponse
 
 
@@ -13,15 +14,15 @@ product_images_routes = APIRouter(tags=["product_images"])
 
 
 @product_images_routes.post("/{product_id}/images", 
-                            response_model=List[ProductImageSchema])
-async def add_product_images(
-     image_service: product_image_service_dependency,
-    product_id: UUID,
-    images: List[UploadFile] = File(..., description="List of image files to upload"),
-    colors: List[str] = Form(..., description="Comma-separated colors for each image"),
-    color_codes: List[str] = Form(..., description="Comma-separated color codes for each image"),
-   
-):
+                            response_model=list[ProductImageSchema],
+                            response_description="Add images to product")
+@product_service_redis_manager.ratelimiter(times=10, seconds=60)
+async def add_product_images(request: Request,
+                            image_service: product_image_service_dependency,
+                            product_id: UUID,
+                            images: List[UploadFile] = File(...),
+                            colors: List[str] = Form(...),
+                            color_codes: List[str] = Form(...)) -> JSONResponse:
     # Create image paths from uploaded files
     image_paths = await create_image_paths(images=images)
 
@@ -34,8 +35,6 @@ async def add_product_images(
     
     for code_list in color_codes:
         processed_color_codes.extend([code.strip() for code in code_list.split(',')])
-    
-    print(f"Colors: {processed_colors}, Color Codes: {processed_color_codes}, Image Paths: {image_paths}")
 
     # Validate equal amount of images and metadata
     if len(image_paths) != len(processed_colors) or len(image_paths) != len(processed_color_codes):
@@ -62,38 +61,54 @@ async def add_product_images(
     ]
     
     new_product_images = await image_service.create_product_images(product_id, image_data)
+    # Invalidate cache after creating new images
+    await product_service_redis_manager.invalidate_cache(request=request)
     return JSONResponse(
         content=new_product_images,
         status_code=status.HTTP_201_CREATED
     )
 
+
 @product_images_routes.get("/{product_id}/images",
-                           response_model=List[ProductImageSchema])
-async def get_product_images(product_id: UUID,
-                             image_service: product_image_service_dependency):
+                           response_model=List[ProductImageSchema],
+                           response_description="Get all images for a product")
+@product_service_redis_manager.cached(ttl=300)
+@product_service_redis_manager.ratelimiter(times=100, seconds=60)
+async def get_product_images(request: Request,
+                             product_id: UUID,
+                             image_service: product_image_service_dependency) -> JSONResponse:
     product_images = await image_service.get_product_images(product_id)
     return JSONResponse(
         content=product_images,
         status_code=status.HTTP_200_OK
     )
 
-@product_images_routes.get("/{product_id}/images/{image_id}",
-                           response_model=ProductImageSchema)
-async def get_product_image(product_id: UUID,
-                            image_id: UUID,
-                            image_service: product_image_service_dependency):
-    return await image_service.get_image_by_id(image_id)
+
+@product_images_routes.get("/images/{image_id}",
+                           response_model=ProductImageSchema,
+                           response_description="Get image by ID")
+@product_service_redis_manager.cached(ttl=300)
+@product_service_redis_manager.ratelimiter(times=200, seconds=60)
+async def get_image_by_id(request: Request,
+                          image_id: UUID,
+                          image_service: product_image_service_dependency) -> JSONResponse:
+    image = await image_service.get_image_by_id(image_id)
+    return JSONResponse(
+        content=image,
+        status_code=status.HTTP_200_OK
+    )
 
 
 @product_images_routes.put("/{product_id}/images", 
-                           response_model=List[ProductImageSchema])
-async def replace_product_images(
-    image_service: product_image_service_dependency,
-    product_id: UUID,
-    images: List[UploadFile] = File(..., description="List of image files to upload"),
-    colors: List[str] = Form(..., description="Comma-separated colors for each image"),
-    color_codes: List[str] = Form(..., description="Comma-separated color codes for each image"),
-):
+                           response_model=List[ProductImageSchema],
+                           response_description="Replace all product images")
+@product_service_redis_manager.ratelimiter(times=5, seconds=60)
+async def replace_product_images(request: Request,
+                                 image_service: product_image_service_dependency,
+                                 product_id: UUID,
+                                 images: List[UploadFile] = File(...),
+                                 colors: List[str] = Form(...),
+                                 color_codes: List[str] = Form(...)) -> JSONResponse:
     # Create image paths from uploaded files
     image_paths = await create_image_paths(images=images)
 
@@ -131,11 +146,56 @@ async def replace_product_images(
         for color, code, path in zip(processed_colors, processed_color_codes, image_paths)
     ]
     
-    return await image_service.replace_product_images(product_id, image_data)
+    updated_images = await image_service.replace_product_images(product_id, image_data)
+    # Invalidate cache after replacing images
+    await product_service_redis_manager.invalidate_cache(request=request)
+    return JSONResponse(
+        content=updated_images,
+        status_code=status.HTTP_200_OK
+    )
 
 
-@product_images_routes.delete("/{product_id}/images/{image_id}")
-async def delete_product_image(product_id: UUID,
-                                image_id: UUID,
-                                image_service: product_image_service_dependency):
-    return await image_service.delete_product_image(image_id)
+@product_images_routes.patch("/images/{image_id}",
+                             response_model=ProductImageSchema,
+                             response_description="Update single image")
+@product_service_redis_manager.ratelimiter(times=20, seconds=60)
+async def update_product_image(request: Request,
+                               image_id: UUID,
+                               image_service: product_image_service_dependency,
+                               image: UploadFile = File(None),
+                               color: str = Form(None),
+                               color_code: str = Form(None)) -> JSONResponse:
+    image_url = None
+    if image:
+        image_paths = await create_image_paths(images=[image])
+        image_url = image_paths[0]
+    
+    updated_image = await image_service.update_product_image(
+        image_id=image_id,
+        image_url=image_url,
+        color=color,
+        color_code=color_code
+    )
+    # Clear ALL image-related cache
+    await product_service_redis_manager.clear_cache_namespace(namespace="/api/v1/images")
+    
+    return JSONResponse(
+        content=updated_image,
+        status_code=status.HTTP_200_OK
+    )
+
+
+@product_images_routes.delete("/images/{image_id}",
+                              response_description="Delete image by ID")
+@product_service_redis_manager.ratelimiter(times=10, seconds=60)
+async def delete_product_image(request: Request,
+                               image_id: UUID,
+                               image_service: product_image_service_dependency) -> JSONResponse:
+    await image_service.delete_product_image(image_id)
+    
+    # Clear ALL image-related cache
+    await product_service_redis_manager.clear_cache_namespace(namespace="/api/v1/images")
+    return JSONResponse(
+        content={"message": "Image deleted successfully"},
+        status_code=status.HTTP_204_NO_CONTENT
+    )

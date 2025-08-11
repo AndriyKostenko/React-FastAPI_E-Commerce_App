@@ -1,7 +1,7 @@
 from fastapi import HTTPException
 from fastapi.responses import JSONResponse
-import httpx 
-from circuitbreaker import circuit
+import httpx #type: ignore
+from circuitbreaker import circuit #type: ignore
 
 from shared.shared_instances import settings, logger
 from schemas.schemas import GatewayConfig, ServiceConfig

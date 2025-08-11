@@ -20,7 +20,8 @@ class ProductImageSchema(BaseModel):
 class ImageType(BaseModel):
     image_color: str
     image_color_code: str
-    image_url: HttpUrl
+    image_url: str
+    # image_url: HttpUrl
 
     model_config = ConfigDict(from_attributes=True)
 

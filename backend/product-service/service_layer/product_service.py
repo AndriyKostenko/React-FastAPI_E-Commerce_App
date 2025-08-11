@@ -20,7 +20,7 @@ class ProductService:
         self.repository = repository
 
 
-    async def create_product_item(self, product_data: CreateProduct) -> ProductSchema:
+    async def create_product_item(self, product_data: CreateProduct) -> ProductBase:
         existing_product = await self.repository.get_by_field("name", value=product_data.name.lower())
         if existing_product:
             raise ProductCreationError(f'Product with name: "{product_data.name}" already exists.')
@@ -34,11 +34,11 @@ class ProductService:
                               in_stock=product_data.in_stock)
         new_db_product = await self.repository.create(new_product)
 
-        return ProductSchema.model_validate(new_db_product)
+        return ProductBase.model_validate(new_db_product)
 
 
     async def get_all_products(self,
-                               category: Optional[str] = None,
+                               category_id: Optional[UUID] = None,
                                search_term: Optional[str] = None,
                                page: int = 1,
                                page_size: int = 10) -> List[ProductBase]:
@@ -46,9 +46,9 @@ class ProductService:
         
         # building filters
         filters = {}
-        if category:
-            filters['category_id'] = category
-            
+        if category_id:
+            filters['category_id'] = category_id
+
         if search_term:
             products = await self.repository.search_products(search_term, filters, page_size, offset)
         else:
@@ -57,9 +57,9 @@ class ProductService:
             products = products[offset:offset + page_size] if offset < len(products) else []
         
         if not products:
-            ProductNotFoundError(f"Products with category: {category} and/or search term: {search_term} not found")
-            
-        
+            raise ProductNotFoundError(f"Products with category: {category_id} and/or search term: {search_term} not found")
+
+
         return [ProductBase.model_validate(product) for product in products]
     
     
@@ -78,20 +78,20 @@ class ProductService:
     
     
     async def get_all_products_with_relations(self,
-                                               category: Optional[str] = None,
+                                               category_id: Optional[UUID] = None,
                                                search_term: Optional[str] = None,
                                                page: int = 1,
                                                page_size: int = 10) -> List[ProductSchema]:
         offset = (page - 1) * page_size
         products = await self.repository.search_products_with_relations(
             search_term=search_term,
-            category=category,
+            category_id=category_id,
             limit=page_size,
             offset=offset
         )
         
         if not products:
-            raise ProductNotFoundError(f'Products with category: {category} and/or search term: {search_term} not found.')
+            raise ProductNotFoundError(f'Products with category: {category_id} and/or search term: {search_term} not found.')
         
         return [ProductSchema.model_validate(product) for product in products]
 

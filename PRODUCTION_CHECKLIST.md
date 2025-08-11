@@ -157,4 +157,11 @@ This checklist covers all essential and advanced items to get your FastAPI micro
 ---
 
 **Tip:**  
-Copy this checklist into your main repo as `PRODUCTION_CHECKLIST.md` and revisit it regularly as you scale your microservices!
+
+@route_decorator           # Always first
+@authentication_decorator  # Security checks
+@authorization_decorator   # Permission checks  
+@cache_decorator          # Caching (before expensive operations)
+@rate_limiter_decorator   # Rate limiting
+@logging_decorator        # Logging (closest to function)
+async def your_function():

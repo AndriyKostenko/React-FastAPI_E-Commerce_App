@@ -1,14 +1,12 @@
 from datetime import timedelta, datetime, timezone
-from tkinter import N
 from typing import Annotated
 from uuid import UUID
 from passlib.context import CryptContext
 
 from fastapi import Depends
-from pydantic import ValidationError, EmailStr
+from pydantic import EmailStr
 from jose import jwt, JWTError
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-
 
 from errors.errors import UserPasswordError, UserIsNotVerifiedError
 from shared.shared_instances import settings

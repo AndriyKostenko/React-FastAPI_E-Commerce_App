@@ -62,6 +62,8 @@
 
    ` docker compose up --build`
 
+   ` docker compose restart <service-name> `
+
    Stop containers and remove volumes
    ` docker compose down -v `
 
