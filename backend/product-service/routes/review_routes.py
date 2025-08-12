@@ -6,7 +6,7 @@ from fastapi import APIRouter, status, Request
 from schemas.review_schemas import ReviewSchema, CreateReview, UpdateReview
 from dependencies.dependencies import review_service_dependency, product_service_dependency
 from shared.customized_json_response import JSONResponse
-from shared.shared_instances import product_service_redis_manager
+from shared.shared_instances import product_service_redis_manager, settings
 
 
 review_routes = APIRouter(
@@ -26,8 +26,10 @@ async def create_product_review(request: Request,
                                 product_service: product_service_dependency
                             ) -> JSONResponse:
     created_review = await review_service.create_product_review(user_id=user_id, product_id=product_id, data=review)
-    # Invalidate cache after creation
-    await product_service_redis_manager.invalidate_cache(request=request)
+    # Clear ALL review-related cache
+    await product_service_redis_manager.clear_cache_namespace(
+        namespace=f"{settings.PRODUCT_SERVICE_URL_API_VERSION}/reviews*"
+    )
     return JSONResponse(
         content=created_review,
         status_code=status.HTTP_201_CREATED
@@ -126,7 +128,9 @@ async def update_product_review(request: Request,
     )
 
     # Clear ALL review-related cache
-    await product_service_redis_manager.clear_cache_namespace(namespace="/api/v1/reviews")
+    await product_service_redis_manager.clear_cache_namespace(
+        namespace=f"{settings.PRODUCT_SERVICE_URL_API_VERSION}/reviews*"
+    )
     return JSONResponse(
         content=updated_review,
         status_code=status.HTTP_200_OK
@@ -146,10 +150,12 @@ async def delete_product_review(request: Request,
         user_id=user_id
     )
     await review_service.delete_product_review(review_id=existing_review.id)
-    # Clear ALL review-related cache
-    await product_service_redis_manager.clear_cache_namespace(namespace="/api/v1/reviews")
     
+    # Clear ALL review-related cache
+    await product_service_redis_manager.clear_cache_namespace(
+        namespace=f"{settings.PRODUCT_SERVICE_URL_API_VERSION}/reviews*"
+    )
     return JSONResponse(
-        content={"message": "Review deleted successfully"},
+        content=None,
         status_code=status.HTTP_204_NO_CONTENT
     )

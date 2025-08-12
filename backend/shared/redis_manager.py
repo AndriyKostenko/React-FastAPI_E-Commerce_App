@@ -6,7 +6,6 @@ from math import ceil
 import orjson
 from fastapi import Request
 from redis import asyncio as aioredis
-from shared.logger_config import setup_logger
 from shared.base_exceptions import BaseAPIException, RateLimitExceededError
 from shared.customized_json_response import JSONResponse
 
@@ -303,11 +302,18 @@ class RedisManager:
     async def clear_cache_namespace(self, namespace: str) -> bool:
         """
         Clear all keys in a namespace (using Redis SCAN for safety with large datasets)
+        
         """
+        # TODO: now its clearing the whole namespace* , 
+        # but it can be optimized to clear only keys with specific patterns like: 
+        # "/api/v1/categories", "/api/v1/categories/id/{category_id}", "/api/v1/categories/name/{name.lower()}"
+        
         if not namespace:
             self.logger.error("Namespace must be provided for clearing cache.")
             return False
-        pattern = f"{self.service_prefix}:cache:{namespace}:*"
+        
+        pattern = f"{self.service_prefix}:cache:{namespace}"
+        
         deleted_count = 0
         try:
             async for key in self.redis.scan_iter(match=pattern, count=1000):

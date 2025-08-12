@@ -11,9 +11,12 @@ class Settings(BaseSettings):
     
     # Application configuration
     APP_HOST: str
+    
     API_GATEWAY_SERVICE_APP_PORT: int
     USER_SERVICE_APP_PORT: int
     PRODUCT_SERVICE_APP_PORT: int
+    NOTIFICATION_SERVICE_APP_PORT: int
+    
     DEBUG_MODE: bool
     ALLOWED_HOSTS: List[str]
 
@@ -21,10 +24,12 @@ class Settings(BaseSettings):
     API_GATEWAY_SERVICE_URL: str
     USER_SERVICE_URL: str
     PRODUCT_SERVICE_URL: str
+    NOTIFICATION_SERVICE_URL: str
     
     API_GATEWAY_SERVICE_URL_API_VERSION: str
     USER_SERVICE_URL_API_VERSION: str
     PRODUCT_SERVICE_URL_API_VERSION: str
+    NOTIFICATION_SERVICE_URL_API_VERSION: str
 
     # Shared Database configuration
     POSTGRES_USER: str
@@ -32,13 +37,12 @@ class Settings(BaseSettings):
     POSTGRES_HOST: str
     POSTGRES_PORT: int
 
-    # Product Service DB
-    PRODUCT_SERVICE_DB: str
-    PRODUCT_SERVICE_TEST_DB: str
-
-    # User Service DB
     USER_SERVICE_DB: str
     USER_SERVICE_TEST_DB: str
+    PRODUCT_SERVICE_DB: str
+    PRODUCT_SERVICE_TEST_DB: str
+    NOTIFICATION_SERVICE_DB: str
+    NOTIFICATION_SERVICE_TEST_DB: str
 
     # pgAdmin
     PGADMIN_DEFAULT_EMAIL: str
@@ -48,12 +52,16 @@ class Settings(BaseSettings):
     REDIS_HOST: str
     REDIS_PORT: int
     REDIS_PASSWORD: str
+    
     APIGATEWAY_SERVICE_REDIS_DB: int
     USER_SERVICE_REDIS_DB: int
     PRODUCT_SERVICE_REDIS_DB: int
+    NOTIFICATION_SERVICE_REDIS_DB: int
+    
     USER_SERVICE_REDIS_PREFIX: str
     PRODUCT_SERVICE_REDIS_PREFIX: str
     APIGATEWAY_SERVICE_REDIS_PREFIX: str
+    NOTIFICATION_SERVICE_REDIS_PREFIX: str
 
     # JWT configuration
     SECRET_KEY: str
@@ -93,29 +101,6 @@ class Settings(BaseSettings):
     SECRET_ROLE: str
 
 
-    @property
-    def USER_SERVICE_DATABASE_URL(self) -> str:
-        return f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.USER_SERVICE_DB}"
-
-    @property
-    def USER_SERVICE_TEST_DATABASE_URL(self) -> str:
-        return f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.USER_SERVICE_TEST_DB}"
-
-    @property
-    def PRODUCT_SERVICE_DATABASE_URL(self) -> str:
-        return f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.PRODUCT_SERVICE_DB}"
-
-    @property
-    def PRODUCT_SERVICE_TEST_DATABASE_URL(self) -> str:
-        return f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.PRODUCT_SERVICE_TEST_DB}"
-
-    @property
-    def USER_SERVICE_REDIS_URL(self) -> str:
-        return f"redis://:{self.REDIS_PASSWORD}@{self.REDIS_HOST}:{self.REDIS_PORT}/{self.USER_SERVICE_REDIS_DB}"
-
-    @property
-    def PRODUCT_SERVICE_REDIS_URL(self) -> str:
-        return f"redis://:{self.REDIS_PASSWORD}@{self.REDIS_HOST}:{self.REDIS_PORT}/{self.PRODUCT_SERVICE_REDIS_DB}"
 
     @property
     def APIGATEWAY_SERVICE_REDIS_URL(self) -> str:
@@ -125,13 +110,62 @@ class Settings(BaseSettings):
     def FULL_API_GATEWAY_SERVICE_URL(self) -> str:
         return f"{self.API_GATEWAY_SERVICE_URL}{self.API_GATEWAY_SERVICE_URL_API_VERSION}"
     
+    #--------------------------------------------
+    
+    @property
+    def USER_SERVICE_DATABASE_URL(self) -> str:
+        return f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.USER_SERVICE_DB}"
+
+    @property
+    def USER_SERVICE_TEST_DATABASE_URL(self) -> str:
+        return f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.USER_SERVICE_TEST_DB}"
+
     @property
     def FULL_USER_SERVICE_URL(self) -> str:
         return f"{self.USER_SERVICE_URL}{self.USER_SERVICE_URL_API_VERSION}"
     
     @property
+    def USER_SERVICE_REDIS_URL(self) -> str:
+        return f"redis://:{self.REDIS_PASSWORD}@{self.REDIS_HOST}:{self.REDIS_PORT}/{self.USER_SERVICE_REDIS_DB}"
+    
+    #--------------------------------------------
+    
+    @property
+    def PRODUCT_SERVICE_DATABASE_URL(self) -> str:
+        return f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.PRODUCT_SERVICE_DB}"
+
+    @property
+    def PRODUCT_SERVICE_TEST_DATABASE_URL(self) -> str:
+        return f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.PRODUCT_SERVICE_TEST_DB}"
+
+    @property
     def FULL_PRODUCT_SERVICE_URL(self) -> str:
         return f"{self.PRODUCT_SERVICE_URL}{self.PRODUCT_SERVICE_URL_API_VERSION}"
+
+    @property
+    def PRODUCT_SERVICE_REDIS_URL(self) -> str:
+        return f"redis://:{self.REDIS_PASSWORD}@{self.REDIS_HOST}:{self.REDIS_PORT}/{self.PRODUCT_SERVICE_REDIS_DB}"
+
+
+    #--------------------------------------------
+    
+    @property
+    def NOTIFICATION_SERVICE_DATABASE_URL(self) -> str:
+        return f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.NOTIFICATION_SERVICE_DB}"
+    
+    @property
+    def NOTIFICATION_SERVICE_TEST_DATABASE_URL(self) -> str:
+        return f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.NOTIFICATION_SERVICE_TEST_DB}"
+
+    @property
+    def NOTIFICATION_SERVICE_REDIS_URL(self) -> str:
+        return f"redis://:{self.REDIS_PASSWORD}@{self.REDIS_HOST}:{self.REDIS_PORT}/{self.NOTIFICATION_SERVICE_REDIS_DB}"
+
+    @property
+    def FULL_NOTIFICATION_SERVICE_URL(self) -> str:
+        return f"{self.NOTIFICATION_SERVICE_URL}{self.NOTIFICATION_SERVICE_URL_API_VERSION}"
+    
+    
     
 
     # --- Customise sources to support shared and service-specific .env ---

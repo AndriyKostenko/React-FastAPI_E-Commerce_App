@@ -6,7 +6,7 @@ from fastapi import APIRouter, Request, status, Form, UploadFile, File
 from dependencies.dependencies import category_service_dependency
 from utils.image_pathes import create_image_paths
 from schemas.category_schema import CategorySchema, CreateCategory, UpdateCategory
-from shared.shared_instances import product_service_redis_manager
+from shared.shared_instances import product_service_redis_manager, settings
 from shared.customized_json_response import JSONResponse
 
 
@@ -29,6 +29,10 @@ async def create_category(request: Request,
     new_category =  await category_service.create_category(category_data=CreateCategory(
                                                                             name=name.lower(), 
                                                                             image_url=image_paths[0]))
+    # Clear ALL category-related cache
+    await product_service_redis_manager.clear_cache_namespace(
+        namespace=f"{settings.PRODUCT_SERVICE_URL_API_VERSION}/categories*"
+    )
     return JSONResponse(
         content=new_category,
         status_code=status.HTTP_201_CREATED
@@ -94,7 +98,8 @@ async def update_category(request: Request,
                                 image_url=image_url))
             
         # Clear ALL category-related cache
-        await product_service_redis_manager.clear_cache_namespace(namespace="/api/v1/categories")
+        await product_service_redis_manager.clear_cache_namespace(
+            namespace=f"{settings.PRODUCT_SERVICE_URL_API_VERSION}/categories*")
         
         return JSONResponse(
             content=updated_category,
@@ -109,9 +114,10 @@ async def delete_category_by_id(request: Request,
     await category_service.delete_category(category_id=category_id)
     
     # Clear ALL category-related cache
-    await product_service_redis_manager.clear_cache_namespace(namespace="/api/v1/categories")
+    await product_service_redis_manager.clear_cache_namespace(
+        namespace=f"{settings.PRODUCT_SERVICE_URL_API_VERSION}/categories*")
 
     return JSONResponse(
-        content={"message": "Category deleted successfully"},
+        content=None,
         status_code=status.HTTP_204_NO_CONTENT
     )

@@ -21,6 +21,10 @@ product_service_redis_manager = RedisManager(service_prefix="product-service",
                                              redis_url=settings.PRODUCT_SERVICE_REDIS_URL,
                                              logger=logger)
 
+notification_service_redis_manager = RedisManager(service_prefix="notification-service",
+                                                  redis_url=settings.NOTIFICATION_SERVICE_REDIS_URL,
+                                                  logger=logger)
+
 
 # Database session managers for each service
 user_service_database_session_manager = DatabaseSessionManager(
@@ -42,3 +46,14 @@ product_service_database_session_manager = DatabaseSessionManager(
                     },
     logger=logger
 )
+
+notification_service_database_session_manager = DatabaseSessionManager(
+    database_url=settings.NOTIFICATION_SERVICE_DATABASE_URL,
+    engine_settings={"echo": True,  # Set to True in develpment for logging SQL queries
+                     "pool_pre_ping": True,  # If True, the connection pool will check for stale connections and refresh them.
+                     "pool_size": 100, # The maximum number of database connections to pool
+                     "max_overflow": 0, #The maximum number of connections to allow in the connection pool above pool_size. It's set to 0, meaning no overflow connections are allowed.
+                    },
+    logger=logger
+)
+

@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException, Request, status, Form, UploadFile,
 from schemas.product_image_schema import ProductImageSchema, ImageType
 from dependencies.dependencies import product_image_service_dependency
 from utils.image_pathes import create_image_paths
-from shared.shared_instances import product_service_redis_manager
+from shared.shared_instances import product_service_redis_manager, settings
 from shared.customized_json_response import JSONResponse
 
 
@@ -61,8 +61,12 @@ async def add_product_images(request: Request,
     ]
     
     new_product_images = await image_service.create_product_images(product_id, image_data)
-    # Invalidate cache after creating new images
-    await product_service_redis_manager.invalidate_cache(request=request)
+    
+    # Clear ALL image-related cache
+    await product_service_redis_manager.clear_cache_namespace(
+        namespace=f"{settings.PRODUCT_SERVICE_URL_API_VERSION}/images*"
+    )
+    
     return JSONResponse(
         content=new_product_images,
         status_code=status.HTTP_201_CREATED
@@ -147,8 +151,12 @@ async def replace_product_images(request: Request,
     ]
     
     updated_images = await image_service.replace_product_images(product_id, image_data)
-    # Invalidate cache after replacing images
-    await product_service_redis_manager.invalidate_cache(request=request)
+    
+    # Clear ALL image-related cache
+    await product_service_redis_manager.clear_cache_namespace(
+        namespace=f"{settings.PRODUCT_SERVICE_URL_API_VERSION}/images*"
+    )
+    
     return JSONResponse(
         content=updated_images,
         status_code=status.HTTP_200_OK
@@ -177,8 +185,10 @@ async def update_product_image(request: Request,
         color_code=color_code
     )
     # Clear ALL image-related cache
-    await product_service_redis_manager.clear_cache_namespace(namespace="/api/v1/images")
-    
+    await product_service_redis_manager.clear_cache_namespace(
+        namespace=f"{settings.PRODUCT_SERVICE_URL_API_VERSION}/images*"
+    )
+
     return JSONResponse(
         content=updated_image,
         status_code=status.HTTP_200_OK
@@ -194,8 +204,11 @@ async def delete_product_image(request: Request,
     await image_service.delete_product_image(image_id)
     
     # Clear ALL image-related cache
-    await product_service_redis_manager.clear_cache_namespace(namespace="/api/v1/images")
+    await product_service_redis_manager.clear_cache_namespace(
+        namespace=f"{settings.PRODUCT_SERVICE_URL_API_VERSION}/images*"
+    )
+    
     return JSONResponse(
-        content={"message": "Image deleted successfully"},
+        content=None,
         status_code=status.HTTP_204_NO_CONTENT
     )

@@ -7,7 +7,7 @@ from fastapi import APIRouter, status, Form, Request
 from dependencies.dependencies import product_service_dependency
 from schemas.product_schemas import ProductBase, ProductSchema, CreateProduct
 from shared.customized_json_response import JSONResponse
-from shared.shared_instances import product_service_redis_manager
+from shared.shared_instances import product_service_redis_manager, settings
 
 
 product_routes = APIRouter(
@@ -47,8 +47,11 @@ async def create_new_product(request: Request,
                                 in_stock=in_stock)
 
     created_product = await product_service.create_product_item(product_data=product_data)
-    # Invalidating cache after successful creation
-    await product_service_redis_manager.invalidate_cache(request=request)
+    
+    # Clear ALL product-related cache
+    await product_service_redis_manager.clear_cache_namespace(
+        namespace=f"{settings.PRODUCT_SERVICE_URL_API_VERSION}/products*"
+    )
     return JSONResponse(
         content=created_product,
         status_code=status.HTTP_201_CREATED
@@ -136,8 +139,11 @@ async def update_product_availability(request: Request,
                                       in_stock: bool,
                                       product_service: product_service_dependency) -> JSONResponse:
     product = await product_service.update_product_availability(product_id=product_id, in_stock=in_stock)
+    
     # Clear ALL product-related cache
-    await product_service_redis_manager.clear_cache_namespace(namespace="/api/v1/products")
+    await product_service_redis_manager.clear_cache_namespace(
+        namespace=f"{settings.PRODUCT_SERVICE_URL_API_VERSION}/products*"
+    )
     return JSONResponse(
         content=product,
         status_code=status.HTTP_200_OK
@@ -151,10 +157,13 @@ async def delete_product(request: Request,
                          product_id: UUID,
                          product_service: product_service_dependency) -> JSONResponse:
     await product_service.delete_product(product_id=product_id)
+    
     # Clear ALL product-related cache
-    await product_service_redis_manager.clear_cache_namespace(namespace="/api/v1/products")
+    await product_service_redis_manager.clear_cache_namespace(
+        namespace=f"{settings.PRODUCT_SERVICE_URL_API_VERSION}/products*"
+    )
     return JSONResponse(
-        content={"message": "Product deleted successfully"},
-        status_code=status.HTTP_200_OK
+        content=None,
+        status_code=status.HTTP_204_NO_CONTENT
     )
 
