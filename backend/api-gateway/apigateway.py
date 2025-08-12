@@ -1,7 +1,8 @@
 from fastapi import HTTPException
-from fastapi.responses import JSONResponse
+
 import httpx #type: ignore
 from circuitbreaker import circuit #type: ignore
+from shared.customized_json_response import JSONResponse
 
 from shared.shared_instances import settings, logger
 from schemas.schemas import GatewayConfig, ServiceConfig
@@ -26,7 +27,12 @@ class ApiGateway:
                     name="product-service",
                     instances=[self.settings.FULL_PRODUCT_SERVICE_URL],
                     health_check_path="/health"
-                    )
+                    ),
+                "notification-service": ServiceConfig(
+                    name="notification-service",
+                    instances=[self.settings.FULL_NOTIFICATION_SERVICE_URL],
+                    health_check_path="/health"
+                )
                 
             }
         )
