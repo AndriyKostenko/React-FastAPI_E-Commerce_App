@@ -5,7 +5,7 @@ from sqlalchemy import ForeignKey, Index
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 
 from shared.models_base_class import Base
-from models.mixins import TimestampMixin
+from shared.models_mixins import TimestampMixin
 
 
 
@@ -26,3 +26,8 @@ class ProductImage(Base, TimestampMixin):
 
 
     product: Mapped['Product'] = relationship('Product', back_populates='images') # type: ignore
+    
+    def __repr__(self):
+        return f"<ProductImage(id={self.id}, product_id={self.product_id}, image_url={self.image_url})>"
+    def __str__(self):
+        return f"ProductImage(id={self.id}, product_id={self.product_id}, image_url={self.image_url})"

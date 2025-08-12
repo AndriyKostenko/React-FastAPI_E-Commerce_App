@@ -7,7 +7,7 @@ from sqlalchemy import Index, DateTime
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 
 from shared.models_base_class import Base
-from models.mixins import TimestampMixin
+from shared.models_mixins import TimestampMixin
 
 
 class ProductCategory(Base, TimestampMixin):
@@ -24,3 +24,8 @@ class ProductCategory(Base, TimestampMixin):
     image_url: Mapped[str] = mapped_column(nullable=False)
 
     products: Mapped[List['Product']] = relationship('Product', back_populates='category', cascade='all, delete-orphan') #type: ignore
+    
+    def __repr__(self):
+        return f"<ProductCategory(id={self.id}, name={self.name}, image_url={self.image_url})>"
+    def __str__(self):
+        return f"ProductCategory(id={self.id}, name={self.name}, image_url={self.image_url})"

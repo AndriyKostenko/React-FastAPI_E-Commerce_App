@@ -5,7 +5,7 @@ from sqlalchemy import String, Index
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 
 from shared.models_base_class import Base
-from models.mixins import TimestampMixin
+from shared.models_mixins import TimestampMixin
 
 
 # User model representing a user in the system
@@ -21,8 +21,6 @@ class User(Base, TimestampMixin):
         Index('idx_users_is_verified', 'is_verified'),
         Index('idx_users_date_created', 'date_created'),
     )
-    # exclude fields for caching etc.
-    default_exclude = {"hashed_password"}
 
     id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4, unique=True)
     name: Mapped[str] = mapped_column(String(50),nullable=False)

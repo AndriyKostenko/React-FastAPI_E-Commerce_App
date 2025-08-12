@@ -14,6 +14,7 @@ from shared.shared_instances import (notification_service_redis_manager,
                                     logger,
                                     settings)
 from shared.base_exceptions import (BaseAPIException, RateLimitExceededError)
+from routes.notification_routes import notification_routes
 
 
 

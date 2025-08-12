@@ -1,12 +1,11 @@
 from uuid import uuid4, UUID
-from datetime import datetime, timezone
 
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import ForeignKey, String, Index
+from sqlalchemy import ForeignKey, Index
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 
 from shared.models_base_class import Base
-from models.mixins import TimestampMixin
+from shared.models_mixins import TimestampMixin
 
 
 class ProductReview(Base, TimestampMixin):
@@ -26,3 +25,8 @@ class ProductReview(Base, TimestampMixin):
 
 
     product: Mapped['Product'] = relationship('Product', back_populates='reviews') # type: ignore
+    
+    def __repr__(self) -> str:
+        return f"<ProductReview(id={self.id}, user_id={self.user_id}, product_id={self.product_id}, comment={self.comment}, rating={self.rating})>"
+    def __str__(self) -> str:
+        return f"ProductReview(id={self.id}, user_id={self.user_id}, product_id={self.product_id}, comment={self.comment}, rating={self.rating})"

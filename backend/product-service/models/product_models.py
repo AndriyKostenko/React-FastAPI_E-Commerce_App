@@ -7,7 +7,7 @@ from sqlalchemy import ForeignKey, Index
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 
 from shared.models_base_class import Base
-from models.mixins import TimestampMixin
+from shared.models_mixins import TimestampMixin
 
 
 class Product(Base, TimestampMixin):
@@ -36,10 +36,10 @@ class Product(Base, TimestampMixin):
     images: Mapped[List['ProductImage']] = relationship('ProductImage', back_populates='product', cascade='all, delete-orphan') # type: ignore
     category: Mapped['ProductCategory'] = relationship('ProductCategory', back_populates='products') # type: ignore
 
-
-
-
-
+    def __repr__(self):
+        return f"<Product(id={self.id}, name={self.name}, category_id={self.category_id}, brand={self.brand}, in_stock={self.in_stock})>"
+    def __str__(self):
+        return f"Product(id={self.id}, name={self.name}, category_id={self.category_id}, brand={self.brand}, in_stock={self.in_stock})"
 
 
 

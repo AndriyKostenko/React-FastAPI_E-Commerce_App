@@ -4,10 +4,7 @@ from uuid import UUID
 
 from fastapi import Depends, APIRouter, status, BackgroundTasks, Request
 from fastapi.security import OAuth2PasswordRequestForm
-from fastapi.encoders import jsonable_encoder
-from pydantic import EmailStr, Json
-from sqlalchemy import JSON
-
+from pydantic import EmailStr
 
 from authentication import auth_manager
 from schemas.user_schemas import (UserSignUp, 
@@ -100,22 +97,31 @@ async def verify_email(request: Request,
                         status_code=status.HTTP_200_OK) 
 
 
-@user_routes.post("/send-email",
-                  summary="Send test verification email",)
-@user_service_redis_manager.ratelimiter(times=3, seconds=3600)
-async def simple_send(request: Request,
-                      email: EmailSchema,
-                      user_id: UUID,
-                      background_tasks: BackgroundTasks) -> JSONResponse:
+@user_routes.post("/password-reset/{token}",
+                  summary="Reset password with token",
+                  response_model=PasswordUpdateResponse,
+                  response_description="Password reset successfully",
+                  )
+@user_service_redis_manager.ratelimiter(times=3, seconds=3600)  
+async def reset_password(request: Request,
+                        token: str,
+                        data: ResetPasswordRequest,
+                        background_tasks: BackgroundTasks,
+                        user_service: user_crud_dependency):
+    """Reset password using token"""
+    token_data = await auth_manager.get_current_user_from_token(token=token, required_purpose="password_reset")
     
-    await email_service.send_verification_email(
-        email=email.email,
-        user_id=user_id,
-        user_role="user",
-        background_tasks=background_tasks
+    await user_service.update_user_password(email=token_data.email, new_password=data.new_password)
+
+    await user_service_redis_manager.invalidate_cache(request=request)  # Invalidate cache for user email
+    
+    return JSONResponse(
+        content=PasswordUpdateResponse(
+            detail="Password reset successfully",
+            email=token_data.email
+        ),
+        status_code=status.HTTP_200_OK
     )
-    
-    return JSONResponse(status_code=status.HTTP_200_OK, content={"message": "Email sent successfully"})
 
 
 @user_routes.post("/login",
@@ -146,72 +152,6 @@ async def login(request: Request,
             ),
         status_code=status.HTTP_200_OK
         )
-    
-
-@user_routes.post("/forgot-password",
-                 summary="Request password reset email",
-                 response_model=ForgotPasswordResponse
-                 )
-@user_service_redis_manager.ratelimiter(times=10, seconds=3600)  
-async def request_password_reset(request: Request,
-                                data: ForgotPasswordRequest,
-                                background_tasks: BackgroundTasks,
-                                user_service: user_crud_dependency):
-    # Verify user exists
-    user = await user_service.get_user_by_email(data.email)
-    
-    # Send password reset email
-    await email_service.send_password_reset_email(
-        email=user.email,
-        user_id=user.id,
-        user_role=user.role,
-        background_tasks=background_tasks
-    )
-    
-    return JSONResponse(
-        content=ForgotPasswordResponse(
-            detail="Password reset email sent",
-            email=user.email
-        ),
-        status_code=status.HTTP_200_OK
-    )
-    
-    
-@user_routes.post("/password-reset/{token}",
-                  summary="Reset password with token",
-                  response_model=PasswordUpdateResponse,
-                  response_description="Password reset successfully",
-                  )
-@user_service_redis_manager.ratelimiter(times=3, seconds=3600)  
-async def reset_password(request: Request,
-                        token: str,
-                        data: ResetPasswordRequest,
-                        background_tasks: BackgroundTasks,
-                        user_service: user_crud_dependency):
-    """Reset password using token"""
-    token_data = await auth_manager.get_current_user_from_token(token=token, required_purpose="password_reset")
-    
-    await user_service.update_user_password(email=token_data.email, new_password=data.new_password)
-
-    await user_service_redis_manager.invalidate_cache(request=request)  # Invalidate cache for user email
-
-    await email_service.send_password_reset_success_email(
-        email=token_data.email,
-        template_body={
-            "app_name": settings.MAIL_FROM_NAME,
-            "email": token_data.email,
-            "login_url": f"http://{settings.APP_HOST}:{settings.USER_SERVICE_APP_PORT}/login",
-        },
-        background_tasks=background_tasks   
-    )
-    
-    return JSONResponse(
-        content=PasswordUpdateResponse(
-            detail="Password reset successfully",
-            email=token_data.email
-        ),
-        status_code=status.HTTP_200_OK
-    )
 
 
 @user_routes.post("/token", 
