@@ -1,4 +1,5 @@
-from pydantic import BaseModel
+from uuid import UUID
+from pydantic import BaseModel, EmailStr
 
 
 class ServiceConfig(BaseModel):
@@ -13,3 +14,9 @@ class GatewayConfig(BaseModel):
     jwt_secret: str = "your-jwt-secret-key"
     jwt_algorithm: str = "HS256"
     rate_limit_per_minute: int = 100
+    
+    
+class CurrentUserInfo(BaseModel):
+    email: EmailStr
+    id: UUID
+    role: str | None

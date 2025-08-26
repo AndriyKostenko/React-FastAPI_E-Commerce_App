@@ -1,8 +1,6 @@
-from dataclasses import field
 from uuid import UUID
 
 from pydantic import EmailStr
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.user_models import User
 from schemas.user_schemas import (
@@ -11,11 +9,10 @@ from schemas.user_schemas import (
     UserBasicUpdate,
 )
 from authentication import auth_manager
-from errors.errors import (
+from exceptions.user_exceptions import (
     UserAlreadyExistsError,
     UserNotFoundError
 )
-from shared.database_layer import BaseRepository
 from database_layer.user_repository import UserRepository
 
 
@@ -89,11 +86,9 @@ class UserService:
             raise UserNotFoundError(f"User with id: {user_id} not found.")
 
     async def get_verified_users(self) -> list[UserInfo]:
-        """Get all verified users"""
         users =  await self.repository.get_verified_users()
         return [UserInfo.model_validate(user) for user in users]
 
     async def get_by_role(self, role: str) -> list[UserInfo]:
-        """Get users by role"""
         users = await self.repository.get_users_by_role(role=role)
         return [UserInfo.model_validate(user) for user in users]

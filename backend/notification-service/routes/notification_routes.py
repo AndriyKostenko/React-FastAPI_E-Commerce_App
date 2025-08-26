@@ -1,32 +1,38 @@
-from fastapi import Depends, APIRouter, status, BackgroundTasks, Request
-from fastapi.security import OAuth2PasswordRequestForm
+from fastapi import APIRouter, status, BackgroundTasks, Request
+
 from fastapi.responses import JSONResponse
 from uuid import UUID
+
+from pydantic import EmailStr
 from shared.shared_instances import notification_service_redis_manager
 from service_layer.email_service import email_service
 from schemas.notifications_schemas import EmailSchema, ForgotPasswordRequest, ForgotPasswordResponse, ResetPasswordRequest, PasswordUpdateResponse
+from shared.shared_instances import settings
 
 
 notification_routes = APIRouter(tags=["notification-service"])
 
 
 @notification_routes.post("/send-verification-email",
-                  summary="Send test verification email",)
+                         summary="Send verification email")
 @notification_service_redis_manager.ratelimiter(times=3, seconds=3600)
 async def send_verification_email(request: Request,
-                                  email: EmailSchema,
+                                  user_email: EmailStr,
                                   user_id: UUID,
-                                  background_tasks: BackgroundTasks) -> JSONResponse:
-    
+                                  user_token: str,
+                                  user_role: str) -> JSONResponse:
+    """Send verification email directly (for testing or admin purposes)"""
     await email_service.send_verification_email(
-        email=email.email,
+        email=user_email,
         user_id=user_id,
-        user_role="user",
-        background_tasks=background_tasks
+        user_role=user_role,
+        token=user_token
     )
-    
-    return JSONResponse(status_code=status.HTTP_200_OK, content={"message": "Email sent successfully"})
-
+    return JSONResponse(
+        status_code=status.HTTP_200_OK, 
+        content={"message": "Verification email sent successfully"}
+    )
+        
 
 @notification_routes.post("/send-forgot-password-request",
                  summary="Request password reset email",
@@ -34,48 +40,68 @@ async def send_verification_email(request: Request,
                  )
 @notification_service_redis_manager.ratelimiter(times=10, seconds=3600)  
 async def request_password_reset(request: Request,
-                                data: ForgotPasswordRequest,
-                                background_tasks: BackgroundTasks,
-                                user_service: user_crud_dependency):
-    # Verify user exists
-    user = await user_service.get_user_by_email(data.email)
-    
-    # Send password reset email
+                                 user_email: EmailStr,
+                                 user_id: UUID,
+                                 user_token: str,
+                                 user_role: str):
+    """Send password reset email directly (for testing or admin purposes)"""
+
     await email_service.send_password_reset_email(
-        email=user.email,
-        user_id=user.id,
-        user_role=user.role,
-        background_tasks=background_tasks
+        email=user_email,
+        user_id=user_id,
+        user_role=user_role,
+        reset_token=user_token
     )
-    
     return JSONResponse(
         content=ForgotPasswordResponse(
             detail="Password reset email sent",
-            email=user.email
+            email=user_email
         ),
         status_code=status.HTTP_200_OK
     )
     
-@notification_routes.post("/send-password-reset-success-email",)
+    
+@notification_routes.post("/send-password-reset-success-email",
+                         summary="Send password reset success confirmation")
+@notification_service_redis_manager.ratelimiter(times=3, seconds=3600)
 async def send_password_reset_success_email(request: Request,
-                                           email: EmailSchema,
-                                           background_tasks: BackgroundTasks) -> JSONResponse:
-
+                                            user_email: EmailStr,
+                                            ) -> JSONResponse:
+    """Send password reset success confirmation email"""
     await email_service.send_password_reset_success_email(
-        email=token_data.email,
+        email=user_email,
         template_body={
             "app_name": settings.MAIL_FROM_NAME,
-            "email": token_data.email,
+            "email": user_email,
             "login_url": f"http://{settings.APP_HOST}:{settings.USER_SERVICE_APP_PORT}/login",
-        },
-        background_tasks=background_tasks   
+        }
     )
-    
     return JSONResponse(
-        content=PasswordUpdateResponse(
-            detail="Password reset successfully",
-            email=token_data.email
-        ),
-        status_code=status.HTTP_200_OK
+        status_code=status.HTTP_200_OK,
+        content={"message": "Password reset success email sent"}
     )
+        
+
+@notification_routes.post("/send-welcome-email",
+                         summary="Send welcome email")
+@notification_service_redis_manager.ratelimiter(times=3, seconds=3600)
+async def send_welcome_email(request: Request,
+                            user_email: EmailStr,
+                            user_name: str) -> JSONResponse:
+    """Send welcome email to new users"""
+    await email_service.send_welcome_email(
+        email=user_email,
+        user_name=user_name or user_email.split('@')[0],
+        template_body={
+            "app_name": settings.MAIL_FROM_NAME,
+            "email": user_email,
+            "user_name": user_name or user_email.split('@')[0]
+        }
+    )
+    return JSONResponse(
+        status_code=status.HTTP_200_OK,
+        content={"message": "Welcome email sent successfully"}
+    )
+        
+
 

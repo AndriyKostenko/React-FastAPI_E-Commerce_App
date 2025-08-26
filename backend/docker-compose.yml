@@ -45,6 +45,27 @@ services:
       timeout: 5s
       retries: 5
 
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    restart: always
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASSWORD}
+    env_file:
+      - .env
+    networks:
+      - usernet
+    healthcheck:
+      test: ["CMD", "rabbitmqctl", "status"]
+      interval: 60s
+      timeout: 10s
+      retries: 5
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+
   api-gateway:
     build:
       context: ./api-gateway
@@ -73,7 +94,6 @@ services:
       timeout: 10s
       retries: 3
   
-
   user-service:
     build:
       context: ./user-service
@@ -130,6 +150,44 @@ services:
       timeout: 10s
       retries: 3
 
+  notification-service:
+    build:
+      context: ./notification-service
+      dockerfile: Dockerfile
+    restart: always
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    env_file:
+      - .env
+    ports:
+      - "8003:8003"
+    networks:
+      - usernet
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+
+  notification-consumer:
+    build:
+      context: .
+      dockerfile: ./notification-service/Dockerfile.consumer
+    restart: always
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      notification-service:
+        condition: service_healthy
+    env_file:
+      - .env
+    networks:
+      - usernet
+    volumes:
+      - ./shared:/app/shared:ro
+
+
   admin-js-service:
     build:
       context: ./admin-js-service
@@ -154,6 +212,7 @@ volumes:
   postgres_data:
   product_media:
   redis_data:
+  rabbitmq_data:
 
 
   # traefik:

@@ -59,13 +59,6 @@ class ApiGateway:
         
         self.logger.info(f"Forwarding request to: {url} with method: {method} and body: {body}")
         
-        # Add user context if authenticated
-        if current_user:
-            if headers is None:
-                headers = {}
-            headers["X-User-ID"] = str(current_user.get("user_id", ""))
-            headers["X-User-Role"] = current_user.get("user_role", "user")
-        
         # perform the request using httpx
         async with httpx.AsyncClient() as client:
             try:

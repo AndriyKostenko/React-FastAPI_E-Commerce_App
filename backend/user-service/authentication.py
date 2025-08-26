@@ -8,7 +8,7 @@ from pydantic import EmailStr
 from jose import jwt, JWTError
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 
-from errors.errors import UserPasswordError, UserIsNotVerifiedError
+from exceptions.user_exceptions import UserPasswordError, UserIsNotVerifiedError
 from shared.shared_instances import settings
 from schemas.user_schemas import CurrentUserInfo
 
@@ -63,8 +63,8 @@ class AuthenticationManager:
         #TODO : check if needed verification logic of user
         user = await user_service.get_user_by_email(email=email)
             
-        # if not user.is_verified:
-        #     raise UserIsNotVerifiedError(detail='User is not verified')
+        if not user.is_verified:
+            raise UserIsNotVerifiedError(detail='User is not verified')
             
         return CurrentUserInfo(
             email=user.email,

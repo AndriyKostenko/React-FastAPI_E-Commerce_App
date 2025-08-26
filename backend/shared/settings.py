@@ -1,7 +1,7 @@
 from functools import lru_cache
 from pathlib import Path
-from typing import List, Optional
-import threading
+from typing import List
+
 
 from pydantic_settings import BaseSettings
 
@@ -48,6 +48,12 @@ class Settings(BaseSettings):
     PGADMIN_DEFAULT_EMAIL: str
     PGADMIN_DEFAULT_PASSWORD: str
 
+    # RabbitMQ configuration
+    RABBITMQ_HOST: str
+    RABBITMQ_PORT: int
+    RABBITMQ_USER: str 
+    RABBITMQ_PASSWORD: str
+
     # Redis configuration
     REDIS_HOST: str
     REDIS_PORT: int
@@ -72,6 +78,9 @@ class Settings(BaseSettings):
     RESET_TOKEN_EXPIRY_MINUTES: int
     VERIFICATION_TOKEN_EXPIRY_MINUTES: int
     CRYPT_CONTEXT_SCHEME: str
+    
+    # FastStream consumers ports
+    NOTIFICATION_SERVICE_CONSUMER_PORT: int
 
     # Stripe
     STRIPE_SECRET_KEY: str
@@ -103,6 +112,12 @@ class Settings(BaseSettings):
 
 
     @property
+    def RABBITMQ_BROKER_URL(self):
+        return f"amqp://{self.RABBITMQ_USER}:{self.RABBITMQ_PASSWORD}@{self.RABBITMQ_HOST}:{self.RABBITMQ_PORT}"
+
+    #--------------API-GATEWAY-----------------------
+    
+    @property
     def APIGATEWAY_SERVICE_REDIS_URL(self) -> str:
         return f"redis://:{self.REDIS_PASSWORD}@{self.REDIS_HOST}:{self.REDIS_PORT}/{self.APIGATEWAY_SERVICE_REDIS_DB}"
 
@@ -110,7 +125,7 @@ class Settings(BaseSettings):
     def FULL_API_GATEWAY_SERVICE_URL(self) -> str:
         return f"{self.API_GATEWAY_SERVICE_URL}{self.API_GATEWAY_SERVICE_URL_API_VERSION}"
     
-    #--------------------------------------------
+    #--------------USER-SERVICE---------------------
     
     @property
     def USER_SERVICE_DATABASE_URL(self) -> str:
@@ -128,7 +143,7 @@ class Settings(BaseSettings):
     def USER_SERVICE_REDIS_URL(self) -> str:
         return f"redis://:{self.REDIS_PASSWORD}@{self.REDIS_HOST}:{self.REDIS_PORT}/{self.USER_SERVICE_REDIS_DB}"
     
-    #--------------------------------------------
+    #---------------PRODUCT-SERVICE-------------------
     
     @property
     def PRODUCT_SERVICE_DATABASE_URL(self) -> str:
@@ -147,7 +162,7 @@ class Settings(BaseSettings):
         return f"redis://:{self.REDIS_PASSWORD}@{self.REDIS_HOST}:{self.REDIS_PORT}/{self.PRODUCT_SERVICE_REDIS_DB}"
 
 
-    #--------------------------------------------
+    #---------------NOTIFICATION-SERVICE---------------
     
     @property
     def NOTIFICATION_SERVICE_DATABASE_URL(self) -> str:
@@ -166,11 +181,11 @@ class Settings(BaseSettings):
         return f"{self.NOTIFICATION_SERVICE_URL}{self.NOTIFICATION_SERVICE_URL_API_VERSION}"
     
     
-    
-
-    # --- Customise sources to support shared and service-specific .env ---
     @classmethod
     def customise_sources(cls, settings_cls, init_settings, env_settings, file_secret_settings):
+        """
+        Customise sources to support shared and service-specific .env 
+        """
         root_env = Path(__file__).resolve().parents[1] / ".env"
         local_env = Path(__file__).resolve().parent / ".env"
         return (

@@ -8,23 +8,16 @@ from pydantic import EmailStr
 
 from authentication import auth_manager
 from schemas.user_schemas import (UserSignUp, 
-                    UserInfo, 
-                    TokenSchema, 
-                    UserLoginDetails, 
-                    CurrentUserInfo,
-                    EmailSchema, 
-                    EmailVerificationResponse, 
-                    ForgotPasswordRequest, 
-                    ForgotPasswordResponse,
-                    ResetPasswordRequest,
-                    PasswordUpdateResponse)
+                                    UserInfo, 
+                                    TokenSchema, 
+                                    UserLoginDetails, 
+                                    CurrentUserInfo, 
+                                    EmailVerificationResponse,
+                                    ResetPasswordRequest,
+                                    PasswordUpdateResponse)
 from dependencies.dependencies import user_crud_dependency
-from service_layer.email_service import email_service
 from shared.shared_instances import user_service_redis_manager, settings
 from shared.customized_json_response import JSONResponse
-
-
-
 
 
 user_routes = APIRouter(
@@ -63,18 +56,20 @@ the service layer, so no need to handle them here.
 @user_service_redis_manager.ratelimiter(times=5, seconds=3600)  # Limit to 5 registrations per hour
 async def create_user(request: Request,
                       data: UserSignUp,
-                      background_tasks: BackgroundTasks,
                       user_service: user_crud_dependency
                       ):
     new_db_user = await user_service.create_user(data=data)
-    # Send verification email in background
-    await email_service.send_verification_email(
-        email=new_db_user.email,
-        user_id=new_db_user.id,
-        user_role=new_db_user.role,
-        background_tasks=background_tasks
-    )
-    return JSONResponse(content=new_db_user,
+    
+    # generation verification token only for API gateway events
+    verification_token, _ = auth_manager.create_access_token(email=new_db_user.email,
+                                                            user_id=new_db_user.id,
+                                                            role=new_db_user.role,
+                                                            expires_delta=timedelta(minutes=30),
+                                                            purpose="email_verification"
+                                                            )
+    # adding token to response (internal only)
+    response_data = {**new_db_user.model_dump(), "verification_token": verification_token}
+    return JSONResponse(content=response_data,
                         status_code=status.HTTP_201_CREATED)
 
 
@@ -106,14 +101,13 @@ async def verify_email(request: Request,
 async def reset_password(request: Request,
                         token: str,
                         data: ResetPasswordRequest,
-                        background_tasks: BackgroundTasks,
+
                         user_service: user_crud_dependency):
     """Reset password using token"""
     token_data = await auth_manager.get_current_user_from_token(token=token, required_purpose="password_reset")
     
+    # TODO: is cache invalidation needed?
     await user_service.update_user_password(email=token_data.email, new_password=data.new_password)
-
-    await user_service_redis_manager.invalidate_cache(request=request)  # Invalidate cache for user email
     
     return JSONResponse(
         content=PasswordUpdateResponse(
@@ -136,6 +130,7 @@ async def login(request: Request,
     user = await auth_manager.get_authenticated_user(form_data=form_data, user_service=user_service)
     
     # updte last login might change user data, invalidating the redis cache
+    # TODO: is cache invalidation needed?
     await user_service_redis_manager.invalidate_cache(request=request)
     
     # creating access token
@@ -186,8 +181,7 @@ async def generate_token(request: Request,
 @user_service_redis_manager.ratelimiter(times=10, seconds=60)  # Limit to 10 requests per minute
 async def get_current_user_data(request: Request,
                                 current_user: Annotated[CurrentUserInfo, Depends(auth_manager.get_current_user_from_token)]):
-    user = current_user
-    return JSONResponse(content=user,
+    return JSONResponse(content=current_user,
                         status_code=status.HTTP_200_OK)
 
 

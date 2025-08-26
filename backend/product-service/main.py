@@ -13,8 +13,7 @@ from routes.product_image_routes import product_images_routes
 from routes.product_routes import product_routes
 from routes.category_routes import category_routes
 from routes.review_routes import review_routes
-from errors.base import (BaseAPIException,
-                        RateLimitExceededError)
+from shared.base_exceptions import (BaseAPIException,RateLimitExceededError)
 from shared.shared_instances import (product_service_redis_manager,
                                     product_service_database_session_manager,
                                     logger,

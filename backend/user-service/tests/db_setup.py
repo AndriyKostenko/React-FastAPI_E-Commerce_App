@@ -2,8 +2,8 @@ from typing import AsyncGenerator
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker, AsyncEngine
 
 from shared.shared_instances import settings
-from shared.models_base_class import Base
-from main import app
+from backend.shared.models.models_base_class import Base
+from ..main import app
 from dependencies.dependencies import get_db_session
 
 

@@ -1,40 +1,67 @@
-import httpx
-from fastapi import Request, HTTPException, status
-
-from shared.shared_instances import settings
+from fastapi import Request, HTTPException
+import httpx # type: ignore
+from shared.shared_instances import settings, logger
 
 
 async def auth_middleware(request: Request, call_next):
-    # skipiing auth for public endpoints
-    public_endpoints = ["/register", "/login", "/token", "/health", "/docs"]
+    """
+    Authentication middleware to validate JWT tokens for protected endpoints
+    """
+    # Public endpoints that don't require authentication
+    public_endpoints = [
+        "/register", "/login", "/token", "/health", "/docs", "/openapi.json",
+        "/forgot-password", "/activate", "/password-reset"
+    ]
     
-    if any(request.url.path.endswith(endpoint) for endpoint in public_endpoints):
+    # Check if the current path is public
+    path = request.url.path
+    is_public = any(path.endswith(endpoint) or endpoint in path for endpoint in public_endpoints)
+    
+    if is_public:
+        logger.info(f"Public endpoint accessed: {path}")
         return await call_next(request)
     
-    # Extracting and validating JWT token
+    # Extract Authorization header
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Authorization header missing")
+        raise HTTPException(
+            status_code=401, 
+            detail="Authentication required",
+            headers={"WWW-Authenticate": "Bearer"}
+        )
     
     token = auth_header.split(" ")[1]
-
-    # Validate the token with the user-service authentication service
+    
+    # Validate token with user service
     async with httpx.AsyncClient() as client:
         try:
             response = await client.get(
                 f"{settings.FULL_USER_SERVICE_URL}/me",
-                headers={"Authorization": f"Bearer {token}"}
+                headers={"Authorization": f"Bearer {token}"},
+                timeout=10.0
             )
+            
             if response.status_code == 200:
                 user_data = response.json()
-                # adding user data to the request state
+                # Store user data in request state for use in route handlers
                 request.state.current_user = user_data
+                logger.info(f"Authenticated user: {user_data.get('email')}")
             else:
-                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+                logger.warning(f"Token validation failed: {response.status_code}")
+                raise HTTPException(
+                    status_code=401, 
+                    detail="Invalid or expired token",
+                    headers={"WWW-Authenticate": "Bearer"}
+                )
+                
+        except httpx.TimeoutException:
+            logger.error("Timeout while validating token with user service")
+            raise HTTPException(status_code=503, detail="Authentication service unavailable")
         except httpx.RequestError as e:
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error connecting to user service: {str(e)}")
-        except httpx.HTTPStatusError as e:
-            raise HTTPException(status_code=e.response.status_code, detail=f"User service error: {e.response.text}")
-
-    # If the token is valid, proceed to the next middleware or endpoint
+            logger.error(f"Error connecting to user service: {e}")
+            raise HTTPException(status_code=503, detail="Authentication service unavailable")
+        except Exception as e:
+            logger.error(f"Unexpected error during authentication: {e}")
+            raise HTTPException(status_code=500, detail="Authentication error")
+    
     return await call_next(request)

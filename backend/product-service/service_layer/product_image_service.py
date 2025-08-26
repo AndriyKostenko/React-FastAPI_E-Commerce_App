@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from models.product_image_models import ProductImage
 from schemas.product_image_schema import ProductImageSchema
 from database_layer.product_image_repository import ProductImageRepository
-from errors.product_image_errors import ProductImageNotFoundError, ProductImageAlreadyExistsError
+from exceptions.product_image_exceptions import ProductImageNotFoundError, ProductImageAlreadyExistsError
 
 
 class ProductImageService:

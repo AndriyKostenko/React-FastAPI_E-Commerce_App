@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.116.0",
+    "faststream[cli,rabbit]>=0.5.48",
     "orjson>=3.11.1",
     "redis>=6.2.0",
 ]

@@ -84,6 +84,23 @@
 
 
 
+## FastStream (RabbitMQ)
+User Action → API Gateway → User Service → Response
+                ↓
+          Publish Event → RabbitMQ Queue
+                ↓
+       Notification Service → Send Email
+
+
+Event Flow Summary:
+
+User Registration: API Gateway → User Service → Event → Notification Consumer
+Password Reset Request: API Gateway → User Service → Event → Notification Consumer
+Email Verification: API Gateway → Event → Notification Consumer
+Direct Email Endpoints: For testing/admin purposes only
+
+
+
 
 ## PG Admin
    - http://localhost:5050

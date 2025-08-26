@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from fastapi import HTTPException
 
@@ -11,6 +11,7 @@ class BaseAPIException(HTTPException):
         self.headers = headers
 
 
+#-----Redis Ratelimit exception-------
 class RateLimitExceededError(BaseAPIException):
     """Exception raised when rate limit is exceeded"""
     def __init__(self, client_ip: str, retry_after: int, status_code: int = 429):
@@ -43,3 +44,7 @@ class NoFieldInTheModelError(BaseAPIException):
     def __init__(self, model_name: str, field_name: str):
         detail = f"Model {model_name} has no field: '{field_name}'"
         super().__init__(detail=detail, status_code=400)
+        
+        
+        
+

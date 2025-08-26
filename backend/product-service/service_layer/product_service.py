@@ -1,15 +1,9 @@
 from typing import List, Optional
 from uuid import UUID
 
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import or_, select
-from sqlalchemy.orm import selectinload
-
 from models.product_models import Product
 from schemas.product_schemas import CreateProduct, ProductBase, ProductSchema
-from shared.database_layer import BaseRepository 
-from errors.product_errors import (ProductNotFoundError,
-                                  ProductCreationError)
+from exceptions.product_exceptions import ProductNotFoundError, ProductCreationError
 from database_layer.product_repository import ProductRepository
 
 

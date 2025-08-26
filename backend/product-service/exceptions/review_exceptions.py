@@ -1,4 +1,4 @@
-from errors.base import BaseAPIException
+from shared.base_exceptions import BaseAPIException
 
 #------Review Service Errors------
 class ReviewNotFoundError(BaseAPIException):

@@ -26,7 +26,7 @@ class UserSignUp(BaseModel):
     email: EmailStr = Field(..., description="User's email")
     password: str = Field(..., min_length=8, max_length=100,description="User's password")
     is_verified: Optional[bool] = Field(False, description="User's verification status")
-    role: Optional[str] 
+    role: Optional[str] = "user"
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -80,3 +80,36 @@ class TokenPayload(BaseModel):
 class TokenData(BaseModel):
     token: str
     expires: datetime
+    
+class EmailVerificationResponse(BaseModel):
+    detail: str
+    email: str
+    verified: bool
+    
+class VerificationEmailSchema(BaseModel):
+    addresses: List[str]
+    
+class PasswordUpdateResponse(BaseModel):
+    detail: str
+    email: EmailStr
+
+class EmailSchema(BaseModel):
+    email: EmailStr
+    body: dict
+
+
+
+    
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ForgotPasswordResponse(BaseModel):
+    detail: str
+    email: str
+
+
+class ResetPasswordRequest(BaseModel):
+    email: EmailStr
+    new_password: str = Field(..., min_length=8)

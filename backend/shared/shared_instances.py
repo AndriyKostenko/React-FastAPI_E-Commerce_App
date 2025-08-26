@@ -1,3 +1,4 @@
+
 from shared.logger_config import setup_logger
 from shared.redis_manager import RedisManager
 from shared.settings import get_settings
@@ -9,6 +10,8 @@ settings = get_settings()
 
 # Logger setup
 logger = setup_logger(__name__)
+
+#-----------------------------------Redis-Managers------------------------------------------------
 
 # Redis managers for each service
 api_gateway_redis_manager = RedisManager(service_prefix="api-gateway", 
@@ -25,6 +28,8 @@ notification_service_redis_manager = RedisManager(service_prefix="notification-s
                                                   redis_url=settings.NOTIFICATION_SERVICE_REDIS_URL,
                                                   logger=logger)
 
+
+#------------------------------------DB-Managers-----------------------------------------------
 
 # Database session managers for each service
 user_service_database_session_manager = DatabaseSessionManager(

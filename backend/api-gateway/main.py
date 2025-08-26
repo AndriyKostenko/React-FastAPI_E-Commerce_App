@@ -10,7 +10,8 @@ from routes.user_routes import user_proxy
 from shared.shared_instances import (api_gateway_redis_manager, 
                                      logger, 
                                      settings)
-
+from middleware.auth_middleware import auth_middleware
+from events.publisher import events_publisher
 
 
 
@@ -20,19 +21,29 @@ async def lifespan(app: FastAPI):
     This is a context manager that will run the startup and shutdown
     events of a FastAPI application.
     """
-
     logger.info(f"Server is starting up on {settings.APP_HOST}:{settings.API_GATEWAY_SERVICE_APP_PORT}...")
     await api_gateway_redis_manager.health_check()
+    await events_publisher.start()
     logger.info('Server startup complete!')
     
     yield
     
+    # Cleanup on shutdown
     await api_gateway_redis_manager.close()
+    await events_publisher.stop()
     logger.warning("Cache connection closed on shutdown!")
     logger.warning(f"Server has shut down !")
 
 
 app = FastAPI(title="API Gateway", lifespan=lifespan)
+
+# Auth middleware runs before gateway middleware
+@app.middleware("http")
+async def authentication_middleware(request: Request, call_next):
+    """
+    Authentication middleware to handle JWT tokens
+    """
+    return await auth_middleware(request, call_next)
 
 
 @app.middleware("http")

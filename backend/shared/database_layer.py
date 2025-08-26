@@ -3,9 +3,8 @@ from typing import Generic, Optional, Type, TypeVar
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import func, select, asc
-from pydantic import EmailStr
 from shared.base_exceptions import NoFieldInTheModelError
-from shared.models_base_class import Base
+from shared.models.models_base_class import Base
 
 # Generic type for SQLAlchemy models
 ModelType = TypeVar("ModelType", bound=Base)

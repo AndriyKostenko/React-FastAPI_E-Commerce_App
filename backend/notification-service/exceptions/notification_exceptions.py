@@ -1,3 +1,5 @@
+from shared.base_exceptions import BaseAPIException
+
 
 class EmailServiceError(BaseAPIException):
     """Raised when there is an error in the email service"""

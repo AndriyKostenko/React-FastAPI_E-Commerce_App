@@ -3,7 +3,7 @@ from typing import AsyncGenerator, Dict
 
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker, AsyncEngine
 
-from shared.models_base_class import Base
+from shared.models.models_base_class import Base
 from shared.base_exceptions import DatabaseConnectionError, DatabaseSessionError
 
 

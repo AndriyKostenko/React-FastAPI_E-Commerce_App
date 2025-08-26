@@ -1,7 +1,7 @@
 from uuid import UUID
 
 from models.category_models import ProductCategory
-from errors.category_errors import CategoryNotFoundError, CategoryCreationError
+from exceptions.category_exceptions import CategoryNotFoundError, CategoryCreationError
 from schemas.category_schema import CategorySchema, CreateCategory, UpdateCategory
 from database_layer.category_repository import CategoryRepository
 

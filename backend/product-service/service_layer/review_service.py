@@ -3,7 +3,7 @@ from uuid import UUID
 from typing import List
 
 from schemas.review_schemas import CreateReview, ReviewSchema, UpdateReview
-from errors.review_errors import ReviewNotFoundError, ReviewAlreadyExistsError
+from exceptions.review_exceptions import ReviewNotFoundError, ReviewAlreadyExistsError
 from models.review_models import ProductReview
 from database_layer.review_repository import ReviewRepository
 

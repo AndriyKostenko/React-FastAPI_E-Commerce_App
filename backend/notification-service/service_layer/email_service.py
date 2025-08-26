@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import List, Dict
 from uuid import UUID
 
@@ -9,8 +9,7 @@ from pydantic import ValidationError, EmailStr
 from jinja2 import Environment, FileSystemLoader, TemplateNotFound
 
 
-from errors.errors import EmailServiceError
-from authentication import auth_manager
+from exceptions.notification_exceptions import EmailServiceError
 from shared.shared_instances import settings, logger
 
 
@@ -51,6 +50,7 @@ class EmailService:
                        recipients: List[str],
                        subject: str,
                        rendered_html: str) -> MessageSchema:
+        """Create email message schema."""
         if not recipients:
             self.logger.error("No recipients provided during creation of email message")
             raise EmailServiceError("No recipients provided")
@@ -66,56 +66,39 @@ class EmailService:
             self.logger.error(f"Validation error while creating email message: {e}")
             raise EmailServiceError("Validation error while creating email message")
 
-    async def _send_email_async(self,
-                                recipients: List[str],
-                                subject: str,
-                                template_name: str,
-                                template_body: Dict[str, str]) -> None:
+    async def send_email_async(self,
+                               recipients: List[str],
+                               subject: str,
+                               template_name: str,
+                               template_body: Dict[str, str]) -> None:
+        """Send email asynchronously - used directly by event consumers."""
         try:
+            self.logger.info(f"Preparing to send email to {recipients} with subject: {subject}")
+            
             rendered_html = self.render_template(template_name=template_name, template_body=template_body)
             message = self.create_message(recipients, subject, rendered_html)
+            
             await self.fast_mail.send_message(message, template_name=template_name)
+            
+            self.logger.info(f"Email successfully sent to {recipients}")
+            
         except ConnectionErrors as e:
             self.logger.error(f"Connection error while sending email: {e}")
             raise EmailServiceError("Connection error while sending email")
-        
-    def send_email_background(self,
-                              background_tasks: BackgroundTasks,
-                              subject: str,
-                              template_body: Dict[str, str],
-                              recipients: List[str],
-                              template_name: str) -> None:
-        """Send email in the background using FastAPI background tasks.
-        FastAPI's BackgroundTasks runs after the response is returned, 
-        but it's not a separate thread or process—it just schedules the 
-        function to run in the same event loop.
-        FastAPI will await it behind the scenes during its lifecycle.
-        """
-        background_tasks.add_task(
-            self._send_email_async,
-            subject=subject,
-            recipients=recipients,
-            template_name=template_name,
-            template_body=template_body
-        )
-    
+        except Exception as e:
+            self.logger.error(f"Unexpected error while sending email: {e}")
+            raise EmailServiceError(f"Failed to send email: {str(e)}")
+           
     async def send_verification_email(self,
                                       email: EmailStr,
                                       user_id: UUID,
                                       user_role: str | None,
-                                      background_tasks: BackgroundTasks) -> None:
+                                      token) -> None:
+        """Send verification email - called from event consumer."""
         if not email or not user_id or not user_role:
             self.logger.error("Email, user_id, or user_role is missing")
             raise EmailServiceError("Email, user_id, or user_role is missing")
 
-        # returns token and exparation time, needed only token
-        token, _ = auth_manager.create_access_token(
-            email=email,
-            user_id=user_id,
-            role=user_role,
-            expires_delta=timedelta(minutes=self.settings.VERIFICATION_TOKEN_EXPIRY_MINUTES),
-            purpose="email_verification"
-        )
 
         activate_url = f"http://{self.settings.APP_HOST}:{self.settings.USER_SERVICE_APP_PORT}/api/v1/activate/{token}"
 
@@ -127,8 +110,7 @@ class EmailService:
             "activate_url": activate_url
         }
 
-        self.send_email_background(
-            background_tasks=background_tasks,
+        await self.send_email_async(
             subject="Email Verification",
             template_body=email_data,
             recipients=[email],
@@ -139,24 +121,15 @@ class EmailService:
                                         email: EmailStr,
                                         user_id: UUID,
                                         user_role: str | None,
-                                        background_tasks: BackgroundTasks) -> None:
-        
+                                        reset_token) -> None:
+        """Send password reset email - called from event consumer."""
         if not email or not user_id or not user_role:
             self.logger.error("Email, user_id, or user_role is missing")
             raise EmailServiceError("Email, user_id, or user_role is missing")
         
-        # returns token and exparation time, needed only token
-        token, _ = auth_manager.create_access_token(
-            email=email,
-            user_id=user_id,
-            role=user_role,
-            expires_delta=timedelta(minutes=self.settings.RESET_TOKEN_EXPIRY_MINUTES),
-            purpose="password_reset"
-        )
-        reset_url = f"http://{self.settings.APP_HOST}:{self.settings.USER_SERVICE_APP_PORT}/api/v1/password-reset/{token}"
+        reset_url = f"http://{self.settings.APP_HOST}:{self.settings.USER_SERVICE_APP_PORT}{self.settings.NOTIFICATION_SERVICE_URL_API_VERSION}/password-reset/{reset_token}"
 
-
-        self.logger.info(f"Sending password reset email to {email} with token {token}")
+        self.logger.info(f"Sending password reset email to: {email} with token: {reset_token}")
         
         email_data = {
             "app_name": self.settings.MAIL_FROM_NAME,
@@ -165,10 +138,8 @@ class EmailService:
             "expiry_minutes": self.settings.RESET_TOKEN_EXPIRY_MINUTES
         }
 
-        
-        self.send_email_background(
-            background_tasks=background_tasks,
-            subject="Password Reset",
+        await self.send_email_async(
+            subject="Password Reset Request",
             template_body=email_data,
             recipients=[email],
             template_name="password_reset.html"
@@ -176,20 +147,68 @@ class EmailService:
         
     async def send_password_reset_success_email(self,
                                         email: str,
-                                        template_body: Dict[str, str],
-                                        background_tasks: BackgroundTasks) -> None:
+                                        template_body: Dict[str, str]) -> None:
+        """Send password reset confirmation email."""
         if not email:
             self.logger.error("Email is missing")
             raise EmailServiceError("Email is missing")
+
+        self.logger.info(f"Sending password reset confirmation email to: {email}")
         
-
-
-        self.send_email_background(
-            background_tasks=background_tasks,
+        await self.send_email_async(
             subject="Password Reset Successful",
             template_body=template_body,
             recipients=[email],
             template_name="password_reset_confirmation.html"
+        )
+        
+    async def send_welcome_email(self,
+                                 email: EmailStr,
+                                 user_name: str,
+                                 template_body: dict[str, str]):
+        """Send welcome email to new users."""
+        if not email:
+            self.logger.error("Email is missing")
+            raise EmailServiceError("Email is missing")
+
+        self.logger.info(f"Sending welcome email to {email}")
+
+        # Use provided template_body or create default
+        email_data = template_body or {
+            "app_name": self.settings.MAIL_FROM_NAME,
+            "email": email,
+            "user_name": user_name or email.split('@')[0]
+        }
+
+        await self.send_email_async(
+            subject=f"Welcome to {self.settings.MAIL_FROM_NAME}!",
+            template_body=email_data,
+            recipients=[email],
+            template_name="welcome.html"
+        )
+        
+    async def send_login_notification_email(self,
+                                           email: EmailStr,
+                                           login_time: datetime
+                                           ) -> None:
+        """Send login notification email."""
+        if not email:
+            self.logger.error("Email is missing")
+            raise EmailServiceError("Email is missing")
+
+        self.logger.info(f"Sending login notification email to {email}")
+
+        email_data = {
+            "app_name": self.settings.MAIL_FROM_NAME,
+            "email": email,
+            "login_time": login_time
+        }
+
+        await self.send_email_async(
+            subject="New Login to Your Account",
+            template_body=email_data,
+            recipients=[email],
+            template_name="login_notification.html"
         )
        
             

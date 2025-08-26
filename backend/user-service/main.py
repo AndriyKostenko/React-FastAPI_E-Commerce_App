@@ -9,10 +9,7 @@ from pydantic import ValidationError
 from fastapi.exceptions import ResponseValidationError, RequestValidationError
 
 from routes.user_routes import user_routes
-from routes.admin_routes import admin_routes
-from errors.errors import (BaseAPIException,
-                            DatabaseConnectionError,
-                            RateLimitExceededError)
+from shared.base_exceptions import (BaseAPIException, RateLimitExceededError)
 from shared.shared_instances import (user_service_redis_manager,
                                     user_service_database_session_manager,
                                     logger,
@@ -180,7 +177,6 @@ app.add_middleware(
 
 # including all the routers to the app
 app.include_router(user_routes, prefix=settings.USER_SERVICE_URL_API_VERSION)
-app.include_router(admin_routes, prefix=settings.USER_SERVICE_URL_API_VERSION)
 
 
 if __name__ == "__main__":

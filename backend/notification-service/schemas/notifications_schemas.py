@@ -14,10 +14,7 @@ class EmailSchema(BaseModel):
     body: dict
 
 
-class EmailVerificationResponse(BaseModel):
-    detail: str
-    email: str
-    verified: bool
+
     
 
 class ForgotPasswordRequest(BaseModel):

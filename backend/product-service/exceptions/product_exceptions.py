@@ -1,4 +1,4 @@
-from errors.base import BaseAPIException
+from shared.base_exceptions import BaseAPIException
 
 
 #------Product Service Errors------
