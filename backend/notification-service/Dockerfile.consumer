@@ -1,37 +1,37 @@
-# Build stage
-FROM python:3.12-slim AS builder
+# # Build stage
+# FROM python:3.12-slim AS builder
 
-WORKDIR /app
+# WORKDIR /app
 
-# Environment variables for build
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    PATH="/root/.local/bin:${PATH}"
+# # Environment variables for build
+# ENV PYTHONDONTWRITEBYTECODE=1 \
+#     PYTHONUNBUFFERED=1 \
+#     PATH="/root/.local/bin:${PATH}"
 
-# Install uv
-RUN pip install uv
+# # Install uv
+# RUN pip install uv
 
-# Copy all necessary files for building the package
-COPY ./notification-service/ ./
+# # Copy all necessary files for building the package
+# COPY ./notification-service/ ./
 
-# Install dependencies and build the package
-RUN uv sync --frozen --no-dev
+# # Install dependencies and build the package
+# RUN uv sync --frozen --no-dev
 
-# Production stage
-FROM python:3.12-slim
+# # Production stage
+# FROM python:3.12-slim
 
-WORKDIR /app
+# WORKDIR /app
 
-# Environment variables
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    PATH="/app/.venv/bin:${PATH}"
+# # Environment variables
+# ENV PYTHONDONTWRITEBYTECODE=1 \
+#     PYTHONUNBUFFERED=1 \
+#     PATH="/app/.venv/bin:${PATH}"
 
-# Copy the virtual environment from builder stage
-COPY --from=builder /app/.venv /app/.venv
+# # Copy the virtual environment from builder stage
+# COPY --from=builder /app/.venv /app/.venv
 
-# Copy only the events directory (consumer only needs this)
-COPY ./notification-service/events/ ./events/
+# # Copy only the events directory (consumer only needs this)
+# COPY ./notification-service/events/ ./events/
 
-# Use faststream run to start the consumer
-CMD ["faststream", "run", "events.consumer:app"]
+# # Use faststream run to start the consumer
+# CMD ["faststream", "run", "events.consumer:app"]

@@ -170,22 +170,22 @@ services:
       timeout: 10s
       retries: 3
 
-  notification-consumer:
-    build:
-      context: .
-      dockerfile: ./notification-service/Dockerfile.consumer
-    restart: always
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-      notification-service:
-        condition: service_healthy
-    env_file:
-      - .env
-    networks:
-      - usernet
-    volumes:
-      - ./shared:/app/shared:ro
+  # notification-consumer:
+  #   build:
+  #     context: .
+  #     dockerfile: ./notification-service/Dockerfile.consumer
+  #   restart: always
+  #   depends_on:
+  #     rabbitmq:
+  #       condition: service_healthy
+  #     notification-service:
+  #       condition: service_healthy
+  #   env_file:
+  #     - .env
+  #   networks:
+  #     - usernet
+  #   volumes:
+  #     - ./shared:/app/shared:ro
 
 
   admin-js-service:

@@ -1,7 +1,7 @@
 from uuid import UUID
 from fastapi import HTTPException, status, Depends, Request
 from shared.shared_instances import settings, logger
-from ..schemas.schemas import CurrentUserInfo
+from schemas.schemas import CurrentUserInfo
 
 
 def get_current_user(request: Request) -> CurrentUserInfo:

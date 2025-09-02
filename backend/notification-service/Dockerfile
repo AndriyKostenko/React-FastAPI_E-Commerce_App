@@ -12,6 +12,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 # Install system build dependencies and uv
 RUN apt-get update \
+    && apt-get upgrade -y \
     && apt-get install -y --no-install-recommends \
         gcc \
         python3-dev \
@@ -25,7 +26,8 @@ RUN apt-get update \
 COPY pyproject.toml uv.lock ./
 
 # Install dependencies using uv sync instead of uv pip install
-RUN uv sync --frozen --no-dev
+RUN uv sync --frozen --no-dev \ 
+    && ls -l /app/.venv/bin | grep gunicorn
 
 # -------------------------
 # Final Runtime Stage
@@ -37,17 +39,16 @@ WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
-# Install runtime dependencies (smaller footprint than build stage)
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         libpq5 \
         curl \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* \
-    && addgroup --system --gid 1001 appgroup \
-    && adduser --system --uid 1001 --ingroup appgroup appuser \
+    && addgroup --system --gid 1003 notificationgroup \
+    && adduser --system --uid 1003 --ingroup notificationgroup notificationuser \
     && mkdir -p /app/logs \
-    && chown -R appuser:appgroup /app
+    && chown -R notificationuser:notificationgroup /app
 
 # Copy dependencies from builder
 COPY --from=builder /app/.venv /app/.venv
@@ -56,9 +57,9 @@ COPY --from=builder /app/.venv /app/.venv
 ENV PATH="/app/.venv/bin:$PATH"
 
 # Copy source code and set permissions
-COPY --chown=appuser:appgroup . .
+COPY --chown=notificationuser:notificationgroup . .
 
-USER appuser
+USER notificationuser
 
 # Expose app port
 EXPOSE 8003
@@ -75,6 +76,6 @@ HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
 # ( automatically detects the number of CPU cores and sets the number of workers accordingly )
 # CMD ["sh", "-c", "gunicorn -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:8001 --workers $(nproc) --timeout 60 --access-logfile -"]
 
-# CMD ["uv", "run", "gunicorn", "-k", "uvicorn.workers.UvicornWorker", "main:app", "--bind", "0.0.0.0:8001", "--workers", "1", "--timeout", "60", "--access-logfile"]
+# CMD ["uv", "run", "gunicorn", "-k", "uvicorn.workers.UvicornWorker", "main:app", "--bind", "0.0.0.0:8003", "--workers", "1", "--timeout", "60", "--access-logfile"]
 
-CMD ["gunicorn", "-k", "uvicorn.workers.UvicornWorker", "main:app", "--bind", "0.0.0.0:8001", "--workers", "1", "--timeout", "60", "--access-logfile", "-"]
+CMD ["gunicorn", "-k", "uvicorn.workers.UvicornWorker", "main:app", "--bind", "0.0.0.0:8003", "--workers", "1", "--timeout", "60", "--access-logfile", "-"]
