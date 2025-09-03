@@ -2,14 +2,12 @@ from datetime import datetime, timedelta
 from typing import List, Dict
 from uuid import UUID
 
-from fastapi import BackgroundTasks
 from fastapi_mail import FastMail, MessageSchema, ConnectionConfig, MessageType
 from fastapi_mail.errors import ConnectionErrors
 from pydantic import ValidationError, EmailStr
 from jinja2 import Environment, FileSystemLoader, TemplateNotFound
 
-
-from exceptions.notification_exceptions import EmailServiceError
+from shared.base_exceptions import EmailServiceError
 from shared.shared_instances import settings, logger
 
 

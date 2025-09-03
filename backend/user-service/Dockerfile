@@ -44,10 +44,10 @@ RUN apt-get update \
         curl \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* \
-    && addgroup --system --gid 1001 appgroup \
-    && adduser --system --uid 1001 --ingroup appgroup appuser \
+    && addgroup --system --gid 1001 usergroup \
+    && adduser --system --uid 1001 --ingroup usergroup user \
     && mkdir -p /app/logs \
-    && chown -R appuser:appgroup /app
+    && chown -R user:usergroup /app
 
 # Copy dependencies from builder
 COPY --from=builder /app/.venv /app/.venv
@@ -56,9 +56,9 @@ COPY --from=builder /app/.venv /app/.venv
 ENV PATH="/app/.venv/bin:$PATH"
 
 # Copy source code and set permissions
-COPY --chown=appuser:appgroup . .
+COPY --chown=user:usergroup . .
 
-USER appuser
+USER user
 
 # Expose app port
 EXPOSE 8001

@@ -26,8 +26,7 @@ RUN apt-get update \
 COPY pyproject.toml uv.lock ./
 
 # Install dependencies using uv sync instead of uv pip install
-RUN uv sync --frozen --no-dev \ 
-    && ls -l /app/.venv/bin | grep gunicorn
+RUN uv sync --frozen --no-dev 
 
 # -------------------------
 # Final Runtime Stage
@@ -43,6 +42,7 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         libpq5 \
         curl \
+    && curl -LsSf https://astral.sh/uv/install.sh | sh \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* \
     && addgroup --system --gid 1003 notificationgroup \
@@ -79,3 +79,5 @@ HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
 # CMD ["uv", "run", "gunicorn", "-k", "uvicorn.workers.UvicornWorker", "main:app", "--bind", "0.0.0.0:8003", "--workers", "1", "--timeout", "60", "--access-logfile"]
 
 CMD ["gunicorn", "-k", "uvicorn.workers.UvicornWorker", "main:app", "--bind", "0.0.0.0:8003", "--workers", "1", "--timeout", "60", "--access-logfile", "-"]
+
+#CMD ["uv", "run", "gunicorn", "-k", "uvicorn.workers.UvicornWorker", "main:app", "--bind", "0.0.0.0:8003", "--workers", "1", "--timeout", "60", "--access-logfile", "-"]

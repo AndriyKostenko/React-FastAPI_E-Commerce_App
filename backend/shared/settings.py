@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     USER_SERVICE_APP_PORT: int
     PRODUCT_SERVICE_APP_PORT: int
     NOTIFICATION_SERVICE_APP_PORT: int
+    NOTIFICATION_CONSUMER_SERVICE_APP_PORT: int
     
     DEBUG_MODE: bool
     ALLOWED_HOSTS: List[str]
@@ -25,11 +26,13 @@ class Settings(BaseSettings):
     USER_SERVICE_URL: str
     PRODUCT_SERVICE_URL: str
     NOTIFICATION_SERVICE_URL: str
-    
+    NOTIFICATION_CONSUMER_SERVICE_URL: str
+
     API_GATEWAY_SERVICE_URL_API_VERSION: str
     USER_SERVICE_URL_API_VERSION: str
     PRODUCT_SERVICE_URL_API_VERSION: str
     NOTIFICATION_SERVICE_URL_API_VERSION: str
+    NOTIFICATION_CONSUMER_SERVICE_URL_API_VERSION: str
 
     # Shared Database configuration
     POSTGRES_USER: str
@@ -78,9 +81,6 @@ class Settings(BaseSettings):
     RESET_TOKEN_EXPIRY_MINUTES: int
     VERIFICATION_TOKEN_EXPIRY_MINUTES: int
     CRYPT_CONTEXT_SCHEME: str
-    
-    # FastStream consumers ports
-    NOTIFICATION_SERVICE_CONSUMER_PORT: int
 
     # Stripe
     STRIPE_SECRET_KEY: str
@@ -108,7 +108,6 @@ class Settings(BaseSettings):
 
     # Other
     SECRET_ROLE: str
-
 
 
     @property
@@ -179,8 +178,15 @@ class Settings(BaseSettings):
     @property
     def FULL_NOTIFICATION_SERVICE_URL(self) -> str:
         return f"{self.NOTIFICATION_SERVICE_URL}{self.NOTIFICATION_SERVICE_URL_API_VERSION}"
-    
-    
+
+
+    #-------------NOTIFICATION-CONSUMER-SERVICE----------------
+    @property
+    def FULL_NOTIFICATION_CONSUMER_SERVICE_URL(self) -> str:
+        return f"{self.NOTIFICATION_CONSUMER_SERVICE_URL}{self.NOTIFICATION_CONSUMER_SERVICE_URL_API_VERSION}"
+
+
+
     @classmethod
     def customise_sources(cls, settings_cls, init_settings, env_settings, file_secret_settings):
         """

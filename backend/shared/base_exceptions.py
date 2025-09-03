@@ -45,6 +45,10 @@ class NoFieldInTheModelError(BaseAPIException):
         detail = f"Model {model_name} has no field: '{field_name}'"
         super().__init__(detail=detail, status_code=400)
         
-        
-        
 
+
+#---------Email Service Errors-------
+class EmailServiceError(BaseAPIException):
+    """Raised when there is an error with the email service"""
+    def __init__(self, detail: str = "Email service error"):
+        super().__init__(detail=detail, status_code=500)

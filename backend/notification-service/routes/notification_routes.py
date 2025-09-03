@@ -5,7 +5,7 @@ from uuid import UUID
 
 from pydantic import EmailStr
 from shared.shared_instances import notification_service_redis_manager
-from service_layer.email_service import email_service
+from shared.email_service import email_service
 from schemas.notifications_schemas import EmailSchema, ForgotPasswordRequest, ForgotPasswordResponse, ResetPasswordRequest, PasswordUpdateResponse
 from shared.shared_instances import settings
 

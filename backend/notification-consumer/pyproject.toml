@@ -1,0 +1,11 @@
+[project]
+name = "notification-consumer"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "faststream[cli,rabbit]>=0.5.0",
+    "orjson>=3.11.3",
+    "redis>=6.4.0",
+]
