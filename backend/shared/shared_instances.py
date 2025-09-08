@@ -1,4 +1,5 @@
 
+from shared.email_service import EmailService
 from shared.logger_config import setup_logger
 from shared.redis_manager import RedisManager
 from shared.settings import get_settings
@@ -10,6 +11,12 @@ settings = get_settings()
 
 # Logger setup
 logger = setup_logger(__name__)
+
+# Email Service
+email_service = EmailService(settings=settings, logger=logger)
+
+
+
 
 #-----------------------------------Redis-Managers------------------------------------------------
 
@@ -27,6 +34,12 @@ product_service_redis_manager = RedisManager(service_prefix="product-service",
 notification_service_redis_manager = RedisManager(service_prefix="notification-service",
                                                   redis_url=settings.NOTIFICATION_SERVICE_REDIS_URL,
                                                   logger=logger)
+
+
+
+
+
+
 
 
 #------------------------------------DB-Managers-----------------------------------------------

@@ -1,3 +1,4 @@
+from urllib.parse import urljoin
 from fastapi import HTTPException
 
 import httpx #type: ignore
@@ -38,8 +39,7 @@ class ApiGateway:
         )
 
     @circuit(failure_threshold=5, recovery_timeout=30)
-    async def forward_request(self, service_key: str, method: str, path: str, body=None, headers=None, current_user=None) -> JSONResponse:
-        
+    async def forward_request(self, service_key: str, method: str, path: str, body=None, headers=None) -> JSONResponse:
         self.logger.debug(f"Available services: {list(self.config.services.keys())}")
         self.logger.debug(f"Requested service key: {service_key}")
         
@@ -48,14 +48,11 @@ class ApiGateway:
             raise HTTPException(status_code=404, detail="Service not found")
         
         # Get the actual service configuration
-        service_config = self.config.services[service_key]
-        
+        service_config = self.config.services[service_key]     
         # Use the first instance URL (you can add load balancing logic later)
         service_url = service_config.instances[0]
-        
         # Build the full URL robustly
-
-        url = f"{service_url}/{path}"
+        url = urljoin(service_url.rstrip('/') + '/', path.lstrip('/'))
         
         self.logger.info(f"Forwarding request to: {url} with method: {method} and body: {body}")
         

@@ -63,9 +63,9 @@ USER notificationconsumer_user
 # Expose app port
 EXPOSE 8004
 
-# Health check
+# Health check - verify the FastStream process is running
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8004/health || exit 1
+    CMD ps aux | grep -v grep | grep "faststream run" || exit 1
 
 # Use faststream run to start the consumer
 CMD ["faststream", "run", "main:app"]

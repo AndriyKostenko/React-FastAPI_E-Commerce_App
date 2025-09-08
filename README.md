@@ -1,5 +1,8 @@
 ## Getting Started
 
+
+
+
 ## Alembic migrations
 
 - Initialize Alembic (if you haven’t): alembic init alembic
@@ -11,6 +14,9 @@
 - Roll back a migration (optional): alembic downgrade -1 / alembic downgrade <revision_id>
 
 - Mark current DB as up-to-date without running migrations: alembic stamp head (if got error about not matching your current models with existing, u can stamp specific idwith: alembic stamp <revision_id> )
+
+
+
 
 ## Redis
 
@@ -53,6 +59,8 @@
    Stop the process (if it's another Redis instance)
    `sudo systemctl stop redis-server`
 
+
+
 ## Docker
    building the image
    ` docker build -t user-service . `
@@ -73,6 +81,9 @@
    Remove all existing containers, networks, and volumes
    ` docker system prune -af --volumes `
 
+   Quick one-liner to remove only <none> images:
+   ` docker rmi $(docker images -f "dangling=true" -q)`
+
 ## UV
 
  - uv init
@@ -85,19 +96,42 @@
 
 
 ## FastStream (RabbitMQ)
-User Action → API Gateway → User Service → Response
-                ↓
-          Publish Event → RabbitMQ Queue
-                ↓
-       Notification Service → Send Email
+
+   RabbitMQ url
+   `http://localhost:15672`
+
+   FastStream allows you to scale application right from the command line by running you application in the Process pool.
+   ` faststream run serve:app --workers 2 `
+
+   Generating of ApiDocs
+   1. ` docker compose ps ` - checking all running services
+   2. ` docker compose exec notification-consumer sh ` - entering the container
+   3. ` faststream docs serve main:app --host 0.0.0.0 --port 8004 ` - generatig the
+   4. ` http://0.0.0.0:8004/docs/asyncapi ` - opening generated docs
+
+   Once confirmed, open your browser and go to:
+   http://localhost:15672
+   You'll see the RabbitMQ Management interface where you can:
+
+   View Exchanges (where messages are published)
+   View Queues (where messages are stored)
+   View Connections (active connections)
+   Monitor Message rates
+   Debug Message flow
 
 
-Event Flow Summary:
+   User Action → API Gateway → User Service → Response
+                  ↓
+            Publish Event → RabbitMQ Queue
+                  ↓
+         Notification Service → Send Email
 
-User Registration: API Gateway → User Service → Event → Notification Consumer
-Password Reset Request: API Gateway → User Service → Event → Notification Consumer
-Email Verification: API Gateway → Event → Notification Consumer
-Direct Email Endpoints: For testing/admin purposes only
+   Event Flow Summary:
+
+   User Registration: API Gateway → User Service → Event → Notification Consumer
+   Password Reset Request: API Gateway → User Service → Event → Notification Consumer
+   Email Verification: API Gateway → Event → Notification Consumer
+   Direct Email Endpoints: For testing/admin purposes only
 
 
 

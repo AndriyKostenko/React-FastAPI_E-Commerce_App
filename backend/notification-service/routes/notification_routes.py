@@ -1,12 +1,11 @@
-from fastapi import APIRouter, status, BackgroundTasks, Request
+from fastapi import APIRouter, status, Request
 
 from fastapi.responses import JSONResponse
 from uuid import UUID
 
 from pydantic import EmailStr
-from shared.shared_instances import notification_service_redis_manager
-from shared.email_service import email_service
-from schemas.notifications_schemas import EmailSchema, ForgotPasswordRequest, ForgotPasswordResponse, ResetPasswordRequest, PasswordUpdateResponse
+from shared.shared_instances import notification_service_redis_manager, email_service
+from schemas.notifications_schemas import ForgotPasswordResponse
 from shared.shared_instances import settings
 
 

@@ -16,7 +16,7 @@ user_proxy = APIRouter(tags=["User Service"])
 # Public endpoints (no authentication required)
 @user_proxy.post("/register", summary="Register a new user")
 async def register_user(request: Request):
-    body_data = await request.body()
+    body_data = await request.json()
     user_service_response = await api_gateway_manager.forward_request(
         service_key="user-service",
         method=request.method,

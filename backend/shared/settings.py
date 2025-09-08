@@ -97,7 +97,7 @@ class Settings(BaseSettings):
     MAIL_FROM: str
     MAIL_FROM_NAME: str
     USE_CREDENTIALS: bool
-    TEMPLATES_DIR: str 
+    TEMPLATES_DIR: str = str(Path(__file__).parent / "templates")
     VALIDATE_CERTS: bool
 
     # CORS

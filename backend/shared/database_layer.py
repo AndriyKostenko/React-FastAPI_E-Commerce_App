@@ -83,10 +83,10 @@ class BaseRepository(Generic[ModelType]):
     
     async def filter_by(self, **kwargs) -> list[ModelType]:
         """Filter records by multiply fields"""
+        query = select(self.model)  # Always initialize query
         for field, value in kwargs.items():
             if hasattr(self.model, field):
-                query = select(self.model).where(getattr(self.model, field) == value)
-        
+                query = query.where(getattr(self.model, field) == value)
         result = await self.session.execute(query)
         return list(result.scalars().all())
 

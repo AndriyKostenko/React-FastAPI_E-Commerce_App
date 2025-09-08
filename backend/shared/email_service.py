@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import List, Dict
 from uuid import UUID
 
@@ -7,12 +7,10 @@ from fastapi_mail.errors import ConnectionErrors
 from pydantic import ValidationError, EmailStr
 from jinja2 import Environment, FileSystemLoader, TemplateNotFound
 
+from shared.metaclasses import SingletonMetaClass
 from shared.base_exceptions import EmailServiceError
-from shared.shared_instances import settings, logger
 
-
-
-class EmailService:
+class EmailService(metaclass=SingletonMetaClass):
     """Service for sending emails using FastAPI Mail and Jinja2 templates."""
     
     def __init__(self, settings, logger):
@@ -210,4 +208,4 @@ class EmailService:
         )
        
             
-email_service = EmailService(settings=settings, logger=logger)
+
