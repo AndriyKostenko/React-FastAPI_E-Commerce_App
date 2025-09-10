@@ -88,15 +88,14 @@ class EmailService(metaclass=SingletonMetaClass):
     async def send_verification_email(self,
                                       email: EmailStr,
                                       user_id: UUID,
-                                      user_role: str | None,
                                       token) -> None:
         """Send verification email - called from event consumer."""
-        if not email or not user_id or not user_role:
-            self.logger.error("Email, user_id, or user_role is missing")
-            raise EmailServiceError("Email, user_id, or user_role is missing")
+        if not email or not user_id:
+            self.logger.error("Email or user_id is missing")
+            raise EmailServiceError("Email or user_id is missing")
 
 
-        activate_url = f"http://{self.settings.APP_HOST}:{self.settings.USER_SERVICE_APP_PORT}/api/v1/activate/{token}"
+        activate_url = f"http://{self.settings.APP_HOST}:{self.settings.USER_SERVICE_APP_PORT}{self.settings.NOTIFICATION_SERVICE_URL_API_VERSION}/activate/{token}"
 
         self.logger.info(f"Sending verification email to: {email} with token: {token}")
         

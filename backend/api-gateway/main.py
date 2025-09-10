@@ -43,8 +43,11 @@ async def authentication_middleware(request: Request, call_next):
     """
     Authentication middleware to handle JWT tokens
     """
-    auth_mw = AuthMiddleware(request=request, call_next=call_next, logger=logger, settings=settings)
-    return await auth_mw.auth_middleware()
+    return await AuthMiddleware(request=request, 
+                                call_next=call_next, 
+                                logger=logger, 
+                                settings=settings).auth_middleware()
+
 
 
 @app.middleware("http")

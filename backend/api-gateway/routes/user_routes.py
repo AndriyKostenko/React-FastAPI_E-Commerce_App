@@ -1,3 +1,4 @@
+from os import path
 from uuid import UUID
 from fastapi import APIRouter, Request, Depends, BackgroundTasks
 import json
@@ -16,13 +17,12 @@ user_proxy = APIRouter(tags=["User Service"])
 # Public endpoints (no authentication required)
 @user_proxy.post("/register", summary="Register a new user")
 async def register_user(request: Request):
-    body_data = await request.json()
+
     user_service_response = await api_gateway_manager.forward_request(
+        request=request,
         service_key="user-service",
-        method=request.method,
         path="/register",
-        body=body_data,
-        headers=request.headers
+
     )
     
     # Check if registration was successful
@@ -47,15 +47,13 @@ async def register_user(request: Request):
 
 
 @user_proxy.post("/login", summary="User login")
-async def login_user(request: Request, background_tasks: BackgroundTasks):
-    body_data = await request.body()
+async def login_user(request: Request):
+    # passing form data as body to user service coz it expects form data for OAuth2
+    # so we need to forward the form data as is
     user_service_response = await api_gateway_manager.forward_request(
+        request=request,
         service_key="user-service",
-        method=request.method,
-        path="/login",
-        body=body_data,
-        headers=request.headers
-    )
+        path="/login",)
     
     # Check if login was successful
     if user_service_response.status_code != 200:
@@ -63,10 +61,9 @@ async def login_user(request: Request, background_tasks: BackgroundTasks):
     
     # publish the login event
     response_data = json.loads(user_service_response.body)
+    
     await events_publisher.publish_user_login(
-        user_id=response_data["id"],
-        email=response_data["email"],
-        role=response_data["role"]
+        email=response_data["user_email"],
     )
             
     return user_service_response
@@ -74,7 +71,7 @@ async def login_user(request: Request, background_tasks: BackgroundTasks):
     
 @user_proxy.post("/forgot-password", summary="Request password reset")
 async def forgot_password(request: Request):
-    body_data = await request.body()
+    body_data = await request.json()
     return await api_gateway_manager.forward_request(
         service_key="user-service",
         method=request.method,
@@ -86,8 +83,8 @@ async def forgot_password(request: Request):
 
 @user_proxy.post("/password-reset/{token}", summary="Reset password with token")
 async def reset_password(request: Request, token: str):
-    body_data = await request.body()
-    
+    body_data = await request.json()
+
     user_service_response =  await api_gateway_manager.forward_request(
         service_key="user-service",
         method=request.method,

@@ -143,7 +143,8 @@ async def login(request: Request,
             access_token=access_token,
             token_type=settings.TOKEN_TYPE,
             token_expiry=expiry_timestamp,
-            user_id=user.id
+            user_id=user.id,
+            user_email=user.email
             ),
         status_code=status.HTTP_200_OK
         )

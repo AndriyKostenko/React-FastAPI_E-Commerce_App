@@ -10,22 +10,21 @@ class BaseEvent(BaseModel):
     event_id: UUID
     timestamp: datetime
     service: str
+    event_type: str
 
 
 class UserRegisteredEvent(BaseEvent):
     """Event published when a user registers"""
     user_id: UUID
     email: EmailStr
-    role: str
     token: str
  
     
 
 class UserLoginEvent(BaseEvent):
     """Event published when a user logs in"""
-    user_id: UUID
     email: EmailStr
-    role: str  
+
 
 
 class PasswordResetRequestedEvent(BaseEvent):

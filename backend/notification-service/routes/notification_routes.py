@@ -18,13 +18,11 @@ notification_routes = APIRouter(tags=["notification-service"])
 async def send_verification_email(request: Request,
                                   user_email: EmailStr,
                                   user_id: UUID,
-                                  user_token: str,
-                                  user_role: str) -> JSONResponse:
+                                  user_token: str) -> JSONResponse:
     """Send verification email directly (for testing or admin purposes)"""
     await email_service.send_verification_email(
         email=user_email,
         user_id=user_id,
-        user_role=user_role,
         token=user_token
     )
     return JSONResponse(
