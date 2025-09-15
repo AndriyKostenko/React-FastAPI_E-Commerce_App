@@ -3,7 +3,7 @@ from urllib.parse import urljoin
 from fastapi import HTTPException, Request
 import json
 
-from httpx import AsyncClient, HTTPStatusError, RequestError
+from httpx import AsyncClient, HTTPStatusError, RequestError #type: ignore
 from circuitbreaker import circuit #type: ignore
 from shared.customized_json_response import JSONResponse
 
@@ -86,7 +86,6 @@ class ApiGateway:
             return raw_body, content_type
 
 
-    
     def _prepare_headers(self, request_headers, new_content_type=None):
         """
         Prepare headers for forwarding, removing problematic ones and adding new content-type if needed
@@ -128,7 +127,7 @@ class ApiGateway:
             try:
                 if prepared_body is None:
                     # No body
-                    response = await client.requst(
+                    response = await client.request(
                         method=request.method,
                         url=url,
                         headers=headers

@@ -1,10 +1,11 @@
-from os import path
+
 from uuid import UUID
-from fastapi import APIRouter, Request, Depends, BackgroundTasks
+from fastapi import APIRouter, Request, Depends
 import json
 
+from pydantic import EmailStr
+
 from apigateway import api_gateway_manager
-from shared.shared_instances import logger
 from dependencies.auth_dependencies import (get_current_user, 
                                             require_admin, 
                                             require_user_or_admin)
@@ -71,42 +72,32 @@ async def login_user(request: Request):
     
 @user_proxy.post("/forgot-password", summary="Request password reset")
 async def forgot_password(request: Request):
-    body_data = await request.json()
     return await api_gateway_manager.forward_request(
         service_key="user-service",
-        method=request.method,
+        request=request,
         path="/forgot-password",
-        body=body_data,
-        headers=request.headers
+
     )
 
 
 @user_proxy.post("/password-reset/{token}", summary="Reset password with token")
 async def reset_password(request: Request, token: str):
-    body_data = await request.json()
-
     user_service_response =  await api_gateway_manager.forward_request(
         service_key="user-service",
-        method=request.method,
+        request=request,
         path=f"/password-reset/{token}",
-        body=body_data,
-        headers=request.headers
+
     )
     
 
 @user_proxy.post("/activate/{token}", summary="Verify email with token")
 async def verify_email(request: Request, token: str):
-    body_data = await request.body()
     return await api_gateway_manager.forward_request(
         service_key="user-service",
-        method=request.method,
+        request=request,
         path=f"/activate/{token}",
-        body=body_data,
-        headers=request.headers
     )
     
-
-
 
 
 
@@ -115,41 +106,29 @@ async def verify_email(request: Request, token: str):
 @user_proxy.get("/me", summary="Get current user data")
 async def get_current_user_data(request: Request,
                                 current_user: CurrentUserInfo = Depends(get_current_user)):
-    logger.info(f"User: {current_user.email} accessing /me endpoint")
-    body_data = await request.body()
     return await api_gateway_manager.forward_request(
         service_key="user-service",
-        method=request.method,
+        request=request,
         path="/me",
-        body=body_data,
-        headers=request.headers
     )
 
 @user_proxy.get("/users", summary="Get all users")
 async def get_all_users(request: Request,
                         current_user: CurrentUserInfo = Depends(require_admin)):
-    logger.info(f"Admin: {current_user.email} accessing all users")
-    body_data = await request.body()
     return await api_gateway_manager.forward_request(
         service_key="user-service",
-        method=request.method,
         path="/users",
-        body=body_data,
-        headers=request.headers
+        request=request,
     )
 
 @user_proxy.get("/users/email/{user_email}", summary="Get user by email")
 async def get_user_by_email(request: Request, 
-                            user_email: str):
-    # Check authorization using the dependency function
-    current_user_data = require_user_or_admin(request=request, target_user_email=user_email)
-    body_data = await request.body()
+                            user_email: EmailStr):
+    current_user_data = require_user_or_admin(request, target_user_email=user_email)
     return await api_gateway_manager.forward_request(
         service_key="user-service",
-        method=request.method,
+        request=request,
         path=f"/users/email/{current_user_data.email}",
-        body=body_data,
-        headers=request.headers
     )
 
 @user_proxy.get("/users/id/{user_id}", summary="Get user by ID")
@@ -157,11 +136,8 @@ async def get_user_by_id(request: Request,
                          user_id: UUID):
     # Check authorization using the dependency function
     current_user_data = require_user_or_admin(request, target_user_id=user_id)
-    body_data = await request.body()
     return await api_gateway_manager.forward_request(
         service_key="user-service",
-        method=request.method,
+        request=request,
         path=f"/users/id/{current_user_data.id}",
-        body=body_data,
-        headers=request.headers
     )

@@ -37,16 +37,14 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="API Gateway", lifespan=lifespan)
 
-# Auth middleware runs before gateway middleware
+# Auth middleware runs before gateway middleware and checks JWT tokens
 @app.middleware("http")
 async def authentication_middleware(request: Request, call_next):
     """
     Authentication middleware to handle JWT tokens
     """
-    return await AuthMiddleware(request=request, 
-                                call_next=call_next, 
-                                logger=logger, 
-                                settings=settings).auth_middleware()
+    logger.debug("Running authentication middleware...")
+    return await AuthMiddleware.auth_middleware(request, call_next, logger, settings)
 
 
 

@@ -32,10 +32,13 @@ async def handle_user_events(message: dict[str, Any]):
     match message.get("event_type"):
         case "user.registered":
             event = UserRegisteredEvent(**message)
-            await email_service.send_verification_email(**event.model_dump())
+            await email_service.send_verification_email(email=event.email,
+                                                        user_id=event.user_id,
+                                                        token=event.token)
         case "user.loggedin":
             event = UserLoginEvent(**message)
-            await email_service.send_login_notification_email(**event.model_dump())
+            await email_service.send_login_notification_email(email=event.email,
+                                                              login_time=event.timestamp)
         case _:
             logger.warning(f"Unhandled event type: {message.get('event_type')}")
 

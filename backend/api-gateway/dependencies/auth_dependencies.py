@@ -1,5 +1,6 @@
 from uuid import UUID
 from fastapi import HTTPException, status, Depends, Request
+from pydantic import EmailStr
 from shared.shared_instances import settings, logger
 from schemas.schemas import CurrentUserInfo
 
@@ -7,6 +8,7 @@ from schemas.schemas import CurrentUserInfo
 def get_current_user(request: Request) -> CurrentUserInfo:
     """Get currrent user from the request state (set by auth middleware in main.py)"""
     current_user = getattr(request.state, "current_user", None)
+    logger.info(f"Current user from request state: {current_user}")
     if not current_user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -16,7 +18,7 @@ def get_current_user(request: Request) -> CurrentUserInfo:
     return CurrentUserInfo(**current_user)
 
 
-def require_admin(current_user: CurrentUserInfo = Depends(get_current_user)) -> CurrentUserInfo | HTTPException:
+def require_admin(current_user: CurrentUserInfo = Depends(get_current_user)) -> CurrentUserInfo:
     """Require admin role for accessing endpoints"""
     if current_user.role != settings.SECRET_ROLE:
         raise HTTPException(
@@ -43,3 +45,4 @@ def require_user_or_admin(request: Request,
             detail="Access denied: You can only access your own data"
         )
     return current_user
+

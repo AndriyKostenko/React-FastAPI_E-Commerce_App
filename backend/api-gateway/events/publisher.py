@@ -1,7 +1,7 @@
 from uuid import UUID, uuid4
 from datetime import datetime, timezone
 
-from faststream.rabbit import RabbitBroker, RabbitQueue
+from faststream.rabbit import RabbitBroker, RabbitQueue #type: ignore
 
 from shared.shared_instances import settings, logger
 from shared.schemas.event_schemas import UserRegisteredEvent, UserLoginEvent
