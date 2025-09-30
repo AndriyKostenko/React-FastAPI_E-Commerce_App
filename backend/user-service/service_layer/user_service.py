@@ -8,7 +8,7 @@ from schemas.user_schemas import (
     UserInfo,
     UserBasicUpdate,
 )
-from authentication import auth_manager
+from shared.shared_instances import auth_manager
 from exceptions.user_exceptions import (
     UserAlreadyExistsError,
     UserNotFoundError

@@ -19,4 +19,6 @@ dependencies = [
     "asyncpg>=0.30.0",
     "fastapi-mail>=1.5.0",
     "python-multipart>=0.0.20",
+    "passlib>=1.7.4",
+    "python-jose>=3.5.0",
 ]

@@ -10,4 +10,6 @@ dependencies = [
     "faststream[cli,rabbit]>=0.5.48",
     "orjson>=3.11.1",
     "redis>=6.2.0",
+    "passlib>=1.7.4",
+    "python-jose>=3.5.0",
 ]

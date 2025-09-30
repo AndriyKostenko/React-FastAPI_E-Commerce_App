@@ -1,82 +1,93 @@
 from fastapi import Request, HTTPException
+from fastapi.responses import JSONResponse
+from shared.shared_instances import settings, logger
 from httpx import AsyncClient, RequestError #type: ignore
+from shared.metaclasses import SingletonMetaClass
+from shared.shared_instances import auth_manager
 
 
-
-
-class AuthMiddleware:
+class AuthMiddleware(metaclass=SingletonMetaClass):
     """
     Middleware to handle proper access via JWT authentication by validating tokens with the User Service.
     """
     
-    PUBLIC_ENDPOINTS = {"/", "/register", "/login", "/token", "/health", "/docs",
-                        "/forgot-password", "/activate", "/password-reset"}
+    def __init__(self, settings, logger):
+        self.settings = settings
+        self.logger = logger
         
-    @classmethod
-    def is_public_endpoint(cls, path: str) -> bool:      
-        if path in cls.PUBLIC_ENDPOINTS:
+        # Initialize endpoints with settings
+        self.PUBLIC_ENDPOINTS = {
+            "/health", 
+            "/docs", 
+            "/openapi.json",
+            "/redoc"
+        }
+
+        self.PUBLIC_ENDPOINT_PREFIXES = {
+            f"{self.settings.USER_SERVICE_URL_API_VERSION}/register",
+            f"{self.settings.USER_SERVICE_URL_API_VERSION}/login", 
+            f"{self.settings.USER_SERVICE_URL_API_VERSION}/forgot-password",
+            f"{self.settings.USER_SERVICE_URL_API_VERSION}/activate/",
+            f"{self.settings.USER_SERVICE_URL_API_VERSION}/password-reset/"
+        }
+
+    def is_public_endpoint(self, path: str) -> bool:      
+        """Check if the given path is a public endpoint that doesn't require authentication"""
+        # Check exact matches
+        if path in self.PUBLIC_ENDPOINTS:
             return True
-        return any(path.startswith(prefix) for prefix in cls.PUBLIC_ENDPOINTS)
+        
+        # Check prefix matches
+        return any(path.startswith(prefix) for prefix in self.PUBLIC_ENDPOINT_PREFIXES)
     
-    @classmethod
-    async def auth_middleware(cls, request: Request, call_next, logger, settings):
+    async def middleware(self, request: Request, call_next):
         """
-        Middleware function to authenticate requests using JWT tokens.
+        Main middleware function to authenticate requests using JWT tokens.
         """
         path = request.url.path
-        logger.debug(f"Auth middleware processing path: {path}")
+        self.logger.info(f"🔍 Auth middleware processing path: {path}")
         
         # 1. Skip authentication for public endpoints
-        if cls.is_public_endpoint(path):
-            logger.debug(f"Path {path} is public, skipping auth")
+        is_public = self.is_public_endpoint(path)
+        self.logger.info(f"🔍 Is path '{path}' public? {is_public}")
+        
+        if is_public:
+            self.logger.info(f"✅ Path {path} is public, skipping auth")
             return await call_next(request)
         
-        logger.debug(f"Path {path} is protected, checking authentication")
+        self.logger.info(f"🔒 Path {path} requires authentication")
         
         # 2. Extract and validate the Authorization header
         auth_header = request.headers.get("Authorization")
-        logger.debug(f"Authorization header: {auth_header[:50] if auth_header else None}...")
+        self.logger.info(f"🔍 Authorization header present: {auth_header is not None}")
         
         if not auth_header or not auth_header.startswith("Bearer "):
-            logger.warning("Missing or invalid Authorization header")
+            self.logger.warning("❌ Missing or invalid Authorization header")
             raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
         
         token = auth_header.split(" ")[1]
-        logger.debug(f"Extracted token length: {len(token)}")
+        self.logger.info(f"🔍 Extracted token (first 20 chars): {token[:20]}...")
         
         # 3. Validate the token with the User Service
-        logger.debug("Starting token validation with User Service")
-        async with AsyncClient() as client:
-            try:
-                validation_url = f"{settings.FULL_USER_SERVICE_URL}/me"
-                logger.debug(f"Validating token at: {validation_url}")
-                
-                response = await client.get(
-                    validation_url,
-                    headers={"Authorization": f"Bearer {token}"},
-                    timeout=10.0
-                )
-                
-                logger.debug(f"User service response status: {response.status_code}")
-                
-                if response.status_code == 200:
-                    user_data = response.json()
-                    logger.info(f"Token validated successfully for user: {user_data.get('email', 'unknown')}")
-                    # This is the critical line!
-                    request.state.current_user = user_data
-                    logger.debug(f"Set current_user in request.state: {user_data}")
-                else:
-                    logger.warning(f"Token validation failed with status: {response.status_code}")
-                    raise HTTPException(status_code=401, detail="Invalid token or user not found")
-                    
-            except RequestError as e:
-                logger.error(f"Error connecting to User Service: {e}")
-                raise HTTPException(status_code=503, detail="User Service unavailable")
-            except Exception as e:
-                logger.error(f"Unexpected error during token validation: {e}")
-                raise HTTPException(status_code=500, detail="Internal server error")
+        try:
+            # Use shared auth manager to decode token
+            user_data = auth_manager.decode_token(token)
+            
+            # Attach user data to request state for downstream access
+            request.state.current_user = user_data
+            self.logger.info(f"✅ Token validated for: {user_data.get('email')}")
+        except HTTPException as exc:
+            return JSONResponse(
+                status_code=exc.status_code,
+                content={"detail": exc.detail, "error": "invalid_token"}
+            )
+        except Exception:
+            return JSONResponse(
+                status_code=401,
+                content={"detail": "Token validation failed", "error": "invalid_token"}
+            )
         
-        logger.debug("Token validation completed, proceeding to next middleware")
         return await call_next(request)
+    
 
-
+auth_middleware = AuthMiddleware(settings, logger)

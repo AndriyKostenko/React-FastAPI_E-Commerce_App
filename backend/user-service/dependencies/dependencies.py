@@ -5,8 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from service_layer.user_service import UserService
 from database_layer.user_repository import UserRepository
-from shared.shared_instances import user_service_database_session_manager
-from authentication import auth_manager
+from shared.shared_instances import user_service_database_session_manager, auth_manager
 from schemas.user_schemas import CurrentUserInfo
 from shared.shared_instances import settings
 

@@ -138,3 +138,61 @@
 
 ## PG Admin
    - http://localhost:5050
+
+
+
+
+## Typical target latency budgets (containerized microservices, single region, moderate load):
+
+P50, P95, P99 are latency percentiles.
+
+P50 (50th percentile): Median. 50% of requests are faster than this value, 50% slower.
+P95 (95th percentile): 95% of requests complete at or below this time; 5% are slower.
+P99 (99th percentile): Tail latency. Only 1% of requests are slower. Shows rare slow cases.
+
+Login (/login):
+
+P50: 80–150 ms
+P95: <300 ms
+P99: <500 ms Dominant cost: password hash verify (bcrypt 12 cost ~80–200 ms). Acceptable: your 200 ms is fine.
+Register (/register):
+
+P50: 120–250 ms (DB insert + token generation)
+P95: <600 ms
+P99: <900 ms Send email asynchronously (queue) so request isn’t blocked by SMTP/API (email call alone can be 150–400 ms).
+Password reset request (/password-reset/request):
+
+P50: 100–180 ms (create token + persist)
+P95: <350–400 ms Offload email same as register.
+Password reset confirm (/password-reset/confirm):
+
+P50: 90–170 ms (verify token + hash new password + update)
+P95: <350 ms
+P99: <550 ms
+Access token refresh (/refresh):
+
+P50: 40–90 ms
+P95: <180 ms
+Simple authenticated GET (user profile):
+
+P50: 30–70 ms
+P95: <150 ms
+List endpoints (small result sets):
+
+P50: 40–90 ms
+P95: <180 ms
+Write operations (standard DB insert/update):
+
+P50: 50–120 ms
+P95: <250 ms
+SLO suggestions:
+
+Global: 99% of auth-related requests <500 ms
+P95 login/register <300–400 ms
+Error rate <0.1%
+If you need tighter login times:
+
+Reduce bcrypt rounds (only if policy allows) or switch to Argon2id tuned for ~100 ms
+Warm containers (avoid CPU throttling)
+Trim excessive synchronous logging
+Reuse DB sessions and HTTP clients

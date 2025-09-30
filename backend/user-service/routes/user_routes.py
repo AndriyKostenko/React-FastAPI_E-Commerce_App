@@ -2,11 +2,10 @@ from datetime import timedelta
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import Depends, APIRouter, status, BackgroundTasks, Request
+from fastapi import Depends, APIRouter, status, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import EmailStr
 
-from authentication import auth_manager
 from schemas.user_schemas import (UserSignUp, 
                                     UserInfo, 
                                     TokenSchema, 
@@ -16,7 +15,7 @@ from schemas.user_schemas import (UserSignUp,
                                     ResetPasswordRequest,
                                     PasswordUpdateResponse)
 from dependencies.dependencies import user_crud_dependency
-from shared.shared_instances import user_service_redis_manager, settings
+from shared.shared_instances import user_service_redis_manager, settings, auth_manager
 from shared.customized_json_response import JSONResponse
 
 

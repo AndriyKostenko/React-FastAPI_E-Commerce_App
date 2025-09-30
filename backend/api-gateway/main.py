@@ -10,8 +10,8 @@ from routes.user_routes import user_proxy
 from shared.shared_instances import (api_gateway_redis_manager, 
                                      logger, 
                                      settings)
-from middleware.auth_middleware import AuthMiddleware
 from events.publisher import events_publisher
+from middleware.auth_middleware import auth_middleware
 
 
 
@@ -44,7 +44,7 @@ async def authentication_middleware(request: Request, call_next):
     Authentication middleware to handle JWT tokens
     """
     logger.debug("Running authentication middleware...")
-    return await AuthMiddleware.auth_middleware(request, call_next, logger, settings)
+    return await auth_middleware.middleware(request, call_next)
 
 
 

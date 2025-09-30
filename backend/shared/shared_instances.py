@@ -4,6 +4,7 @@ from shared.logger_config import setup_logger
 from shared.redis_manager import RedisManager
 from shared.settings import get_settings
 from shared.database_setup import DatabaseSessionManager
+from shared.authentication import AuthenticationManager
 
 
 # Initialize settings
@@ -14,6 +15,9 @@ logger = setup_logger(__name__)
 
 # Email Service
 email_service = EmailService(settings=settings, logger=logger)
+
+# Authentication Manager
+auth_manager = AuthenticationManager(settings=settings)
 
 
 
