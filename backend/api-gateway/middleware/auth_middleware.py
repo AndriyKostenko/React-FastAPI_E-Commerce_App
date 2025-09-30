@@ -63,8 +63,12 @@ class AuthMiddleware(metaclass=SingletonMetaClass):
         
         if not auth_header or not auth_header.startswith("Bearer "):
             self.logger.warning("❌ Missing or invalid Authorization header")
-            raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
-        
+            return JSONResponse(
+                status_code=401,
+                content={"detail": "Missing or invalid Authorization header",
+                         "error": "missing_authorization_header"}
+            )
+
         token = auth_header.split(" ")[1]
         self.logger.info(f"🔍 Extracted token (first 20 chars): {token[:20]}...")
         
@@ -75,7 +79,7 @@ class AuthMiddleware(metaclass=SingletonMetaClass):
             
             # Attach user data to request state for downstream access
             request.state.current_user = user_data
-            self.logger.info(f"✅ Token validated for: {user_data.get('email')}")
+            self.logger.info(f"✅ Token is validated for: {user_data.get('email')}")
         except HTTPException as exc:
             return JSONResponse(
                 status_code=exc.status_code,

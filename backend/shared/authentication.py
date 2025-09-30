@@ -48,6 +48,8 @@ class AuthenticationManager:
         self.pwd_context = CryptContext(schemes=settings.CRYPT_CONTEXT_SCHEME, deprecated="auto")
         
         # Initialize global oauth2 scheme once
+        # TODO: i really dont like how its done...need to find a better way
+        # TODO: and the problem is that it was initialized outisde of the class and works well, but i cant import setting coz of circular import
         global oauth2_scheme
         if oauth2_scheme is None:
             oauth2_scheme = OAuth2PasswordBearer(
