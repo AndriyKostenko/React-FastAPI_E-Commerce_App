@@ -42,7 +42,7 @@ class RedisManager:
         # This allows us to use self.redis to access the Redis instance
         return self._redis
     
-        
+    
     # ==================== CACHING FUNCTIONALITY ====================
     
     async def _async_gen_wrapper(self, data: list[bytes]) -> AsyncGenerator[bytes, None]:
@@ -54,12 +54,21 @@ class RedisManager:
     
     
     def _generate_cache_key(self, request: Request) -> str:
-        #For API Gateway, cache based on endpoint and query params
-        endpoint = request.url.path
+        """Generate cache key with method and normalized URL"""
+        method = str(request.method)
+        path = str(request.url.path)
         query_params = str(request.query_params) if request.query_params else ""
-        self.logger.debug(f"Generating cache key:{self.service_prefix}:cache:{endpoint}:{query_params}")
-        return f"{self.service_prefix}:cache:{endpoint}:{query_params}"
         
+        # Create a unique key that includes method and exact path
+        cache_key = f"{self.service_prefix}:cache:{method}:{path}:{query_params}"
+
+        self.logger.debug(f"Generating cache key: {cache_key}, "
+                          f"Original URL: {request.url}, "
+                          f"Raw path: {path}, "
+                          f"Query params: {query_params}")
+
+        return cache_key
+         
         
     def _should_skip_caching(self, request: Request, response) -> bool:
         """
@@ -73,7 +82,6 @@ class RedisManager:
             request.method != "GET" 
             or not (200 <= response.status_code < 300) 
             or response.headers.get("Cache-Control") == "no-cache"
-            or "Authorization" in request.headers
             or is_not_monitoring_endpoint
         )
     

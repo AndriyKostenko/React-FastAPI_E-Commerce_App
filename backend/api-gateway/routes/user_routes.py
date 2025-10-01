@@ -22,8 +22,6 @@ async def register_user(request: Request):
     user_service_response = await api_gateway_manager.forward_request(
         request=request,
         service_key="user-service",
-        path="/register",
-
     )
     
     # Check if registration was successful
@@ -54,7 +52,7 @@ async def login_user(request: Request):
     user_service_response = await api_gateway_manager.forward_request(
         request=request,
         service_key="user-service",
-        path="/login",)
+  )
     
     # Check if login was successful
     if user_service_response.status_code != 200:
@@ -75,8 +73,6 @@ async def forgot_password(request: Request):
     return await api_gateway_manager.forward_request(
         service_key="user-service",
         request=request,
-        path="/forgot-password",
-
     )
 
 
@@ -85,8 +81,6 @@ async def reset_password(request: Request, token: str):
     user_service_response =  await api_gateway_manager.forward_request(
         service_key="user-service",
         request=request,
-        path=f"/password-reset/{token}",
-
     )
     
 
@@ -95,7 +89,6 @@ async def verify_email(request: Request, token: str):
     return await api_gateway_manager.forward_request(
         service_key="user-service",
         request=request,
-        path=f"/activate/{token}",
     )
     
 
@@ -108,8 +101,7 @@ async def get_current_user_data(request: Request,
                                 current_user: CurrentUserInfo = Depends(get_current_user)):
     return await api_gateway_manager.forward_request(
         service_key="user-service",
-        request=request,
-        path="/me",
+        request=request
     )
 
 @user_proxy.get("/users", summary="Get all users")
@@ -117,27 +109,24 @@ async def get_all_users(request: Request,
                         current_user: CurrentUserInfo = Depends(require_admin)):
     return await api_gateway_manager.forward_request(
         service_key="user-service",
-        path="/users",
         request=request,
     )
 
 @user_proxy.get("/users/email/{user_email}", summary="Get user by email")
 async def get_user_by_email(request: Request, 
                             user_email: EmailStr):
-    current_user_data = require_user_or_admin(request, target_user_email=user_email)
+    require_user_or_admin(request, target_user_email=user_email)
     return await api_gateway_manager.forward_request(
         service_key="user-service",
         request=request,
-        path=f"/users/email/{current_user_data.email}",
     )
 
 @user_proxy.get("/users/id/{user_id}", summary="Get user by ID")
 async def get_user_by_id(request: Request, 
                          user_id: UUID):
     # Check authorization using the dependency function
-    current_user_data = require_user_or_admin(request, target_user_id=user_id)
+    require_user_or_admin(request, target_user_id=user_id)
     return await api_gateway_manager.forward_request(
         service_key="user-service",
         request=request,
-        path=f"/users/id/{current_user_data.id}",
     )

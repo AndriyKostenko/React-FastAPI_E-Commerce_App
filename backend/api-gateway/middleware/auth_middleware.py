@@ -52,17 +52,17 @@ class AuthMiddleware(metaclass=SingletonMetaClass):
         self.logger.info(f"🔍 Is path '{path}' public? {is_public}")
         
         if is_public:
-            self.logger.info(f"✅ Path {path} is public, skipping auth")
+            self.logger.info(f"Path {path} is public, skipping auth")
             return await call_next(request)
         
-        self.logger.info(f"🔒 Path {path} requires authentication")
+        self.logger.info(f"Path {path} requires authentication")
         
         # 2. Extract and validate the Authorization header
         auth_header = request.headers.get("Authorization")
         self.logger.info(f"🔍 Authorization header present: {auth_header is not None}")
         
         if not auth_header or not auth_header.startswith("Bearer "):
-            self.logger.warning("❌ Missing or invalid Authorization header")
+            self.logger.warning("Missing or invalid Authorization header")
             return JSONResponse(
                 status_code=401,
                 content={"detail": "Missing or invalid Authorization header",
@@ -79,7 +79,7 @@ class AuthMiddleware(metaclass=SingletonMetaClass):
             
             # Attach user data to request state for downstream access
             request.state.current_user = user_data
-            self.logger.info(f"✅ Token is validated for: {user_data.get('email')}")
+            self.logger.info(f"Token is validated for: {user_data.get('email')}")
         except HTTPException as exc:
             return JSONResponse(
                 status_code=exc.status_code,

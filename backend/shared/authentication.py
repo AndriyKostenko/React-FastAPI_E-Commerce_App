@@ -1,7 +1,6 @@
 from datetime import timedelta, datetime, timezone
 from typing import Annotated
 from uuid import UUID
-from webbrowser import get
 
 from passlib.context import CryptContext
 from fastapi import Depends, HTTPException, HTTPException
@@ -10,29 +9,16 @@ from jose import jwt, JWTError
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 
 from shared.schemas.user_schemas import CurrentUserInfo
+from shared.settings import get_settings
 
-
-
-# Password hashing context
-
+settings = get_settings()
 
 # OAuth2PasswordBearer is a class that provides a way to extract the token from the request
 # scheme_name is similar to variable name
-#oauth2_scheme = OAuth2PasswordBearer(
-#    tokenUrl=settings.TOKEN_URL,
-#    scheme_name="oauth2_scheme",   
-#)
-
-# Global (lazy) oauth2 scheme holder to avoid class-body self reference NameError
-oauth2_scheme: OAuth2PasswordBearer | None = None
-
-def get_oauth2_scheme() -> OAuth2PasswordBearer:
-    if oauth2_scheme is None:
-        # Should not happen after AuthenticationManager initialization
-        raise RuntimeError("OAuth2PasswordBearer not initialized yet")
-    return oauth2_scheme
-
- 
+oauth2_scheme = OAuth2PasswordBearer(
+    tokenUrl=settings.TOKEN_URL,
+    scheme_name="oauth2_scheme"
+ )
 
 
 class AuthenticationManager:
@@ -41,21 +27,10 @@ class AuthenticationManager:
     It uses the settings from the shared settings module for configuration.
     """
     
-    def __init__(self, settings):
-        self.settings = settings
-        self.initialized = True
-        self.token_expire_minutes = self.settings.TIME_DELTA_MINUTES
-        self.pwd_context = CryptContext(schemes=settings.CRYPT_CONTEXT_SCHEME, deprecated="auto")
-        
-        # Initialize global oauth2 scheme once
-        # TODO: i really dont like how its done...need to find a better way
-        # TODO: and the problem is that it was initialized outisde of the class and works well, but i cant import setting coz of circular import
-        global oauth2_scheme
-        if oauth2_scheme is None:
-            oauth2_scheme = OAuth2PasswordBearer(
-                tokenUrl=settings.TOKEN_URL,
-                scheme_name="oauth2_scheme"
-            )
+    def __init__(self, settings_instance):
+        self.settings = settings_instance
+        self.pwd_context = CryptContext(schemes=self.settings.CRYPT_CONTEXT_SCHEME, deprecated="auto")
+    
         
     def hash_password(self, entered_password: str) -> str:
         """Hash password using bcrypt with caching for frequently used passwords"""
@@ -135,7 +110,7 @@ class AuthenticationManager:
         )
     
     async def get_current_user_from_token(self, 
-                                          token: Annotated[str, Depends(get_oauth2_scheme)],
+                                          token: Annotated[str, Depends(oauth2_scheme)],
                                           required_purpose: str = "access") -> CurrentUserInfo:
         """Checking if user is logged in and with valid token"""
         token_data = self.decode_token(token, required_purpose=required_purpose)
@@ -145,7 +120,6 @@ class AuthenticationManager:
             role=token_data["role"]
         )
 
-    
     async def get_authenticated_user(self,
                                     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
                                     user_service):

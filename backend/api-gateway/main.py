@@ -52,22 +52,12 @@ async def authentication_middleware(request: Request, call_next):
 async def gateway_middleware(request: Request, call_next) -> Response:
     """
     Middleware to handle rate limiting and caching for the API Gateway.
+    Before i got the caching but it was causing issues with auth so removed it for now.
     """
-    
     # 1. Global rate limit check (max 1000 requests per 1 minute)
     await api_gateway_redis_manager.is_rate_limited(request, times=1000, seconds=60)
-
-    # 2. Check if the response is cached (for GET requests and without Authorization headers)
-    cached_response = await api_gateway_redis_manager.get_cached_response(request)
-    if cached_response:
-        return cached_response
- 
-    # 3. Forward request to microservice
+    # 2. Forward request to microservice
     response = await call_next(request)
-
-    # 4. Cache the response if applicable
-    await api_gateway_redis_manager.cache_response(request, response)
-
     return response
 
 

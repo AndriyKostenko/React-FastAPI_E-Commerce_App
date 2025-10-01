@@ -17,8 +17,7 @@ logger = setup_logger(__name__)
 email_service = EmailService(settings=settings, logger=logger)
 
 # Authentication Manager
-auth_manager = AuthenticationManager(settings=settings)
-
+auth_manager = AuthenticationManager(settings_instance=settings)
 
 
 
@@ -38,11 +37,6 @@ product_service_redis_manager = RedisManager(service_prefix="product-service",
 notification_service_redis_manager = RedisManager(service_prefix="notification-service",
                                                   redis_url=settings.NOTIFICATION_SERVICE_REDIS_URL,
                                                   logger=logger)
-
-
-
-
-
 
 
 

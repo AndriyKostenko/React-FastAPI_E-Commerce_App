@@ -39,7 +39,64 @@ class ApiGateway:
                 
             }
         )
+        self.path_mappings = {
+            "user-service": f"{self.settings.USER_SERVICE_URL_API_VERSION}/users",
+            "product-service": f"{self.settings.PRODUCT_SERVICE_URL_API_VERSION}/products",
+            "notification-service": f"{self.settings.NOTIFICATION_SERVICE_URL_API_VERSION}/notifications"
+        }
+        
+    def _extract_service_path(self, request: Request, service_key: str) -> str:
+        """
+        Extract the service-specific path from the full request path.
+        
+        Example:
+        - Request: /api/v1/users/email/test@example.com
+        - Service: user-service  
+        - Returns: /users/email/test@example.com
+        """
+        full_path = request.url.path
+        gateway_prefix = self.path_mappings.get(service_key, "")
+        
+        if gateway_prefix and full_path.startswith(gateway_prefix):
+            # Remove the gateway prefix to get the service path
+            service_path = full_path[len(gateway_prefix):]
+            # Ensure path starts with /
+            if not service_path.startswith("/"):
+                service_path = "/" + service_path
+        else:
+            # Fallback: use the full path
+            service_path = full_path
+            
+        self.logger.debug(f"Path mapping: {full_path} -> {service_path} for {service_key}")
+        return service_path
 
+    # TODO: recreate a function that builds the full URL with /api/v1 prefix
+    def _build_service_url(self, service_key: str, service_path: str, query_params: str = "") -> str:
+        """
+        Build the complete URL for the target service.
+        
+        Args:
+            service_key: The target service identifier
+            service_path: The path to append to service URL  
+            query_params: Query parameters to include
+            
+        Returns:
+            Complete URL for the service
+        """
+        service_config = self.config.services[service_key]
+        service_base_url = service_config.instances[0]
+        
+        # Build the service URL with api/v1 prefix for the service
+        service_url_with_prefix = urljoin(service_base_url.rstrip('/') + '/', 'api/v1')
+        
+        # Append the service path
+        full_url = urljoin(service_url_with_prefix.rstrip('/') + '/', service_path.lstrip('/'))
+        
+        # Add query parameters if present
+        if query_params:
+            full_url += f"?{query_params}"
+            
+        return full_url
 
     async def _detect_and_prepare_body(self, request: Request, path: str):
         """
@@ -85,7 +142,6 @@ class ApiGateway:
                 return None, None
             return raw_body, content_type
 
-
     def _prepare_headers(self, request_headers, new_content_type=None):
         """
         Prepare headers for forwarding, removing problematic ones and adding new content-type if needed
@@ -102,23 +158,31 @@ class ApiGateway:
         return filtered_headers
 
     @circuit(failure_threshold=5, recovery_timeout=30)
-    async def forward_request(self, request: Request, service_key: str, path: str) -> JSONResponse:
+    async def forward_request(self, request: Request, service_key: str) -> JSONResponse:
+        """
+        Forward request to microservice. 
+        Now automatically extracts the correct path based on service mapping.
+        """
 
         if service_key not in self.config.services:
             self.logger.error(f"Service key: {service_key} is not recognized.")
             raise HTTPException(status_code=404, detail="Service not found")
         
-        service_config = self.config.services[service_key]     
-        service_url = service_config.instances[0]
-        url = urljoin(service_url.rstrip('/') + '/', path.lstrip('/'))
+        # Extract service-specific path
+        service_path = self._extract_service_path(request, service_key)
         
-        # detecting and preparing body
-        prepared_body, content_type = await self._detect_and_prepare_body(request, path)
+        # Build complete service URL
+        query_params = str(request.url.query) if request.url.query else ""
+        url = self._build_service_url(service_key, service_path, query_params)
         
-        # preparing headers
+        # Detect and prepare body
+        prepared_body, content_type = await self._detect_and_prepare_body(request, service_path)
+        
+        # Prepare headers
         headers = self._prepare_headers(request_headers=request.headers, new_content_type=content_type)
 
         self.logger.info(f"Forwarding request to: {url} with method: {request.method}")
+        self.logger.debug(f"Service path: {service_path}")
         self.logger.debug(f"Body type: {type(prepared_body)}, Content-Type: {content_type}")
         self.logger.debug(f"Headers: {headers}")
         
