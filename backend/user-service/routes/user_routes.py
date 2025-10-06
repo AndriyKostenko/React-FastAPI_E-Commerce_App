@@ -58,7 +58,10 @@ async def create_user(request: Request,
                       user_service: user_crud_dependency
                       ):
     new_db_user = await user_service.create_user(data=data)
-    
+
+    # Invalidate cache for user list and related endpoints, adding force_method to ensure correct cache keys are targeted
+    await user_service_redis_manager.clear_cache_namespace(namespace="/users", request=request, force_method="GET")  
+
     # generation verification token only for API gateway events
     verification_token, _ = auth_manager.create_access_token(email=new_db_user.email,
                                                             user_id=new_db_user.id,
@@ -66,7 +69,7 @@ async def create_user(request: Request,
                                                             expires_delta=timedelta(minutes=30),
                                                             purpose="email_verification"
                                                             )
-    # adding token to response (internal only)
+    # adding token to response (internal only) for event publishing in API gateway
     response_data = {**new_db_user.model_dump(), "verification_token": verification_token}
     return JSONResponse(content=response_data,
                         status_code=status.HTTP_201_CREATED)
@@ -104,9 +107,12 @@ async def reset_password(request: Request,
                         user_service: user_crud_dependency):
     """Reset password using token"""
     token_data = await auth_manager.get_current_user_from_token(token=token, required_purpose="password_reset")
-    
-    # TODO: is cache invalidation needed?
+
     await user_service.update_user_password(email=token_data.email, new_password=data.new_password)
+    
+    # Invalidate user-specific caches only
+    await user_service_redis_manager.clear_cache_namespace("/users", request=request, force_method="GET")
+    await user_service_redis_manager.clear_cache_namespace("/me", request=request, force_method="GET")
     
     return JSONResponse(
         content=PasswordUpdateResponse(
@@ -128,10 +134,10 @@ async def login(request: Request,
     # Authenticate user with credentials
     user = await auth_manager.get_authenticated_user(form_data=form_data, user_service=user_service)
     
-    # updte last login might change user data, invalidating the redis cache
-    # TODO: is cache invalidation needed?
-    await user_service_redis_manager.invalidate_cache(request=request)
-    
+    # Invalidate user-specific caches only
+    await user_service_redis_manager.clear_cache_namespace("/users", request=request, force_method="GET")
+    await user_service_redis_manager.clear_cache_namespace("/me", request=request, force_method="GET")
+
     # creating access token
     access_token, expiry_timestamp = auth_manager.create_access_token(email=user.email,
                                                                       user_id=user.id, 
@@ -228,5 +234,3 @@ async def get_all_users(request: Request,
     return JSONResponse(content=users,
                         status_code=status.HTTP_200_OK)
 
-
-# TODO: update user data endpoint (name, email, role) - only admin can update role

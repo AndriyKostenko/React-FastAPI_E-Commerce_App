@@ -1,14 +1,94 @@
-from email import header
-from urllib.parse import urljoin
-from fastapi import HTTPException, Request
+import random
+from urllib.parse import urljoin, urlparse, urlunparse
 import json
 
+from fastapi import HTTPException, Request
 from httpx import AsyncClient, HTTPStatusError, RequestError #type: ignore
 from circuitbreaker import circuit #type: ignore
 from shared.customized_json_response import JSONResponse
 
 from shared.shared_instances import settings, logger
 from schemas.schemas import GatewayConfig, ServiceConfig
+
+
+class UrlManager:
+    
+    def __init__(self, config: ServiceConfig, logger):
+        self.config = config
+        self.logger = logger
+        
+    
+    def extract_service_path(self, path: str, service_name: str) -> str:
+        """
+        Extract the path that should be forwarded to the given microservice.
+        
+        Example:
+        - Incoming path: http://127.0.0.1:8000/api/v1/login
+        - Service: user-service
+        - Service base: http://user-service:8001
+        - Returns: /login
+        """
+        parsed = urlparse(path)
+        api_version = self.config.services[service_name].api_version  # e.g. "/api/v1"
+        
+        # Normalize both paths to avoid double slashes or mismatches
+        path_only = parsed.path.strip("/")
+        api_version_clean = api_version.strip("/")
+        
+        # Remove the API version prefix if present
+        if path_only.startswith(api_version_clean):
+            service_specific_path = path_only[len(api_version_clean):]
+        else:
+            service_specific_path = path_only
+
+        # Ensure the path starts with a single "/"
+        service_specific_path = "/" + service_specific_path.lstrip("/")
+
+        # Reattach query if it exists
+        if parsed.query:
+            service_specific_path += f"?{parsed.query}"
+            
+        self.logger.debug(f"Extracted service-specific path for {service_name}: {service_specific_path}")
+        return service_specific_path
+
+
+    
+    def build_url(self, service_name: str, path: str) -> str:
+        """
+        Build the complete URL for a given microservice, 
+        randomly choosing one instance for load balancing.
+
+        Example:
+        - Request path: http://127.0.0.1:8000/api/v1/login?token=abc
+        - Service: user-service
+        - Service instances: ["http://user-service-1:8001", "http://user-service-2:8001"]
+        - Returns: http://user-service-2:8001/api/v1/login?token=abc
+        """
+        service_instances = self.config.services[service_name].instances
+        api_version = self.config.services[service_name].api_version  # e.g. "/api/v1"
+        
+        # Pick a random instance for load balancing
+        service_instance = random.choice(service_instances)
+        
+        parsed_base = urlparse(service_instance)
+        parsed_path = urlparse(path)
+
+        # Safely combine API version + target path
+        new_path = f"{api_version.rstrip('/')}/{parsed_path.path.lstrip('/')}"
+
+        # Build the final URL preserving query and fragment
+        final_url = urlunparse((
+            parsed_base.scheme,
+            parsed_base.netloc,
+            new_path,
+            '',  # params (rarely used)
+            parsed_path.query,
+            parsed_path.fragment
+        ))
+
+        self.logger.debug(f"Built URL for service {service_name} (instance: {service_instance}): {final_url}")
+        return final_url
+
 
 
 class ApiGateway:
@@ -24,79 +104,28 @@ class ApiGateway:
                 "user-service": ServiceConfig(
                     name="user-service",
                     instances=[self.settings.FULL_USER_SERVICE_URL],
-                    health_check_path="/health"
-                    ),
+                    health_check_path="/health",
+                    api_version=self.settings.USER_SERVICE_URL_API_VERSION
+                ),
                 "product-service": ServiceConfig(
                     name="product-service",
                     instances=[self.settings.FULL_PRODUCT_SERVICE_URL],
-                    health_check_path="/health"
-                    ),
+                    health_check_path="/health",
+                    api_version=self.settings.PRODUCT_SERVICE_URL_API_VERSION
+                ),
                 "notification-service": ServiceConfig(
                     name="notification-service",
                     instances=[self.settings.FULL_NOTIFICATION_SERVICE_URL],
-                    health_check_path="/health"
+                    health_check_path="/health",
+                    api_version=self.settings.NOTIFICATION_SERVICE_URL_API_VERSION
                 )
                 
             }
         )
-        self.path_mappings = {
-            "user-service": f"{self.settings.USER_SERVICE_URL_API_VERSION}/users",
-            "product-service": f"{self.settings.PRODUCT_SERVICE_URL_API_VERSION}/products",
-            "notification-service": f"{self.settings.NOTIFICATION_SERVICE_URL_API_VERSION}/notifications"
-        }
-        
-    def _extract_service_path(self, request: Request, service_key: str) -> str:
-        """
-        Extract the service-specific path from the full request path.
-        
-        Example:
-        - Request: /api/v1/users/email/test@example.com
-        - Service: user-service  
-        - Returns: /users/email/test@example.com
-        """
-        full_path = request.url.path
-        gateway_prefix = self.path_mappings.get(service_key, "")
-        
-        if gateway_prefix and full_path.startswith(gateway_prefix):
-            # Remove the gateway prefix to get the service path
-            service_path = full_path[len(gateway_prefix):]
-            # Ensure path starts with /
-            if not service_path.startswith("/"):
-                service_path = "/" + service_path
-        else:
-            # Fallback: use the full path
-            service_path = full_path
-            
-        self.logger.debug(f"Path mapping: {full_path} -> {service_path} for {service_key}")
-        return service_path
+        self.url_manager = UrlManager(config=self.config, logger=self.logger)
 
-    # TODO: recreate a function that builds the full URL with /api/v1 prefix
-    def _build_service_url(self, service_key: str, service_path: str, query_params: str = "") -> str:
-        """
-        Build the complete URL for the target service.
         
-        Args:
-            service_key: The target service identifier
-            service_path: The path to append to service URL  
-            query_params: Query parameters to include
-            
-        Returns:
-            Complete URL for the service
-        """
-        service_config = self.config.services[service_key]
-        service_base_url = service_config.instances[0]
-        
-        # Build the service URL with api/v1 prefix for the service
-        service_url_with_prefix = urljoin(service_base_url.rstrip('/') + '/', 'api/v1')
-        
-        # Append the service path
-        full_url = urljoin(service_url_with_prefix.rstrip('/') + '/', service_path.lstrip('/'))
-        
-        # Add query parameters if present
-        if query_params:
-            full_url += f"?{query_params}"
-            
-        return full_url
+
 
     async def _detect_and_prepare_body(self, request: Request, path: str):
         """
@@ -157,24 +186,24 @@ class ApiGateway:
             
         return filtered_headers
 
+
     @circuit(failure_threshold=5, recovery_timeout=30)
-    async def forward_request(self, request: Request, service_key: str) -> JSONResponse:
+    async def forward_request(self, request: Request, service_name: str) -> JSONResponse:
         """
         Forward request to microservice. 
         Now automatically extracts the correct path based on service mapping.
         """
 
-        if service_key not in self.config.services:
-            self.logger.error(f"Service key: {service_key} is not recognized.")
+        if service_name not in self.config.services:
+            self.logger.error(f"Service name: {service_name} is not recognized.")
             raise HTTPException(status_code=404, detail="Service not found")
-        
-        # Extract service-specific path
-        service_path = self._extract_service_path(request, service_key)
-        
-        # Build complete service URL
-        query_params = str(request.url.query) if request.url.query else ""
-        url = self._build_service_url(service_key, service_path, query_params)
-        
+
+        # Extract the path to forward to the microservice
+        service_path = self.url_manager.extract_service_path(request.url.path, service_name)
+
+        # Build the full URL to the microservice
+        url = self.url_manager.build_url(service_name, service_path)
+
         # Detect and prepare body
         prepared_body, content_type = await self._detect_and_prepare_body(request, service_path)
         
@@ -235,9 +264,9 @@ class ApiGateway:
                 except json.JSONDecodeError:
                     # If response is not JSON, return text
                     content = {"message": response.text, "status_code": response.status_code}
-                
-                self.logger.debug(f"Response from {service_key}: status={response.status_code}")
-                
+
+                self.logger.debug(f"Response from {service_name}: status={response.status_code}")
+
                 return JSONResponse(
                     content=content,
                     status_code=response.status_code,

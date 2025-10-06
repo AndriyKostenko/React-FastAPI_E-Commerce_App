@@ -1,3 +1,4 @@
+from sys import api_version
 from uuid import UUID
 from pydantic import BaseModel, EmailStr
 
@@ -6,6 +7,7 @@ class ServiceConfig(BaseModel):
     name: str
     instances: list[str]
     health_check_path: str = "/health"
+    api_version: str
 
 
 

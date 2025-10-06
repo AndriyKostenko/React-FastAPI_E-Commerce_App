@@ -1,7 +1,7 @@
 
 from uuid import UUID
 from fastapi import APIRouter, Request, Depends
-import json
+import orjson
 
 from pydantic import EmailStr
 
@@ -11,6 +11,7 @@ from dependencies.auth_dependencies import (get_current_user,
                                             require_user_or_admin)
 from schemas.schemas import CurrentUserInfo
 from events.publisher import events_publisher
+from shared.customized_json_response import JSONResponse
 
 
 user_proxy = APIRouter(tags=["User Service"])
@@ -21,7 +22,7 @@ async def register_user(request: Request):
 
     user_service_response = await api_gateway_manager.forward_request(
         request=request,
-        service_key="user-service",
+        service_name="user-service",
     )
     
     # Check if registration was successful
@@ -29,7 +30,7 @@ async def register_user(request: Request):
         return user_service_response
     
     # parsing the response content (new user data + token)
-    response_data = json.loads(user_service_response.body)
+    response_data = orjson.loads(user_service_response.body)
     
     # publishing the event with token
     await events_publisher.publish_user_registered(
@@ -42,7 +43,10 @@ async def register_user(request: Request):
     # Remove token from response !!!
     del response_data["verification_token"]  
     
-    return user_service_response
+    return JSONResponse(
+        content=response_data,
+        status_code=user_service_response.status_code
+    )
 
 
 @user_proxy.post("/login", summary="User login")
@@ -51,7 +55,7 @@ async def login_user(request: Request):
     # so we need to forward the form data as is
     user_service_response = await api_gateway_manager.forward_request(
         request=request,
-        service_key="user-service",
+        service_name="user-service",
   )
     
     # Check if login was successful
@@ -59,19 +63,22 @@ async def login_user(request: Request):
         return user_service_response
     
     # publish the login event
-    response_data = json.loads(user_service_response.body)
+    response_data = orjson.loads(user_service_response.body)
     
     await events_publisher.publish_user_login(
         email=response_data["user_email"],
     )
-            
-    return user_service_response
-    
-    
+
+    return JSONResponse(
+        content=response_data,
+        status_code=user_service_response.status_code
+    )
+
+
 @user_proxy.post("/forgot-password", summary="Request password reset")
 async def forgot_password(request: Request):
     return await api_gateway_manager.forward_request(
-        service_key="user-service",
+        service_name="user-service",
         request=request,
     )
 
@@ -79,7 +86,7 @@ async def forgot_password(request: Request):
 @user_proxy.post("/password-reset/{token}", summary="Reset password with token")
 async def reset_password(request: Request, token: str):
     user_service_response =  await api_gateway_manager.forward_request(
-        service_key="user-service",
+        service_name="user-service",
         request=request,
     )
     
@@ -87,7 +94,7 @@ async def reset_password(request: Request, token: str):
 @user_proxy.post("/activate/{token}", summary="Verify email with token")
 async def verify_email(request: Request, token: str):
     return await api_gateway_manager.forward_request(
-        service_key="user-service",
+        service_name="user-service",
         request=request,
     )
     
@@ -100,7 +107,7 @@ async def verify_email(request: Request, token: str):
 async def get_current_user_data(request: Request,
                                 current_user: CurrentUserInfo = Depends(get_current_user)):
     return await api_gateway_manager.forward_request(
-        service_key="user-service",
+        service_name="user-service",
         request=request
     )
 
@@ -108,7 +115,7 @@ async def get_current_user_data(request: Request,
 async def get_all_users(request: Request,
                         current_user: CurrentUserInfo = Depends(require_admin)):
     return await api_gateway_manager.forward_request(
-        service_key="user-service",
+        service_name="user-service",
         request=request,
     )
 
@@ -117,7 +124,7 @@ async def get_user_by_email(request: Request,
                             user_email: EmailStr):
     require_user_or_admin(request, target_user_email=user_email)
     return await api_gateway_manager.forward_request(
-        service_key="user-service",
+        service_name="user-service",
         request=request,
     )
 
@@ -127,6 +134,6 @@ async def get_user_by_id(request: Request,
     # Check authorization using the dependency function
     require_user_or_admin(request, target_user_id=user_id)
     return await api_gateway_manager.forward_request(
-        service_key="user-service",
+        service_name="user-service",
         request=request,
     )
