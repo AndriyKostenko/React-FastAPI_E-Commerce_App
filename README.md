@@ -196,3 +196,6 @@ Reduce bcrypt rounds (only if policy allows) or switch to Argon2id tuned for ~10
 Warm containers (avoid CPU throttling)
 Trim excessive synchronous logging
 Reuse DB sessions and HTTP clients
+
+
+## AdminJS

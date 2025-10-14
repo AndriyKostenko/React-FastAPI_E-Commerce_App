@@ -17,10 +17,15 @@ class AuthMiddleware(metaclass=SingletonMetaClass):
         
         # Initialize endpoints with settings
         self.PUBLIC_ENDPOINTS = {
-            "/health", 
-            "/docs", 
+            "/health",
+            "/login",         
+            "/register",
+            "/activate",
+            "/password-reset",
+            "/token",
+            "/docs",
+            "/redoc",
             "/openapi.json",
-            "/redoc"
         }
 
         self.PUBLIC_ENDPOINT_PREFIXES = {

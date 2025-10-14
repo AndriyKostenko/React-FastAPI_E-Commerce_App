@@ -208,7 +208,6 @@ services:
       dockerfile: Dockerfile
     env_file:
       - .env
-      - ./admin-js-service/.env
     ports:
       - "3000:3000"
     depends_on:

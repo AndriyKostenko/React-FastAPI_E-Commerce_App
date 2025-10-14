@@ -71,6 +71,7 @@ class UserLoginDetails(BaseModel):
     token_expiry: int
     user_id: UUID
     user_email: EmailStr
+    user_role: str
     
 class TokenPayload(BaseModel):
     sub: str
