@@ -12,13 +12,14 @@
     "migration:rollback": "yarn typeorm migration:revert"
   },
   "dependencies": {
-    "@adminjs/express": "^6.1.0",
+    "@adminjs/express": "^6.1.1",
     "@adminjs/themes": "^1.0.1",
     "@adminjs/typeorm": "^5.0.0",
-    "adminjs": "^7.7.2",
+    "adminjs": "^7.8.17",
+    "connect-redis": "^6.1.3",
     "express": "^4.18.2",
     "express-formidable": "^1.2.0",
-    "express-session": "^1.17.3",
+    "express-session": "^1.18.2",
     "ioredis": "^5.8.1",
     "pg": "latest",
     "reflect-metadata": "^0.1.13",

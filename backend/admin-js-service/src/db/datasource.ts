@@ -1,5 +1,5 @@
-import { DataSource } from 'typeorm';
+// import { DataSource } from 'typeorm';
 
-import config from './config.js';
+// import config from './config.js';
 
-export default new DataSource(config);
+// export default new DataSource(config);
