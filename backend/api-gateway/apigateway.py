@@ -1,6 +1,6 @@
 import random
 from urllib.parse import urljoin, urlparse, urlunparse
-import json
+import orjson
 
 from fastapi import HTTPException, Request
 from httpx import AsyncClient, HTTPStatusError, RequestError #type: ignore
@@ -132,44 +132,59 @@ class ApiGateway:
         Detects the content type of the body and prepares it for forwarding.
         Returns: (prepared_body, content_type_header)
         """
+        # No body for these methods
+        if request.method in ("GET", "HEAD", "OPTIONS"):
+            return None, None  # No body expected
+        
         content_type = request.headers.get("content-type", "").lower()
         
-        # Handling different content types
-        
+        # Handle JSON
         if "application/json" in content_type:
-            body_data = await request.json()
-            if path == "/login":
-                raise HTTPException(status_code=500, detail="The /login endpoint data must be sent via application/x-www-form-urlencoded ")
-            return body_data, "application/json"
+            try:
+                body_data = await request.json()
+                return body_data, "application/json"
+            except Exception as e:
+                logger.warning(f"Failed to parse JSON body for {path}: {e}")
+                return None, None
             
         elif "application/x-www-form-urlencoded" in content_type:
-            form_data = await request.form()
-            # Convert FormData to dict
-            body_dict = dict()
-            for key in form_data.keys():
-                body_dict[key] = form_data[key]
-            
-            # For login, ensure username field exists as OAuth2 expects it (assuming u are passing email and password)
-            if path == "/login":
-                form_data = {
-                    "username": form_data.get("email") or form_data.get("username"),
-                    "password": form_data.get("password")
-                }
-                return form_data, "application/x-www-form-urlencoded"
-            
-            return body_dict, "application/x-www-form-urlencoded"
+            try:
+                form_data = await request.form()
+                # Convert FormData to dict
+                body_dict = {key: form_data[key] for key in form_data.keys()}
+                
+                # For login, ensure username field exists as OAuth2 expects it (assuming u are passing email and password)
+                if path == "/login":
+                    form_data = {
+                        "username": form_data.get("email") or form_data.get("username"),
+                        "password": form_data.get("password")
+                    }
+                    return form_data, "application/x-www-form-urlencoded"
+                
+                return body_dict, "application/x-www-form-urlencoded"
+            except Exception as e:
+                logger.warning(f"Failed to parse form-urlencoded body for {path}: {e}")
+                return None, None
             
         elif "multipart/form-data" in content_type:
-            form_data = await request.form()
-            # For multipart, we need to handle files differently
-            return form_data, "multipart/form-data"
-            
-        else:
-            # Raw body for other content types
-            raw_body = await request.body()
-            if len(raw_body) == 0:
+            try:
+                form_data = await request.form()
+                # For multipart, we need to handle files differently
+                return form_data, "multipart/form-data"
+            except Exception as e:
+                logger.warning(f"Failed to parse multipart/form-data body for {path}: {e}")
                 return None, None
-            return raw_body, content_type
+
+        else:
+            try: 
+                # Raw body for other content types
+                raw_body = await request.body()
+                if len(raw_body) == 0:
+                    return None, None
+                return raw_body, content_type
+            except Exception as e:
+                logger.warning(f"Failed to read raw body for {path}: {e}")
+                return None, None
 
     def _prepare_headers(self, request_headers, new_content_type=None):
         """
@@ -261,7 +276,7 @@ class ApiGateway:
                 # Parse response
                 try:
                     content = response.json()
-                except json.JSONDecodeError:
+                except orjson.JSONEncodeError:
                     # If response is not JSON, return text
                     content = {"message": response.text, "status_code": response.status_code}
 

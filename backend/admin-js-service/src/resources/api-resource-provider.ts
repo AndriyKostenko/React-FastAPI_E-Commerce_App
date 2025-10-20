@@ -1,8 +1,7 @@
-import { BaseResource, BaseRecord, BaseProperty, Filter, ParamsType } from 'adminjs';
+import { BaseResource, BaseRecord, BaseProperty, Filter, ActionContext, ParamsType } from 'adminjs';
 
 export class ApiResourceProvider extends BaseResource {
     private endpoint: string;
-
     private resourceName: string;
 
     constructor(endpoint: string, resourceName: string) {
@@ -11,24 +10,23 @@ export class ApiResourceProvider extends BaseResource {
         this.resourceName = resourceName;
     }
 
-    public databaseName(): string {
+    databaseName(): string {
         return 'API';
     }
 
-    public databaseType(): string {
+    databaseType(): string {
         return 'REST API';
     }
 
-    public name(): string {
+    name(): string {
         return this.resourceName;
     }
 
-    public id(): string {
+    id(): string {
         return this.resourceName;
     }
 
-    public properties(): BaseProperty[] {
-    // Define properties based on your User schema
+    properties(): BaseProperty[] {
         return [
             new BaseProperty({ path: 'id', type: 'string', isId: true }),
             new BaseProperty({ path: 'name', type: 'string' }),
@@ -43,11 +41,11 @@ export class ApiResourceProvider extends BaseResource {
         ];
     }
 
-    public property(path: string): BaseProperty | null {
+    property(path: string): BaseProperty | null {
         return this.properties().find((p) => p.path() === path) || null;
     }
 
-    private async fetchApi(url: string, context: any, options: RequestInit = {}): Promise<any> {
+    private async fetchApi(url: string, context?: ActionContext, options: RequestInit = {}) {
         const token = context?.currentAdmin?.token;
         const headers = {
             'Content-Type': 'application/json',
@@ -56,31 +54,31 @@ export class ApiResourceProvider extends BaseResource {
         };
 
         const response = await fetch(url, { ...options, headers });
-        if (!response.ok) {
-            console.error(`API request failed: ${response.status} ${response.statusText}`);
-            throw new Error(`API request failed with status ${response.status}`);
-        }
+        if (!response.ok) throw new Error(`API request failed with status ${response.status}`);
         return response.json();
     }
 
-    public async find(filter: Filter, options: { limit?: number; offset?: number; sort?: any }): Promise<BaseRecord[]> {
+    // Correct method signature
+    public async find(
+        filter: Filter,
+        options: { limit?: number; offset?: number; sort?: { sortBy?: string; direction?: 'asc' | 'desc' } } = {},
+        context?: ActionContext,
+    ): Promise<BaseRecord[]> {
         try {
-            const data = await this.fetchApi(this.endpoint);
-            // Handle if data is wrapped in an object or is direct array
+            const data = await this.fetchApi(this.endpoint, context);
             const users = Array.isArray(data) ? data : data.users || [];
-            return users.map((item: any) => new BaseRecord(item, this));
+            return users.map((item) => new BaseRecord(item, this));
         } catch (error) {
             console.error(`Error fetching ${this.resourceName}:`, error);
             return [];
         }
     }
 
-    public async findOne(id: string): Promise<BaseRecord | null> {
+    public async findOne(id: string, context?: ActionContext): Promise<BaseRecord | null> {
         try {
-            // Extract base URL without /users
             const baseUrl = this.endpoint.replace(/\/users$/, '');
             const url = `${baseUrl}/users/id/${id}`;
-            const data = await this.fetchApi(url);
+            const data = await this.fetchApi(url, context);
             return new BaseRecord(data, this);
         } catch (error) {
             console.error(`Error fetching ${this.resourceName} with id ${id}:`, error);
@@ -88,9 +86,9 @@ export class ApiResourceProvider extends BaseResource {
         }
     }
 
-    public async count(filter: Filter): Promise<number> {
+    public async count(filter: Filter, context?: ActionContext): Promise<number> {
         try {
-            const records = await this.find(filter, {});
+            const records = await this.find(filter, {}, context);
             return records.length;
         } catch (error) {
             console.error(`Error counting ${this.resourceName}:`, error);
@@ -98,16 +96,16 @@ export class ApiResourceProvider extends BaseResource {
         }
     }
 
-    public async create(params: Record<string, any>): Promise<ParamsType> {
-        throw new Error('Creating users through AdminJS is not supported. Use the registration endpoint.');
+    public async create(params: Record<string, any>, context?: ActionContext): Promise<ParamsType> {
+        throw new Error('Creating users through AdminJS is not supported.');
     }
 
-    public async update(id: string, params: Record<string, any>): Promise<ParamsType> {
-        throw new Error('Updating users through AdminJS is not yet implemented');
+    public async update(id: string, params: Record<string, any>, context?: ActionContext): Promise<ParamsType> {
+        throw new Error('Updating users through AdminJS is not yet implemented.');
     }
 
-    public async delete(id: string): Promise<void> {
-        throw new Error('Deleting users through AdminJS is not supported');
+    public async delete(id: string, context?: ActionContext): Promise<void> {
+        throw new Error('Deleting users through AdminJS is not supported.');
     }
 
     public static isAdapterFor(rawResource: any): boolean {

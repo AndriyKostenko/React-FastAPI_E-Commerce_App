@@ -29,6 +29,7 @@ const provider = new DefaultAuthProvider({
                 console.log('Unauthorized role:', data.user_role);
                 return null;
             }
+            console.log('Authentication successful for user:', data.user_email);
 
             return {
                 email: data.user_email,
