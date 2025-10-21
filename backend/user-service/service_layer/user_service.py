@@ -39,8 +39,8 @@ class UserService:
         user = await self.repository.create(new_user)
         return UserInfo.model_validate(user)
 
-    async def get_all_users(self) -> list[UserInfo]:
-        users = await self.repository.get_all()
+    async def get_all_users(self, **filters) -> list[UserInfo]:
+        users = await self.repository.get_all(**filters)
         return [UserInfo.model_validate(user) for user in users]
 
     async def get_user_by_email(self, email: EmailStr) -> UserInfo:

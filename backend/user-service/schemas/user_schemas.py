@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional, List, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr
@@ -115,3 +115,19 @@ class ForgotPasswordResponse(BaseModel):
 class ResetPasswordRequest(BaseModel):
     email: EmailStr
     new_password: str = Field(..., min_length=8)
+    
+    
+class FilterParams(BaseModel):
+    offset: Optional[int] = Field(None, ge=0, description="Number of users to skip")
+    sort_by: Optional[str] = Field(None, description="Field to sort by")
+    sort_order: Optional[Literal['asc', 'desc']] = Field('asc', description="Sort order: 'asc' or 'desc'")
+    limit: Optional[int] = Field(None, ge=1, le=100, description="Maximum number of users to return")
+    name: Optional[str] = Field(None, min_length=1, max_length=100, description="Filter by user name")
+    is_active: Optional[bool] = Field(None, description="Filter by user active status")
+    is_verified: Optional[bool] = Field(None, description="Filter by user verification status")
+    date_created: Optional[datetime] = Field(None, description="Filter by user creation date")
+    date_updated: Optional[datetime] = Field(None, description="Filter by user update date")
+    date_created_from: Optional[datetime] = Field(None, description="Filter users created from this date")
+    date_created_to: Optional[datetime] = Field(None, description="Filter users created up to this date")
+    date_updated_from: Optional[datetime] = Field(None, description="Filter users updated from this date")
+    date_updated_to: Optional[datetime] = Field(None, description="Filter users updated up to this date")

@@ -109,7 +109,39 @@ export class ApiResourceProvider extends BaseResource {
         context?: ActionContext,
     ): Promise<BaseRecord[]> {
         try {
-            const data = await this.fetchApi(this.endpoint, context, options);
+            const { limit, offset, sort, ...fetchOptions } = options;
+            const url = new URL(this.endpoint);
+
+            if (typeof limit === 'number') {
+                url.searchParams.append('limit', limit.toString());
+            }
+            if (typeof offset === 'number') {
+                url.searchParams.append('offset', offset.toString());
+            }
+            if (sort?.sortBy) {
+                url.searchParams.append('sortBy', sort.sortBy);
+                url.searchParams.append('direction', sort.direction || 'asc');
+            }
+
+            // eslint-disable-next-line max-len
+            const rawFilters = (filter as unknown as { filters?: Record<string, {path: string; value: unknown}>}).filters ?? {};
+
+            Object.values(rawFilters).forEach(({ path, value }) => {
+                if (value === undefined || value === null || value === '') return;
+
+                if (typeof value === 'object' && value !== null) {
+                    const { from, to } = value as { from?: string; to?: string };
+                    if (from) url.searchParams.append(`${path}_from`, from);
+                    if (to) url.searchParams.append(`${path}_to`, to);
+                    return;
+                }
+
+                url.searchParams.append(path, String(value));
+            });
+
+            console.log(`Fetching ${this.resourceName} with URL:`, url.toString());
+
+            const data = await this.fetchApi(url.toString(), context, fetchOptions);
             const users = Array.isArray(data) ? data : data.users || [];
             return users.map((item) => new BaseRecord(item, this));
         } catch (error) {
@@ -205,6 +237,7 @@ export class ApiResourceProvider extends BaseResource {
             console.log(`Successfully deleted ${this.resourceName} with id ${id}`);
         } catch (error) {
             console.error(`Error deleting ${this.resourceName} with id ${id}:`, error);
+            // eslint-disable-next-line max-len
             throw new Error(`Failed to delete ${this.resourceName}: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     }

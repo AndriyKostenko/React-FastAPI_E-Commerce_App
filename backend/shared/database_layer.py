@@ -2,9 +2,12 @@ from uuid import UUID
 from typing import Generic, Optional, Type, TypeVar
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import func, select, asc
+from sqlalchemy import func, select, asc, desc
+from sqlalchemy.orm import InstrumentedAttribute
+
 from shared.base_exceptions import NoFieldInTheModelError
 from shared.models.models_base_class import Base
+
 
 # Generic type for SQLAlchemy models
 ModelType = TypeVar("ModelType", bound=Base)
@@ -16,6 +19,8 @@ class BaseRepository(Generic[ModelType]):
     Generic repository for CRUD operations.
     Can be used with any SQLAlchemy model.
     """
+    # list of fields that must always use equality, even if string type
+    EQUAL_ONLY_FIELDS = {"sku", "id", "uuid", "email", "phone_number"}
 
     def __init__(self, session: AsyncSession, model: Type[ModelType]):
         self.session = session
@@ -44,18 +49,40 @@ class BaseRepository(Generic[ModelType]):
         return result.scalar_one_or_none()
     
     async def get_all(self,
-                      limit: Optional[int] = None,
-                      offset: Optional[int] = None,
-                      order_by: Optional[str] = None) -> list[ModelType]:
+                      **filters) -> list[ModelType]:
         """Get all records with optional limit, offset, and order by"""
         query = select(self.model)
-        if order_by:
-            if hasattr(self.model, order_by):
-                query = query.order_by(asc(getattr(self.model, order_by)))        
+        
+        # Extract reserved keywords (non-column filters)
+        sort_by = filters.pop("sort_by", None)
+        sort_order = filters.pop("sort_order", "asc")
+        limit = filters.pop("limit", None)
+        offset = filters.pop("offset", None)
+        
+        # Applying filters
+        if filters:
+            for key, value in filters.items():
+                if not hasattr(self.model, key):
+                    continue
+                column: InstrumentedAttribute = getattr(self.model, key)
+
+                # Partial match for text fields
+                if isinstance(value, str) and key not in self.EQUAL_ONLY_FIELDS:
+                    query = query.where(column.ilike(f"%{value}%")) # case-insensitive LIKE
+                else:
+                    query = query.where(column == value)
+
+        # Sorting
+        if sort_by and hasattr(self.model, sort_by):
+            order_func = asc if sort_order.lower() == "asc" else desc
+            query = query.order_by(order_func(getattr(self.model, sort_by)))
+        
+        # Pagination
         if offset:
             query = query.offset(offset)
         if limit:
             query = query.limit(limit)
+            
         result = await self.session.execute(query)
         return list(result.scalars().all())
         

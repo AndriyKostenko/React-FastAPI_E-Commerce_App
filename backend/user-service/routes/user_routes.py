@@ -2,7 +2,8 @@ from datetime import timedelta
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import Depends, APIRouter, status, Request
+
+from fastapi import Depends, APIRouter, status, Request, Query
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import EmailStr
 
@@ -15,9 +16,10 @@ from schemas.user_schemas import (UserSignUp,
                                     ResetPasswordRequest,
                                     PasswordUpdateResponse)
 from dependencies.dependencies import user_crud_dependency
-from shared.shared_instances import user_service_redis_manager, settings, auth_manager
+from shared.shared_instances import user_service_redis_manager, settings, auth_manager, logger
 from shared.customized_json_response import JSONResponse
-from schemas.user_schemas import UserBasicUpdate
+from schemas.user_schemas import UserBasicUpdate, FilterParams
+from utils.parse_filter_params import parse_filter_params
 
 
 user_routes = APIRouter(
@@ -231,8 +233,10 @@ async def get_user_by_user_id(request: Request,
 @user_service_redis_manager.cached(ttl=60) 
 @user_service_redis_manager.ratelimiter(times=10, seconds=60)
 async def get_all_users(request: Request,
-                        user_service: user_crud_dependency):
-    users = await user_service.get_all_users()
+                        user_service: user_crud_dependency,
+                        filter_query: Annotated[FilterParams, Query()]):
+    parsed_params = filter_query.model_dump(exclude_none=True)
+    users = await user_service.get_all_users(**parsed_params)
     return JSONResponse(content=users,
                         status_code=status.HTTP_200_OK)
 

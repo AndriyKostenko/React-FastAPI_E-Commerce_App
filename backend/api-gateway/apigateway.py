@@ -64,7 +64,7 @@ class UrlManager:
         - Service instances: ["http://user-service-1:8001", "http://user-service-2:8001"]
         - Returns: http://user-service-2:8001/api/v1/login?token=abc
         """
-        service_instances = self.config.services[service_name].instances
+        service_instances = self.config.services[service_name].instances # List of instance URLs
         api_version = self.config.services[service_name].api_version  # e.g. "/api/v1"
         
         # Pick a random instance for load balancing
@@ -214,7 +214,7 @@ class ApiGateway:
             raise HTTPException(status_code=404, detail="Service not found")
 
         # Extract the path to forward to the microservice
-        service_path = self.url_manager.extract_service_path(request.url.path, service_name)
+        service_path = self.url_manager.extract_service_path(str(request.url), service_name)
 
         # Build the full URL to the microservice
         url = self.url_manager.build_url(service_name, service_path)
