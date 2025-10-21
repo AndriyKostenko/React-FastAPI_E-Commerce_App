@@ -108,13 +108,14 @@ class ForgotPasswordRequest(BaseModel):
 
 
 class ForgotPasswordResponse(BaseModel):
+    email: EmailStr
+    reset_token: str
     detail: str
-    email: str
 
 
 class ResetPasswordRequest(BaseModel):
     email: EmailStr
-    new_password: str = Field(..., min_length=8)
+    new_password: str = Field(..., min_length=8, max_length=100, description="New password must be between 8 and 100 characters")
     
     
 class FilterParams(BaseModel):

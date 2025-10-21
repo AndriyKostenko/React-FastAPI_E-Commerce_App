@@ -87,15 +87,14 @@ class EmailService(metaclass=SingletonMetaClass):
            
     async def send_verification_email(self,
                                       email: EmailStr,
-                                      user_id: UUID,
                                       token) -> None:
         """Send verification email - called from event consumer."""
-        if not email or not user_id:
-            self.logger.error("Email or user_id is missing")
-            raise EmailServiceError("Email or user_id is missing")
+        if not email:
+            self.logger.error("Email is missing")
+            raise EmailServiceError("Email is missing")
 
 
-        activate_url = f"http://{self.settings.APP_HOST}:{self.settings.USER_SERVICE_APP_PORT}{self.settings.NOTIFICATION_SERVICE_URL_API_VERSION}/activate/{token}"
+        activate_url = f"http://{self.settings.APP_HOST}:{self.settings.USER_SERVICE_APP_PORT}{self.settings.USER_SERVICE_URL_API_VERSION}/activate/{token}"
 
         self.logger.info(f"Sending verification email to: {email} with token: {token}")
         
@@ -114,13 +113,11 @@ class EmailService(metaclass=SingletonMetaClass):
         
     async def send_password_reset_email(self,
                                         email: EmailStr,
-                                        user_id: UUID,
-                                        user_role: str | None,
-                                        reset_token) -> None:
+                                        reset_token: str) -> None:
         """Send password reset email - called from event consumer."""
-        if not email or not user_id or not user_role:
-            self.logger.error("Email, user_id, or user_role is missing")
-            raise EmailServiceError("Email, user_id, or user_role is missing")
+        if not email:
+            self.logger.error("Email is missing")
+            raise EmailServiceError("Email is missing")
         
         reset_url = f"http://{self.settings.APP_HOST}:{self.settings.USER_SERVICE_APP_PORT}{self.settings.NOTIFICATION_SERVICE_URL_API_VERSION}/password-reset/{reset_token}"
 
@@ -141,8 +138,7 @@ class EmailService(metaclass=SingletonMetaClass):
         )
         
     async def send_password_reset_success_email(self,
-                                        email: str,
-                                        template_body: Dict[str, str]) -> None:
+                                                email: str) -> None:
         """Send password reset confirmation email."""
         if not email:
             self.logger.error("Email is missing")
@@ -150,9 +146,17 @@ class EmailService(metaclass=SingletonMetaClass):
 
         self.logger.info(f"Sending password reset confirmation email to: {email}")
         
+        login_url = f"http://{self.settings.APP_HOST}:{self.settings.API_GATEWAY_SERVICE_APP_PORT}{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/login"
+        
+        email_data = {
+            "app_name": self.settings.MAIL_FROM_NAME,
+            "email": email,
+            "login_url": login_url
+        }
+        
         await self.send_email_async(
             subject="Password Reset Successful",
-            template_body=template_body,
+            template_body=email_data,
             recipients=[email],
             template_name="password_reset_confirmation.html"
         )

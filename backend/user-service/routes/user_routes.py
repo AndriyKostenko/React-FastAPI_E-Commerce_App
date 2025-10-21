@@ -18,8 +18,7 @@ from schemas.user_schemas import (UserSignUp,
 from dependencies.dependencies import user_crud_dependency
 from shared.shared_instances import user_service_redis_manager, settings, auth_manager, logger
 from shared.customized_json_response import JSONResponse
-from schemas.user_schemas import UserBasicUpdate, FilterParams
-from utils.parse_filter_params import parse_filter_params
+from schemas.user_schemas import UserBasicUpdate, FilterParams, ForgotPasswordResponse
 
 
 user_routes = APIRouter(
@@ -97,6 +96,28 @@ async def verify_email(request: Request,
                         status_code=status.HTTP_200_OK) 
 
 
+@user_routes.post("/forgot-password",
+                  summary="Request password reset",
+                  response_description="Password reset email sent successfully",
+                  response_model=ForgotPasswordResponse)
+@user_service_redis_manager.ratelimiter(times=3, seconds=3600)  
+async def forgot_password(request: Request,
+                          email: EmailStr,
+                          user_service: user_crud_dependency):
+    user = await user_service.get_user_by_email(email=email)
+    reset_token, _ = auth_manager.create_access_token(
+        email=user.email,
+        user_id=user.id,
+        role=user.role,
+        expires_delta=timedelta(minutes=15),
+        purpose="password_reset"
+    )
+    return JSONResponse(content=ForgotPasswordResponse(detail="Password reset email has been sent!",
+                                                       email=user.email,
+                                                       reset_token=reset_token),
+                        status_code=status.HTTP_200_OK)
+
+
 @user_routes.post("/password-reset/{token}",
                   summary="Reset password with token",
                   response_model=PasswordUpdateResponse,
@@ -104,10 +125,9 @@ async def verify_email(request: Request,
                   )
 @user_service_redis_manager.ratelimiter(times=3, seconds=3600)  
 async def reset_password(request: Request,
-                        token: str,
-                        data: ResetPasswordRequest,
-
-                        user_service: user_crud_dependency):
+                         token: str,
+                         data: ResetPasswordRequest,
+                         user_service: user_crud_dependency):
     """Reset password using token"""
     token_data = await auth_manager.get_current_user_from_token(token=token, required_purpose="password_reset")
 
@@ -193,6 +213,11 @@ async def get_current_user_data(request: Request,
                                 current_user: Annotated[CurrentUserInfo, Depends(auth_manager.get_current_user_from_token)]):
     return JSONResponse(content=current_user,
                         status_code=status.HTTP_200_OK)
+
+
+
+#------------------------------------------------------------------------
+
 
 
 @user_routes.get("/users/email/{user_email}",
