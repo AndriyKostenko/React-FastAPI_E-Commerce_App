@@ -42,7 +42,8 @@ const start = async () => {
                 secure: process.env.NODE_ENV === 'production',
                 maxAge: 1000 * 60 * 60, // 1 hour
             },
-    }));
+        }),
+    );
 
     // Initialize AdminJS
     const admin = new AdminJS(options);

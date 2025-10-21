@@ -17,6 +17,7 @@ from schemas.user_schemas import (UserSignUp,
 from dependencies.dependencies import user_crud_dependency
 from shared.shared_instances import user_service_redis_manager, settings, auth_manager
 from shared.customized_json_response import JSONResponse
+from schemas.user_schemas import UserBasicUpdate
 
 
 user_routes = APIRouter(
@@ -235,3 +236,39 @@ async def get_all_users(request: Request,
     return JSONResponse(content=users,
                         status_code=status.HTTP_200_OK)
 
+
+@user_routes.put("/users/id/{user_id}",
+                     summary="Update user by ID",
+                     response_description="User updated successfully",
+                     response_model=UserInfo,
+                     )
+@user_service_redis_manager.ratelimiter(times=5, seconds=3600)  
+async def update_user_by_id(request: Request,
+                            user_id: UUID,
+                            data: UserBasicUpdate,
+                            user_service: user_crud_dependency):
+    updated_user = await user_service.update_user_basic_info(user_id=user_id, update_data=data)
+    
+    # Invalidate cache for user list and related endpoints, adding force_method to ensure correct cache keys are targeted
+    await user_service_redis_manager.clear_cache_namespace("/users", request=request, force_method="GET")
+    await user_service_redis_manager.clear_cache_namespace("/me", request=request, force_method="GET")
+    return JSONResponse(content=updated_user,
+                        status_code=status.HTTP_200_OK)
+
+
+@user_routes.delete("/users/id/{user_id}",
+                     summary="Delete user by ID",
+                     response_description="User deleted successfully",
+                     )
+@user_service_redis_manager.ratelimiter(times=5, seconds=3600)  
+async def delete_user_by_id(request: Request,
+                            user_id: UUID,
+                            user_service: user_crud_dependency):
+    await user_service.delete_user_by_id(user_id=user_id)
+
+    # Invalidate cache for user list and related endpoints, adding force_method to ensure correct cache keys are targeted
+    await user_service_redis_manager.clear_cache_namespace(namespace="/users", request=request, force_method="GET")  
+    await user_service_redis_manager.clear_cache_namespace(namespace="/me", request=request, force_method="GET")  
+
+    return JSONResponse(content={"detail": "User deleted successfully"},
+                        status_code=status.HTTP_200_OK)

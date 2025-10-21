@@ -137,3 +137,23 @@ async def get_user_by_id(request: Request,
         service_name="user-service",
         request=request,
     )
+    
+
+@user_proxy.put("/users/id/{user_id}", summary="Update user by ID")
+async def update_user_by_id(request: Request, 
+                            user_id: UUID):
+    require_user_or_admin(request, target_user_id=user_id)
+    return await api_gateway_manager.forward_request(
+        service_name="user-service",
+        request=request,
+    )
+    
+    
+@user_proxy.delete("/users/id/{user_id}", summary="Delete user by ID")
+async def delete_user_by_id(request: Request, 
+                            user_id: UUID,
+                            current_user: CurrentUserInfo = Depends(require_admin)):
+    return await api_gateway_manager.forward_request(
+        service_name="user-service",
+        request=request,
+    )   

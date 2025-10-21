@@ -84,6 +84,13 @@
    Quick one-liner to remove only <none> images:
    ` docker rmi $(docker images -f "dangling=true" -q)`
 
+   rebuild via docker compose
+   `docker compose build <service-name> --no-cache`
+   
+   restart via docker compose sepc. service
+   `docker compose up <service-name>`
+
+
 ## UV
 
  - uv init
