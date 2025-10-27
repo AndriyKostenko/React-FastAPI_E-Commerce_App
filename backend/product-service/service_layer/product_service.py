@@ -1,3 +1,4 @@
+from math import prod
 from typing import List, Optional
 from uuid import UUID
 
@@ -31,29 +32,10 @@ class ProductService:
         return ProductBase.model_validate(new_db_product)
 
 
-    async def get_all_products(self,
-                               category_id: Optional[UUID] = None,
-                               search_term: Optional[str] = None,
-                               page: int = 1,
-                               page_size: int = 10) -> List[ProductBase]:
-        offset = (page - 1) * page_size
-        
-        # building filters
-        filters = {}
-        if category_id:
-            filters['category_id'] = category_id
-
-        if search_term:
-            products = await self.repository.search_products(search_term, filters, page_size, offset)
-        else:
-            products = await self.repository.filter_by(**filters)
-            # applying pagination
-            products = products[offset:offset + page_size] if offset < len(products) else []
-        
+    async def get_all_products(self, **filters) -> List[ProductBase]:
+        products = await self.repository.get_all(search_fields=Product.get_search_fields(), **filters)
         if not products:
-            raise ProductNotFoundError(f"Products with category: {category_id} and/or search term: {search_term} not found")
-
-
+            raise ProductNotFoundError("No products found with the given criteria.")
         return [ProductBase.model_validate(product) for product in products]
     
     
@@ -70,23 +52,18 @@ class ProductService:
             raise ProductNotFoundError(f"Product with name: {name} not found")
         return ProductBase.model_validate(db_product)
     
+    async def get_product_by_id_with_relations(self, product_id: UUID) -> ProductSchema:
+        product = await self.repository.get_by_id(product_id, load_relations=["reviews", "images", "category"])
+        if not product:
+            raise ProductNotFoundError(f"Product with id: {product_id} not found.")
+        return ProductSchema.model_validate(product)
+    
     
     async def get_all_products_with_relations(self,
-                                               category_id: Optional[UUID] = None,
-                                               search_term: Optional[str] = None,
-                                               page: int = 1,
-                                               page_size: int = 10) -> List[ProductSchema]:
-        offset = (page - 1) * page_size
-        products = await self.repository.search_products_with_relations(
-            search_term=search_term,
-            category_id=category_id,
-            limit=page_size,
-            offset=offset
-        )
-        
+                                              **filters) -> List[ProductSchema]:
+        products = await self.repository.get_all(load_relations=["reviews", "images", "category"], **filters)
         if not products:
-            raise ProductNotFoundError(f'Products with category: {category_id} and/or search term: {search_term} not found.')
-        
+            raise ProductNotFoundError(f'Products with category: {filters.get("category_id")} and/or search term: {filters.get("search_term")} not found.')
         return [ProductSchema.model_validate(product) for product in products]
 
  
@@ -101,5 +78,6 @@ class ProductService:
         success = await self.repository.delete_by_id(product_id)
         if not success:
             raise ProductNotFoundError(f"Product with id: {product_id} not found")
+        return None
 
 

@@ -55,7 +55,17 @@ class CreatedProduct(ProductBase):
     date_created: datetime
     date_updated: Optional[datetime] = None
     
+class ProductsFilterParams(ProductBase):
+    # Offset: starting point for pagination, default to 0
+    offset: int = Field(default=0, ge=0, description="Number of records to skip")
     
-class ProductParams(BaseModel):
-    category: Optional[str] = Field(None, min_length=3, max_length=50)
-    searchTerm: Optional[str] = Field(None, min_length=3, max_length=50)
+    # Limit: number of records to return, default to 10, max 100
+    limit: int = Field(default=10, gt=0, le=100, description="Maximum number of records to return")
+    
+    # Sorting options
+    sort_by: Optional[str] = Field(None, pattern="^(name|price|date_created|quantity)$")
+    sort_order: Optional[str] = Field(None, pattern="^(asc|desc)$")
+    
+    # Filtering options
+    category: Optional[str] = None
+    search_term: Optional[str] = Field(None, min_length=3, max_length=50)

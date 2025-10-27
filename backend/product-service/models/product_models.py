@@ -36,6 +36,18 @@ class Product(Base, TimestampMixin):
     images: Mapped[List['ProductImage']] = relationship('ProductImage', back_populates='product', cascade='all, delete-orphan') # type: ignore
     category: Mapped['ProductCategory'] = relationship('ProductCategory', back_populates='products') # type: ignore
 
+    def get_search_fields(self) -> list[str]:
+        """Return list of fields to be used in search operations"""
+        return [self.name, self.description, self.brand]
+    
+    def get_relations(self) -> dict:
+        """Return dictionary of related entities to be loaded with the product"""
+        return {
+            "reviews": self.reviews,
+            "images": self.images,
+            "category": self.category
+        }
+
     def __repr__(self):
         return f"<Product(id={self.id}, name={self.name}, category_id={self.category_id}, brand={self.brand}, in_stock={self.in_stock})>"
     def __str__(self):

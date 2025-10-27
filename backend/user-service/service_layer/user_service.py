@@ -21,7 +21,6 @@ class UserService:
     def __init__(self, repository: UserRepository):
         self.repository = repository
 
-
     async def create_user(self, data: UserSignUp) -> UserInfo:
         existing_user = await self.repository.get_by_field("email", data.email)
         if existing_user:
@@ -41,6 +40,8 @@ class UserService:
 
     async def get_all_users(self, **filters) -> list[UserInfo]:
         users = await self.repository.get_all(**filters)
+        if not users:
+            raise UserNotFoundError("No users found with the given criteria.")
         return [UserInfo.model_validate(user) for user in users]
 
     async def get_user_by_email(self, email: EmailStr) -> UserInfo:

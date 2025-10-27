@@ -1,13 +1,13 @@
 from decimal import Decimal
-from typing import Optional
+from typing import Optional, Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, status, Form, Request
+from fastapi import APIRouter, status, Form, Request, Query # type: ignore
 
 from dependencies.dependencies import product_service_dependency
-from schemas.product_schemas import ProductBase, ProductSchema, CreateProduct
+from schemas.product_schemas import ProductBase, ProductSchema, CreateProduct, ProductsFilterParams
 from shared.customized_json_response import JSONResponse
-from shared.shared_instances import product_service_redis_manager, settings
+from shared.shared_instances import product_service_redis_manager
 
 
 product_routes = APIRouter(
@@ -49,9 +49,8 @@ async def create_new_product(request: Request,
     created_product = await product_service.create_product_item(product_data=product_data)
     
     # Clear ALL product-related cache
-    await product_service_redis_manager.clear_cache_namespace(
-        namespace=f"{settings.PRODUCT_SERVICE_URL_API_VERSION}/products*"
-    )
+    await product_service_redis_manager.clear_cache_namespace(namespace="products", request=request)
+    
     return JSONResponse(
         content=created_product,
         status_code=status.HTTP_201_CREATED
@@ -65,15 +64,8 @@ async def create_new_product(request: Request,
 @product_service_redis_manager.ratelimiter(times=100, seconds=60)
 async def get_all_products(request: Request,
                            product_service: product_service_dependency,
-                           categoryId: Optional[UUID] = None,
-                           searchTerm: Optional[str] = None,
-                           page: int = 1,
-                           pageSize: int = 10,
-                           ) -> JSONResponse:
-    products = await product_service.get_all_products(category_id=categoryId,
-                                                      search_term=searchTerm,
-                                                      page_size=pageSize,
-                                                      page=page)
+                           filter_query: Annotated[ProductsFilterParams, Query()]) -> JSONResponse:
+    products = await product_service.get_all_products(**(filter_query.model_dump()))
     return JSONResponse(
         content=products,
         status_code=status.HTTP_200_OK
@@ -85,16 +77,17 @@ async def get_all_products(request: Request,
                     response_description="All products with relations")
 @product_service_redis_manager.cached(ttl=600)
 @product_service_redis_manager.ratelimiter(times=50, seconds=60)
-async def get_all_products_with_relations(request: Request,product_service: product_service_dependency,
+async def get_all_products_with_relations(request: Request,
+                                          product_service: product_service_dependency,
                                           categoryId: Optional[UUID] = None,
                                           searchTerm: Optional[str] = None,
                                           page: int = 1,
                                           page_size: int = 10,
                                           ) -> JSONResponse:
     product_with_relations =  await product_service.get_all_products_with_relations(category_id=categoryId,
-                                                                  search_term=searchTerm,
-                                                                  page_size=page_size,
-                                                                  page=page)
+                                                                                    search_term=searchTerm,
+                                                                                    page_size=page_size,
+                                                                                    page=page)
     return JSONResponse(
         content=product_with_relations,
         status_code=status.HTTP_200_OK
@@ -141,9 +134,7 @@ async def update_product_availability(request: Request,
     product = await product_service.update_product_availability(product_id=product_id, in_stock=in_stock)
     
     # Clear ALL product-related cache
-    await product_service_redis_manager.clear_cache_namespace(
-        namespace=f"{settings.PRODUCT_SERVICE_URL_API_VERSION}/products*"
-    )
+    await product_service_redis_manager.clear_cache_namespace(namespace="products", request=request)
     return JSONResponse(
         content=product,
         status_code=status.HTTP_200_OK
@@ -159,9 +150,7 @@ async def delete_product(request: Request,
     await product_service.delete_product(product_id=product_id)
     
     # Clear ALL product-related cache
-    await product_service_redis_manager.clear_cache_namespace(
-        namespace=f"{settings.PRODUCT_SERVICE_URL_API_VERSION}/products*"
-    )
+    await product_service_redis_manager.clear_cache_namespace(namespace="products", request=request)
     return JSONResponse(
         content=None,
         status_code=status.HTTP_204_NO_CONTENT

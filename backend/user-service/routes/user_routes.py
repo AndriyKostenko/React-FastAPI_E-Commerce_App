@@ -18,7 +18,7 @@ from schemas.user_schemas import (UserSignUp,
 from dependencies.dependencies import user_crud_dependency
 from shared.shared_instances import user_service_redis_manager, settings, auth_manager, logger
 from shared.customized_json_response import JSONResponse
-from schemas.user_schemas import UserBasicUpdate, FilterParams, ForgotPasswordResponse
+from schemas.user_schemas import UserBasicUpdate, UsersFilterParams, ForgotPasswordResponse
 
 
 user_routes = APIRouter(
@@ -62,7 +62,7 @@ async def create_user(request: Request,
     new_db_user = await user_service.create_user(data=data)
 
     # Invalidate cache for user list and related endpoints, adding force_method to ensure correct cache keys are targeted
-    await user_service_redis_manager.clear_cache_namespace(namespace="/users", request=request, force_method="GET")  
+    await user_service_redis_manager.clear_cache_namespace(namespace="users" ,request=request)  
 
     # generation verification token only for API gateway events
     verification_token, _ = auth_manager.create_access_token(email=new_db_user.email,
@@ -71,6 +71,7 @@ async def create_user(request: Request,
                                                             expires_delta=timedelta(minutes=30),
                                                             purpose="email_verification"
                                                             )
+    
     # adding token to response (internal only) for event publishing in API gateway
     response_data = {**new_db_user.model_dump(), "verification_token": verification_token}
     return JSONResponse(content=response_data,
@@ -134,8 +135,8 @@ async def reset_password(request: Request,
     await user_service.update_user_password(email=token_data.email, new_password=data.new_password)
     
     # Invalidate user-specific caches only
-    await user_service_redis_manager.clear_cache_namespace("/users", request=request, force_method="GET")
-    await user_service_redis_manager.clear_cache_namespace("/me", request=request, force_method="GET")
+    await user_service_redis_manager.clear_cache_namespace(namespace="users", request=request)
+    await user_service_redis_manager.clear_cache_namespace(namespace="me", request=request)
     
     return JSONResponse(
         content=PasswordUpdateResponse(
@@ -157,10 +158,6 @@ async def login(request: Request,
     # Authenticate user with credentials
     user = await auth_manager.get_authenticated_user(form_data=form_data, user_service=user_service)
     
-    # Invalidate user-specific caches only
-    await user_service_redis_manager.clear_cache_namespace("/users", request=request, force_method="GET")
-    await user_service_redis_manager.clear_cache_namespace("/me", request=request, force_method="GET")
-
     # creating access token
     access_token, expiry_timestamp = auth_manager.create_access_token(email=user.email,
                                                                       user_id=user.id, 
@@ -187,8 +184,8 @@ async def login(request: Request,
 @user_service_redis_manager.ratelimiter(times=5, seconds=60)  # same as login
 @user_service_redis_manager.cached(ttl=60)  # Cache for 1 minute
 async def generate_token(request: Request,
-                        form_data: Annotated[OAuth2PasswordRequestForm, Depends()], 
-                        user_service: user_crud_dependency):
+                         form_data: Annotated[OAuth2PasswordRequestForm, Depends()], 
+                         user_service: user_crud_dependency):
     """Generate new token for user"""
     user = await auth_manager.get_authenticated_user(form_data=form_data, 
                                                     user_service=user_service)
@@ -215,9 +212,7 @@ async def get_current_user_data(request: Request,
                         status_code=status.HTTP_200_OK)
 
 
-
 #------------------------------------------------------------------------
-
 
 
 @user_routes.get("/users/email/{user_email}",
@@ -253,15 +248,13 @@ async def get_user_by_user_id(request: Request,
 @user_routes.get("/users",
                   summary="Get all users",
                   response_description="List of all users retrieved successfully",
-                  response_model=list[UserInfo],
-                  )
+                  response_model=list[UserInfo])
 @user_service_redis_manager.cached(ttl=60) 
 @user_service_redis_manager.ratelimiter(times=10, seconds=60)
 async def get_all_users(request: Request,
                         user_service: user_crud_dependency,
-                        filter_query: Annotated[FilterParams, Query()]):
-    parsed_params = filter_query.model_dump(exclude_none=True)
-    users = await user_service.get_all_users(**parsed_params)
+                        filter_query: Annotated[UsersFilterParams, Query()]):
+    users = await user_service.get_all_users(**(filter_query.model_dump()))
     return JSONResponse(content=users,
                         status_code=status.HTTP_200_OK)
 
@@ -279,8 +272,8 @@ async def update_user_by_id(request: Request,
     updated_user = await user_service.update_user_basic_info(user_id=user_id, update_data=data)
     
     # Invalidate cache for user list and related endpoints, adding force_method to ensure correct cache keys are targeted
-    await user_service_redis_manager.clear_cache_namespace("/users", request=request, force_method="GET")
-    await user_service_redis_manager.clear_cache_namespace("/me", request=request, force_method="GET")
+    await user_service_redis_manager.clear_cache_namespace(namespace="users", request=request,)
+    await user_service_redis_manager.clear_cache_namespace(namespace="me", request=request)
     return JSONResponse(content=updated_user,
                         status_code=status.HTTP_200_OK)
 
@@ -296,8 +289,8 @@ async def delete_user_by_id(request: Request,
     await user_service.delete_user_by_id(user_id=user_id)
 
     # Invalidate cache for user list and related endpoints, adding force_method to ensure correct cache keys are targeted
-    await user_service_redis_manager.clear_cache_namespace(namespace="/users", request=request, force_method="GET")  
-    await user_service_redis_manager.clear_cache_namespace(namespace="/me", request=request, force_method="GET")  
+    await user_service_redis_manager.clear_cache_namespace(namespace="users", request=request)  
+    await user_service_redis_manager.clear_cache_namespace(namespace="me", request=request)  
 
     return JSONResponse(content={"detail": "User deleted successfully"},
                         status_code=status.HTTP_200_OK)

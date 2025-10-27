@@ -2,7 +2,6 @@ from typing import Any, AsyncGenerator, Callable, Optional
 from functools import wraps
 from time import perf_counter
 from math import ceil
-from urllib.parse import parse_qsl, urlencode
 
 import orjson
 from fastapi import Request
@@ -19,13 +18,14 @@ class RedisManager:
     Unified Redis manager for caching and rate limiting across microservices.
     Provides decorators for both caching and rate limiting functionality (for endpoints) and cache / ratelimiting methods for api-gateway.
     """
-    def __init__(self, service_prefix: str, redis_url: str, logger, service_api_version):
+    def __init__(self, service_prefix: str, redis_url: str, logger, service_api_version: str):
         self.logger = logger
         self.service_prefix = service_prefix
         self.redis_url = redis_url
         self._redis: Optional[aioredis.Redis] = None
         self.http_methods = ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"]
         self.service_api_version = service_api_version
+        self.namespaces = ["users", "products", "categories", "orders", "reviews", "images"]
         
     # property to lazily initialize RedisCache
     @property
@@ -107,16 +107,16 @@ class RedisManager:
 
     async def clear_cache_namespace(
         self,
-        namespace: str,
         request: Request,
-        force_method: str | None = None
+        namespace: str,
+        force_method: str | None = "GET"
     ) -> bool:
         """
         Clear all keys in a namespace (pattern-based) safely using Redis SCAN.
         Works with API versioning automatically.
         """
-        if not namespace:
-            self.logger.error("Namespace must be provided for clearing cache.")
+        if namespace not in self.namespaces:
+            self.logger.error("Namespace is missing or incorrect for clearing cache.")
             return False
 
         # Generate pattern-based cache key including API version
@@ -132,6 +132,7 @@ class RedisManager:
 
         deleted_count = 0
         try:
+            # adding count
             async for key in self.redis.scan_iter(match=pattern_key, count=1000):
                 await self.redis.delete(key)
                 deleted_count += 1
@@ -143,7 +144,6 @@ class RedisManager:
             self.logger.error(f"Error clearing namespace '{namespace}': {str(e)}", exc_info=True)
             return False
 
-         
         
     def _should_skip_caching(self, request: Request, response) -> bool:
         """
@@ -230,7 +230,6 @@ class RedisManager:
         except Exception as e:
             self.logger.error(f"Error caching response: {str(e)}")
             return
-
 
             
     async def get_cached_response(self, request: Request) -> Optional[JSONResponse]:
@@ -353,7 +352,6 @@ class RedisManager:
         return decorator
 
 
-
     async def invalidate_cache(self, request: Request) -> bool:
         """
         Invalidate cache for a specific key in the given namespace.
@@ -374,10 +372,6 @@ class RedisManager:
         else:
             self.logger.warning(f"Cache key not found for invalidation: {cache_key}")
             return False
-
-
-
-        
         
     # ==================== RATE LIMITING FUNCTIONALITY ====================
     

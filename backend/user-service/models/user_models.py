@@ -32,6 +32,9 @@ class User(Base, TimestampMixin):
     is_active: Mapped[bool] = mapped_column(default=True, nullable=False)
     is_verified: Mapped[bool] = mapped_column(default=False, nullable=False)
     
+    def get_search_fields(self) -> list[str]:
+        """Return list of fields to be used in search operations"""
+        return [self.name, self.email, self.role, self.phone_number]
     
     def __repr__(self) -> str:
         return f"User(id={self.id}, name={self.name}, email={self.email}, role={self.role}, is_active={self.is_active}, is_verified={self.is_verified}), date_created={self.date_created}, date_updated={self.date_updated})"

@@ -31,16 +31,15 @@ api_gateway_redis_manager = RedisManager(service_prefix="api-gateway",
 user_service_redis_manager = RedisManager(service_prefix="user-service", 
                                           redis_url=settings.USER_SERVICE_REDIS_URL,
                                           logger=logger,
-                                          service_api_version=settings.USER_SERVICE_URL_API_VERSION)
+                                          service_api_version=settings.USER_SERVICE_URL_API_VERSION,)
 product_service_redis_manager = RedisManager(service_prefix="product-service", 
                                              redis_url=settings.PRODUCT_SERVICE_REDIS_URL,
                                              logger=logger,
-                                             service_api_version=settings.PRODUCT_SERVICE_URL_API_VERSION)
-
+                                             service_api_version=settings.PRODUCT_SERVICE_URL_API_VERSION,)
 notification_service_redis_manager = RedisManager(service_prefix="notification-service",
                                                   redis_url=settings.NOTIFICATION_SERVICE_REDIS_URL,
                                                   logger=logger,
-                                                  service_api_version=settings.NOTIFICATION_SERVICE_URL_API_VERSION)
+                                                  service_api_version=settings.NOTIFICATION_SERVICE_URL_API_VERSION,)
 
 
 

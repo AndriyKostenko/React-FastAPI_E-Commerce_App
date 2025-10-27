@@ -1,9 +1,10 @@
+from operator import or_
 from uuid import UUID
-from typing import Generic, Optional, Type, TypeVar
+from typing import Generic, Optional, Type, TypeVar, Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import func, select, asc, desc
-from sqlalchemy.orm import InstrumentedAttribute
+from sqlalchemy.orm import selectinload, InstrumentedAttribute
 
 from shared.base_exceptions import NoFieldInTheModelError
 from shared.models.models_base_class import Base
@@ -20,13 +21,13 @@ class BaseRepository(Generic[ModelType]):
     Can be used with any SQLAlchemy model.
     """
     # list of fields that must always use equality, even if string type
-    EQUAL_ONLY_FIELDS = {"sku", "id", "uuid", "email", "phone_number"}
+    EQUAL_ONLY_FIELDS = ["sku", "id", "uuid", "email", "phone_number"]
 
     def __init__(self, session: AsyncSession, model: Type[ModelType]):
         self.session = session
         self.model = model
 
-    # CREATE
+    # ---------------- CREATE ----------------
     async def create(self, obj: ModelType) -> ModelType:
         """Creating a new record"""
         self.session.add(obj)
@@ -42,67 +43,95 @@ class BaseRepository(Generic[ModelType]):
             await self.session.refresh(obj)
         return objects
     
-    # READ
-    async def get_by_id(self, id: UUID) -> Optional[ModelType]:
+    # ---------------- READ ----------------
+    async def get_by_id(self, 
+                        item_id: UUID,
+                        load_relations: Optional[list[str]] = None) -> Optional[ModelType]:
         """Get a record by ID"""
-        result = await self.session.execute(select(self.model).where(self.model.id == id)) # type: ignore
+        query = select(self.model)
+        if load_relations:
+            for relation in load_relations:
+                if hasattr(self.model, relation):
+                    query = query.options(selectinload(getattr(self.model, relation)))
+        query = query.where(self.model.id == item_id)
+        result = await self.session.execute(query)
         return result.scalar_one_or_none()
     
     async def get_all(self,
-                      **filters) -> list[ModelType]:
-        """Get all records with optional limit, offset, and order by"""
+                      filters: Optional[dict[str, Any]],
+                      search_term: Optional[str] = None,
+                      search_fields: Optional[list[str]] = None,
+                      sort_by: Optional[str] = None,
+                      sort_order: str = "asc",
+                      limit: Optional[int] = 50,
+                      offset: Optional[int] = None,
+                      load_relations: Optional[list[str]] = None) -> list[ModelType]:
+        """
+        Universal 'get all' method with:
+        - Dynamic filters
+        - Optional search (on multiple fields)
+        - Sorting, pagination
+        - Relationship loading
+        """
         query = select(self.model)
         
-        # Extract reserved keywords (non-column filters)
-        sort_by = filters.pop("sort_by", None)
-        sort_order = filters.pop("sort_order", "asc")
-        limit = filters.pop("limit", None)
-        offset = filters.pop("offset", None)
-        
-        # Applying filters
+        # Relationship loading
+        if load_relations:
+            for relation in load_relations:
+                if hasattr(self.model, relation):
+                    query = query.options(selectinload(getattr(self.model, relation)))
+                    
+        # Filters
         if filters:
             for key, value in filters.items():
                 if not hasattr(self.model, key):
                     continue
+                # Determine if equality or LIKE should be used
                 column: InstrumentedAttribute = getattr(self.model, key)
-
-                # Partial match for text fields
                 if isinstance(value, str) and key not in self.EQUAL_ONLY_FIELDS:
-                    query = query.where(column.ilike(f"%{value}%")) # case-insensitive LIKE
+                    # Use case-insensitive LIKE for string fields (except those in EQUAL_ONLY_FIELDS)
+                    query = query.where(column.ilike(f"%{value}%"))
                 else:
                     query = query.where(column == value)
-
+                    
+        # Search
+        if search_term and search_fields:
+            conditions = [
+                getattr(self.model, field).ilike(f"%{search_term}%")
+                for field in search_fields
+                if hasattr(self.model, field)
+            ]
+            if conditions:
+                query = query.where(or_(*conditions))
+                
         # Sorting
         if sort_by and hasattr(self.model, sort_by):
-            order_func = asc if sort_order.lower() == "asc" else desc
+            order_func = asc if sort_order.lower() == "asc"else desc
             query = query.order_by(order_func(getattr(self.model, sort_by)))
-        
+            
         # Pagination
         if offset:
             query = query.offset(offset)
         if limit:
             query = query.limit(limit)
-            
-        result = await self.session.execute(query)
-        return list(result.scalars().all())
         
+        result = await self.session.execute(query)
+        print("Executed query:", str(query))
+        return list(result.scalars().all())
+
     async def get_by_field(self, field_name: str, value: str | UUID) -> Optional[ModelType]:
         """Get record by any field"""
         if not hasattr(self.model, field_name):
-            raise NoFieldInTheModelError(self.model.__name__, field_name)
-
-        
+            raise NoFieldInTheModelError(field_name=field_name, model_name=self.model.__name__)
         result = await self.session.execute(
             select(self.model).where(getattr(self.model, field_name) == value)
         )
-        
         return result.scalar_one_or_none()
         
     async def get_many_by_field(self, field_name: str, value: str | UUID) -> list[Optional[ModelType]]:
         """Get multiple records by field value"""
         if not hasattr(self.model, field_name):
-            raise AttributeError(f"Model {self.model.__name__} has no field '{field_name}'")
-        
+            return []
         result = await self.session.execute(
             select(self.model).where(getattr(self.model, field_name) == value)
         )
@@ -146,9 +175,9 @@ class BaseRepository(Generic[ModelType]):
                 setattr(existing_obj, field, new_value)
         return await self.update(existing_obj)
     
-    async def update_by_id(self, id: UUID, **kwargs) -> Optional[ModelType]:
+    async def update_by_id(self, item_id: UUID, **kwargs) -> Optional[ModelType]:
         """Update a record by ID with new values"""
-        existing_obj = await self.get_by_id(id)
+        existing_obj = await self.get_by_id(item_id)
         if not existing_obj:
             return None
         for field, value in kwargs.items():
@@ -163,9 +192,9 @@ class BaseRepository(Generic[ModelType]):
         await self.session.delete(obj)
         await self.session.commit()
 
-    async def delete_by_id(self, id: UUID) -> bool:
+    async def delete_by_id(self, item_id: UUID) -> bool:
         """Delete a record by ID"""
-        existing_obj = await self.get_by_id(id)
+        existing_obj = await self.get_by_id(item_id)
         if existing_obj:
             await self.delete(existing_obj)
             return True
