@@ -2,7 +2,6 @@ from datetime import timedelta
 from typing import Annotated
 from uuid import UUID
 
-
 from fastapi import Depends, APIRouter, status, Request, Query
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import EmailStr
@@ -16,9 +15,10 @@ from schemas.user_schemas import (UserSignUp,
                                     ResetPasswordRequest,
                                     PasswordUpdateResponse)
 from dependencies.dependencies import user_crud_dependency
-from shared.shared_instances import user_service_redis_manager, settings, auth_manager, logger
+from shared.shared_instances import user_service_redis_manager, settings, auth_manager
 from shared.customized_json_response import JSONResponse
 from schemas.user_schemas import UserBasicUpdate, UsersFilterParams, ForgotPasswordResponse
+from models.user_models import User
 
 
 user_routes = APIRouter(
@@ -212,7 +212,7 @@ async def get_current_user_data(request: Request,
                         status_code=status.HTTP_200_OK)
 
 
-#------------------------------------------------------------------------
+#--------------------------Users------------------------------------
 
 
 @user_routes.get("/users/email/{user_email}",
@@ -293,4 +293,16 @@ async def delete_user_by_id(request: Request,
     await user_service_redis_manager.clear_cache_namespace(namespace="me", request=request)  
 
     return JSONResponse(content={"detail": "User deleted successfully"},
+                        status_code=status.HTTP_200_OK)
+    
+    
+    
+#-------------------------AdminJS Schema-----------------------------------
+    
+@user_routes.get("/admin/schema/users", 
+                 summary="Get schema for AdminJS",)
+@user_service_redis_manager.cached(ttl=60) 
+@user_service_redis_manager.ratelimiter(times=10, seconds=60)  # Limit to 10 requests per minute
+async def get_user_schema_for_admin_js(request: Request):
+    return JSONResponse(content={"fields": User.get_admin_schema()},
                         status_code=status.HTTP_200_OK)

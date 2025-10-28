@@ -8,15 +8,22 @@ import {
 } from 'adminjs';
 
 export class ApiResourceProvider extends BaseResource {
-    private endpoint: string;
+    private dataEndpoint: string;
+
+    private schemaEndpoint: string;
 
     private resourceName: string;
 
     private databaseTypeValue: string;
 
-    constructor(endpoint: string, resourceName: string, databaseType: string) {
+    private cachedProperties: BaseProperty[] | null = null;
+
+    private isInitialized = false;
+
+    constructor(dataEndpoint: string, schemaEndpoint: string, resourceName: string, databaseType: string) {
         super();
-        this.endpoint = endpoint;
+        this.dataEndpoint = dataEndpoint;
+        this.schemaEndpoint = schemaEndpoint;
         this.resourceName = resourceName;
         this.databaseTypeValue = databaseType;
     }
@@ -38,18 +45,34 @@ export class ApiResourceProvider extends BaseResource {
     }
 
     properties(): BaseProperty[] {
-        return [
-            new BaseProperty({ path: 'id', type: 'string', isId: true }),
-            new BaseProperty({ path: 'name', type: 'string' }),
-            new BaseProperty({ path: 'email', type: 'string' }),
-            new BaseProperty({ path: 'role', type: 'string' }),
-            new BaseProperty({ path: 'phone_number', type: 'string' }),
-            new BaseProperty({ path: 'image', type: 'string' }),
-            new BaseProperty({ path: 'is_active', type: 'boolean' }),
-            new BaseProperty({ path: 'is_verified', type: 'boolean' }),
-            new BaseProperty({ path: 'date_created', type: 'datetime' }),
-            new BaseProperty({ path: 'date_updated', type: 'datetime' }),
-        ];
+        return this.cachedProperties ?? [];
+    }
+
+    async initializeProperties(context?: ActionContext): Promise<void> {
+        if (this.isInitialized) {
+            return;
+        }
+
+        try {
+            const schema = await this.fetchApi(this.schemaEndpoint, context);
+
+            if (!schema.fields || schema.fields.length === 0) {
+                console.warn(`No fields returned from schema endpoint for ${this.resourceName}`);
+                return;
+            }
+            this.cachedProperties = schema.fields.map((field: any) =>
+                new BaseProperty({
+                    path: field.path,
+                    type: field.type,
+                    isId: field.isId,
+                }));
+
+            this.isInitialized = true;
+            console.log(`Loaded ${this.cachedProperties.length} properties for ${this.resourceName}`);
+        } catch (error) {
+            console.error(`Failed to fetch schema for ${this.resourceName}:`, error);
+            // this.isInitialized = true; // Marked as initialized even on error to prevent infinite retries
+        }
     }
 
     property(path: string): BaseProperty | null {
@@ -110,7 +133,7 @@ export class ApiResourceProvider extends BaseResource {
     ): Promise<BaseRecord[]> {
         try {
             const { limit, offset, sort, ...fetchOptions } = options;
-            const url = new URL(this.endpoint);
+            const url = new URL(this.dataEndpoint);
 
             if (typeof limit === 'number') {
                 url.searchParams.append('limit', limit.toString());
@@ -119,8 +142,8 @@ export class ApiResourceProvider extends BaseResource {
                 url.searchParams.append('offset', offset.toString());
             }
             if (sort?.sortBy) {
-                url.searchParams.append('sortBy', sort.sortBy);
-                url.searchParams.append('direction', sort.direction || 'asc');
+                url.searchParams.append('sort_by', sort.sortBy);
+                url.searchParams.append('sort_order', sort.direction || 'asc');
             }
 
             // eslint-disable-next-line max-len
@@ -153,8 +176,8 @@ export class ApiResourceProvider extends BaseResource {
     private buildResourceUrl(id?: string): string {
         // Don't strip the resource name - the endpoint already contains it
         // e.g., this.endpoint = "http://api-gateway:8000/api/v1/users"
-        console.log('Building resource URL - Endpoint:', this.endpoint, 'ID:', id);
-        return id ? `${this.endpoint}/id/${id}` : this.endpoint;
+        console.log('Building resource URL - Endpoint:', this.dataEndpoint, 'ID:', id);
+        return id ? `${this.dataEndpoint}/id/${id}` : this.dataEndpoint;
     }
 
     public async findOne(id: string, context?: ActionContext): Promise<BaseRecord | null> {
@@ -180,7 +203,7 @@ export class ApiResourceProvider extends BaseResource {
 
     public async create(params: Record<string, any>, context?: ActionContext): Promise<ParamsType> {
         try {
-            const data = await this.fetchApi(this.endpoint, context, {
+            const data = await this.fetchApi(this.dataEndpoint, context, {
                 method: 'POST',
                 body: JSON.stringify(params),
             });
@@ -244,5 +267,43 @@ export class ApiResourceProvider extends BaseResource {
 
     public static isAdapterFor(rawResource: any): boolean {
         return false;
+    }
+
+    // inside ApiResourceProvider class
+    public generateAdminPropertiesConfig(): Record<string, any> {
+        if (!this.cachedProperties || this.cachedProperties.length === 0) {
+            console.warn(`No cached properties found for ${this.resourceName}.`);
+            return {};
+        }
+
+        const config: Record<string, any> = {};
+
+        for (const prop of this.cachedProperties) {
+            const path = prop.path();
+
+            config[path] = {
+                isTitle: ['name', 'title', 'email'].includes(path),
+                isVisible: {
+                    list: true,
+                    filter: true,
+                    show: true,
+                    edit: !prop.isId(),
+                },
+                isEditable: !prop.isId(),
+            };
+
+            // Optionally tweak special fields
+            if (path.includes('date')) {
+                config[path].type = 'datetime';
+                config[path].isEditable = false;
+            }
+
+            if (path === 'id') {
+                config[path].isVisible = {
+                    list: true, filter: true, show: true, edit: false,
+                };
+            }
+        }
+        return config;
     }
 }

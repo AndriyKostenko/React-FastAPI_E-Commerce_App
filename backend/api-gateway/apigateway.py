@@ -124,9 +124,6 @@ class ApiGateway:
         )
         self.url_manager = UrlManager(config=self.config, logger=self.logger)
 
-        
-
-
     async def _detect_and_prepare_body(self, request: Request, path: str):
         """
         Detects the content type of the body and prepares it for forwarding.
@@ -200,7 +197,6 @@ class ApiGateway:
             filtered_headers["Content-Type"] = new_content_type
             
         return filtered_headers
-
 
     @circuit(failure_threshold=5, recovery_timeout=30)
     async def forward_request(self, request: Request, service_name: str) -> JSONResponse:

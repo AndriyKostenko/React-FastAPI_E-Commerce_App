@@ -63,9 +63,7 @@ async def add_product_images(request: Request,
     new_product_images = await image_service.create_product_images(product_id, image_data)
     
     # Clear ALL image-related cache
-    await product_service_redis_manager.clear_cache_namespace(
-        namespace=f"{settings.PRODUCT_SERVICE_URL_API_VERSION}/images*"
-    )
+    await product_service_redis_manager.clear_cache_namespace(request=request, namespace="product_images")
     
     return JSONResponse(
         content=new_product_images,
@@ -153,9 +151,7 @@ async def replace_product_images(request: Request,
     updated_images = await image_service.replace_product_images(product_id, image_data)
     
     # Clear ALL image-related cache
-    await product_service_redis_manager.clear_cache_namespace(
-        namespace=f"{settings.PRODUCT_SERVICE_URL_API_VERSION}/images*"
-    )
+    await product_service_redis_manager.clear_cache_namespace(request=request, namespace="product_images")
     
     return JSONResponse(
         content=updated_images,
@@ -185,9 +181,7 @@ async def update_product_image(request: Request,
         color_code=color_code
     )
     # Clear ALL image-related cache
-    await product_service_redis_manager.clear_cache_namespace(
-        namespace=f"{settings.PRODUCT_SERVICE_URL_API_VERSION}/images*"
-    )
+    await product_service_redis_manager.clear_cache_namespace(request=request, namespace="product_images")
 
     return JSONResponse(
         content=updated_image,
@@ -202,12 +196,7 @@ async def delete_product_image(request: Request,
                                image_id: UUID,
                                image_service: product_image_service_dependency) -> JSONResponse:
     await image_service.delete_product_image(image_id)
-    
-    # Clear ALL image-related cache
-    await product_service_redis_manager.clear_cache_namespace(
-        namespace=f"{settings.PRODUCT_SERVICE_URL_API_VERSION}/images*"
-    )
-    
+    await product_service_redis_manager.clear_cache_namespace(request=request, namespace="product_images")
     return JSONResponse(
         content=None,
         status_code=status.HTTP_204_NO_CONTENT

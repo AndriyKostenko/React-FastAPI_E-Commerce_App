@@ -105,6 +105,9 @@ class Settings(BaseSettings):
     CORS_ALLOW_CREDENTIALS: bool
     CORS_ALLOWED_METHODS: List[str]
     CORS_ALLOWED_HEADERS: List[str]
+    
+    #AdminJs
+    ADMINJS_SERVICE_TOKEN: str
 
     # Other
     SECRET_ROLE: str

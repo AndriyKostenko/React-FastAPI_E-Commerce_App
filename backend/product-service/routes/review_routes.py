@@ -26,10 +26,7 @@ async def create_product_review(request: Request,
                                 product_service: product_service_dependency
                             ) -> JSONResponse:
     created_review = await review_service.create_product_review(user_id=user_id, product_id=product_id, data=review)
-    # Clear ALL review-related cache
-    await product_service_redis_manager.clear_cache_namespace(
-        namespace=f"{settings.PRODUCT_SERVICE_URL_API_VERSION}/reviews*"
-    )
+    await product_service_redis_manager.clear_cache_namespace(request=request, namespace="product_reviews")
     return JSONResponse(
         content=created_review,
         status_code=status.HTTP_201_CREATED
@@ -127,10 +124,7 @@ async def update_product_review(request: Request,
         update_data=review_data
     )
 
-    # Clear ALL review-related cache
-    await product_service_redis_manager.clear_cache_namespace(
-        namespace=f"{settings.PRODUCT_SERVICE_URL_API_VERSION}/reviews*"
-    )
+    await product_service_redis_manager.clear_cache_namespace(request=request, namespace="product_reviews")
     return JSONResponse(
         content=updated_review,
         status_code=status.HTTP_200_OK
@@ -144,17 +138,12 @@ async def delete_product_review(request: Request,
                                 product_id: UUID,
                                 user_id: UUID,
                                 review_service: review_service_dependency) -> JSONResponse:
-    # Get existing review
     existing_review = await review_service.get_review_by_product_id_and_user_id(
         product_id=product_id,
         user_id=user_id
     )
     await review_service.delete_product_review(review_id=existing_review.id)
-    
-    # Clear ALL review-related cache
-    await product_service_redis_manager.clear_cache_namespace(
-        namespace=f"{settings.PRODUCT_SERVICE_URL_API_VERSION}/reviews*"
-    )
+    await product_service_redis_manager.clear_cache_namespace(request=request, namespace="product_revews")
     return JSONResponse(
         content=None,
         status_code=status.HTTP_204_NO_CONTENT

@@ -121,7 +121,8 @@ async def get_product_by_id_detailed(request: Request,
                     response_description="Product by name")
 @product_service_redis_manager.cached(ttl=180)
 @product_service_redis_manager.ratelimiter(times=200, seconds=60)
-async def get_product_by_name(request: Request,product_name: str,
+async def get_product_by_name(request: Request,
+                              product_name: str,
                               product_service: product_service_dependency) -> JSONResponse:
     product = await product_service.get_product_by_name(name=product_name.lower())
     return JSONResponse(
@@ -139,7 +140,6 @@ async def update_product_availability(request: Request,
                                       in_stock: bool,
                                       product_service: product_service_dependency) -> JSONResponse:
     product = await product_service.update_product_availability(product_id=product_id, in_stock=in_stock)
-    
     # Clear ALL product-related cache
     await product_service_redis_manager.clear_cache_namespace(namespace="products", request=request)
     return JSONResponse(
@@ -155,7 +155,6 @@ async def delete_product(request: Request,
                          product_id: UUID,
                          product_service: product_service_dependency) -> JSONResponse:
     await product_service.delete_product_by_id(product_id=product_id)
-    
     # Clear ALL product-related cache
     await product_service_redis_manager.clear_cache_namespace(namespace="products", request=request)
     return JSONResponse(

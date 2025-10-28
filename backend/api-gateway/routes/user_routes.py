@@ -90,7 +90,7 @@ async def reset_password(request: Request):
     
     
     
-#-----------------------------------------------------------------------------
+#---------------------------Users Proxy-------------------------------------
 
 
 
@@ -149,3 +149,13 @@ async def delete_user_by_id(request: Request,
         service_name="user-service",
         request=request,
     )   
+    
+    
+#---------------------------AdminJS Proxy-------------------------------------
+
+@user_proxy.get("/admin/schema/users")
+async def get_user_schema_for_admin_js(request: Request):
+    return await api_gateway_manager.forward_request(
+        service_name="user-service",
+        request=request
+    )

@@ -33,7 +33,8 @@ class AuthMiddleware(metaclass=SingletonMetaClass):
             f"{self.settings.USER_SERVICE_URL_API_VERSION}/login", 
             f"{self.settings.USER_SERVICE_URL_API_VERSION}/forgot-password",
             f"{self.settings.USER_SERVICE_URL_API_VERSION}/activate/",
-            f"{self.settings.USER_SERVICE_URL_API_VERSION}/password-reset/"
+            f"{self.settings.USER_SERVICE_URL_API_VERSION}/password-reset/",
+            f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/admin/schema/users",
         }
 
     def is_public_endpoint(self, path: str) -> bool:      

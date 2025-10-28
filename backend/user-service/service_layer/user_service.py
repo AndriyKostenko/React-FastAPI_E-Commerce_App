@@ -101,7 +101,7 @@ class UserService:
         return UserInfo.model_validate(updated_user)
 
     async def update_user_basic_info(self, user_id: UUID, update_data: UserBasicUpdate) -> UserInfo:
-        updated_user = await self.repository.update_by_id(id=user_id, **update_data.model_dump(exclude_unset=True))
+        updated_user = await self.repository.update_by_id(item_id=user_id, **update_data.model_dump())
         if not updated_user:
             raise UserNotFoundError(f"User with id: {user_id} not found.")
         return UserInfo.model_validate(updated_user)

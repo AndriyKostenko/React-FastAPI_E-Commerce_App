@@ -22,7 +22,6 @@ async def send_verification_email(request: Request,
     """Send verification email directly (for testing or admin purposes)"""
     await email_service.send_verification_email(
         email=user_email,
-        user_id=user_id,
         token=user_token
     )
     return JSONResponse(
@@ -45,8 +44,6 @@ async def request_password_reset(request: Request,
 
     await email_service.send_password_reset_email(
         email=user_email,
-        user_id=user_id,
-        user_role=user_role,
         reset_token=user_token
     )
     return JSONResponse(
@@ -67,11 +64,6 @@ async def send_password_reset_success_email(request: Request,
     """Send password reset success confirmation email"""
     await email_service.send_password_reset_success_email(
         email=user_email,
-        template_body={
-            "app_name": settings.MAIL_FROM_NAME,
-            "email": user_email,
-            "login_url": f"http://{settings.APP_HOST}:{settings.USER_SERVICE_APP_PORT}/login",
-        }
     )
     return JSONResponse(
         status_code=status.HTTP_200_OK,
