@@ -90,6 +90,15 @@
    restart via docker compose sepc. service
    `docker compose up <service-name>`
 
+   Stop the service:
+   `docker compose stop user-service`
+
+   Rebuild with updated code:
+   `docker compose build user-service`
+
+   Start it again (detached):
+   `docker compose up -d user-service`
+
 
 ## UV
 

@@ -132,6 +132,7 @@ class UsersFilterParams(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=100, description="Filter by user name")
     is_active: Optional[bool] = Field(None, description="Filter by user active status")
     is_verified: Optional[bool] = Field(None, description="Filter by user verification status")
+    search_term: Optional[str] = Field(None, min_length=1, max_length=100, description="Search term for name or email")
     
     # Date range filters
     date_created_from: Optional[datetime] = Field(None, description="Filter users created from this date")

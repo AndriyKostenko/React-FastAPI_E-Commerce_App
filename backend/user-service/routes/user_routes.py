@@ -253,8 +253,8 @@ async def get_user_by_user_id(request: Request,
 @user_service_redis_manager.ratelimiter(times=10, seconds=60)
 async def get_all_users(request: Request,
                         user_service: user_crud_dependency,
-                        filter_query: Annotated[UsersFilterParams, Query()]):
-    users = await user_service.get_all_users(**(filter_query.model_dump()))
+                        filters_query: Annotated[UsersFilterParams, Query()]):
+    users = await user_service.get_all_users(filters=filters_query)
     return JSONResponse(content=users,
                         status_code=status.HTTP_200_OK)
 

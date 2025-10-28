@@ -1,12 +1,15 @@
+from typing import Annotated
 from uuid import UUID
 
 from pydantic import EmailStr
+from fastapi import Query
 
 from models.user_models import User
 from schemas.user_schemas import (
     UserSignUp,
     UserInfo,
     UserBasicUpdate,
+    UsersFilterParams,
 )
 from shared.shared_instances import auth_manager
 from exceptions.user_exceptions import (
@@ -38,8 +41,36 @@ class UserService:
         user = await self.repository.create(new_user)
         return UserInfo.model_validate(user)
 
-    async def get_all_users(self, **filters) -> list[UserInfo]:
-        users = await self.repository.get_all(**filters)
+    async def get_all_users(self, filters: Annotated[UsersFilterParams, Query()]) -> list[UserInfo]:
+        filters_dict = filters.model_dump()
+        
+        # Extracting pagination and sorting params
+        offset = filters_dict.pop("offset", None)
+        limit = filters_dict.pop("limit", None)
+        sort_by = filters_dict.pop("sort_by", None)
+        sort_order = filters_dict.pop("sort_order", "asc").lower()
+        search_term = filters_dict.pop("search_term", None)
+        
+        # Range filters
+        date_filters = {
+            "date_created_from": filters_dict.pop("date_created_from", None),
+            "date_created_to": filters_dict.pop("date_created_to", None),
+            "date_updated_from": filters_dict.pop("date_updated_from", None),
+            "date_updated_to": filters_dict.pop("date_updated_to", None)
+        }
+        
+        # Remaining filters
+        cleaned_filters = {key: value for key, value in filters_dict.items() if value is not None}
+        
+        # General query params
+        users = await self.repository.get_all(filters=cleaned_filters,
+                                              sort_by=sort_by,
+                                              sort_order=sort_order,
+                                              offset=offset,
+                                              limit=limit,
+                                              search_term=search_term,
+                                              date_filters=date_filters,
+                                              search_fields=User.get_search_fields())
         if not users:
             raise UserNotFoundError("No users found with the given criteria.")
         return [UserInfo.model_validate(user) for user in users]

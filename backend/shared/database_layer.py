@@ -1,9 +1,9 @@
-from operator import or_
+from datetime import datetime
 from uuid import UUID
 from typing import Generic, Optional, Type, TypeVar, Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import func, select, asc, desc
+from sqlalchemy import func, select, asc, desc, or_
 from sqlalchemy.orm import selectinload, InstrumentedAttribute
 
 from shared.base_exceptions import NoFieldInTheModelError
@@ -58,13 +58,14 @@ class BaseRepository(Generic[ModelType]):
         return result.scalar_one_or_none()
     
     async def get_all(self,
-                      filters: Optional[dict[str, Any]],
-                      search_term: Optional[str] = None,
-                      search_fields: Optional[list[str]] = None,
+                      filters: Optional[dict[str, Any]] = None,
                       sort_by: Optional[str] = None,
-                      sort_order: str = "asc",
+                      sort_order: Optional[str] = "asc",
                       limit: Optional[int] = 50,
                       offset: Optional[int] = None,
+                      date_filters: Optional[dict[str, datetime]] = None,
+                      search_term: Optional[str] = None,
+                      search_fields: Optional[list[str]] = None,
                       load_relations: Optional[list[str]] = None) -> list[ModelType]:
         """
         Universal 'get all' method with:
@@ -94,7 +95,7 @@ class BaseRepository(Generic[ModelType]):
                 else:
                     query = query.where(column == value)
                     
-        # Search
+        # Search across multiply fields
         if search_term and search_fields:
             conditions = [
                 getattr(self.model, field).ilike(f"%{search_term}%")
@@ -104,9 +105,28 @@ class BaseRepository(Generic[ModelType]):
             if conditions:
                 query = query.where(or_(*conditions))
                 
+        # Date range filters
+        if date_filters:
+            range_map = {
+                "created_at": ("date_created_from", "date_updated_to"),
+                "updated_at": ("date_update_from", "date_updated_to")
+            }
+            for column_name, (from_key, to_key) in range_map.items():
+                column = getattr(self.model, column_name, None)
+                if column is None:
+                    continue
+                start = date_filters.get(from_key)
+                end = date_filters.get(to_key)
+                if start and end:
+                    query = query.where(column.between(start, end))
+                elif start:
+                    query = query.where(column >= start)
+                elif end:
+                    query = query.where(column <= end)
+                
         # Sorting
         if sort_by and hasattr(self.model, sort_by):
-            order_func = asc if sort_order.lower() == "asc"else desc
+            order_func = asc if sort_order == "asc" else desc
             query = query.order_by(order_func(getattr(self.model, sort_by)))
             
         # Pagination
