@@ -1,7 +1,7 @@
 from fastapi import Request, HTTPException
 from fastapi.responses import JSONResponse
+
 from shared.shared_instances import settings, logger
-from httpx import AsyncClient, RequestError #type: ignore
 from shared.metaclasses import SingletonMetaClass
 from shared.shared_instances import auth_manager
 
@@ -14,47 +14,48 @@ class AuthMiddleware(metaclass=SingletonMetaClass):
     def __init__(self, settings, logger):
         self.settings = settings
         self.logger = logger
-        
-        # Initialize endpoints with settings
         self.PUBLIC_ENDPOINTS = {
-            "/health",
-            "/login",         
-            "/register",
-            "/activate",
-            "/password-reset",
-            "/token",
-            "/docs",
-            "/redoc",
-            "/openapi.json",
+            "/health": None,
+            "/docs": None,
+            "/redoc": None,
+            "/openapi.json": None,
+            f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/register": ['POST'],
+            f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/login": ['POST'],
+            f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/forgot-password": ['POST'],
+            f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/activate/": ['POST'],
+            f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/password-reset/": ['POST'],
+            f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/admin/schema/users": ['GET'],
+            f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/products": ['GET'],
+            f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/admin/schema/products": ['GET'],
         }
 
-        self.PUBLIC_ENDPOINT_PREFIXES = {
-            f"{self.settings.USER_SERVICE_URL_API_VERSION}/register",
-            f"{self.settings.USER_SERVICE_URL_API_VERSION}/login", 
-            f"{self.settings.USER_SERVICE_URL_API_VERSION}/forgot-password",
-            f"{self.settings.USER_SERVICE_URL_API_VERSION}/activate/",
-            f"{self.settings.USER_SERVICE_URL_API_VERSION}/password-reset/",
-            f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/admin/schema/users",
-        }
-
-    def is_public_endpoint(self, path: str) -> bool:      
+    def is_public_endpoint(self, path: str, method: str) -> bool:
         """Check if the given path is a public endpoint that doesn't require authentication"""
         # Check exact matches
         if path in self.PUBLIC_ENDPOINTS:
-            return True
+            allowed_methods = self.PUBLIC_ENDPOINTS[path]
+            if allowed_methods is None:
+                return True
+            return method in allowed_methods
         
-        # Check prefix matches
-        return any(path.startswith(prefix) for prefix in self.PUBLIC_ENDPOINT_PREFIXES)
+        
+        for endpoint_prefix, allowed_methods in self.PUBLIC_ENDPOINTS.items():
+            if path.startswith(endpoint_prefix):
+                if allowed_methods is None:
+                    return True
+                return method in allowed_methods
+        return False
     
     async def middleware(self, request: Request, call_next):
         """
         Main middleware function to authenticate requests using JWT tokens.
         """
         path = request.url.path
-        self.logger.info(f"🔍 Auth middleware processing path: {path}")
+        method = request.method
+        self.logger.info(f"🔍 Auth middleware processing: {method} {path}")
         
         # 1. Skip authentication for public endpoints
-        is_public = self.is_public_endpoint(path)
+        is_public = self.is_public_endpoint(path, method)
         self.logger.info(f"🔍 Is path '{path}' public? {is_public}")
         
         if is_public:

@@ -1,9 +1,13 @@
+from ast import pattern
 from datetime import datetime
 from typing import Optional, List
+from unittest.mock import Base
 from uuid import UUID
 from decimal import Decimal
 
-from pydantic import BaseModel, PositiveInt, Field, ConfigDict, HttpUrl
+from attr import field
+
+from pydantic import BaseModel, PositiveInt, Field, ConfigDict, HttpUrl, field_validator
 
 from schemas.review_schemas import ReviewSchema
 from schemas.category_schema import CategorySchema
@@ -16,6 +20,7 @@ from schemas.product_image_schema import ImageType
 
 class ProductBase(BaseModel):
     """Base product schema with common attributes"""
+    id: UUID
     name: str = Field(..., min_length=3, max_length=50)
     description: str = Field(..., min_length=10, max_length=500)
     category_id: UUID
@@ -26,9 +31,26 @@ class ProductBase(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-class CreateProduct(ProductBase):
+class CreateProduct(BaseModel):
     """Schema for creating a product"""
-    ...
+    name: str = Field(..., min_length=3, max_length=50)
+    description: str = Field(..., min_length=10, max_length=500)
+    category_id: UUID
+    brand: str = Field(..., min_length=3, max_length=50)
+    quantity: PositiveInt = Field(..., gt=0, le=100)
+    price: Decimal = Field(..., gt=0, le=100)
+    in_stock: bool
+    
+    @field_validator('in_stock',mode='before')
+    @classmethod
+    def convert_in_stock(cls, v: str):
+        if isinstance(v, str):
+            if v.lower() == "true":
+                return True
+            elif v.lower() == "false":
+                return False
+        return v
+    
 
 class UpdateProduct(ProductBase):
     """Schema for updating an existing product"""
@@ -61,10 +83,12 @@ class ProductsFilterParams(BaseModel):
     limit: int = Field(default=10, gt=0, le=100, description="Maximum number of records to return")
     
     # Sorting options
-    sort_by: Optional[str] = Field(None, pattern="^(name|price|date_created|date_updated|quantity)$")
+    sort_by: Optional[str] = Field(None, pattern="^(id|name|price|date_created|date_updated|quantity)$")
     sort_order: Optional[str] = Field(None, pattern="^(asc|desc)$")
     
     # Filtering options
+    name: Optional[str] = None
+    brand: Optional[str] = None
     category: Optional[str] = None
     search_term: Optional[str] = Field(None, min_length=3, max_length=50)
     

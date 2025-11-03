@@ -124,10 +124,11 @@ class UsersFilterParams(BaseModel):
     limit: int = Field(default=10, gt=0, le=100, description="Maximum number of records to return")
     
     # Sorting
-    sort_by: Optional[str] = Field(None, pattern="^(name|email|date_created|date_updated)$", description="Field to sort by")
+    sort_by: Optional[str] = Field(None, pattern="^(id|name|email|date_created|date_updated)$", description="Field to sort by")
     sort_order: Optional[str] = Field(default="asc", pattern="^(asc|desc)$", description="Sort order: 'asc' or 'desc'")
     
     # Filtering
+    email: Optional[EmailStr] = Field(None, description="Filter by user email")
     role: Optional[str] = Field(None, description="Filter by user role")
     name: Optional[str] = Field(None, min_length=1, max_length=100, description="Filter by user name")
     is_active: Optional[bool] = Field(None, description="Filter by user active status")

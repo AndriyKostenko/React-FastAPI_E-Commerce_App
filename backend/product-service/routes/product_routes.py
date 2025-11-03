@@ -8,6 +8,7 @@ from dependencies.dependencies import product_service_dependency
 from schemas.product_schemas import ProductBase, ProductSchema, CreateProduct, ProductsFilterParams
 from shared.customized_json_response import JSONResponse
 from shared.shared_instances import product_service_redis_manager
+from models.product_models import Product
 
 
 product_routes = APIRouter(
@@ -21,29 +22,14 @@ product_routes = APIRouter(
 @product_service_redis_manager.ratelimiter(times=10, seconds=60)
 async def create_new_product(request: Request,
                              product_service: product_service_dependency,
-                             name: str = Form(..., min_length=3, max_length=50),
-                             description: str = Form(..., min_length=10, max_length=500),
-                             category_id: UUID = Form(...),
-                             brand: str = Form(...),
-                             quantity: int = Form(..., ge=0, le=100),
-                             price: Decimal = Form(..., ge=0, le=100),
-                             in_stock: bool = Form(...),
-                             ) -> JSONResponse:
-
-    # convert in_stock to boolean coz it will be passed as a string from client
-    if isinstance(in_stock, str):
-        if in_stock.lower() == "true":
-            in_stock = True
-        else:
-            in_stock = False
-    
-    product_data = CreateProduct(name=name.lower(),
-                                description=description,
-                                category_id=category_id,
-                                brand=brand.lower(),
-                                quantity=quantity,
-                                price=price,
-                                in_stock=in_stock)
+                             product_data: CreateProduct) -> JSONResponse:
+    product_data = CreateProduct(name=product_data.name.lower(),
+                                description=product_data.description,
+                                category_id=product_data.category_id,
+                                brand=product_data.brand.lower(),
+                                quantity=product_data.quantity,
+                                price=product_data.price,
+                                in_stock=product_data.in_stock)
 
     created_product = await product_service.create_product_item(product_data=product_data)
     
@@ -100,6 +86,7 @@ async def get_product_by_id(request: Request,
         content=product,
         status_code=status.HTTP_200_OK
     )
+  
     
 @product_routes.get("/products/id/{product_id}/detailed", 
                     response_model=ProductBase,
@@ -162,3 +149,8 @@ async def delete_product(request: Request,
         status_code=status.HTTP_204_NO_CONTENT
     )
 
+
+@product_routes.get("/admin/schema/products", summary="Schema for AdminJS")
+async def get_product_schema_for_admin_js(request: Request):
+    return JSONResponse(content={"fields": Product.get_admin_schema()},
+                        status_code=status.HTTP_200_OK)

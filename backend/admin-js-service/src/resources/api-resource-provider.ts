@@ -16,16 +16,72 @@ export class ApiResourceProvider extends BaseResource {
 
     private databaseTypeValue: string;
 
-    private cachedProperties: BaseProperty[] | null = null;
+    private cachedProperties: BaseProperty[] = [];
 
-    private isInitialized = false;
+    private usesFormData: boolean;
 
-    constructor(dataEndpoint: string, schemaEndpoint: string, resourceName: string, databaseType: string) {
+
+    constructor(
+        dataEndpoint: string,
+        schemaEndpoint: string,
+        resourceName: string,
+        databaseType: string,
+        usesFormData = false,
+    ) {
         super();
         this.dataEndpoint = dataEndpoint;
         this.schemaEndpoint = schemaEndpoint;
         this.resourceName = resourceName;
         this.databaseTypeValue = databaseType;
+        this.usesFormData = usesFormData;
+    }
+
+    // Static factory method that handles async initialization
+    static async create(
+        dataEndpoint: string,
+        schemaEndpoint: string,
+        resourceName: string,
+        databaseType: string,
+        usesFormData = false,
+    ): Promise<ApiResourceProvider> {
+        const instance = new ApiResourceProvider(
+            dataEndpoint,
+            schemaEndpoint,
+            resourceName,
+            databaseType,
+            usesFormData,
+        );
+        await instance.loadSchema();
+        return instance;
+    }
+
+    private async loadSchema(): Promise<void> {
+        try {
+            const schema = await this.fetchApi(this.schemaEndpoint);
+            console.log(`Raw schema response for ${this.resourceName}:`, JSON.stringify(schema, null, 2));
+            
+            if (!schema.fields?.length) {
+                console.warn(`No fields for ${this.resourceName}`);
+                return;
+            }
+
+            this.cachedProperties = schema.fields.map((field: any) => {
+                console.log(`Creating property for ${this.resourceName}.${field.path}:`, field);
+                return new BaseProperty({
+                    path: field.path,
+                    type: field.type,
+                    isId: field.isId,
+                });
+            });
+            console.log(`Loaded ${this.cachedProperties.length} properties for ${this.resourceName}`);
+            console.log(`Property paths:`, this.cachedProperties.map(p => p.path()));
+        } catch (error) {
+            console.error(`Failed to load schema for ${this.resourceName}:`, error);
+            // Set default property to prevent errors
+            this.cachedProperties = [
+                new BaseProperty({ path: 'id', type: 'string', isId: true })
+            ];
+        }
     }
 
     databaseName(): string {
@@ -45,38 +101,11 @@ export class ApiResourceProvider extends BaseResource {
     }
 
     properties(): BaseProperty[] {
-        return this.cachedProperties ?? [];
-    }
-
-    async initializeProperties(context?: ActionContext): Promise<void> {
-        if (this.isInitialized) {
-            return;
-        }
-
-        try {
-            const schema = await this.fetchApi(this.schemaEndpoint, context);
-
-            if (!schema.fields || schema.fields.length === 0) {
-                console.warn(`No fields returned from schema endpoint for ${this.resourceName}`);
-                return;
-            }
-            this.cachedProperties = schema.fields.map((field: any) =>
-                new BaseProperty({
-                    path: field.path,
-                    type: field.type,
-                    isId: field.isId,
-                }));
-
-            this.isInitialized = true;
-            console.log(`Loaded ${this.cachedProperties.length} properties for ${this.resourceName}`);
-        } catch (error) {
-            console.error(`Failed to fetch schema for ${this.resourceName}:`, error);
-            // this.isInitialized = true; // Marked as initialized even on error to prevent infinite retries
-        }
+        return this.cachedProperties;
     }
 
     property(path: string): BaseProperty | null {
-        return this.properties().find((p) => p.path() === path) || null;
+        return this.cachedProperties.find((p) => p.path() === path) || null;
     }
 
     private async fetchApi(
@@ -125,7 +154,6 @@ export class ApiResourceProvider extends BaseResource {
         }
     }
 
-    // Correct method signature
     public async find(
         filter: Filter,
         options: { limit?: number; offset?: number; sort?: { sortBy?: string; direction?: 'asc' | 'desc' } },
@@ -141,12 +169,11 @@ export class ApiResourceProvider extends BaseResource {
             if (typeof offset === 'number') {
                 url.searchParams.append('offset', offset.toString());
             }
-            if (sort?.sortBy) {
-                url.searchParams.append('sort_by', sort.sortBy);
-                url.searchParams.append('sort_order', sort.direction || 'asc');
-            }
+            // if (sort?.sortBy) {
+            //     url.searchParams.append('sort_by', sort.sortBy);
+            //     url.searchParams.append('sort_order', sort.direction || 'asc');
+            // }
 
-            // eslint-disable-next-line max-len
             const rawFilters = (filter as unknown as { filters?: Record<string, {path: string; value: unknown}>}).filters ?? {};
 
             Object.values(rawFilters).forEach(({ path, value }) => {
@@ -165,13 +192,54 @@ export class ApiResourceProvider extends BaseResource {
             console.log(`Fetching ${this.resourceName} with URL:`, url.toString());
 
             const data = await this.fetchApi(url.toString(), context, fetchOptions);
-            const users = Array.isArray(data) ? data : data.users || [];
-            return users.map((item) => new BaseRecord(item, this));
+
+            // Handle different response formats
+            let items: any[] = [];
+            
+            if (Array.isArray(data)) {
+                items = data;
+            } else if (data) {
+                // Try to find array in response object using resource name
+                const resourceKey = this.resourceName.toLowerCase() + 's'; // e.g., "users", "products"
+                items = data[resourceKey] || data.items || data.data || [];
+            }
+            
+            console.log(`Found ${items.length} ${this.resourceName} records`);
+            
+            // DEBUG: Log the first item structure
+            if (items.length > 0) {
+                console.log(`Sample ${this.resourceName} record structure:`, JSON.stringify(items[0], null, 2));
+                console.log(`Available keys:`, Object.keys(items[0]));
+            }
+            
+            // Validate that each item has the required id field
+            const validItems = items.filter(item => {
+                if (!item || typeof item !== 'object') {
+                    console.warn(`Invalid item in ${this.resourceName}:`, item);
+                    return false;
+                }
+                
+                // Check if item has an ID field
+                const hasId = 'id' in item || 'Id' in item || '_id' in item;
+                if (!hasId) {
+                    console.warn(`${this.resourceName} record missing ID field:`, item);
+                    return false;
+                }
+                
+                return true;
+            });
+            
+            if (validItems.length !== items.length) {
+                console.warn(`Filtered out ${items.length - validItems.length} invalid ${this.resourceName} records`);
+            }
+            
+            return validItems.map((item) => new BaseRecord(item, this));
         } catch (error) {
             console.error(`Error fetching ${this.resourceName}:`, error);
             return [];
         }
     }
+
 
     private buildResourceUrl(id?: string): string {
         // Don't strip the resource name - the endpoint already contains it
@@ -183,6 +251,7 @@ export class ApiResourceProvider extends BaseResource {
     public async findOne(id: string, context?: ActionContext): Promise<BaseRecord | null> {
         try {
             const url = this.buildResourceUrl(id);
+            console.log(`Fetching single ${this.resourceName} from URL:`, url);
             const data = await this.fetchApi(url, context);
             return new BaseRecord(data, this);
         } catch (error) {
@@ -203,17 +272,51 @@ export class ApiResourceProvider extends BaseResource {
 
     public async create(params: Record<string, any>, context?: ActionContext): Promise<ParamsType> {
         try {
+            console.log(`Creating ${this.resourceName} with params:`, params);
+            console.log('Context admin:', context?.currentAdmin);
+
+            const token = context?.currentAdmin?.token;
+            if (!token) {
+                console.warn('No authentication token available for create operation');
+            }
+
+            if (this.usesFormData) {
+                // Special handling for Form APIs
+                const formData = new FormData();
+                Object.entries(params).forEach(([key, value]) => {
+                    if (value !== null && value !== undefined && value !== '') {
+                        formData.append(key, String(value));
+                    }
+                });
+
+                const headers: Record<string, string> = {};
+                if (token) {
+                    headers['Authorization'] = `Bearer ${token}`;
+                    console.log('Added Authorization header to FormData request');
+                }
+
+                const response = await fetch(this.dataEndpoint, {
+                    method: 'POST',
+                    headers,
+                    body: formData,
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Failed: ${response.statusText}`);
+                }
+
+                return await response.json();
+            }
+            // Standard JSON approach
             const data = await this.fetchApi(this.dataEndpoint, context, {
                 method: 'POST',
                 body: JSON.stringify(params),
             });
-            console.log(`Creating the ${this.resourceName}:`, data);
             return data;
         } catch (error) {
             console.error(`Error creating ${this.resourceName}:`, error);
-            // Throw with user-friendly message - AdminJS will show it as toast
-            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-            throw new Error(`Failed to create ${this.resourceName}: ${errorMessage}`);
+            // eslint-disable-next-line max-len
+            throw new Error(`Failed to create ${this.resourceName}: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     }
 

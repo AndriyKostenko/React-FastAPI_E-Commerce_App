@@ -14,9 +14,11 @@ from events.publisher import events_publisher
 from shared.customized_json_response import JSONResponse
 
 
-user_proxy = APIRouter(tags=["User Service"])
+user_proxy = APIRouter(tags=["User Service Proxy"])
 
-# Public endpoints (no authentication required)
+
+# ==================== PUBLIC ENDPOINTS (No Auth) ====================
+
 @user_proxy.post("/register", summary="Register a new user")
 async def register_user(request: Request):
     user_service_response = await api_gateway_manager.forward_request(
@@ -60,6 +62,12 @@ async def login_user(request: Request):
         status_code=user_service_response.status_code
     )
 
+@user_proxy.post("/activate/{token}", summary="Verify user email")
+async def verify_email(request: Request):
+    return await api_gateway_manager.forward_request(
+        service_name="user-service",
+        request=request,
+    )
 
 @user_proxy.post("/forgot-password", summary="Request password reset")
 async def forgot_password(request: Request):
@@ -90,7 +98,7 @@ async def reset_password(request: Request):
     
     
     
-#---------------------------Users Proxy-------------------------------------
+# ==================== AUTHENTICATED USER ENDPOINTS ====================
 
 
 
@@ -102,19 +110,16 @@ async def get_current_user_data(request: Request,
         service_name="user-service",
         request=request
     )
-
-@user_proxy.get("/users", summary="Get all users")
-async def get_all_users(request: Request,
-                        current_user: CurrentUserInfo = Depends(require_admin)):
-    return await api_gateway_manager.forward_request(
-        service_name="user-service",
-        request=request,
-    )
+    
+    
+# ==================== ADMIN OR SELF ENDPOINTS ====================
+    
 
 @user_proxy.get("/users/email/{user_email}", summary="Get user by email")
 async def get_user_by_email(request: Request, 
-                            user_email: EmailStr):
-    require_user_or_admin(request, target_user_email=user_email)
+                            user_email: EmailStr,
+                            current_user: CurrentUserInfo = Depends(get_current_user)):
+    require_user_or_admin(current_user, target_user_email=user_email)
     return await api_gateway_manager.forward_request(
         service_name="user-service",
         request=request,
@@ -122,9 +127,10 @@ async def get_user_by_email(request: Request,
 
 @user_proxy.get("/users/id/{user_id}", summary="Get user by ID")
 async def get_user_by_id(request: Request, 
-                         user_id: UUID):
+                         user_id: UUID,
+                         current_user: CurrentUserInfo = Depends(get_current_user)):
     # Check authorization using the dependency function
-    require_user_or_admin(request, target_user_id=user_id)
+    require_user_or_admin(current_user, target_user_id=user_id)
     return await api_gateway_manager.forward_request(
         service_name="user-service",
         request=request,
@@ -133,8 +139,9 @@ async def get_user_by_id(request: Request,
 
 @user_proxy.put("/users/id/{user_id}", summary="Update user by ID")
 async def update_user_by_id(request: Request, 
-                            user_id: UUID):
-    require_user_or_admin(request, target_user_id=user_id)
+                            user_id: UUID,
+                            current_user: CurrentUserInfo = Depends(get_current_user)):
+    require_user_or_admin(current_user, target_user_id=user_id)
     return await api_gateway_manager.forward_request(
         service_name="user-service",
         request=request,
@@ -143,18 +150,31 @@ async def update_user_by_id(request: Request,
     
 @user_proxy.delete("/users/id/{user_id}", summary="Delete user by ID")
 async def delete_user_by_id(request: Request, 
-                            user_id: UUID):
-    require_user_or_admin(request, target_user_id=user_id)
+                            user_id: UUID,
+                            current_user: CurrentUserInfo = Depends(get_current_user)):
+    require_user_or_admin(current_user, target_user_id=user_id)
     return await api_gateway_manager.forward_request(
         service_name="user-service",
         request=request,
-    )   
+    )
     
     
-#---------------------------AdminJS Proxy-------------------------------------
+# ==================== ADMIN ONLY ENDPOINTS ====================   
+    
+@user_proxy.get("/users", summary="Get all users")
+async def get_all_users(request: Request,
+                        current_user: CurrentUserInfo = Depends(require_admin)):
+    return await api_gateway_manager.forward_request(
+        service_name="user-service",
+        request=request,
+    )
+    
+    
+# ==================== ADMINJS ENDPOINTS ====================
 
 @user_proxy.get("/admin/schema/users")
 async def get_user_schema_for_admin_js(request: Request):
+    # for noew its unprotected, but later we can add admin auth if needed
     return await api_gateway_manager.forward_request(
         service_name="user-service",
         request=request

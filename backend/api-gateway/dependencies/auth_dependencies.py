@@ -28,10 +28,9 @@ def require_admin(current_user: CurrentUserInfo = Depends(get_current_user)) -> 
     return current_user
 
 
-def require_user_or_admin(request: Request,
+def require_user_or_admin(current_user: CurrentUserInfo,
                           target_user_id: UUID | None = None, 
                           target_user_email: EmailStr | None = None) -> CurrentUserInfo:
-    current_user = get_current_user(request=request)
     is_admin = current_user.role == settings.SECRET_ROLE
     is_own_data = (
         (target_user_id and current_user.id == target_user_id) or 
