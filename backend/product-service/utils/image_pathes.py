@@ -22,7 +22,7 @@ def safe_splitext(filename: str | None) -> tuple[str, str]:
     return os.path.splitext(filename)
 
 
-async def create_image_paths(images: List[UploadFile]):
+def create_image_paths(images: List[UploadFile]):
     image_paths = []
 
     for image in images:

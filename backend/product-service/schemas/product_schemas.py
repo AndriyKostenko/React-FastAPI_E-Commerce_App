@@ -52,7 +52,7 @@ class CreateProduct(BaseModel):
         return v
     
 
-class UpdateProduct(ProductBase):
+class UpdateProduct(BaseModel):
     """Schema for updating an existing product"""
     name: Optional[str] = None
     description: Optional[str] = None
@@ -61,6 +61,16 @@ class UpdateProduct(ProductBase):
     quantity: Optional[PositiveInt] = None
     price: Optional[Decimal] = None
     in_stock: Optional[bool] = None
+    
+    @field_validator('in_stock',mode='before')
+    @classmethod
+    def convert_in_stock(cls, v: str):
+        if isinstance(v, str):
+            if v.lower() == "true":
+                return True
+            elif v.lower() == "false":
+                return False
+        return v
 
 class ProductSchema(ProductBase):
     """Schema for product responses"""

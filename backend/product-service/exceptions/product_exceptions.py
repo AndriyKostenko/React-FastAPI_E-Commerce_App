@@ -16,7 +16,7 @@ class ProductAlreadyExistsError(BaseAPIException):
 class ProductCreationError(BaseAPIException):
     """Raised when Product creation fails"""
     def __init__(self, detail: str = "Product creation failed"):
-        super().__init__(detail=detail, status_code=500)
+        super().__init__(detail=detail, status_code=400)
 
 class ProductValidationError(BaseAPIException):
     """Raised when Product validation fails"""
@@ -26,9 +26,9 @@ class ProductValidationError(BaseAPIException):
 class ProductUpdateError(BaseAPIException):
     """Raised when Product update fails"""
     def __init__(self, detail: str = "Product update failed"):
-        super().__init__(detail=detail, status_code=500)
+        super().__init__(detail=detail, status_code=422)
 
 class ProductDeletionError(BaseAPIException):
     """Raised when Product deletion fails"""
     def __init__(self, detail: str = "Product deletion failed"):
-        super().__init__(detail=detail, status_code=500)
+        super().__init__(detail=detail, status_code=422)

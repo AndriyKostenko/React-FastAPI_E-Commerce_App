@@ -5,7 +5,7 @@ from uuid import UUID
 from fastapi import APIRouter, status, Form, Request, Query # type: ignore
 
 from dependencies.dependencies import product_service_dependency
-from schemas.product_schemas import ProductBase, ProductSchema, CreateProduct, ProductsFilterParams
+from schemas.product_schemas import ProductBase, ProductSchema, CreateProduct, ProductsFilterParams, UpdateProduct
 from shared.customized_json_response import JSONResponse
 from shared.shared_instances import product_service_redis_manager
 from models.product_models import Product
@@ -118,15 +118,15 @@ async def get_product_by_name(request: Request,
     )
 
 
-@product_routes.patch("/products/{product_id}/availability", 
+@product_routes.patch("/products/{product_id}", 
                       response_model=ProductBase,
                       response_description="Product availability updated")
 @product_service_redis_manager.ratelimiter(times=30, seconds=60)
-async def update_product_availability(request: Request,
-                                      product_id: UUID,
-                                      in_stock: bool,
-                                      product_service: product_service_dependency) -> JSONResponse:
-    product = await product_service.update_product_availability(product_id=product_id, in_stock=in_stock)
+async def update_product_by_id(request: Request,
+                               product_id: UUID,
+                               product_data: UpdateProduct,
+                               product_service: product_service_dependency) -> JSONResponse:
+    product = await product_service.update_product(product_id=product_id, product_data=product_data)
     # Clear ALL product-related cache
     await product_service_redis_manager.clear_cache_namespace(namespace="products", request=request)
     return JSONResponse(
@@ -136,18 +136,16 @@ async def update_product_availability(request: Request,
         
     
 @product_routes.delete("/products/{product_id}", 
-                       response_description="Product deleted")
+                       response_description="Product deleted",
+                       status_code=status.HTTP_204_NO_CONTENT)
 @product_service_redis_manager.ratelimiter(times=10, seconds=60)
-async def delete_product(request: Request,
-                         product_id: UUID,
-                         product_service: product_service_dependency) -> JSONResponse:
+async def delete_product_by_id(request: Request,
+                               product_id: UUID,
+                               product_service: product_service_dependency):
     await product_service.delete_product_by_id(product_id=product_id)
     # Clear ALL product-related cache
     await product_service_redis_manager.clear_cache_namespace(namespace="products", request=request)
-    return JSONResponse(
-        content=None,
-        status_code=status.HTTP_204_NO_CONTENT
-    )
+    return
 
 
 @product_routes.get("/admin/schema/products", summary="Schema for AdminJS")

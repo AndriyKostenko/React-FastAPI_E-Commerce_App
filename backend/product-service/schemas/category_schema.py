@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import Optional, List
+from unittest.mock import Base
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
@@ -14,12 +15,13 @@ class CategoryBase(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class CreateCategory(CategoryBase):
-    """Schema for creating a new category"""
-    pass
+class CreateCategory(BaseModel):
+    """Schema for creating a new category - internal use after file processing"""
+    name: str
+    image_url: str
 
 
-class UpdateCategory(CategoryBase):
+class UpdateCategory(BaseModel):
     """Schema for updating an existing category"""
     name: Optional[str] = None
     image_url: Optional[str] = None

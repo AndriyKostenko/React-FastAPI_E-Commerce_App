@@ -1,11 +1,11 @@
-from datetime import datetime
-from typing import Annotated, List, Optional, Union, Any
+from typing import Annotated, List, Any
 from uuid import UUID
 
 from fastapi import Query
+from sqlalchemy.exc import IntegrityError
 
 from models.product_models import Product
-from schemas.product_schemas import CreateProduct, ProductBase, ProductSchema, ProductsFilterParams
+from schemas.product_schemas import CreateProduct, ProductBase, ProductSchema, ProductsFilterParams, UpdateProduct
 from exceptions.product_exceptions import ProductNotFoundError, ProductCreationError
 from database_layer.product_repository import ProductRepository
 
@@ -74,7 +74,16 @@ class ProductService:
                               quantity=product_data.quantity,
                               price=product_data.price,
                               in_stock=product_data.in_stock)
-        new_db_product = await self.repository.create(new_product)
+        try: 
+            new_db_product = await self.repository.create(new_product)
+        except IntegrityError as e:
+            # Check if it's a foreign key violation for category_id (the category_id does not exist)
+            if "products_category_id_fkey" in str(e):
+                raise ProductCreationError(
+                    f'Category with id "{product_data.category_id}" does not exist.'
+                )
+            # Re-raise other integrity errors
+            raise ProductCreationError(f"Failed to create product: {str(e)}")
 
         return ProductBase.model_validate(new_db_product)
     
@@ -113,9 +122,27 @@ class ProductService:
         if not db_product:
             raise ProductNotFoundError(f"Product with name: {name} not found")
         return ProductBase.model_validate(db_product)
-    
-    async def update_product_availability(self, product_id: UUID, in_stock: bool) -> ProductBase:
-        updated_product = await self.repository.update_by_id(product_id, in_stock=in_stock)
+
+    async def update_product(self, product_id: UUID, product_data: UpdateProduct) -> ProductBase:
+        update_dict = product_data.model_dump(exclude_unset=True)
+        if "name" in update_dict:
+            update_dict["name"] = update_dict["name"].lower()
+        if "brand" in update_dict:
+            update_dict["brand"] = update_dict["brand"].lower()
+
+        # Validate category_id exists if being updated
+        if "category_id" in update_dict:
+            try:
+                updated_product = await self.repository.update_by_id(product_id, **update_dict)
+            except IntegrityError as e:
+                if "products_category_id_fkey" in str(e):
+                    raise ProductCreationError(
+                        f'Category with id "{update_dict["category_id"]}" does not exist.'
+                    )
+                raise ProductCreationError(f"Failed to update product: {str(e)}")
+        else:
+            updated_product = await self.repository.update_by_id(product_id, **update_dict)
+        
         if not updated_product:
             raise ProductNotFoundError(f"Product with id: {product_id} not found.")
         return ProductBase.model_validate(updated_product)
@@ -124,6 +151,5 @@ class ProductService:
         success = await self.repository.delete_by_id(product_id)
         if not success:
             raise ProductNotFoundError(f"Product with id: {product_id} not found")
-        return None
 
 
