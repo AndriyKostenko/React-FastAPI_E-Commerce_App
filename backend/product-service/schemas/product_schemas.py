@@ -1,3 +1,4 @@
+from argparse import OPTIONAL
 from ast import pattern
 from datetime import date, datetime
 from typing import Optional, List
@@ -45,15 +46,14 @@ class CreateProduct(BaseModel):
     
     @field_validator('in_stock',mode='before')
     @classmethod
-    def convert_in_stock(cls, v: str):
-        if isinstance(v, str):
-            if v.lower() == "true":
+    def convert_in_stock(cls, value: str):
+        if isinstance(value, str):
+            if value.lower() == "true":
                 return True
-            elif v.lower() == "false":
+            elif value.lower() == "false":
                 return False
-        return v
+        return value
     
-
 class UpdateProduct(BaseModel):
     """Schema for updating an existing product"""
     name: Optional[str] = None
@@ -73,7 +73,7 @@ class UpdateProduct(BaseModel):
             elif v.lower() == "false":
                 return False
         return v
-
+    
 class ProductSchema(ProductBase):
     """Schema for product responses"""
     id: UUID
@@ -101,12 +101,47 @@ class ProductsFilterParams(BaseModel):
     # Filtering options
     name: Optional[str] = None
     brand: Optional[str] = None
-    category: Optional[str] = None
+    category_id: Optional[UUID] = None
     search_term: Optional[str] = Field(None, min_length=3, max_length=50)
+    in_stock: Optional[bool] = None
+    
+    # Price filters (exact and range)
+    price: Optional[Decimal] = None  # Exact price match
+    min_price: Optional[Decimal] = Field(None, ge=0)
+    max_price: Optional[Decimal] = Field(None, ge=0)
+    
+    # Quantity filters (exact and range)
+    quantity: Optional[int] = None  # Exact quantity match
+    min_quantity: Optional[int] = Field(None, ge=0)
+    max_quantity: Optional[int] = Field(None, ge=0)
     
     # Date range filters
-    date_created_from: Optional[datetime] = Field(None, description="Filter users created from this date")
-    date_created_to: Optional[datetime] = Field(None, description="Filter users created up to this date")
-    date_updated_from: Optional[datetime] = Field(None, description="Filter users updated from this date")
-    date_updated_to: Optional[datetime] = Field(None, description="Filter users updated up to this date")
+    date_created_from: Optional[datetime] = None
+    date_created_to: Optional[datetime] = None
+    date_updated_from: Optional[datetime] = None
+    date_updated_to: Optional[datetime] = None
+    
+    @field_validator('in_stock', mode='before')
+    @classmethod
+    def convert_in_stock(cls, value):
+        """Convert string 'true'/'false' to boolean"""
+        if value is None:
+            return None
+        if isinstance(value, str):
+            return value.lower() == 'true'
+        return value
+    
+    @field_validator('date_created_from', 'date_created_to', 'date_updated_from', 'date_updated_to', mode='before')
+    @classmethod
+    def parse_datetime(cls, value):
+        """Parse ISO datetime strings"""
+        if value is None:
+            return None
+        if isinstance(value, str):
+            try:
+                # Handle ISO format with 'Z' suffix
+                return datetime.fromisoformat(value.replace('Z', '+00:00'))
+            except ValueError:
+                return None
+        return value
     

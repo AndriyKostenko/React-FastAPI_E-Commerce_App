@@ -30,6 +30,7 @@ class ProductService:
         - limit: pagination limit
         - search_term: search string
         - date_filters: dict of date range filters
+        - range_filters
         """
         filters_dict = filters_query.model_dump()
         
@@ -48,18 +49,28 @@ class ProductService:
             "date_updated_to": filters_dict.pop("date_updated_to", None)
         }
         
-        # Clean remaining filters (remove None values)
-        cleaned_filters = {key: value for key, value in filters_dict.items() if value is not None}
+        # Extract range filters separately (don't pass them to basic filters)
+        min_price = filters_dict.pop("min_price", None)
+        max_price = filters_dict.pop("max_price", None)
+        min_quantity = filters_dict.pop("min_quantity", None)
+        max_quantity = filters_dict.pop("max_quantity", None)
+        
+        range_filters = {}
+        if min_price is not None or max_price is not None:
+            range_filters["price"] = (min_price, max_price)
+        if min_quantity is not None or max_quantity is not None:
+            range_filters["quantity"] = (min_quantity, max_quantity)
     
         return {
-            "filters": cleaned_filters,
+            "filters": {key: value for key, value in filters_dict.items() if value is not None},
             "sort_by": sort_by,
             "sort_order": sort_order,
             "offset": offset,
             "limit": limit,
             "search_term": search_term,
-            "date_filters": date_filters,
-            "search_fields": self.product_search_fileds
+            "date_filters": {key: value for key, value in date_filters.items() if value is not None},
+            "search_fields": self.product_search_fileds,
+            "range_filters": range_filters
         }
 
     async def create_product_item(self, product_data: CreateProduct) -> ProductBase:

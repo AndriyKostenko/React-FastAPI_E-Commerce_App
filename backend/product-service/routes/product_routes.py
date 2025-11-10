@@ -21,15 +21,32 @@ product_routes = APIRouter(
                      response_description="New product created")
 @product_service_redis_manager.ratelimiter(times=10, seconds=60)
 async def create_new_product(request: Request,
-                             product_service: product_service_dependency,
-                             product_data: CreateProduct) -> JSONResponse:
-    product_data = CreateProduct(name=product_data.name.lower(),
-                                description=product_data.description,
-                                category_id=product_data.category_id,
-                                brand=product_data.brand.lower(),
-                                quantity=product_data.quantity,
-                                price=product_data.price,
-                                in_stock=product_data.in_stock)
+                             product_service: product_service_dependency) -> JSONResponse:
+    # Check if it's FormData or JSON
+    content_type = request.headers.get('content-type', '')
+    
+    if "application/json" in content_type:
+        json_data = await request.json()
+        product_data = CreateProduct(**json_data)
+            
+    
+    elif 'multipart/form-data' in content_type:
+        # Handle FormData from frontend
+        form_data = await request.form()
+        product_data = CreateProduct(
+            name=form_data.get("name"),
+            description=form_data.get("description"),
+            category_id=form_data.get("category_id"),
+            brand=form_data.get("brand"),
+            quantity=form_data.get("quantity"),
+            price=form_data.get("price"),
+            in_stock=form_data.get("in_stock")
+        )
+    else:
+        return JSONResponse(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            content={"detail": "Unsupported content type"},
+        )
 
     created_product = await product_service.create_product_item(product_data=product_data)
     

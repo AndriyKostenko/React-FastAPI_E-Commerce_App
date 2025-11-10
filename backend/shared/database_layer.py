@@ -66,7 +66,8 @@ class BaseRepository(Generic[ModelType]):
                       date_filters: Optional[dict[str, datetime]] = None,
                       search_term: Optional[str] = None,
                       search_fields: Optional[list[str]] = None,
-                      load_relations: Optional[list[str]] = None) -> list[ModelType]:
+                      load_relations: Optional[list[str]] = None,
+                      range_filters: Optional[dict[str, tuple]] = None) -> list[ModelType]:
         """
         Universal 'get all' method with:
         - Dynamic filters
@@ -95,6 +96,19 @@ class BaseRepository(Generic[ModelType]):
                 else:
                     query = query.where(column == value)
                     
+        # Range filters (for price, quantity, etc)
+        if range_filters:
+            for field_name, (min_value, max_value) in range_filters.items():
+                if not hasattr(self.model, field_name):
+                    continue
+                column = getattr(self.model, field_name)
+                if min_value is not None and max_value is not None:
+                    query = query.where(column.between(min_value, max_value))
+                elif min_value is not None:
+                    query = query.where(column >= min_value)
+                elif max_value is not None:
+                    query = query.where(column <= max_value)
+                    
         # Search across multiply fields
         if search_term and search_fields:
             conditions = [
@@ -105,11 +119,12 @@ class BaseRepository(Generic[ModelType]):
             if conditions:
                 query = query.where(or_(*conditions))
                 
+                
         # Date range filters
         if date_filters:
             range_map = {
-                "created_at": ("date_created_from", "date_updated_to"),
-                "updated_at": ("date_update_from", "date_updated_to")
+                "date_created": ("date_created_from", "date_created_to"), 
+                "date_updated": ("date_updated_from", "date_updated_to")
             }
             for column_name, (from_key, to_key) in range_map.items():
                 column = getattr(self.model, column_name, None)
@@ -130,7 +145,7 @@ class BaseRepository(Generic[ModelType]):
             query = query.order_by(order_func(getattr(self.model, sort_by)))
             
         # Pagination
-        if offset:
+        if offset is not None:
             query = query.offset(offset)
         if limit:
             query = query.limit(limit)

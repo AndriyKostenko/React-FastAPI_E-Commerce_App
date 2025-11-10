@@ -218,6 +218,9 @@ class ApiGateway:
         # Detect and prepare body
         prepared_body, content_type = await self._detect_and_prepare_body(request, service_path)
         
+        if prepared_body:
+            self.logger.debug(f"Prepared body content: {prepared_body}")
+        
         # Prepare headers
         headers = self._prepare_headers(request_headers=request.headers, new_content_type=content_type)
 

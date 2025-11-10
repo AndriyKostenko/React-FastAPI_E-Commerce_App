@@ -71,6 +71,8 @@ class Product(Base, TimestampMixin):
             'INTEGER': 'number',
             'BIGINT': 'number',
             'FLOAT': 'number',
+            'NUMERIC': 'number',  # Added for Decimal type
+            'DECIMAL': 'number',  # Alternative name for Decimal
             'BOOLEAN': 'boolean',
             'DATETIME': 'datetime',
             'DATE': 'date',
