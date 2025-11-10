@@ -18,6 +18,8 @@ RUN apt-get update \
         python3-dev \
         libpq-dev \
         curl \
+        nano \
+        vim \
     && curl -LsSf https://astral.sh/uv/install.sh | sh \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*

@@ -5,16 +5,27 @@
 
 ## Alembic migrations
 
-- Initialize Alembic (if you haven’t): alembic init alembic
+- Initialize Alembic (if you haven’t): 
+ `alembic init alembic`
 
-- Generate a new migration file: alembic revision --autogenerate -m "Your migration message"
+- Generate a new migration file: 
+  `alembic revision --autogenerate -m "Your migration message"`
 
 - Review and clean up the migration: Check the generated file — remove redundant / incorrect staff or adjust logic as needed.
 
-- Roll back a migration (optional): alembic downgrade -1 / alembic downgrade <revision_id>
+- Roll back a migration (optional): 
+  `alembic downgrade -1 / alembic downgrade <revision_id>`
 
-- Mark current DB as up-to-date without running migrations: alembic stamp head (if got error about not matching your current models with existing, u can stamp specific idwith: alembic stamp <revision_id> )
+- Mark current DB as up-to-date without running migrations: 
+  ` alembic stamp head` (if got error about not matching your current models with existing, u can stamp specific idwith: alembic stamp <revision_id> )
 
+- To apply alembic migrations u neeed first to go to the container, then activate venv, then aplly migrations: 
+    `docker compose exec user-service bash`
+    `source .venv/bin/activate`
+    # Review the migration file before running!
+    `cat alembic/versions/<new_file>.py`
+    # If it looks correct (no DROP TABLE), run:
+    `alembic upgrade head`    
 
 
 
@@ -61,43 +72,7 @@
 
 
 
-## Docker
-   building the image
-   ` docker build -t user-service . `
 
-   running with .env file
-   ` docker run --env-file .env user-service ` 
-
-   ` docker compose up --build`
-
-   ` docker compose restart <service-name> `
-
-   Stop containers and remove volumes
-   ` docker compose down -v `
-
-   Remove the DB volume (WARNING: deletes all Postgres data!)
-   ` docker volume rm backend_postgres_data `
-
-   Remove all existing containers, networks, and volumes
-   ` docker system prune -af --volumes `
-
-   Quick one-liner to remove only <none> images:
-   ` docker rmi $(docker images -f "dangling=true" -q)`
-
-   rebuild via docker compose
-   `docker compose build <service-name> --no-cache`
-   
-   restart via docker compose sepc. service
-   `docker compose up <service-name>`
-
-   Stop the service:
-   `docker compose stop user-service`
-
-   Rebuild with updated code:
-   `docker compose build user-service`
-
-   Start it again (detached):
-   `docker compose up -d user-service`
 
 
 ## UV
@@ -215,3 +190,46 @@ Reuse DB sessions and HTTP clients
 
 
 ## AdminJS
+
+------
+
+
+
+
+## Docker
+   building the image
+   ` docker build -t user-service . `
+
+   running with .env file
+   ` docker run --env-file .env user-service ` 
+
+   ` docker compose up --build`
+
+   ` docker compose restart <service-name> `
+
+   Stop containers and remove volumes
+   ` docker compose down -v `
+
+   Remove the DB volume (WARNING: deletes all Postgres data!)
+   ` docker volume rm backend_postgres_data `
+
+   Remove all existing containers, networks, and volumes
+   ` docker system prune -af --volumes `
+
+   Quick one-liner to remove only <none> images:
+   ` docker rmi $(docker images -f "dangling=true" -q)`
+
+   rebuild via docker compose
+   `docker compose build <service-name> --no-cache`
+   
+   restart via docker compose sepc. service
+   `docker compose up <service-name>`
+
+   Stop the service:
+   `docker compose stop user-service`
+
+   Rebuild with updated code:
+   `docker compose build user-service`
+
+   Start it again (detached):
+   `docker compose up -d user-service`

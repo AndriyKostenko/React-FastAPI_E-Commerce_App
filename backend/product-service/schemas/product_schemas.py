@@ -1,5 +1,5 @@
 from ast import pattern
-from datetime import datetime
+from datetime import date, datetime
 from typing import Optional, List
 from unittest.mock import Base
 from uuid import UUID
@@ -28,6 +28,8 @@ class ProductBase(BaseModel):
     quantity: PositiveInt = Field(..., gt=0, le=20)
     price: Decimal = Field(..., gt=0, le=100)
     in_stock: bool
+    date_created: datetime
+    date_updated: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
 

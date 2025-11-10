@@ -1,5 +1,5 @@
 from datetime import timedelta
-from typing import Annotated
+from typing import Annotated, Optional
 from uuid import UUID
 
 from fastapi import Depends, APIRouter, status, Request, Query
@@ -214,23 +214,7 @@ async def get_current_user_data(request: Request,
 
 #--------------------------Users------------------------------------
 
-
-@user_routes.get("/users/email/{user_email}",
-                  summary="Get user by email",
-                  response_description="User data retrieved successfully",
-                  response_model=UserInfo
-                  )
-@user_service_redis_manager.cached(ttl=60) 
-@user_service_redis_manager.ratelimiter(times=10, seconds=60)
-async def get_user_by_email(request: Request,
-                            user_email: EmailStr, 
-                            user_service: user_crud_dependency):
-    user = await user_service.get_user_by_email(user_email)
-    return JSONResponse(content=user,
-                        status_code=status.HTTP_200_OK)
-
-
-@user_routes.get("/users/id/{user_id}",
+@user_routes.get("/users/{user_id}",
                   summary="Get user by id",
                   response_description="User data retrieved successfully",
                   response_model=UserInfo
@@ -259,7 +243,7 @@ async def get_all_users(request: Request,
                         status_code=status.HTTP_200_OK)
 
 
-@user_routes.put("/users/id/{user_id}",
+@user_routes.patch("/users/{user_id}",
                      summary="Update user by ID",
                      response_description="User updated successfully",
                      response_model=UserInfo,
@@ -278,7 +262,7 @@ async def update_user_by_id(request: Request,
                         status_code=status.HTTP_200_OK)
 
 
-@user_routes.delete("/users/id/{user_id}",
+@user_routes.delete("/users/{user_id}",
                      summary="Delete user by ID",
                      response_description="User deleted successfully",
                      )

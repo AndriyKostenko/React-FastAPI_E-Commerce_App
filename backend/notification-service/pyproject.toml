@@ -20,5 +20,6 @@ dependencies = [
     "asyncpg>=0.30.0",
     "passlib>=1.7.4",
     "python-jose>=3.5.0",
+    "alembic>=1.17.1",
 ]
 

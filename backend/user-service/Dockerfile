@@ -17,6 +17,8 @@ RUN apt-get update \
         python3-dev \
         libpq-dev \
         curl \
+        nano \
+        vim \
     && curl -LsSf https://astral.sh/uv/install.sh | sh \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
@@ -42,6 +44,8 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         libpq5 \
         curl \
+        nano \
+        vim \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* \
     && addgroup --system --gid 1001 usergroup \

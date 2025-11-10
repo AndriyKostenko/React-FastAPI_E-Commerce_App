@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 from typing import Generic, Optional, Type, TypeVar, Any
 
@@ -180,6 +180,8 @@ class BaseRepository(Generic[ModelType]):
     # UPDATE
     async def update(self, obj: ModelType) -> ModelType:
         """Update an existing record"""
+        # if hasattr(obj, "date_updated"):
+        #     setattr(obj, "date_updated", datetime.now(timezone.utc))
         self.session.add(obj)
         await self.session.commit()
         await self.session.refresh(obj)

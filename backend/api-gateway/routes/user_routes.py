@@ -3,8 +3,6 @@ from uuid import UUID
 from fastapi import APIRouter, Request, Depends
 import orjson
 
-from pydantic import EmailStr
-
 from apigateway import api_gateway_manager
 from dependencies.auth_dependencies import (get_current_user, 
                                             require_admin, 
@@ -115,17 +113,7 @@ async def get_current_user_data(request: Request,
 # ==================== ADMIN OR SELF ENDPOINTS ====================
     
 
-@user_proxy.get("/users/email/{user_email}", summary="Get user by email")
-async def get_user_by_email(request: Request, 
-                            user_email: EmailStr,
-                            current_user: CurrentUserInfo = Depends(get_current_user)):
-    require_user_or_admin(current_user, target_user_email=user_email)
-    return await api_gateway_manager.forward_request(
-        service_name="user-service",
-        request=request,
-    )
-
-@user_proxy.get("/users/id/{user_id}", summary="Get user by ID")
+@user_proxy.get("/users/{user_id}", summary="Get user by ID")
 async def get_user_by_id(request: Request, 
                          user_id: UUID,
                          current_user: CurrentUserInfo = Depends(get_current_user)):
@@ -137,7 +125,7 @@ async def get_user_by_id(request: Request,
     )
     
 
-@user_proxy.put("/users/id/{user_id}", summary="Update user by ID")
+@user_proxy.patch("/users/{user_id}", summary="Update user by ID")
 async def update_user_by_id(request: Request, 
                             user_id: UUID,
                             current_user: CurrentUserInfo = Depends(get_current_user)):
@@ -148,7 +136,7 @@ async def update_user_by_id(request: Request,
     )
     
     
-@user_proxy.delete("/users/id/{user_id}", summary="Delete user by ID")
+@user_proxy.delete("/users/{user_id}", summary="Delete user by ID")
 async def delete_user_by_id(request: Request, 
                             user_id: UUID,
                             current_user: CurrentUserInfo = Depends(get_current_user)):

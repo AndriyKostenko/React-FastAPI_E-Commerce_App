@@ -73,7 +73,7 @@ async def get_all_products_detailed(request: Request,
     )
 
 
-@product_routes.get("/products/id/{product_id}", 
+@product_routes.get("/products/{product_id}", 
                     response_model=ProductBase,
                     response_description="Product by ID")
 @product_service_redis_manager.cached(ttl=180)
@@ -88,7 +88,7 @@ async def get_product_by_id(request: Request,
     )
   
     
-@product_routes.get("/products/id/{product_id}/detailed", 
+@product_routes.get("/products/{product_id}/detailed", 
                     response_model=ProductBase,
                     response_description="Product by ID")
 @product_service_redis_manager.cached(ttl=180)
@@ -97,21 +97,6 @@ async def get_product_by_id_detailed(request: Request,
                                     product_id: UUID,
                                     product_service: product_service_dependency) -> JSONResponse:
     product = await product_service.get_product_by_id_with_relations(product_id=product_id)
-    return JSONResponse(
-        content=product,
-        status_code=status.HTTP_200_OK
-    )
-
-
-@product_routes.get("/products/name/{product_name}", 
-                    response_model=ProductBase,
-                    response_description="Product by name")
-@product_service_redis_manager.cached(ttl=180)
-@product_service_redis_manager.ratelimiter(times=200, seconds=60)
-async def get_product_by_name(request: Request,
-                              product_name: str,
-                              product_service: product_service_dependency) -> JSONResponse:
-    product = await product_service.get_product_by_name(name=product_name.lower())
     return JSONResponse(
         content=product,
         status_code=status.HTTP_200_OK

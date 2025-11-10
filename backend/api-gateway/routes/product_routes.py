@@ -29,7 +29,7 @@ async def get_all_products_detailed(request: Request):
         request=request,
     )
 
-@product_proxy.get("/products/id/{product_id}", summary="Get product by ID")
+@product_proxy.get("/products/{product_id}", summary="Get product by ID")
 async def get_product_by_id(request: Request,
                             product_id: UUID):
     """PUBLIC - Anyone can view product details"""
@@ -51,7 +51,7 @@ async def create_product(request: Request,
         request=request,
     )
 
-@product_proxy.put("/products/id/{product_id}", summary="Update product")
+@product_proxy.patch("/products/{product_id}", summary="Update product")
 async def update_product(request: Request,
                         product_id: UUID,
                         current_user: CurrentUserInfo = Depends(require_admin)):
@@ -61,7 +61,7 @@ async def update_product(request: Request,
         request=request,
     )
 
-@product_proxy.delete("/products/id/{product_id}", summary="Delete product")
+@product_proxy.delete("/products/{product_id}", summary="Delete product")
 async def delete_product(request: Request,
                         product_id: UUID,
                         current_user: CurrentUserInfo = Depends(require_admin)):
@@ -71,7 +71,7 @@ async def delete_product(request: Request,
         request=request,
     )
     
-@product_proxy.get("products/id/{product_id}/detailed", summary="Get detailed product by ID")
+@product_proxy.get("/products/{product_id}/detailed", summary="Get detailed product by ID")
 async def get_detailed_product_by_id(request: Request,
                                       product_id: UUID):
     """PUBLIC - Anyone can view detailed product information"""

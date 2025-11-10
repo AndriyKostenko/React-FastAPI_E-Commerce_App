@@ -20,7 +20,6 @@ export class ApiResourceProvider extends BaseResource {
 
     private usesFormData: boolean;
 
-
     constructor(
         dataEndpoint: string,
         schemaEndpoint: string,
@@ -74,12 +73,12 @@ export class ApiResourceProvider extends BaseResource {
                 });
             });
             console.log(`Loaded ${this.cachedProperties.length} properties for ${this.resourceName}`);
-            console.log(`Property paths:`, this.cachedProperties.map(p => p.path()));
+            console.log(`Property paths:`, this.cachedProperties.map((p) => p.path()));
         } catch (error) {
             console.error(`Failed to load schema for ${this.resourceName}:`, error);
             // Set default property to prevent errors
             this.cachedProperties = [
-                new BaseProperty({ path: 'id', type: 'string', isId: true })
+                new BaseProperty({ path: 'id', type: 'string', isId: true }),
             ];
         }
     }
@@ -108,6 +107,7 @@ export class ApiResourceProvider extends BaseResource {
         return this.cachedProperties.find((p) => p.path() === path) || null;
     }
 
+    // eslint-disable-next-line class-methods-use-this
     private async fetchApi(
         endpoint: string,
         context?: ActionContext,
@@ -160,7 +160,11 @@ export class ApiResourceProvider extends BaseResource {
         context?: ActionContext,
     ): Promise<BaseRecord[]> {
         try {
-            const { limit, offset, sort, ...fetchOptions } = options;
+            const {
+                limit,
+                offset,
+                sort, ...fetchOptions
+            } = options;
             const url = new URL(this.dataEndpoint);
 
             if (typeof limit === 'number') {
@@ -174,6 +178,7 @@ export class ApiResourceProvider extends BaseResource {
             //     url.searchParams.append('sort_order', sort.direction || 'asc');
             // }
 
+            // eslint-disable-next-line max-len
             const rawFilters = (filter as unknown as { filters?: Record<string, {path: string; value: unknown}>}).filters ?? {};
 
             Object.values(rawFilters).forEach(({ path, value }) => {
@@ -195,44 +200,49 @@ export class ApiResourceProvider extends BaseResource {
 
             // Handle different response formats
             let items: any[] = [];
-            
+
             if (Array.isArray(data)) {
                 items = data;
             } else if (data) {
                 // Try to find array in response object using resource name
-                const resourceKey = this.resourceName.toLowerCase() + 's'; // e.g., "users", "products"
+                const resourceKey = `${this.resourceName.toLowerCase()}s`; // e.g., "users", "products"
                 items = data[resourceKey] || data.items || data.data || [];
             }
-            
+
             console.log(`Found ${items.length} ${this.resourceName} records`);
-            
+
             // DEBUG: Log the first item structure
             if (items.length > 0) {
                 console.log(`Sample ${this.resourceName} record structure:`, JSON.stringify(items[0], null, 2));
-                console.log(`Available keys:`, Object.keys(items[0]));
+                console.log('Available keys:', Object.keys(items[0]));
+                // Add specific check for date fields
+                console.log(`Date fields for ${this.resourceName}:`, {
+                    date_created: items[0].date_created,
+                    date_updated: items[0].date_updated,
+                    date_created_type: typeof items[0].date_created,
+                    date_updated_type: typeof items[0].date_updated,
+                });
             }
-            
             // Validate that each item has the required id field
-            const validItems = items.filter(item => {
+            const validItems = items.filter((item) => {
                 if (!item || typeof item !== 'object') {
                     console.warn(`Invalid item in ${this.resourceName}:`, item);
                     return false;
                 }
-                
                 // Check if item has an ID field
                 const hasId = 'id' in item || 'Id' in item || '_id' in item;
                 if (!hasId) {
                     console.warn(`${this.resourceName} record missing ID field:`, item);
                     return false;
                 }
-                
+
                 return true;
             });
-            
+
             if (validItems.length !== items.length) {
                 console.warn(`Filtered out ${items.length - validItems.length} invalid ${this.resourceName} records`);
             }
-            
+
             return validItems.map((item) => new BaseRecord(item, this));
         } catch (error) {
             console.error(`Error fetching ${this.resourceName}:`, error);
@@ -240,12 +250,11 @@ export class ApiResourceProvider extends BaseResource {
         }
     }
 
-
     private buildResourceUrl(id?: string): string {
         // Don't strip the resource name - the endpoint already contains it
         // e.g., this.endpoint = "http://api-gateway:8000/api/v1/users"
         console.log('Building resource URL - Endpoint:', this.dataEndpoint, 'ID:', id);
-        return id ? `${this.dataEndpoint}/id/${id}` : this.dataEndpoint;
+        return id ? `${this.dataEndpoint}/${id}` : this.dataEndpoint;
     }
 
     public async findOne(id: string, context?: ActionContext): Promise<BaseRecord | null> {
@@ -279,7 +288,7 @@ export class ApiResourceProvider extends BaseResource {
             if (!token) {
                 console.warn('No authentication token available for create operation');
             }
-
+            // using FormData if specified
             if (this.usesFormData) {
                 // Special handling for Form APIs
                 const formData = new FormData();
@@ -343,7 +352,7 @@ export class ApiResourceProvider extends BaseResource {
 
             const url = this.buildResourceUrl(id);
             const data = await this.fetchApi(url, context, {
-                method: 'PUT',
+                method: 'PATCH',
                 body: JSON.stringify(cleanedData),
             });
             return data;
@@ -372,7 +381,7 @@ export class ApiResourceProvider extends BaseResource {
         return false;
     }
 
-    // inside ApiResourceProvider class
+    // Generates AdminJS properties configuration based on cached properties
     public generateAdminPropertiesConfig(): Record<string, any> {
         if (!this.cachedProperties || this.cachedProperties.length === 0) {
             console.warn(`No cached properties found for ${this.resourceName}.`);
@@ -381,6 +390,7 @@ export class ApiResourceProvider extends BaseResource {
 
         const config: Record<string, any> = {};
 
+        // eslint-disable-next-line no-restricted-syntax
         for (const prop of this.cachedProperties) {
             const path = prop.path();
 
@@ -396,9 +406,12 @@ export class ApiResourceProvider extends BaseResource {
             };
 
             // Optionally tweak special fields
-            if (path.includes('date')) {
+            if (prop.type() === 'datetime' || path.includes('date')) {
                 config[path].type = 'datetime';
                 config[path].isEditable = false;
+                config[path].isVisible = {
+                    list: true, filter: true, show: true, edit: false,
+                };
             }
 
             if (path === 'id') {
