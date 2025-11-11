@@ -1,137 +1,129 @@
 ## Getting Started
 
-
-
-
 ## Alembic migrations
 
-- Initialize Alembic (if you haven’t): 
- `alembic init alembic`
+- Initialize Alembic (if you haven’t):
+  `alembic init alembic`
 
-- Generate a new migration file: 
+- Generate a new migration file:
   `alembic revision --autogenerate -m "Your migration message"`
 
 - Review and clean up the migration: Check the generated file — remove redundant / incorrect staff or adjust logic as needed.
 
-- Roll back a migration (optional): 
+- Roll back a migration (optional):
   `alembic downgrade -1 / alembic downgrade <revision_id>`
 
-- Mark current DB as up-to-date without running migrations: 
+- Mark current DB as up-to-date without running migrations:
   ` alembic stamp head` (if got error about not matching your current models with existing, u can stamp specific idwith: alembic stamp <revision_id> )
 
-- To apply alembic migrations u neeed first to go to the container, then activate venv, then aplly migrations: 
-    `docker compose exec user-service bash`
-    `source .venv/bin/activate`
-    # Review the migration file before running!
-    `cat alembic/versions/<new_file>.py`
-    # If it looks correct (no DROP TABLE), run:
-    `alembic upgrade head`    
+- To apply alembic migrations u neeed first to go to the container, then activate venv, then aplly migrations:
+  `docker compose exec user-service bash`
+  `source .venv/bin/activate`
 
+  # Review the migration file before running!
 
+  `cat alembic/versions/<new_file>.py`
+
+  # If it looks correct (no DROP TABLE), run:
+
+  `alembic upgrade head`
+
+- . Run migrations for each service (MacOS)
+  `docker compose exec user-service source .venv/bin/alembic upgrade head`
+  `docker compose exec product-service source .venv/bin/alembic upgrade head`
+  `docker compose exec notification-service source .venv/bin/alembic upgrade head`
+
+- . Run migrations for each service (MacOS)
+  `docker compose exec user-service .venv/bin/alembic upgrade head`
+  `docker compose exec product-service .venv/bin/alembic upgrade head`
+  `docker compose exec notification-service .venv/bin/alembic upgrade head`
 
 ## Redis
 
-   Remember to:
-      1. Cache only read operations
-      2. Set appropriate expiration times
-      3. Implement cache invalidation for write operations
-      4. Monitor cache hit/miss rates
-      5. Consider cache size and memory usage
+Remember to: 1. Cache only read operations 2. Set appropriate expiration times 3. Implement cache invalidation for write operations 4. Monitor cache hit/miss rates 5. Consider cache size and memory usage
 
-   Redis docker container
-   ` docker exec -it backend-redis-1 redis-cli ` : to check and interact with redis
- 
-   Auth in Redis
-   ` AUTH your_redis_password`
+Redis docker container
+`docker exec -it backend-redis-1 redis-cli` : to check and interact with redis
 
-   Select DB of Redis
-   ` SELECT N ` 
+Auth in Redis
+` AUTH your_redis_password`
 
-   check keys in Redis
-   ` KEYS * `  
+Select DB of Redis
+`SELECT N`
 
-   check value of the key
-   ` GET <KEY>`
+check keys in Redis
+`KEYS *`
 
-   Check if Redis is running
-   ` sudo systemctl status redis `
+check value of the key
+` GET <KEY>`
 
-   If not running, start it
-   ` sudo systemctl start redis `
+Check if Redis is running
+`sudo systemctl status redis`
 
-   ` sudo systemctl stop redis `
+If not running, start it
+`sudo systemctl start redis`
 
-   Make sure Redis is enabled on startup
-   `sudo systemctl enable redis`
+`sudo systemctl stop redis`
 
-   Find process using port 6379
-   ` sudo lsof -i :6379 `
+Make sure Redis is enabled on startup
+`sudo systemctl enable redis`
 
-   Stop the process (if it's another Redis instance)
-   `sudo systemctl stop redis-server`
+Find process using port 6379
+`sudo lsof -i :6379`
 
-
-
-
-
+Stop the process (if it's another Redis instance)
+`sudo systemctl stop redis-server`
 
 ## UV
 
- - uv init
- - uv venv
- - source .venv/bin/activate
- - uv add <package_name>
- - uv lock
- - uv pip list
-
-
+- uv init
+- uv venv
+- source .venv/bin/activate
+- uv add <package_name>
+- uv lock
+- uv pip list
 
 ## FastStream (RabbitMQ)
 
-   RabbitMQ url
-   `http://localhost:15672`
+RabbitMQ url
+`http://localhost:15672`
 
-   FastStream allows you to scale application right from the command line by running you application in the Process pool.
-   ` faststream run serve:app --workers 2 `
+FastStream allows you to scale application right from the command line by running you application in the Process pool.
+`faststream run serve:app --workers 2`
 
-   Generating of ApiDocs
-   1. ` docker compose ps ` - checking all running services
-   2. ` docker compose exec notification-consumer sh ` - entering the container
-   3. ` faststream docs serve main:app --host 0.0.0.0 --port 8004 ` - generatig the
-   4. ` http://0.0.0.0:8004/docs/asyncapi ` - opening generated docs
+Generating of ApiDocs
 
-   Once confirmed, open your browser and go to:
-   http://localhost:15672
-   You'll see the RabbitMQ Management interface where you can:
+1.  `docker compose ps` - checking all running services
+2.  `docker compose exec notification-consumer sh` - entering the container
+3.  `faststream docs serve main:app --host 0.0.0.0 --port 8004` - generatig the
+4.  `http://0.0.0.0:8004/docs/asyncapi` - opening generated docs
 
-   View Exchanges (where messages are published)
-   View Queues (where messages are stored)
-   View Connections (active connections)
-   Monitor Message rates
-   Debug Message flow
+Once confirmed, open your browser and go to:
+http://localhost:15672
+You'll see the RabbitMQ Management interface where you can:
 
+View Exchanges (where messages are published)
+View Queues (where messages are stored)
+View Connections (active connections)
+Monitor Message rates
+Debug Message flow
 
-   User Action → API Gateway → User Service → Response
-                  ↓
-            Publish Event → RabbitMQ Queue
-                  ↓
-         Notification Service → Send Email
+User Action → API Gateway → User Service → Response
+↓
+Publish Event → RabbitMQ Queue
+↓
+Notification Service → Send Email
 
-   Event Flow Summary:
+Event Flow Summary:
 
-   User Registration: API Gateway → User Service → Event → Notification Consumer
-   Password Reset Request: API Gateway → User Service → Event → Notification Consumer
-   Email Verification: API Gateway → Event → Notification Consumer
-   Direct Email Endpoints: For testing/admin purposes only
-
-
-
+User Registration: API Gateway → User Service → Event → Notification Consumer
+Password Reset Request: API Gateway → User Service → Event → Notification Consumer
+Email Verification: API Gateway → Event → Notification Consumer
+Direct Email Endpoints: For testing/admin purposes only
 
 ## PG Admin
-   - http://localhost:5050
 
-
-
+- http://localhost:5050
 
 ## Typical target latency budgets (containerized microservices, single region, moderate load):
 
@@ -188,48 +180,45 @@ Warm containers (avoid CPU throttling)
 Trim excessive synchronous logging
 Reuse DB sessions and HTTP clients
 
-
 ## AdminJS
 
-------
-
-
-
+---
 
 ## Docker
-   building the image
-   ` docker build -t user-service . `
 
-   running with .env file
-   ` docker run --env-file .env user-service ` 
+building the image
+`docker build -t user-service .`
 
-   ` docker compose up --build`
+running with .env file
+`docker run --env-file .env user-service`
 
-   ` docker compose restart <service-name> `
+` docker compose up --build`
 
-   Stop containers and remove volumes
-   ` docker compose down -v `
+`docker compose restart <service-name>`
 
-   Remove the DB volume (WARNING: deletes all Postgres data!)
-   ` docker volume rm backend_postgres_data `
+Stop containers and remove volumes
+`docker compose down -v`
 
-   Remove all existing containers, networks, and volumes
-   ` docker system prune -af --volumes `
+Remove the DB volume (WARNING: deletes all Postgres data!)
+`docker volume rm backend_postgres_data`
 
-   Quick one-liner to remove only <none> images:
-   ` docker rmi $(docker images -f "dangling=true" -q)`
+Remove all existing containers, networks, and volumes
+`docker system prune -af --volumes`
 
-   rebuild via docker compose
-   `docker compose build <service-name> --no-cache`
-   
-   restart via docker compose sepc. service
-   `docker compose up <service-name>`
+Quick one-liner to remove only <none> images:
+` docker rmi $(docker images -f "dangling=true" -q)`
 
-   Stop the service:
-   `docker compose stop user-service`
+rebuild via docker compose
+`docker compose build <service-name> --no-cache`
 
-   Rebuild with updated code:
-   `docker compose build user-service`
+restart via docker compose sepc. service
+`docker compose up <service-name>`
 
-   Start it again (detached):
-   `docker compose up -d user-service`
+Stop the service:
+`docker compose stop user-service`
+
+Rebuild with updated code:
+`docker compose build user-service`
+
+Start it again (detached):
+`docker compose up -d user-service`
