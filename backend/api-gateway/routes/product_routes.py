@@ -37,6 +37,9 @@ async def get_product_by_id(request: Request,
         service_name="product-service",
         request=request,
     )
+    
+    
+# Categories
 
 
 

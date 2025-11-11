@@ -126,8 +126,25 @@ async def get_product_by_id_detailed(request: Request,
 @product_service_redis_manager.ratelimiter(times=30, seconds=60)
 async def update_product_by_id(request: Request,
                                product_id: UUID,
-                               product_data: UpdateProduct,
                                product_service: product_service_dependency) -> JSONResponse:
+    # Check if it's FormData or JSON
+    content_type = request.headers.get('content-type', '')
+    
+    if "application/json" in content_type:
+        json_data = await request.json()
+        product_data = UpdateProduct(**json_data)
+    
+    elif 'multipart/form-data' in content_type:
+        # Handle FormData from frontend
+        form_data = await request.form()
+        # Build update data dict with only provided fields
+        update_dict = {key: value for key, value in form_data.items() if value is not None}
+        product_data = UpdateProduct(**update_dict)
+    else:
+        return JSONResponse(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            content={"detail": "Unsupported content type"},
+        )
     product = await product_service.update_product(product_id=product_id, product_data=product_data)
     # Clear ALL product-related cache
     await product_service_redis_manager.clear_cache_namespace(namespace="products", request=request)
