@@ -7,6 +7,7 @@ from schemas.review_schemas import ReviewSchema, CreateReview, UpdateReview
 from dependencies.dependencies import review_service_dependency, product_service_dependency
 from shared.customized_json_response import JSONResponse
 from shared.shared_instances import product_service_redis_manager, settings
+from models.review_models import ProductReview
 
 
 review_routes = APIRouter(
@@ -148,3 +149,8 @@ async def delete_product_review(request: Request,
         content=None,
         status_code=status.HTTP_204_NO_CONTENT
     )
+    
+@product_routes.get("/admin/schema/product_reviews", summary="Schema for AdminJS")
+async def get_product_reviews_schema_for_admin_js(request: Request):
+    return JSONResponse(content={"fields": ProductReview.get_admin_schema()},
+                        status_code=status.HTTP_200_OK)

@@ -8,6 +8,7 @@ from models.product_models import Product
 from schemas.product_schemas import CreateProduct, ProductBase, ProductSchema, ProductsFilterParams, UpdateProduct
 from exceptions.product_exceptions import ProductNotFoundError, ProductCreationError
 from database_layer.product_repository import ProductRepository
+from shared.filter_parser import FilterParser 
 
 
 class ProductService:
@@ -17,61 +18,8 @@ class ProductService:
         self.repository = repository
         self.product_relations = Product.get_relations()
         self.product_search_fileds = Product.get_search_fields()
+        self.filter_parser = FilterParser()
         
-    def _parse_filter_params(self, filters_query: ProductsFilterParams) -> dict[str, Any]:
-        """
-        Helper method to parse ProductsFilterParams into repository-compatible parameters.
-        
-        Returns a dictionary with:
-        - filters: dict of field filters
-        - sort_by: sorting field
-        - sort_order: asc/desc
-        - offset: pagination offset
-        - limit: pagination limit
-        - search_term: search string
-        - date_filters: dict of date range filters
-        - range_filters
-        """
-        filters_dict = filters_query.model_dump()
-        
-        # Extract pagination and sorting params
-        offset = filters_dict.pop("offset", None)
-        limit = filters_dict.pop("limit", None)
-        sort_by = filters_dict.pop("sort_by", None)
-        sort_order = filters_dict.pop("sort_order", "asc")
-        search_term = filters_dict.pop("search_term", None)
-        
-        # Extract date range filters
-        date_filters = {
-            "date_created_from": filters_dict.pop("date_created_from", None),
-            "date_created_to": filters_dict.pop("date_created_to", None),
-            "date_updated_from": filters_dict.pop("date_updated_from", None),
-            "date_updated_to": filters_dict.pop("date_updated_to", None)
-        }
-        
-        # Extract range filters separately (don't pass them to basic filters)
-        min_price = filters_dict.pop("min_price", None)
-        max_price = filters_dict.pop("max_price", None)
-        min_quantity = filters_dict.pop("min_quantity", None)
-        max_quantity = filters_dict.pop("max_quantity", None)
-        
-        range_filters = {}
-        if min_price is not None or max_price is not None:
-            range_filters["price"] = (min_price, max_price)
-        if min_quantity is not None or max_quantity is not None:
-            range_filters["quantity"] = (min_quantity, max_quantity)
-    
-        return {
-            "filters": {key: value for key, value in filters_dict.items() if value is not None},
-            "sort_by": sort_by,
-            "sort_order": sort_order,
-            "offset": offset,
-            "limit": limit,
-            "search_term": search_term,
-            "date_filters": {key: value for key, value in date_filters.items() if value is not None},
-            "search_fields": self.product_search_fileds,
-            "range_filters": range_filters
-        }
 
     async def create_product_item(self, product_data: CreateProduct) -> ProductBase:
         existing_product = await self.repository.get_by_field("name", value=product_data.name.lower())
@@ -112,7 +60,7 @@ class ProductService:
     
     async def get_all_products_without_relations(self, 
                                                  filters_query: Annotated[ProductsFilterParams, Query()]) -> List[ProductBase]:
-        params = self._parse_filter_params(filters_query)
+        params = self.filter_parser.parse_filter_params(filter_query=filters_query)
         products = await self.repository.get_all(**params)
         if not products:
             raise ProductNotFoundError("No products found with the given criteria.")
@@ -120,7 +68,7 @@ class ProductService:
     
     async def get_all_products_with_relations(self, filters_query: Annotated[ProductsFilterParams, Query()]) -> List[ProductSchema]:
         # Parse filters using helper method and add relations
-        params = self._parse_filter_params(filters_query)
+        params = self.filter_parser.parse_filter_params(filter_query=filters_query)
         params["load_relations"] = self.product_relations
         
         products = await self.repository.get_all(**params)

@@ -21,7 +21,7 @@ class ProductCategory(Base, TimestampMixin):
 
     id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4, unique=True)
     name: Mapped[str] = mapped_column(unique=True, nullable=False)
-    image_url: Mapped[str] = mapped_column(nullable=False)
+    image_url: Mapped[str] = mapped_column(nullable=True)
 
     products: Mapped[List['Product']] = relationship('Product', back_populates='category', cascade='all, delete-orphan') #type: ignore
     

@@ -1,14 +1,15 @@
-from typing import Optional
+from typing import Optional, Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Request, status, Form, UploadFile, File
+from fastapi import APIRouter, Request, status, Form, UploadFile, File, Query
 
 from dependencies.dependencies import category_service_dependency
 
-from schemas.category_schema import CategorySchema, CreateCategory, UpdateCategory
+from schemas.category_schema import CategorySchema, CreateCategory, UpdateCategory, CategoriesFilterParams
 from shared.shared_instances import product_service_redis_manager, settings
 from shared.customized_json_response import JSONResponse
 from models.category_models import ProductCategory
+
 
 
 
@@ -21,11 +22,27 @@ category_routes = APIRouter(
                       response_model=CategorySchema)
 @product_service_redis_manager.ratelimiter(times=10, seconds=60)
 async def create_category(request: Request,
-                          category_service: category_service_dependency,
-                          name: str = Form(...),
-                          image: UploadFile = File(...)) -> JSONResponse:
-    new_category =  await category_service.create_category(name=name, image=image)
-    # Clear ALL category-related cache
+                          category_service: category_service_dependency) -> JSONResponse:
+    """
+    Create a new category. Supports both:
+    - JSON payload (for AdminJS): {"name": "Category Name"}
+    - FormData (for file uploads): name + image file
+    """
+    content_type = request.headers.get('content-type', '')
+    
+    if "application/json" in content_type:
+        # Handle JSON payload (AdminJS)
+        json_data = await request.json()
+        category_data = CreateCategory(**json_data)
+
+    elif 'multipart/form-data' in content_type:
+        # Handle FormData (with file upload)
+        form_data = await request.form()
+        category_data = CreateCategory(
+            name=form_data.get("name"),
+            image=form_data.get("image")
+        )    
+    new_category = await category_service.create_category(category_data=category_data)
     await product_service_redis_manager.clear_cache_namespace(request=request, namespace="categories")
     return JSONResponse(
         content=new_category,
@@ -38,7 +55,8 @@ async def create_category(request: Request,
 @product_service_redis_manager.cached(ttl=300)
 @product_service_redis_manager.ratelimiter(times=100, seconds=60)
 async def get_all_categories(request: Request,
-                             category_service: category_service_dependency) -> JSONResponse:
+                             category_service: category_service_dependency,
+                             filters_query: Annotated[CategoriesFilterParams, Query()]) -> JSONResponse:
     categories = await category_service.get_all_categories()
     return JSONResponse(
         content=categories,
@@ -46,7 +64,7 @@ async def get_all_categories(request: Request,
     )
 
 
-@category_routes.get("/categories/id/{category_id}", 
+@category_routes.get("/categories/{category_id}", 
                      response_model=CategorySchema)
 @product_service_redis_manager.cached(ttl=180)
 @product_service_redis_manager.ratelimiter(times=200, seconds=60)
@@ -60,21 +78,8 @@ async def get_category_by_id(request: Request,
     )
 
 
-@category_routes.get("/categories/name/{category_name}", 
-                     response_model=CategorySchema)
-@product_service_redis_manager.cached(ttl=180)
-@product_service_redis_manager.ratelimiter(times=200, seconds=60)
-async def get_category_by_name(request: Request,
-                               category_name: str,
-                               category_service: category_service_dependency) -> JSONResponse:
-    category = await category_service.get_category_by_name(name=category_name)
-    return JSONResponse(
-        content=category,
-        status_code=status.HTTP_200_OK
-    )
 
-
-@category_routes.patch("/categories/id/{category_id}", 
+@category_routes.patch("/categories/{category_id}", 
                      response_model=CategorySchema)
 @product_service_redis_manager.ratelimiter(times=30, seconds=60)
 async def update_category_by_id(request: Request,
@@ -85,15 +90,13 @@ async def update_category_by_id(request: Request,
         updated_category = await category_service.update_category(category_id=category_id, 
                                                                   name=name, 
                                                                   image=image)
-        # Clear ALL category-related cache
         await product_service_redis_manager.clear_cache_namespace(request=request, namespace="categories")
-        
         return JSONResponse(
             content=updated_category,
             status_code=status.HTTP_200_OK
         )
         
-@category_routes.delete("/categories/id/{category_id}",
+@category_routes.delete("/categories/{category_id}",
                         status_code=status.HTTP_204_NO_CONTENT)
 @product_service_redis_manager.ratelimiter(times=5, seconds=60)
 async def delete_category_by_id(request: Request,

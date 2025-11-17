@@ -1,19 +1,15 @@
-from argparse import OPTIONAL
-from ast import pattern
-from datetime import date, datetime
+
+from datetime import datetime
 from typing import Optional, List
-from unittest.mock import Base
 from uuid import UUID
 from decimal import Decimal
 
-from attr import field
-
-from pydantic import BaseModel, PositiveInt, Field, ConfigDict, HttpUrl, field_validator
+from pydantic import BaseModel, PositiveInt, Field, ConfigDict, field_validator
 
 from schemas.review_schemas import ReviewSchema
 from schemas.category_schema import CategorySchema
 from schemas.product_image_schema import ImageType
-
+from shared.schemas.product_schemas import BaseFilters
 
 
 
@@ -89,14 +85,9 @@ class CreatedProduct(ProductBase):
     date_created: datetime
     date_updated: Optional[datetime] = None
     
-class ProductsFilterParams(BaseModel):
-    # Pagination
-    offset: int = Field(default=0, ge=0, description="Number of records to skip")
-    limit: int = Field(default=10, gt=0, le=100, description="Maximum number of records to return")
-    
+class ProductsFilterParams(BaseFilters):
     # Sorting options
-    sort_by: Optional[str] = Field(None, pattern="^(id|name|price|date_created|date_updated|quantity)$")
-    sort_order: Optional[str] = Field(None, pattern="^(asc|desc)$")
+    sort_by: Optional[str] = Field(None, pattern="^(name|price|date_created|date_updated|quantity)$")
     
     # Filtering options
     name: Optional[str] = None

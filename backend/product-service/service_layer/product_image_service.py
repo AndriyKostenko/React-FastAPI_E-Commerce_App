@@ -1,7 +1,6 @@
-from typing import List, Optional
+from typing import List
 from uuid import UUID
 
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.product_image_models import ProductImage
 from schemas.product_image_schema import ProductImageSchema
@@ -14,6 +13,8 @@ class ProductImageService:
     
     def __init__(self, repository: ProductImageRepository):
         self.repository = repository
+        self.product_image_relations = ProductImage.get_relations()
+        self.product_image_search_fields = ProductImage.get_search_fields()
 
     async def create_product_images(self, product_id: UUID, images: list) -> List[ProductImageSchema]:
         """Create multiple product images for a product"""
@@ -33,6 +34,10 @@ class ProductImageService:
 
         created_images = await self.repository.create_many(product_images)
         return [ProductImageSchema.model_validate(img) for img in created_images]
+    
+    async def get_images(self) -> list[ProductImageSchema]:
+        """Get all product images"""
+        images = await self.repository.get_all()
 
     async def get_product_images(self, product_id: UUID) -> List[ProductImageSchema]:
         """Get all images for a specific product"""

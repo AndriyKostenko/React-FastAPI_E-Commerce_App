@@ -15,19 +15,20 @@ class CategoryService:
     def __init__(self, repository: CategoryRepository):
         self.repository = repository
 
-    async def create_category(self, name: str, image: UploadFile) -> CategorySchema:
+    async def create_category(self, category_data: CreateCategory) -> CategorySchema:
         # Check if category already exists
-        existing_category = await self.repository.get_by_field("name", value=name.lower())
+        existing_category = await self.repository.get_by_field("name", value=category_data.name.lower())
         if existing_category:
-            raise CategoryCreationError(f'Category with name: "{name}" already exists.')
+            raise CategoryCreationError(f'Category with name: "{category_data.name}" already exists.')
 
         # Create image path
-        image_paths = create_image_paths(images=[image])
+        if category_data.image:
+            image_paths = create_image_paths(images=[image])
         
         # Create new category
         new_category = ProductCategory(
             name=name.lower(),
-            image_url=image_paths[0]
+            image_url=image_paths[0] if image_paths[0] else None
         )
         
         created_category = await self.repository.create(new_category)

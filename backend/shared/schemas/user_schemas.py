@@ -1,9 +1,7 @@
-from datetime import datetime
-from typing import Optional, List
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr
-from pydantic.fields import Field
+from pydantic import BaseModel,  EmailStr
+
 
 class CurrentUserInfo(BaseModel):
     email: EmailStr

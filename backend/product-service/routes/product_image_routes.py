@@ -8,6 +8,7 @@ from dependencies.dependencies import product_image_service_dependency
 from utils.image_pathes import create_image_paths
 from shared.shared_instances import product_service_redis_manager, settings
 from shared.customized_json_response import JSONResponse
+from models.product_image_models import ProductImage
 
 
 product_images_routes = APIRouter(tags=["product_images"])
@@ -70,6 +71,12 @@ async def add_product_images(request: Request,
         status_code=status.HTTP_201_CREATED
     )
 
+
+@product_images_routes.get("/images",
+                           response_description="Get all images")
+async def get_all_images(request: Request,
+                         image_service: product_image_service_dependency) -> JSONResponse:
+    images = await image_service.get_images()
 
 @product_images_routes.get("/{product_id}/images",
                            response_model=List[ProductImageSchema],
@@ -190,14 +197,18 @@ async def update_product_image(request: Request,
 
 
 @product_images_routes.delete("/images/{image_id}",
-                              response_description="Delete image by ID")
+                              response_description="Delete image by ID",
+                              status_code=status.HTTP_204_NO_CONTENT)
 @product_service_redis_manager.ratelimiter(times=10, seconds=60)
 async def delete_product_image(request: Request,
                                image_id: UUID,
                                image_service: product_image_service_dependency) -> JSONResponse:
     await image_service.delete_product_image(image_id)
     await product_service_redis_manager.clear_cache_namespace(request=request, namespace="product_images")
-    return JSONResponse(
-        content=None,
-        status_code=status.HTTP_204_NO_CONTENT
-    )
+    return 
+    
+    
+@product_routes.get("/admin/schema/product_images", summary="Schema for AdminJS")
+async def get_product_image_schema_for_admin_js(request: Request):
+    return JSONResponse(content={"fields": ProductImage.get_admin_schema()},
+                        status_code=status.HTTP_200_OK)

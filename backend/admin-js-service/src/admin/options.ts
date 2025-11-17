@@ -29,7 +29,7 @@ async function buildDynamicResource(
 }
 
 // Load resources in parallel for faster startup
-const [userResources, productResources] = await Promise.all([
+const [userResources, productResources, categoryResources, imageResources, reviewResources] = await Promise.all([
     buildDynamicResource(
         `${process.env.API_GATEWAY_SERVICE_URL}${process.env.API_GATEWAY_SERVICE_URL_API_VERSION}/users`,
         `${process.env.API_GATEWAY_SERVICE_URL}${process.env.API_GATEWAY_SERVICE_URL_API_VERSION}/admin/schema/users`,
@@ -43,6 +43,27 @@ const [userResources, productResources] = await Promise.all([
         'Product',
         false,
     ),
+    buildDynamicResource(
+        `${process.env.API_GATEWAY_SERVICE_URL}${process.env.API_GATEWAY_SERVICE_URL_API_VERSION}/categories`,
+        // eslint-disable-next-line max-len
+        `${process.env.API_GATEWAY_SERVICE_URL}${process.env.API_GATEWAY_SERVICE_URL_API_VERSION}/admin/schema/categories`,
+        'Categories',
+        false,
+    ),
+    buildDynamicResource(
+        `${process.env.API_GATEWAY_SERVICE_URL}${process.env.API_GATEWAY_SERVICE_URL_API_VERSION}/images`,
+        // eslint-disable-next-line max-len
+        `${process.env.API_GATEWAY_SERVICE_URL}${process.env.API_GATEWAY_SERVICE_URL_API_VERSION}/admin/schema/product_images`,
+        'Images',
+        false,
+    ),
+    buildDynamicResource(
+        `${process.env.API_GATEWAY_SERVICE_URL}${process.env.API_GATEWAY_SERVICE_URL_API_VERSION}/reviews`,
+        // eslint-disable-next-line max-len
+        `${process.env.API_GATEWAY_SERVICE_URL}${process.env.API_GATEWAY_SERVICE_URL_API_VERSION}/admin/schema/product_reviews`,
+        'Product',
+        false,
+    ),
 ]);
 
 const options: AdminJSOptions = {
@@ -51,7 +72,7 @@ const options: AdminJSOptions = {
     componentLoader,
     rootPath: '/admin',
     // Including the API Resource Provider for User management
-    resources: [userResources, productResources],
+    resources: [userResources, productResources, categoryResources, imageResources, reviewResources],
 };
 
 export default options;
