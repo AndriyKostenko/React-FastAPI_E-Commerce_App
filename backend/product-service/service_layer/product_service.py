@@ -1,27 +1,29 @@
 from typing import Annotated, List, Any
 from uuid import UUID
 
-from fastapi import Query
+from fastapi import Query, UploadFile
 from sqlalchemy.exc import IntegrityError
 
 from models.product_models import Product
 from schemas.product_schemas import CreateProduct, ProductBase, ProductSchema, ProductsFilterParams, UpdateProduct
 from exceptions.product_exceptions import ProductNotFoundError, ProductCreationError
 from database_layer.product_repository import ProductRepository
-from shared.filter_parser import FilterParser 
+from shared.filter_parser import FilterParser
+from service_layer.product_image_service import ProductImageService
 
 
 class ProductService:
     """Service layer for product management operations, business logic and data validation."""
     
-    def __init__(self, repository: ProductRepository):
+    def __init__(self, repository: ProductRepository, image_repository: ProductImageRepository):
         self.repository = repository
+        self.image_repository = image_repository
         self.product_relations = Product.get_relations()
         self.product_search_fileds = Product.get_search_fields()
         self.filter_parser = FilterParser()
         
 
-    async def create_product_item(self, product_data: CreateProduct) -> ProductBase:
+    async def create_product_item(self, product_data: CreateProduct, images: Optional[list[UploadFile]] = None) -> ProductBase:
         existing_product = await self.repository.get_by_field("name", value=product_data.name.lower())
         if existing_product:
             raise ProductCreationError(f'Product with name: "{product_data.name}" already exists.')
@@ -43,8 +45,19 @@ class ProductService:
                 )
             # Re-raise other integrity errors
             raise ProductCreationError(f"Failed to create product: {str(e)}")
+        
+        # Handle new images if provided
+        if images:
+            await ProductImageService(self.image_repository).create_product_images(
+                product_id=new_db_product.id,
+                images=images 
+            )
 
         return ProductBase.model_validate(new_db_product)
+    
+    
+
+    
     
     async def get_product_by_id_without_relations(self, product_id: UUID) -> ProductBase:
         db_product = await self.repository.get_by_id(item_id=product_id)

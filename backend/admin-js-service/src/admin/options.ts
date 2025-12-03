@@ -61,7 +61,7 @@ const [userResources, productResources, categoryResources, imageResources, revie
         `${process.env.API_GATEWAY_SERVICE_URL}${process.env.API_GATEWAY_SERVICE_URL_API_VERSION}/reviews`,
         // eslint-disable-next-line max-len
         `${process.env.API_GATEWAY_SERVICE_URL}${process.env.API_GATEWAY_SERVICE_URL_API_VERSION}/admin/schema/product_reviews`,
-        'Product',
+        'Reviews',
         false,
     ),
 ]);

@@ -1,7 +1,7 @@
 from typing import Optional, Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Request, status, Form, UploadFile, File, Query
+from fastapi import APIRouter, Request, status, Form, UploadFile, File, Query, HTTPException
 
 from dependencies.dependencies import category_service_dependency
 
@@ -18,31 +18,40 @@ category_routes = APIRouter(
 )
 
 
+# JSON endpoint for AdminJS and API clients
 @category_routes.post("/categories", 
-                      response_model=CategorySchema)
+                      response_model=CategorySchema,
+                      summary="Create category (JSON)")
 @product_service_redis_manager.ratelimiter(times=10, seconds=60)
-async def create_category(request: Request,
-                          category_service: category_service_dependency) -> JSONResponse:
+async def create_category_json(request: Request,
+                               category_service: category_service_dependency,
+                               category_data: CreateCategory) -> JSONResponse:
     """
-    Create a new category. Supports both:
-    - JSON payload (for AdminJS): {"name": "Category Name"}
-    - FormData (for file uploads): name + image file
+    Create a new category using JSON payload.
+    Used by AdminJS and API clients.
     """
-    content_type = request.headers.get('content-type', '')
-    
-    if "application/json" in content_type:
-        # Handle JSON payload (AdminJS)
-        json_data = await request.json()
-        category_data = CreateCategory(**json_data)
-
-    elif 'multipart/form-data' in content_type:
-        # Handle FormData (with file upload)
-        form_data = await request.form()
-        category_data = CreateCategory(
-            name=form_data.get("name"),
-            image=form_data.get("image")
-        )    
     new_category = await category_service.create_category(category_data=category_data)
+    await product_service_redis_manager.clear_cache_namespace(request=request, namespace="categories")
+    return JSONResponse(
+        content=new_category,
+        status_code=status.HTTP_201_CREATED
+    )
+    
+# FormData endpoint for file uploads (frontend with image)
+@category_routes.post("/categories/upload", 
+                      response_model=CategorySchema,
+                      summary="Create category with image (FormData)")
+@product_service_redis_manager.ratelimiter(times=10, seconds=60)
+async def create_category_with_image(request: Request,
+                                     category_service: category_service_dependency,
+                                     name: str = Form(...),
+                                     image: Optional[UploadFile] = File(None)) -> JSONResponse:
+    """
+    Create a new category with optional image upload.
+    Used by frontend forms that need to upload files.
+    """
+    category_data = CreateCategory(name=name, image_url=None)
+    new_category = await category_service.create_category(category_data=category_data, image=image)
     await product_service_redis_manager.clear_cache_namespace(request=request, namespace="categories")
     return JSONResponse(
         content=new_category,

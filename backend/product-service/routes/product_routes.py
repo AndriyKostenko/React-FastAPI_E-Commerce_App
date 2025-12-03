@@ -2,7 +2,7 @@ from decimal import Decimal
 from typing import Optional, Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, status, Form, Request, Query # type: ignore
+from fastapi import APIRouter, status, Form, Request, Query, UploadFile # type: ignore
 
 from dependencies.dependencies import product_service_dependency
 from schemas.product_schemas import ProductBase, ProductSchema, CreateProduct, ProductsFilterParams, UpdateProduct
@@ -16,43 +16,62 @@ product_routes = APIRouter(
 )
 
 
+# JSON endpoint for AdminJS and API clients
 @product_routes.post("/products",  
                      response_model=ProductBase,
+                     summary="Create product (JSON)",
                      response_description="New product created")
 @product_service_redis_manager.ratelimiter(times=10, seconds=60)
-async def create_new_product(request: Request,
-                             product_service: product_service_dependency) -> JSONResponse:
-    # Check if it's FormData or JSON
-    content_type = request.headers.get('content-type', '')
-    
-    if "application/json" in content_type:
-        json_data = await request.json()
-        product_data = CreateProduct(**json_data)
-            
-    
-    elif 'multipart/form-data' in content_type:
-        # Handle FormData from frontend
-        form_data = await request.form()
-        product_data = CreateProduct(
-            name=form_data.get("name"),
-            description=form_data.get("description"),
-            category_id=form_data.get("category_id"),
-            brand=form_data.get("brand"),
-            quantity=form_data.get("quantity"),
-            price=form_data.get("price"),
-            in_stock=form_data.get("in_stock")
-        )
-    else:
-        return JSONResponse(
-            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
-            content={"detail": "Unsupported content type"},
-        )
-
+async def create_product_json(request: Request,
+                              product_service: product_service_dependency,
+                              product_data: CreateProduct) -> JSONResponse:
+    """
+    Create a new product using JSON payload.
+    Used by AdminJS and API clients.
+    """
     created_product = await product_service.create_product_item(product_data=product_data)
-    
-    # Clear ALL product-related cache
     await product_service_redis_manager.clear_cache_namespace(namespace="products", request=request)
+    return JSONResponse(
+        content=created_product,
+        status_code=status.HTTP_201_CREATED
+    )
     
+# FormData endpoint for file uploads (frontend with images)
+@product_routes.post("/products/upload",  
+                     response_model=ProductBase,
+                     summary="Create product with images (FormData)",
+                     response_description="New product created with images")
+@product_service_redis_manager.ratelimiter(times=10, seconds=60)
+async def create_product_with_images(
+    request: Request,
+    product_service: product_service_dependency,
+    name: str = Form(...),
+    description: Optional[str] = Form(None),
+    category_id: UUID = Form(...),
+    brand: Optional[str] = Form(None),
+    quantity: int = Form(...),
+    price: Decimal = Form(...),
+    in_stock: bool = Form(True),
+    images: Optional[list[UploadFile]] = File(None)
+) -> JSONResponse:
+    """
+    Create a new product with optional image uploads.
+    Used by frontend forms that need to upload files.
+    """
+    product_data = CreateProduct(
+        name=name,
+        description=description,
+        category_id=category_id,
+        brand=brand,
+        quantity=quantity,
+        price=price,
+        in_stock=in_stock
+    )
+    created_product = await product_service.create_product_item(
+        product_data=product_data, 
+        images=images
+    )
+    await product_service_redis_manager.clear_cache_namespace(namespace="products", request=request)
     return JSONResponse(
         content=created_product,
         status_code=status.HTTP_201_CREATED
@@ -120,33 +139,21 @@ async def get_product_by_id_detailed(request: Request,
     )
 
 
+# JSON endpoint for updating product
 @product_routes.patch("/products/{product_id}", 
                       response_model=ProductBase,
-                      response_description="Product availability updated")
+                      summary="Update product (JSON)",
+                      response_description="Product updated")
 @product_service_redis_manager.ratelimiter(times=30, seconds=60)
-async def update_product_by_id(request: Request,
-                               product_id: UUID,
-                               product_service: product_service_dependency) -> JSONResponse:
-    # Check if it's FormData or JSON
-    content_type = request.headers.get('content-type', '')
-    
-    if "application/json" in content_type:
-        json_data = await request.json()
-        product_data = UpdateProduct(**json_data)
-    
-    elif 'multipart/form-data' in content_type:
-        # Handle FormData from frontend
-        form_data = await request.form()
-        # Build update data dict with only provided fields
-        update_dict = {key: value for key, value in form_data.items() if value is not None}
-        product_data = UpdateProduct(**update_dict)
-    else:
-        return JSONResponse(
-            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
-            content={"detail": "Unsupported content type"},
-        )
+async def update_product_json(request: Request,
+                              product_id: UUID,
+                              product_service: product_service_dependency,
+                              product_data: UpdateProduct = Body(...)) -> JSONResponse:
+    """
+    Update a product using JSON payload.
+    Used by AdminJS and API clients.
+    """
     product = await product_service.update_product(product_id=product_id, product_data=product_data)
-    # Clear ALL product-related cache
     await product_service_redis_manager.clear_cache_namespace(namespace="products", request=request)
     return JSONResponse(
         content=product,
@@ -165,6 +172,50 @@ async def delete_product_by_id(request: Request,
     # Clear ALL product-related cache
     await product_service_redis_manager.clear_cache_namespace(namespace="products", request=request)
     return
+
+
+# FormData endpoint for updating product with images
+@product_routes.patch("/products/{product_id}/upload", 
+                      response_model=ProductBase,
+                      summary="Update product with images (FormData)",
+                      response_description="Product updated with images")
+@product_service_redis_manager.ratelimiter(times=30, seconds=60)
+async def update_product_with_images(
+    request: Request,
+    product_id: UUID,
+    product_service: product_service_dependency,
+    name: Optional[str] = Form(None),
+    description: Optional[str] = Form(None),
+    category_id: Optional[UUID] = Form(None),
+    brand: Optional[str] = Form(None),
+    quantity: Optional[int] = Form(None),
+    price: Optional[Decimal] = Form(None),
+    in_stock: Optional[bool] = Form(None),
+    images: Optional[list[UploadFile]] = File(None)
+) -> JSONResponse:
+    """
+    Update a product with optional image uploads.
+    Used by frontend forms that need to upload files.
+    """
+    product_data = UpdateProduct(
+        name=name,
+        description=description,
+        category_id=category_id,
+        brand=brand,
+        quantity=quantity,
+        price=price,
+        in_stock=in_stock
+    )
+    product = await product_service.update_product(
+        product_id=product_id, 
+        product_data=product_data,
+        images=images
+    )
+    await product_service_redis_manager.clear_cache_namespace(namespace="products", request=request)
+    return JSONResponse(
+        content=product,
+        status_code=status.HTTP_200_OK
+    )
 
 
 @product_routes.get("/admin/schema/products", summary="Schema for AdminJS")

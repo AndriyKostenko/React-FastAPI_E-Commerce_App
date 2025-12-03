@@ -27,6 +27,10 @@ class AuthMiddleware(metaclass=SingletonMetaClass):
             f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/admin/schema/users": ['GET'],
             f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/products": ['GET'],
             f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/admin/schema/products": ['GET'],
+            f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/admin/schema/categories": ['GET'],
+            f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/admin/schema/product_images": ['GET'],
+            f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/admin/schema/product_reviews": ['GET'],
+            
         }
 
     def is_public_endpoint(self, path: str, method: str) -> bool:

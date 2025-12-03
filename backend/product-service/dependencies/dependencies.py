@@ -47,7 +47,7 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
 
 def get_product_service(session: AsyncSession = Depends(get_db_session)) -> ProductService:
     """Dependency to provide ProductService (for buisiness logic and data validation) which operates ProductRepository(inherits BaseRepository) for db session management."""
-    return ProductService(ProductRepository(session=session))
+    return ProductService(ProductRepository(session=session), ProductImageRepository(session=session))
 
 
 def get_category_service(session: AsyncSession = Depends(get_db_session)) -> CategoryService:

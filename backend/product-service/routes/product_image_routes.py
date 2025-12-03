@@ -208,7 +208,7 @@ async def delete_product_image(request: Request,
     return 
     
     
-@product_routes.get("/admin/schema/product_images", summary="Schema for AdminJS")
+@product_images_routes.get("/admin/schema/images", summary="Schema for AdminJS")
 async def get_product_image_schema_for_admin_js(request: Request):
     return JSONResponse(content={"fields": ProductImage.get_admin_schema()},
                         status_code=status.HTTP_200_OK)

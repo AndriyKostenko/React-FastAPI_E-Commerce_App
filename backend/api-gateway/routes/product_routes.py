@@ -69,7 +69,16 @@ async def get_category_by_id(request: Request,
 
 
 # Product Images
-@product_proxy.get("/{product_id}/images", summary="Get all product images")
+@product_proxy.get("/images",
+                   summary="Get all products images")
+async def get_all_images(request: Request):
+    return await api_gateway_manager.forward_request(
+        service_name="product-service",
+        request=request
+    )
+
+
+@product_proxy.get("/{product_id}/images", summary="Get all product images by product id")
 async def get_product_images(request: Request,
                              product_id: UUID):
     """PUBLIC - Anyone can view product images"""
@@ -128,6 +137,15 @@ async def create_product(request: Request,
         service_name="product-service",
         request=request,
     )
+    
+@product_proxy.post("/products/upload", summary="Create new product")
+async def create_product(request: Request,
+                        current_user: CurrentUserInfo = Depends(require_admin)):
+    """ADMIN ONLY - Create products"""
+    return await api_gateway_manager.forward_request(
+        service_name="product-service",
+        request=request,
+    )
 
 @product_proxy.patch("/products/{product_id}", summary="Update product")
 async def update_product(request: Request,
@@ -152,6 +170,15 @@ async def delete_product(request: Request,
 
 # Categories
 @product_proxy.post("/categories", summary="Create new category")
+async def create_category(request: Request,
+                         current_user: CurrentUserInfo = Depends(require_admin)):
+    """ADMIN ONLY - Create categories"""
+    return await api_gateway_manager.forward_request(
+        service_name="product-service",
+        request=request,
+    )
+    
+@product_proxy.post("/categories/upload", summary="Create new category")
 async def create_category(request: Request,
                          current_user: CurrentUserInfo = Depends(require_admin)):
     """ADMIN ONLY - Create categories"""
@@ -287,7 +314,7 @@ async def get_category_schema_for_admin_js(request: Request):
     )
     
     
-@product_proxy.get("/admin/schema/product_images", summary="Get product_images schema for AdminJS")
+@product_proxy.get("/admin/schema/images", summary="Get product_images schema for AdminJS")
 async def get_category_schema_for_admin_js(request: Request):
     """Get category schema for AdminJS"""
     return await api_gateway_manager.forward_request(
@@ -296,7 +323,7 @@ async def get_category_schema_for_admin_js(request: Request):
     )
     
     
-@product_proxy.get("/admin/schema/product_reviews", summary="Get product_reviews schema for AdminJS")
+@product_proxy.get("/admin/schema/reviews", summary="Get product_reviews schema for AdminJS")
 async def get_category_schema_for_admin_js(request: Request):
     """Get category schema for AdminJS"""
     return await api_gateway_manager.forward_request(

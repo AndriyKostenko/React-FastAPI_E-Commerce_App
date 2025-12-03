@@ -150,7 +150,7 @@ async def delete_product_review(request: Request,
         status_code=status.HTTP_204_NO_CONTENT
     )
     
-@product_routes.get("/admin/schema/product_reviews", summary="Schema for AdminJS")
+@review_routes.get("/admin/schema/reviews", summary="Schema for AdminJS")
 async def get_product_reviews_schema_for_admin_js(request: Request):
     return JSONResponse(content={"fields": ProductReview.get_admin_schema()},
                         status_code=status.HTTP_200_OK)

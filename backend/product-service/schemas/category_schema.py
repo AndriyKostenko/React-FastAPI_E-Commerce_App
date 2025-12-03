@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional, List, Union
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, HttpUrl
@@ -8,7 +8,7 @@ from pydantic import BaseModel, ConfigDict, HttpUrl
 class CategoryBase(BaseModel):
     """Base category schema with common attributes"""
     name: str
-    image_url: HttpUrl
+    image_url: Optional[str] = None
     
     # adding config for model serialization from ORM attributes
     model_config = ConfigDict(from_attributes=True)
@@ -17,7 +17,7 @@ class CategoryBase(BaseModel):
 class CreateCategory(BaseModel):
     """Schema for creating a new category - internal use after file processing"""
     name: str
-    image_url: Optional[HttpUrl] = None
+    image_url: Optional[Union[HttpUrl, str]] = None
 
 
 class UpdateCategory(BaseModel):
