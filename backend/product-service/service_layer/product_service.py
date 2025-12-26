@@ -1,8 +1,8 @@
-from typing import Annotated, List, Optional
+from typing import Annotated, List
 from uuid import UUID
 
-from fastapi import Query
-from shared.filter_parser import FilterParser
+from fastapi import Query, UploadFile
+from shared.filter_parser import FilterParser  # type: ignore
 from sqlalchemy.exc import IntegrityError
 
 from database_layer.product_repository import ProductRepository
@@ -15,13 +15,18 @@ from schemas.product_schemas import (
     ProductsFilterParams,
     UpdateProduct,
 )
+from service_layer.product_image_service import ProductImageService
+from utils.image_processing import image_processing_manager
 
 
 class ProductService:
     """Service layer for product management operations, business logic and data validation."""
 
-    def __init__(self, repository: ProductRepository):
+    def __init__(
+        self, repository: ProductRepository, product_image_service: ProductImageService
+    ):
         self.repository = repository
+        self.product_image_service = product_image_service
         self.product_relations = Product.get_relations()
         self.product_search_fileds = Product.get_search_fields()
         self.filter_parser = FilterParser()
@@ -56,6 +61,29 @@ class ProductService:
             raise ProductCreationError(f"Failed to create product: {str(e)}")
 
         return ProductBase.model_validate(new_db_product)
+
+    async def create_product_with_images(
+        self,
+        product_data: CreateProduct,
+        images: list[UploadFile],
+        image_colors: list[str],
+        image_color_codes: list[str],
+    ) -> ProductSchema:
+        image_urls = await image_processing_manager.save_images(images)
+        image_metadata = image_processing_manager.create_metadata_list(
+            image_urls=image_urls,
+            image_colors=image_colors,
+            image_color_codes=image_color_codes,
+        )
+        new_product = await self.create_product_item(product_data)
+        await self.product_image_service.create_product_images(
+            product_id=new_product.id, images=image_metadata
+        )
+        full_product = await self.repository.get_by_id(
+            item_id=new_product.id,
+            load_relations=Product.get_relations(),  # category, images, reviews
+        )
+        return ProductSchema.model_validate(full_product)
 
     async def get_product_by_id_without_relations(
         self, product_id: UUID

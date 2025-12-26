@@ -3,9 +3,8 @@ from decimal import Decimal
 from typing import List, Optional
 from uuid import UUID
 
-from fastapi import UploadFile
 from pydantic import BaseModel, ConfigDict, Field, PositiveInt, field_validator
-from shared.schemas.product_schemas import BaseFilters
+from shared.schemas.product_schemas import BaseFilters  # type: ignore
 
 from schemas.category_schema import CategorySchema
 from schemas.product_image_schema import ImageType
@@ -22,7 +21,7 @@ class ProductBase(BaseModel):
     description: str = Field(..., min_length=10, max_length=500)
     category_id: UUID
     brand: str = Field(..., min_length=3, max_length=50)
-    quantity: PositiveInt = Field(..., gt=0, le=20)
+    quantity: int
     price: Decimal = Field(..., gt=0, le=100)
     in_stock: bool
     date_created: datetime

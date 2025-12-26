@@ -3,11 +3,12 @@ from uuid import UUID
 
 from fastapi import UploadFile
 
-from models.category_models import ProductCategory
-from exceptions.category_exceptions import CategoryNotFoundError, CategoryCreationError
-from schemas.category_schema import CategorySchema, CreateCategory, UpdateCategory
 from database_layer.category_repository import CategoryRepository
-from utils.image_pathes import create_image_paths
+from exceptions.category_exceptions import CategoryCreationError, CategoryNotFoundError
+from models.category_models import ProductCategory
+from schemas.category_schema import CategorySchema, CreateCategory, UpdateCategory
+from utils.image_processing import image_processing_manager
+
 
 class CategoryService:
     """Service layer for category management operations, business logic and data validation."""
@@ -15,29 +16,34 @@ class CategoryService:
     def __init__(self, repository: CategoryRepository):
         self.repository = repository
 
-    async def create_category(self, category_data: CreateCategory, image: Optional[UploadFile]=None) -> CategorySchema:
+    async def create_category(
+        self,
+        category_data: CreateCategory,
+        image: Optional[UploadFile] = None,
+    ) -> CategorySchema:
         # Check if category already exists
-        existing_category = await self.repository.get_by_field("name", value=category_data.name.lower())
+        existing_category = await self.repository.get_by_field(
+            "name", category_data.name.lower()
+        )
         if existing_category:
-            raise CategoryCreationError(f'Category with name: "{category_data.name}" already exists.')
+            raise CategoryCreationError(
+                f'Category with name: "{category_data.name}" already exists.'
+            )
 
-        # Create image path if image provided
-        image_url = None
+        # Determine image URL: uploaded image takes priority, else use provided URL
+        image_url: Optional[str] = category_data.image_url
         if image:
-            image_paths = create_image_paths(images=[image])
-            image_url = image_paths[0] if image_paths else None
-        elif category_data.image_url:
-            image_url = str(category_data.image_url)
-        
-        # Create new category
+            image_url = await image_processing_manager.save_icon(image)
+
+        # Create category
         new_category = ProductCategory(
             name=category_data.name.lower(),
-            image_url=image_url
+            image_url=image_url,
         )
-        
+
         created_category = await self.repository.create(new_category)
         return CategorySchema.model_validate(created_category)
-   
+
     async def get_all_categories(self) -> list[CategorySchema]:
         categories = await self.repository.get_all()
         if not categories or len(categories) == 0:
@@ -49,27 +55,31 @@ class CategoryService:
         if not category:
             raise CategoryNotFoundError(f'Category with id: "{category_id}" not found.')
         return CategorySchema.model_validate(category)
-    
+
     async def get_category_by_name(self, name: str) -> CategorySchema:
         category = await self.repository.get_by_field("name", value=name.lower())
         if not category:
             raise CategoryNotFoundError(f'Category with name: "{name}" not found.')
         return CategorySchema.model_validate(category)
 
-    async def update_category(self, 
-                              category_id: UUID, 
-                              name: Optional[str] = None, 
-                              image: Optional[UploadFile] = None) -> CategorySchema:
+    async def update_category(
+        self,
+        category_id: UUID,
+        name: Optional[str] = None,
+        image: Optional[UploadFile] = None,
+    ) -> CategorySchema:
         # Get only fields that were actually provided
         update_dict = {}
         if name is not None:
-            update_dict['name'] = name.lower()
+            update_dict["name"] = name.lower()
         if image is not None:
-            image_paths = create_image_paths(images=[image])
-            update_dict['image_url'] = image_paths[0]
+            image_paths = await image_processing_manager.save_icon(image)
+            update_dict["image_url"] = image_paths[0]
 
         # Update category
-        updated_category = await self.repository.update_by_id(category_id, **update_dict)
+        updated_category = await self.repository.update_by_id(
+            category_id, **update_dict
+        )
         if not updated_category:
             raise CategoryNotFoundError(f"Category with id: {category_id} not found.")
 
@@ -79,4 +89,3 @@ class CategoryService:
         success = await self.repository.delete_by_id(category_id)
         if not success:
             raise CategoryNotFoundError(f"Category id: {category_id} not found")
-        

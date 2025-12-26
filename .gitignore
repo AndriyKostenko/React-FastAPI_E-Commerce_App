@@ -6,6 +6,10 @@
 /backend/.venv
 /backend/venv
 /backend/admin-js-service/node_modules
+/backend/user-service/.venv
+/backend/product-service/.venv
+/backend/order-service/.venv
+/backend/notifications-service/.venv
 /node_modules
 /frontend/node_modules
 

@@ -43,13 +43,6 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
         yield session
 
 
-def get_product_service(
-    session: AsyncSession = Depends(get_db_session),
-) -> ProductService:
-    """Dependency to provide ProductService (for buisiness logic and data validation) which operates ProductRepository(inherits BaseRepository) for db session management."""
-    return ProductService(ProductRepository(session=session))
-
-
 def get_category_service(
     session: AsyncSession = Depends(get_db_session),
 ) -> CategoryService:
@@ -69,6 +62,15 @@ def get_product_image_service(
 ) -> ProductImageService:
     """Dependency to provide ProductImageService (for image management) which operates ProductImageRepository(inherits BaseRepository) for db session management."""
     return ProductImageService(ProductImageRepository(session=session))
+
+
+def get_product_service(
+    session: AsyncSession = Depends(get_db_session),
+    product_image_service: ProductImageService = Depends(get_product_image_service),
+) -> ProductService:
+    """Dependency to provide ProductService with ProductImageService(for imge handling) (for buisiness logic and data validation) which operates ProductRepository(inherits BaseRepository) for db session management."""
+    product_repository = ProductRepository(session=session)
+    return ProductService(product_repository, product_image_service)
 
 
 product_service_dependency = Annotated[ProductService, Depends(get_product_service)]

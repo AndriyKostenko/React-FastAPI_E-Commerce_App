@@ -3,11 +3,10 @@ from typing import Annotated, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, File, Form, Query, Request, UploadFile, status
-from shared.customized_json_response import JSONResponse
-from shared.shared_instances import product_service_redis_manager
+from shared.customized_json_response import JSONResponse  # type: ignore
+from shared.shared_instances import product_service_redis_manager  # type: ignore
 
 from dependencies.dependencies import (
-    product_image_service_dependency,
     product_service_dependency,
 )
 from models.product_models import Product
@@ -55,7 +54,6 @@ async def create_product_json(
 async def create_product_with_images(
     request: Request,
     product_service: product_service_dependency,
-    product_image_service: product_image_service_dependency,
     name: str = Form(...),
     description: str = Form(...),
     category_id: UUID = Form(...),
@@ -63,12 +61,15 @@ async def create_product_with_images(
     quantity: int = Form(...),
     price: Decimal = Form(...),
     in_stock: bool = Form(...),
-    images: Optional[list[UploadFile]] = File(None),
+    images: list[UploadFile] = File(...),
+    image_colors: list[str] = Form(...),
+    image_color_codes: list[str] = Form(...),
 ) -> JSONResponse:
     """
     Create a new product with optional image uploads.
     Used by frontend forms that need to upload files.
     """
+    # Validate and prepare product data
     product_data = CreateProduct(
         name=name,
         description=description,
@@ -78,13 +79,12 @@ async def create_product_with_images(
         price=price,
         in_stock=in_stock,
     )
-    created_product = await product_service.create_product_item(
-        product_data=product_data
+    created_product = await product_service.create_product_with_images(
+        product_data=product_data,
+        images=images,
+        image_colors=image_colors,
+        image_color_codes=image_color_codes,
     )
-    if images:
-        await product_image_service.create_product_images(
-            product_id=created_product["id"], images=images
-        )
     await product_service_redis_manager.clear_cache_namespace(
         namespace="products", request=request
     )
