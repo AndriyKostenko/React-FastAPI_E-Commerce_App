@@ -1,10 +1,10 @@
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator, Dict
 
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker, AsyncEngine
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker, AsyncEngine # type: ignore
 
-from shared.models.models_base_class import Base
-from shared.base_exceptions import DatabaseConnectionError, DatabaseSessionError
+from shared.models.models_base_class import Base # type: ignore
+from shared.base_exceptions import DatabaseConnectionError, DatabaseSessionError # type: ignore
 
 
 
@@ -28,11 +28,11 @@ class DatabaseSessionManager:
         self.database_url = database_url
         self.engine_settings = engine_settings
         self.logger = logger
-        
-        # Initializing the database engine and session maker 
+
+        # Initializing the database engine and session maker
         self._initialize_engine()
-        
-        
+
+
     def _initialize_engine(self) -> None:
         """Initialize the engine and session maker."""
         try:
@@ -40,10 +40,10 @@ class DatabaseSessionManager:
                                                      **self.engine_settings)
             self.async_session = async_sessionmaker(
                     autocommit=False, #If True, each transaction will be automatically committed.
-                    autoflush=False, #If True, the session will automatically flush changes to the database. 
+                    autoflush=False, #If True, the session will automatically flush changes to the database.
                     bind=self.async_engine,
                     class_=AsyncSession,
-                    expire_on_commit=False #If True, the session will expire all instances after commit. 
+                    expire_on_commit=False #If True, the session will expire all instances after commit.
             )
             self.logger.info("Database engine initialized")
         except Exception as e:
@@ -51,13 +51,13 @@ class DatabaseSessionManager:
             self.async_engine = None
             self.async_session = None
 
-        
+
     async def init_db(self) -> None:
         """Initialize the database and create all tables."""
         if self.async_engine is None:
             self.logger.error("Database engine is not initialized.")
             raise DatabaseConnectionError("Database engine is not initialized.")
-        
+
         try:
             async with self.async_engine.begin() as connection:
                 await connection.run_sync(Base.metadata.create_all)
@@ -78,12 +78,12 @@ class DatabaseSessionManager:
         if self.async_session is None:
             self.logger.error("Session maker is not initialized.")
             raise DatabaseSessionError("Session maker is not initialized.")
-        
+
         async with self.async_session() as session:
             yield session
 
-        
-            
+
+
     async def close(self) -> None:
         """Dispose the database engine."""
         if self.async_engine is not None:
@@ -91,10 +91,3 @@ class DatabaseSessionManager:
             self.logger.warning("Database engine disposed.")
         self.async_engine = None
         self.async_session = None
-        
-
-
-
-
-
-

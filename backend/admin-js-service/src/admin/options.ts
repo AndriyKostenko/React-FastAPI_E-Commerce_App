@@ -53,14 +53,14 @@ const [userResources, productResources, categoryResources, imageResources, revie
     buildDynamicResource(
         `${process.env.API_GATEWAY_SERVICE_URL}${process.env.API_GATEWAY_SERVICE_URL_API_VERSION}/images`,
         // eslint-disable-next-line max-len
-        `${process.env.API_GATEWAY_SERVICE_URL}${process.env.API_GATEWAY_SERVICE_URL_API_VERSION}/admin/schema/product_images`,
+        `${process.env.API_GATEWAY_SERVICE_URL}${process.env.API_GATEWAY_SERVICE_URL_API_VERSION}/admin/schema/images`,
         'Images',
         false,
     ),
     buildDynamicResource(
         `${process.env.API_GATEWAY_SERVICE_URL}${process.env.API_GATEWAY_SERVICE_URL_API_VERSION}/reviews`,
         // eslint-disable-next-line max-len
-        `${process.env.API_GATEWAY_SERVICE_URL}${process.env.API_GATEWAY_SERVICE_URL_API_VERSION}/admin/schema/product_reviews`,
+        `${process.env.API_GATEWAY_SERVICE_URL}${process.env.API_GATEWAY_SERVICE_URL_API_VERSION}/admin/schema/reviews`,
         'Reviews',
         false,
     ),

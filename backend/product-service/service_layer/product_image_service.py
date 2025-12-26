@@ -1,6 +1,7 @@
 from typing import List, Optional
 from uuid import UUID
 
+from annotated_types import UpperCase
 from fastapi import UploadFile
 
 from database_layer.product_image_repository import ProductImageRepository
@@ -21,6 +22,21 @@ class ProductImageService:
         self.product_image_relations = ProductImage.get_relations()
         self.product_image_search_fields = ProductImage.get_search_fields()
 
+    async def _build_image_metadata(
+        self,
+        images: List[UploadFile],
+        colors: List[str],
+        color_codes: List[str],
+    ) -> List[ImageType]:
+        if not (len(images) == len(colors) == len(color_codes)):
+            raise ProductImageProcessingError("Mismatched image metadata")
+        image_urls = await image_processing_manager.save_images(images)
+        return image_processing_manager.create_metadata_list(
+            image_urls=image_urls,
+            image_colors=colors,
+            image_color_codes=color_codes,
+        )
+
     # ---------- create ----------
 
     async def create_product_images(
@@ -29,7 +45,6 @@ class ProductImageService:
         images: List[ImageType],
     ) -> List[ProductImageSchema]:
         """Create multiple product images for a product"""
-
         product_images = [
             ProductImage(
                 product_id=product_id,
@@ -39,9 +54,26 @@ class ProductImageService:
             )
             for image in images
         ]
-
         created_images = await self.repository.create_many(product_images)
         return [ProductImageSchema.model_validate(img) for img in created_images]
+
+    async def create_product_images_with_files(
+        self,
+        product_id: UUID,
+        images: List[UploadFile],
+        colors: List[str],
+        color_codes: List[str],
+    ) -> List[ProductImageSchema]:
+        """Create product images by handling file uploads and metadata"""
+        image_metadata = await self._build_image_metadata(
+            images=images,
+            colors=colors,
+            color_codes=color_codes,
+        )
+        return await self.create_product_images(
+            product_id=product_id,
+            images=image_metadata,
+        )
 
     # ---------- read ----------
 
@@ -69,30 +101,24 @@ class ProductImageService:
     async def update_product_image(
         self,
         image_id: UUID,
-        *,
         image_url: Optional[str] = None,
         color: Optional[str] = None,
         color_code: Optional[str] = None,
     ) -> ProductImageSchema:
         """Update image fields only (no file handling here)"""
-
         update_data = {}
-
         if image_url is not None:
             update_data["image_url"] = image_url
         if color is not None:
             update_data["image_color"] = color
         if color_code is not None:
             update_data["image_color_code"] = color_code
-
         if not update_data:
             raise ProductImageProcessingError("No fields provided for update")
-
         updated_image = await self.repository.update_by_id(
             image_id,
             **update_data,
         )
-
         if not updated_image:
             raise ProductImageNotFoundError(
                 f"Product image with id {image_id} not found"
@@ -103,7 +129,6 @@ class ProductImageService:
     async def update_product_image_with_file(
         self,
         image_id: UUID,
-        *,
         image: Optional[UploadFile] = None,
         image_color: Optional[str] = None,
         image_color_code: Optional[str] = None,
@@ -146,9 +171,15 @@ class ProductImageService:
     async def replace_product_images(
         self,
         product_id: UUID,
-        new_images: List[ImageType],
+        images: List[UploadFile],
+        image_colors: List[str],
+        color_codes: List[str],
     ) -> List[ProductImageSchema]:
         """Replace all images for a product"""
-
         await self.delete_all_product_images(product_id)
-        return await self.create_product_images(product_id, new_images)
+        return await self.create_product_images_with_files(
+            product_id=product_id,
+            images=images,
+            colors=image_colors,
+            color_codes=color_codes,
+        )

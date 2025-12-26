@@ -1,6 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from shared.database_layer import BaseRepository
+from shared.database_layer import BaseRepository # type: ignore
 from models.product_image_models import ProductImage
 
 

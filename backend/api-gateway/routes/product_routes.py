@@ -21,7 +21,7 @@ async def get_all_products(request: Request):
         service_name="product-service",
         request=request,
     )
-    
+
 @product_proxy.get("/products/detailed", summary="Get all products with details")
 async def get_all_products_detailed(request: Request):
     """PUBLIC - Anyone can browse products with details"""
@@ -38,7 +38,7 @@ async def get_product_by_id(request: Request,
         service_name="product-service",
         request=request,
     )
-    
+
 @product_proxy.get("/products/{product_id}/detailed", summary="Get detailed product by ID")
 async def get_detailed_product_by_id(request: Request,
                                       product_id: UUID):
@@ -47,8 +47,8 @@ async def get_detailed_product_by_id(request: Request,
         service_name="product-service",
         request=request,
     )
-    
-    
+
+
 # Categories
 @product_proxy.get("/categories", summary="Get all categories")
 async def get_all_categories(request: Request):
@@ -130,16 +130,16 @@ async def get_review_by_id(request: Request,
 
 # Products
 @product_proxy.post("/products", summary="Create new product")
-async def create_product(request: Request,
+async def create_product_json(request: Request,
                         current_user: CurrentUserInfo = Depends(require_admin)):
     """ADMIN ONLY - Create products"""
     return await api_gateway_manager.forward_request(
         service_name="product-service",
         request=request,
     )
-    
+
 @product_proxy.post("/products/upload", summary="Create new product")
-async def create_product(request: Request,
+async def create_product_form_data(request: Request,
                         current_user: CurrentUserInfo = Depends(require_admin)):
     """ADMIN ONLY - Create products"""
     return await api_gateway_manager.forward_request(
@@ -170,16 +170,16 @@ async def delete_product(request: Request,
 
 # Categories
 @product_proxy.post("/categories", summary="Create new category")
-async def create_category(request: Request,
+async def create_category_json(request: Request,
                          current_user: CurrentUserInfo = Depends(require_admin)):
     """ADMIN ONLY - Create categories"""
     return await api_gateway_manager.forward_request(
         service_name="product-service",
         request=request,
     )
-    
+
 @product_proxy.post("/categories/upload", summary="Create new category")
-async def create_category(request: Request,
+async def create_category_form_data(request: Request,
                          current_user: CurrentUserInfo = Depends(require_admin)):
     """ADMIN ONLY - Create categories"""
     return await api_gateway_manager.forward_request(
@@ -312,19 +312,19 @@ async def get_category_schema_for_admin_js(request: Request):
         service_name="product-service",
         request=request
     )
-    
-    
+
+
 @product_proxy.get("/admin/schema/images", summary="Get product_images schema for AdminJS")
-async def get_category_schema_for_admin_js(request: Request):
+async def get_images_schema_for_admin_js(request: Request):
     """Get category schema for AdminJS"""
     return await api_gateway_manager.forward_request(
         service_name="product-service",
         request=request
     )
-    
-    
+
+
 @product_proxy.get("/admin/schema/reviews", summary="Get product_reviews schema for AdminJS")
-async def get_category_schema_for_admin_js(request: Request):
+async def get_reviews_schema_for_admin_js(request: Request):
     """Get category schema for AdminJS"""
     return await api_gateway_manager.forward_request(
         service_name="product-service",

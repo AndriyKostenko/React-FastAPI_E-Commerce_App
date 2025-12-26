@@ -10,7 +10,7 @@ class AuthMiddleware(metaclass=SingletonMetaClass):
     """
     Middleware to handle proper access via JWT authentication by validating tokens with the User Service.
     """
-    
+
     def __init__(self, settings, logger):
         self.settings = settings
         self.logger = logger
@@ -28,9 +28,9 @@ class AuthMiddleware(metaclass=SingletonMetaClass):
             f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/products": ['GET'],
             f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/admin/schema/products": ['GET'],
             f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/admin/schema/categories": ['GET'],
-            f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/admin/schema/product_images": ['GET'],
-            f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/admin/schema/product_reviews": ['GET'],
-            
+            f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/admin/schema/images": ['GET'],
+            f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/admin/schema/reviews": ['GET'],
+
         }
 
     def is_public_endpoint(self, path: str, method: str) -> bool:
@@ -41,15 +41,15 @@ class AuthMiddleware(metaclass=SingletonMetaClass):
             if allowed_methods is None:
                 return True
             return method in allowed_methods
-        
-        
+
+
         for endpoint_prefix, allowed_methods in self.PUBLIC_ENDPOINTS.items():
             if path.startswith(endpoint_prefix):
                 if allowed_methods is None:
                     return True
                 return method in allowed_methods
         return False
-    
+
     async def middleware(self, request: Request, call_next):
         """
         Main middleware function to authenticate requests using JWT tokens.
@@ -57,21 +57,21 @@ class AuthMiddleware(metaclass=SingletonMetaClass):
         path = request.url.path
         method = request.method
         self.logger.info(f"🔍 Auth middleware processing: {method} {path}")
-        
+
         # 1. Skip authentication for public endpoints
         is_public = self.is_public_endpoint(path, method)
         self.logger.info(f"🔍 Is path '{path}' public? {is_public}")
-        
+
         if is_public:
             self.logger.info(f"Path {path} is public, skipping auth")
             return await call_next(request)
-        
+
         self.logger.info(f"Path {path} requires authentication")
-        
+
         # 2. Extract and validate the Authorization header
         auth_header = request.headers.get("Authorization")
         self.logger.info(f"🔍 Authorization header present: {auth_header is not None}")
-        
+
         if not auth_header or not auth_header.startswith("Bearer "):
             self.logger.warning("Missing or invalid Authorization header")
             return JSONResponse(
@@ -82,12 +82,12 @@ class AuthMiddleware(metaclass=SingletonMetaClass):
 
         token = auth_header.split(" ")[1]
         self.logger.info(f"🔍 Extracted token (first 20 chars): {token[:20]}...")
-        
+
         # 3. Validate the token with the User Service
         try:
             # Use shared auth manager to decode token
             user_data = auth_manager.decode_token(token)
-            
+
             # Attach user data to request state for downstream access
             request.state.current_user = user_data
             self.logger.info(f"Token is validated for: {user_data.get('email')}")
@@ -101,8 +101,8 @@ class AuthMiddleware(metaclass=SingletonMetaClass):
                 status_code=401,
                 content={"detail": "Token validation failed", "error": "invalid_token"}
             )
-        
+
         return await call_next(request)
-    
+
 
 auth_middleware = AuthMiddleware(settings, logger)
