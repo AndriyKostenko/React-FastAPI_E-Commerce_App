@@ -68,7 +68,7 @@ services:
 
   api-gateway:
     build:
-      context: ./api-gateway
+      context: ./api_gateway
       dockerfile: Dockerfile
     restart: always
     depends_on:
@@ -93,12 +93,12 @@ services:
       interval: 60s
       timeout: 10s
       retries: 3
-  
+
   user-service:
     build:
-      context: ./user-service
+      context: ./user_service
       dockerfile: Dockerfile
-    restart: always  
+    restart: always
     depends_on:
       db:
         condition: service_healthy
@@ -123,7 +123,7 @@ services:
 
   product-service:
     build:
-      context: ./product-service
+      context: ./product_service
       dockerfile: Dockerfile
     restart: always
     depends_on:
@@ -152,7 +152,7 @@ services:
 
   notification-service:
     build:
-      context: ./notification-service
+      context: ./notification_service
       dockerfile: Dockerfile
     restart: always
     depends_on:
@@ -183,7 +183,7 @@ services:
 
   notification-consumer:
     build:
-      context: ./notification-consumer
+      context: ./notification_consumer
       dockerfile: Dockerfile
     restart: unless-stopped
     ports:
@@ -200,6 +200,36 @@ services:
     volumes:
       - ./shared:/app/shared:ro
     # healthcheck implementation?
+
+  order-service:
+    build:
+      context: ./order_service
+      dockerfile: Dockerfile
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${ORDER_SERVICE_DB}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@${REDIS_HOST}:${REDIS_PORT}/${ORDER_SERVICE_REDIS_DB}
+      RABBITMQ_BROKER_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@${RABBITMQ_HOST}:${RABBITMQ_PORT}
+    volumes:
+      - ./shared:/app/shared:ro
+    ports:
+      - "8005:8005"
+    networks:
+      - usernet
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8005/health"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
 
 
   admin-js-service:
@@ -220,7 +250,7 @@ services:
 
 networks:
   usernet:
-    
+
 volumes:
   postgres_data:
   product_media:

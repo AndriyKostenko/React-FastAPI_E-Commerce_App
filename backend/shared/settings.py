@@ -7,17 +7,18 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    
-    
+
+
     # Application configuration
     APP_HOST: str
-    
+
     API_GATEWAY_SERVICE_APP_PORT: int
     USER_SERVICE_APP_PORT: int
     PRODUCT_SERVICE_APP_PORT: int
     NOTIFICATION_SERVICE_APP_PORT: int
     NOTIFICATION_CONSUMER_SERVICE_APP_PORT: int
-    
+    ORDER_SERVICE_APP_PORT: int
+
     DEBUG_MODE: bool
     ALLOWED_HOSTS: List[str]
 
@@ -27,12 +28,14 @@ class Settings(BaseSettings):
     PRODUCT_SERVICE_URL: str
     NOTIFICATION_SERVICE_URL: str
     NOTIFICATION_CONSUMER_SERVICE_URL: str
+    ORDER_SERVICE_URL: str
 
     API_GATEWAY_SERVICE_URL_API_VERSION: str
     USER_SERVICE_URL_API_VERSION: str
     PRODUCT_SERVICE_URL_API_VERSION: str
     NOTIFICATION_SERVICE_URL_API_VERSION: str
     NOTIFICATION_CONSUMER_SERVICE_URL_API_VERSION: str
+    ORDER_SERVICE_URL_API_VERSION: str
 
     # Shared Database configuration
     POSTGRES_USER: str
@@ -41,11 +44,14 @@ class Settings(BaseSettings):
     POSTGRES_PORT: int
 
     USER_SERVICE_DB: str
-    USER_SERVICE_TEST_DB: str
     PRODUCT_SERVICE_DB: str
-    PRODUCT_SERVICE_TEST_DB: str
     NOTIFICATION_SERVICE_DB: str
+    ORDER_SERVICE_DB: str
+
+    USER_SERVICE_TEST_DB: str
+    PRODUCT_SERVICE_TEST_DB: str
     NOTIFICATION_SERVICE_TEST_DB: str
+    ORDER_SERVICE_TEST_DB: str
 
     # pgAdmin
     PGADMIN_DEFAULT_EMAIL: str
@@ -54,23 +60,25 @@ class Settings(BaseSettings):
     # RabbitMQ configuration
     RABBITMQ_HOST: str
     RABBITMQ_PORT: int
-    RABBITMQ_USER: str 
+    RABBITMQ_USER: str
     RABBITMQ_PASSWORD: str
 
     # Redis configuration
     REDIS_HOST: str
     REDIS_PORT: int
     REDIS_PASSWORD: str
-    
+
     APIGATEWAY_SERVICE_REDIS_DB: int
     USER_SERVICE_REDIS_DB: int
     PRODUCT_SERVICE_REDIS_DB: int
     NOTIFICATION_SERVICE_REDIS_DB: int
-    
+    ORDER_SERVICE_REDIS_DB: int
+
     USER_SERVICE_REDIS_PREFIX: str
     PRODUCT_SERVICE_REDIS_PREFIX: str
     APIGATEWAY_SERVICE_REDIS_PREFIX: str
     NOTIFICATION_SERVICE_REDIS_PREFIX: str
+    ORDER_SERVICE_REDIS_PREFIX: str
 
     # JWT configuration
     SECRET_KEY: str
@@ -105,7 +113,7 @@ class Settings(BaseSettings):
     CORS_ALLOW_CREDENTIALS: bool
     CORS_ALLOWED_METHODS: List[str]
     CORS_ALLOWED_HEADERS: List[str]
-    
+
     #AdminJs
     ADMINJS_SERVICE_TOKEN: str
 
@@ -113,12 +121,14 @@ class Settings(BaseSettings):
     SECRET_ROLE: str
 
 
+    #--------------RABBITMQ-----------------------
+
     @property
     def RABBITMQ_BROKER_URL(self):
         return f"amqp://{self.RABBITMQ_USER}:{self.RABBITMQ_PASSWORD}@{self.RABBITMQ_HOST}:{self.RABBITMQ_PORT}"
 
     #--------------API-GATEWAY-----------------------
-    
+
     @property
     def APIGATEWAY_SERVICE_REDIS_URL(self) -> str:
         return f"redis://:{self.REDIS_PASSWORD}@{self.REDIS_HOST}:{self.REDIS_PORT}/{self.APIGATEWAY_SERVICE_REDIS_DB}"
@@ -126,9 +136,9 @@ class Settings(BaseSettings):
     @property
     def FULL_API_GATEWAY_SERVICE_URL(self) -> str:
         return f"{self.API_GATEWAY_SERVICE_URL}{self.API_GATEWAY_SERVICE_URL_API_VERSION}"
-    
+
     #--------------USER-SERVICE---------------------
-    
+
     @property
     def USER_SERVICE_DATABASE_URL(self) -> str:
         return f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.USER_SERVICE_DB}"
@@ -140,13 +150,13 @@ class Settings(BaseSettings):
     @property
     def FULL_USER_SERVICE_URL(self) -> str:
         return f"{self.USER_SERVICE_URL}{self.USER_SERVICE_URL_API_VERSION}"
-    
+
     @property
     def USER_SERVICE_REDIS_URL(self) -> str:
         return f"redis://:{self.REDIS_PASSWORD}@{self.REDIS_HOST}:{self.REDIS_PORT}/{self.USER_SERVICE_REDIS_DB}"
-    
+
     #---------------PRODUCT-SERVICE-------------------
-    
+
     @property
     def PRODUCT_SERVICE_DATABASE_URL(self) -> str:
         return f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.PRODUCT_SERVICE_DB}"
@@ -165,11 +175,11 @@ class Settings(BaseSettings):
 
 
     #---------------NOTIFICATION-SERVICE---------------
-    
+
     @property
     def NOTIFICATION_SERVICE_DATABASE_URL(self) -> str:
         return f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.NOTIFICATION_SERVICE_DB}"
-    
+
     @property
     def NOTIFICATION_SERVICE_TEST_DATABASE_URL(self) -> str:
         return f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.NOTIFICATION_SERVICE_TEST_DB}"
@@ -190,10 +200,30 @@ class Settings(BaseSettings):
 
 
 
+    #---------------ORDER-SERVICE-------------------
+
+    @property
+    def ORDER_SERVICE_DATABASE_URL(self) -> str:
+        return f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.ORDER_SERVICE_DB}"
+
+    @property
+    def ORDER_SERVICE_TEST_DATABASE_URL(self) -> str:
+        return f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.ORDER_SERVICE_TEST_DB}"
+
+    @property
+    def ORDER_SERVICE_REDIS_URL(self) -> str:
+        return f"redis://:{self.REDIS_PASSWORD}@{self.REDIS_HOST}:{self.REDIS_PORT}/{self.ORDER_SERVICE_REDIS_DB}"
+
+    @property
+    def FULL_ORDER_SERVICE_URL(self) -> str:
+        return f"{self.ORDER_SERVICE_URL}{self.ORDER_SERVICE_URL_API_VERSION}"
+
+
+
     @classmethod
     def customise_sources(cls, settings_cls, init_settings, env_settings, file_secret_settings):
         """
-        Customise sources to support shared and service-specific .env 
+        Customise sources to support shared and service-specific .env
         """
         root_env = Path(__file__).resolve().parents[1] / ".env"
         local_env = Path(__file__).resolve().parent / ".env"
@@ -204,7 +234,7 @@ class Settings(BaseSettings):
             cls.env_file_settings_source(local_env),  # service-specific # type: ignore
             file_secret_settings,
         )
-        
+
 
 @lru_cache()
 def get_settings():

@@ -1,12 +1,21 @@
 # dependencies
 /backend/admin-js-service/node_modules
-/backend/user-service/.venv
-/backend/product-service/.venv
-/backend/order-service/.venv
-/backend/notification-service/.venv
-/backend/notification-consumer/.venv
+/backend/user_service/.venv
+/backend/product_service/.venv
+/backend/order_service/.venv
+/backend/notification_service/.venv
+/backend/notification_consumer/.venv
 /backend/shared/.venv
-/backend/api-gateway/.venv
+/backend/api_gateway/.venv
+
+# tests
+/backend/user_service/tests
+/backend/product_service/tests
+/backend/order_service/tests
+/backend/notification_service/tests
+/backend/notification_consumer/tests
+/backend/shared/tests
+/backend/api_gateway/tests
 
 /frontend/node_modules
 /frontend/.pnp

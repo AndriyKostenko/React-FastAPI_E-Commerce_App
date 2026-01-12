@@ -68,19 +68,18 @@ class DatabaseSessionManager:
 
 
     @asynccontextmanager
-    async def session(self) -> AsyncGenerator[AsyncSession, None]:
-        """Provide a transactional scope for ORM operations.
-            - low level session manager
-            - creates the actual db session
-            - handles transactions management
-            - yields the session for use in the context
-        """
+    async def transaction(self) -> AsyncGenerator[AsyncSession, None]:
         if self.async_session is None:
-            self.logger.error("Session maker is not initialized.")
             raise DatabaseSessionError("Session maker is not initialized.")
 
         async with self.async_session() as session:
-            yield session
+            try:
+                yield session
+                await session.commit()
+            except Exception as e:
+                await session.rollback()
+                self.logger.exception(f"Session rollback due to exception: {str(e)}")
+                raise
 
 
 

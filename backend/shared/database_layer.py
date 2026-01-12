@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime
 from uuid import UUID
 from typing import Generic, Optional, Type, TypeVar, Any
 
@@ -31,20 +31,20 @@ class BaseRepository(Generic[ModelType]):
     async def create(self, obj: ModelType) -> ModelType:
         """Creating a new record"""
         self.session.add(obj)
-        await self.session.commit()
+        await self.session.flush()
         await self.session.refresh(obj)
         return obj
-    
+
     async def create_many(self, objects: list[ModelType]) -> list[ModelType]:
         """Create multiply records"""
         self.session.add_all(objects)
-        await self.session.commit()
+        await self.session.flush()
         for obj in objects:
             await self.session.refresh(obj)
         return objects
-    
+
     # ---------------- READ ----------------
-    async def get_by_id(self, 
+    async def get_by_id(self,
                         item_id: UUID,
                         load_relations: Optional[list[str]] = None) -> Optional[ModelType]:
         """Get a record by ID"""
@@ -56,7 +56,7 @@ class BaseRepository(Generic[ModelType]):
         query = query.where(self.model.id == item_id)
         result = await self.session.execute(query)
         return result.scalar_one_or_none()
-    
+
     async def get_all(self,
                       filters: Optional[dict[str, Any]] = None,
                       sort_by: Optional[str] = None,
@@ -76,13 +76,13 @@ class BaseRepository(Generic[ModelType]):
         - Relationship loading
         """
         query = select(self.model)
-        
+
         # Relationship loading
         if load_relations:
             for relation in load_relations:
                 if hasattr(self.model, relation):
                     query = query.options(selectinload(getattr(self.model, relation)))
-                    
+
         # Filters
         if filters:
             for key, value in filters.items():
@@ -95,7 +95,7 @@ class BaseRepository(Generic[ModelType]):
                     query = query.where(column.ilike(f"%{value}%"))
                 else:
                     query = query.where(column == value)
-                    
+
         # Range filters (for price, quantity, etc)
         if range_filters:
             for field_name, (min_value, max_value) in range_filters.items():
@@ -108,7 +108,7 @@ class BaseRepository(Generic[ModelType]):
                     query = query.where(column >= min_value)
                 elif max_value is not None:
                     query = query.where(column <= max_value)
-                    
+
         # Search across multiply fields
         if search_term and search_fields:
             conditions = [
@@ -118,12 +118,12 @@ class BaseRepository(Generic[ModelType]):
             ]
             if conditions:
                 query = query.where(or_(*conditions))
-                
-                
+
+
         # Date range filters
         if date_filters:
             range_map = {
-                "date_created": ("date_created_from", "date_created_to"), 
+                "date_created": ("date_created_from", "date_created_to"),
                 "date_updated": ("date_updated_from", "date_updated_to")
             }
             for column_name, (from_key, to_key) in range_map.items():
@@ -138,18 +138,18 @@ class BaseRepository(Generic[ModelType]):
                     query = query.where(column >= start)
                 elif end:
                     query = query.where(column <= end)
-                
+
         # Sorting
         if sort_by and hasattr(self.model, sort_by):
             order_func = asc if sort_order == "asc" else desc
             query = query.order_by(order_func(getattr(self.model, sort_by)))
-            
+
         # Pagination
         if offset is not None:
             query = query.offset(offset)
         if limit:
             query = query.limit(limit)
-        
+
         result = await self.session.execute(query)
         print("Executed query:", str(query))
         return list(result.scalars().all())
@@ -162,7 +162,7 @@ class BaseRepository(Generic[ModelType]):
             select(self.model).where(getattr(self.model, field_name) == value)
         )
         return result.scalar_one_or_none()
-        
+
     async def get_many_by_field(self, field_name: str, value: str | UUID) -> list[Optional[ModelType]]:
         """Get multiple records by field value"""
         if not hasattr(self.model, field_name):
@@ -171,7 +171,7 @@ class BaseRepository(Generic[ModelType]):
             select(self.model).where(getattr(self.model, field_name) == value)
         )
         return list(result.scalars().all())
-    
+
     async def filter_by(self, **kwargs) -> list[ModelType]:
         """Filter records by multiply fields"""
         query = select(self.model)  # Always initialize query
@@ -188,20 +188,18 @@ class BaseRepository(Generic[ModelType]):
         for field, value in kwargs.items():
             if hasattr(self.model, field):
                 query = query.where(getattr(self.model, field) == value)
-        
+
         result = await self.session.execute(query)
         return result.scalar() or 0
-    
-    # UPDATE
+
+    # ---------------- UPDATE ----------------
     async def update(self, obj: ModelType) -> ModelType:
         """Update an existing record"""
-        # if hasattr(obj, "date_updated"):
-        #     setattr(obj, "date_updated", datetime.now(timezone.utc))
         self.session.add(obj)
-        await self.session.commit()
+        await self.session.flush()
         await self.session.refresh(obj)
         return obj
-    
+
     async def update_by_field(self, field_name: str, value: str, **kwargs) -> Optional[ModelType]:
         """Update a record by field value with new values"""
         existing_obj = await self.get_by_field(field_name, value)
@@ -211,7 +209,7 @@ class BaseRepository(Generic[ModelType]):
             if hasattr(existing_obj, field):
                 setattr(existing_obj, field, new_value)
         return await self.update(existing_obj)
-    
+
     async def update_by_id(self, item_id: UUID, **kwargs) -> Optional[ModelType]:
         """Update a record by ID with new values"""
         existing_obj = await self.get_by_id(item_id)
@@ -221,13 +219,12 @@ class BaseRepository(Generic[ModelType]):
             if hasattr(existing_obj, field):
                 setattr(existing_obj, field, value)
         return await self.update(existing_obj)
-        
-    
-    # DELETE
+
+
+    #  ---------------- DELETE ----------------
     async def delete(self, obj: ModelType) -> None:
         """Delete a record"""
         await self.session.delete(obj)
-        await self.session.commit()
 
     async def delete_by_id(self, item_id: UUID) -> bool:
         """Delete a record by ID"""
@@ -236,25 +233,15 @@ class BaseRepository(Generic[ModelType]):
             await self.delete(existing_obj)
             return True
         return False
-    
-    async def delete_many_by_field(self, field_name: str, value: str | UUID) -> int:
+
+    async def delete_many_by_field(self, field_name: str, value: str | UUID) -> None:
         """Delete multiple records by field value"""
-        if hasattr(self.model, field_name):
-            result = await self.session.execute(
-                select(self.model).where(getattr(self.model, field_name) == value)
-            )
-            objects_to_delete = result.scalars().all()
+        objects_to_delete = await self.get_many_by_field(field_name, value)
+        if objects_to_delete:
             for obj in objects_to_delete:
                 await self.session.delete(obj)
-            await self.session.commit()
-            return len(objects_to_delete)
-        return 0
-    
-    async def delete_many(self, objects: list[ModelType]) -> int:
+
+    async def delete_many(self, objects: list[ModelType]) -> None:
         """Delete multiple records"""
         for obj in objects:
             await self.session.delete(obj)
-        await self.session.commit()
-        return len(objects)
-    
-    
