@@ -1,8 +1,7 @@
-from datetime import datetime
 from typing import Any
 
-from faststream import FastStream # type: ignore
-from faststream.rabbit import RabbitBroker, RabbitQueue # type: ignore
+from faststream import FastStream
+from faststream.rabbit import RabbitBroker, RabbitQueue
 
 from shared.shared_instances import logger, settings, email_service
 from shared.customized_json_response import JSONResponse
@@ -10,9 +9,9 @@ from shared.schemas.event_schemas import UserRegisteredEvent, PasswordResetReque
 
 
 """
-The FastStream app (app) will be executed by faststream run via the command line, 
+The FastStream app (app) will be executed by faststream run via the command line,
 so no manual uvicorn setup is needed.
-Don't need to specify host or port, as faststream run doesn't serve HTTP endpoints—it 
+Don't need to specify host or port, as faststream run doesn't serve HTTP endpoints—it
 connects directly to RabbitMQ
 """
 
@@ -47,6 +46,3 @@ async def handle_user_events(message: dict[str, Any]):
             await email_service.send_password_reset_success_email(email=event.email)
         case _:
             logger.warning(f"Unhandled event type: {message.get('event_type')}")
-
-
-    

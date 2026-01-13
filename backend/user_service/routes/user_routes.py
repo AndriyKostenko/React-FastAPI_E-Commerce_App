@@ -14,7 +14,7 @@ from shared.shared_instances import (  # type: ignore
 
 from dependencies.dependencies import user_crud_dependency
 from models.user_models import User
-from schemas.user_schemas import (
+from shared.schemas.user_schemas import (
     CurrentUserInfo,
     EmailVerificationResponse,
     ForgotPasswordResponse,

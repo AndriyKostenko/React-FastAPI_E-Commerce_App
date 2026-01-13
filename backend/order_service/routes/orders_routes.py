@@ -5,7 +5,7 @@ from fastapi import APIRouter, Query, Request, status
 
 from shared.customized_json_response import JSONResponse  # type: ignore
 from shared.shared_instances import order_service_redis_manager # type: ignore
-from schemas.order_schemas import CreateOrder, UpdateOrder, OrderSchema
+from schemas. import CreateOrder, UpdateOrder, OrderSchema
 from dependencies.dependencies import order_service_dependency
 
 order_routes = APIRouter(tags=["orders"])

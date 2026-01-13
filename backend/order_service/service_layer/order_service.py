@@ -1,6 +1,6 @@
 from database_layer.order_repository import OrderRepository
 from product_service.service_layer.product_service import ProductRepository
-from schemas.order_schemas import CreateOrder, OrderSchema
+from shared.schemas.order_schemas import CreateOrder, OrderSchema
 
 
 class OrderService:
@@ -11,6 +11,7 @@ class OrderService:
 
     async def create_order(self, order_data: CreateOrder) -> OrderSchema:
         products = self.product_repository.get_products_by_ids(order_data.products)
+        print(products)
         for i in range(len(products)):
             if products[i].quantity < order_data.products[i].quantity:
                 raise Exception(f"Not enough stock for product id {products[i].id}")

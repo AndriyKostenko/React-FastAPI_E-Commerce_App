@@ -10,7 +10,7 @@ from exceptions.product_image_exceptions import (
     ProductImageProcessingError,
 )
 from models.product_image_models import ProductImage
-from schemas.product_image_schema import ImageType, ProductImageSchema
+from shared.schemas.product_image_schema import ImageType, ProductImageSchema
 from utils.image_processing import image_processing_manager
 
 

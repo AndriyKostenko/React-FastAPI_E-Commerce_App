@@ -1,8 +1,7 @@
-from math import prod
 from uuid import UUID
 from typing import List
 
-from schemas.review_schemas import CreateReview, ReviewSchema, UpdateReview
+from shared.schemas.review_schemas import CreateReview, ReviewSchema, UpdateReview
 from exceptions.review_exceptions import ReviewNotFoundError, ReviewAlreadyExistsError
 from models.review_models import ProductReview
 from database_layer.review_repository import ReviewRepository
@@ -12,14 +11,14 @@ class ReviewService:
     """Service layer for review management operations, business logic and data validation."""
     def __init__(self, repository: ReviewRepository):
         self.repository = repository
-        
+
 
     async def create_product_review(self, user_id: UUID, product_id: UUID, data: CreateReview) -> ReviewSchema:
         # Check if review already exists
         existing_review = await self.repository.filter_by(product_id=product_id, user_id=user_id)
         if existing_review:
             raise ReviewAlreadyExistsError(f"User with id: {user_id} has already reviewed product id: {product_id}")
-        
+
         product_review = ProductReview(
             product_id=product_id,
             user_id=user_id,
@@ -42,8 +41,8 @@ class ReviewService:
         if not db_reviews:
             raise ReviewNotFoundError(f"No reviews found for user with ID: {user_id}")
         return [ReviewSchema.model_validate(review) for review in db_reviews]
-    
-    
+
+
     async def get_reviews_by_product_id(self, product_id: UUID) -> List[ReviewSchema]:
         db_reviews = await self.repository.get_many_by_field(field_name="product_id", value=product_id)
         if not db_reviews:
@@ -76,7 +75,7 @@ class ReviewService:
             raise ReviewNotFoundError(
                 f"Review for product id: {product_id} by user id: {user_id} not found"
             )
-        
+
         # Update fields
         existing_review = existing_reviews[0]
         if update_data.comment is not None:
@@ -93,6 +92,3 @@ class ReviewService:
         if not db_review:
             raise ReviewNotFoundError(f"Review with ID: {review_id} not found.")
         await self.repository.delete(db_review)
-
-
-

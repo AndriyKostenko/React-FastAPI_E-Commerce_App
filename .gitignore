@@ -1,3 +1,15 @@
+# environment variables
+.env
+/backend/.env
+/backend/admin-js-service/.env
+/backend/user_service/.env
+/backend/product_service/.env
+/backend/order_service/.env
+/backend/notification_service/.env
+/backend/notification_consumer/.env
+/backend/shared/.env
+/backend/api_gateway/.env
+
 # dependencies
 /backend/admin-js-service/node_modules
 /backend/user_service/.venv

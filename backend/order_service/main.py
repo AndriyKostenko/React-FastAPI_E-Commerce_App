@@ -8,7 +8,7 @@ from fastapi import FastAPI, Request, HTTPException
 from pydantic import ValidationError
 from fastapi.exceptions import ResponseValidationError, RequestValidationError
 
-from routes.order_routes import order_routes
+from routes.orders_routes import order_routes
 from shared.base_exceptions import (BaseAPIException, RateLimitExceededError)
 from shared.shared_instances import (order_service_redis_manager,
                                     order_service_database_session_manager,

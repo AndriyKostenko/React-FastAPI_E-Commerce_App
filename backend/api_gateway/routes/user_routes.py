@@ -4,10 +4,10 @@ from fastapi import APIRouter, Request, Depends
 import orjson
 
 from apigateway import api_gateway_manager
-from dependencies.auth_dependencies import (get_current_user, 
-                                            require_admin, 
+from dependencies.auth_dependencies import (get_current_user,
+                                            require_admin,
                                             require_user_or_admin)
-from schemas.schemas import CurrentUserInfo
+from shared.schemas.user_schemas import CurrentUserInfo
 from events.publisher import events_publisher
 from shared.customized_json_response import JSONResponse
 
@@ -33,7 +33,7 @@ async def register_user(request: Request):
         token=response_data["verification_token"]
         )
     # Remove token from response !!!
-    del response_data["verification_token"]  
+    del response_data["verification_token"]
     return JSONResponse(
         content=response_data,
         status_code=user_service_response.status_code
@@ -80,7 +80,7 @@ async def forgot_password(request: Request):
     del response_data["reset_token"]
     return JSONResponse(content=response_data,
                         status_code=user_service_response.status_code)
-    
+
 
 @user_proxy.post("/password-reset/{token}", summary="Reset password with token")
 async def reset_password(request: Request):
@@ -93,9 +93,9 @@ async def reset_password(request: Request):
     await events_publisher.publish_password_reset_seccess(email=response_data["email"])
     return JSONResponse(content=response_data,
                         status_code=user_service_response.status_code)
-    
-    
-    
+
+
+
 # ==================== AUTHENTICATED USER ENDPOINTS ====================
 
 
@@ -108,13 +108,13 @@ async def get_current_user_data(request: Request,
         service_name="user-service",
         request=request
     )
-    
-    
+
+
 # ==================== ADMIN OR SELF ENDPOINTS ====================
-    
+
 
 @user_proxy.get("/users/{user_id}", summary="Get user by ID")
-async def get_user_by_id(request: Request, 
+async def get_user_by_id(request: Request,
                          user_id: UUID,
                          current_user: CurrentUserInfo = Depends(get_current_user)):
     # Check authorization using the dependency function
@@ -123,10 +123,10 @@ async def get_user_by_id(request: Request,
         service_name="user-service",
         request=request,
     )
-    
+
 
 @user_proxy.patch("/users/{user_id}", summary="Update user by ID")
-async def update_user_by_id(request: Request, 
+async def update_user_by_id(request: Request,
                             user_id: UUID,
                             current_user: CurrentUserInfo = Depends(get_current_user)):
     require_user_or_admin(current_user, target_user_id=user_id)
@@ -134,10 +134,10 @@ async def update_user_by_id(request: Request,
         service_name="user-service",
         request=request,
     )
-    
-    
+
+
 @user_proxy.delete("/users/{user_id}", summary="Delete user by ID")
-async def delete_user_by_id(request: Request, 
+async def delete_user_by_id(request: Request,
                             user_id: UUID,
                             current_user: CurrentUserInfo = Depends(get_current_user)):
     require_user_or_admin(current_user, target_user_id=user_id)
@@ -145,10 +145,10 @@ async def delete_user_by_id(request: Request,
         service_name="user-service",
         request=request,
     )
-    
-    
-# ==================== ADMIN ONLY ENDPOINTS ====================   
-    
+
+
+# ==================== ADMIN ONLY ENDPOINTS ====================
+
 @user_proxy.get("/users", summary="Get all users")
 async def get_all_users(request: Request,
                         current_user: CurrentUserInfo = Depends(require_admin)):
@@ -156,8 +156,8 @@ async def get_all_users(request: Request,
         service_name="user-service",
         request=request,
     )
-    
-    
+
+
 # ==================== ADMINJS ENDPOINTS ====================
 
 @user_proxy.get("/admin/schema/users")

@@ -57,23 +57,18 @@ export class ApiResourceProvider extends BaseResource {
     private async loadSchema(): Promise<void> {
         try {
             const schema = await this.fetchApi(this.schemaEndpoint);
-            console.log(`Raw schema response for ${this.resourceName}:`, JSON.stringify(schema, null, 2));
-            
             if (!schema.fields?.length) {
                 console.warn(`No fields for ${this.resourceName}`);
                 return;
             }
 
             this.cachedProperties = schema.fields.map((field: any) => {
-                console.log(`Creating property for ${this.resourceName}.${field.path}:`, field);
                 return new BaseProperty({
                     path: field.path,
                     type: field.type,
                     isId: field.isId,
                 });
             });
-            console.log(`Loaded ${this.cachedProperties.length} properties for ${this.resourceName}`);
-            console.log(`Property paths:`, this.cachedProperties.map((p) => p.path()));
         } catch (error) {
             console.error(`Failed to load schema for ${this.resourceName}:`, error);
             // Set default property to prevent errors

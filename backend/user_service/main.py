@@ -24,19 +24,19 @@ async def lifespan(app: FastAPI):
     This is a context manager that will run the startup and shutdown
     events of a FastAPI application.
     """
-   
+
     logger.info(f"Server is starting up on {settings.APP_HOST}:{settings.USER_SERVICE_APP_PORT}...")
     await user_service_redis_manager.health_check()
     await user_service_database_session_manager.init_db()
     logger.info('Server startup complete!')
-    
+
     yield
-    
+
     await user_service_database_session_manager.close()
     logger.warning("Database connection closed on shutdown!")
     await user_service_redis_manager.close()
     logger.warning("Cache connection closed on shutdown!")
-    logger.warning(f"Server has shut down !")
+    logger.warning("Server has shut down !")
 
 
 
@@ -62,36 +62,36 @@ async def host_validation_middleware(request: Request, call_next):
     if settings.DEBUG_MODE or host in settings.ALLOWED_HOSTS:
         response = await call_next(request)
         return response
-    
+
     logger.warning(f"Invalid Host header: {host} from {request.client.host}") # type: ignore
     raise HTTPException(
         status_code=400,
         detail="Invalid Host header",
         headers={"X-Error": "Invalid Host header"}
     )
-    
-    
-@app.get("/health", tags=["Health Check"])  
+
+
+@app.get("/health", tags=["Health Check"])
 async def health_check():
     """
     A simple health check endpoint to verify that the service is running.
     """
     return JSONResponse(
         content={
-            "status": "ok", 
+            "status": "ok",
             "timestamp": datetime.now().isoformat(),
             "service": "user-service"
         },
         status_code=200,
         headers={"Cache-Control": "no-cache"}
     )
-    
-    
+
+
 def add_exception_handlers(app: FastAPI):
     """
     This function adds exception handlers to the FastAPI application.
     """
-   
+
     @app.exception_handler(ValidationError)
     async def validation_exception_handler(request: Request, exc: ValidationError):
         """Custom exception handler for Pydantic validation errors"""
@@ -104,7 +104,7 @@ def add_exception_handlers(app: FastAPI):
                 "path": request.url.path
             }
         )
-        
+
     # Custom Exception handlers for Pydantic validation errors in request and response
     @app.exception_handler(ResponseValidationError)
     async def validation_response_exception_handler(request: Request, exc: ResponseValidationError):
@@ -122,7 +122,7 @@ def add_exception_handlers(app: FastAPI):
     # Custom Exception handlers for Pydantic validation errors in request and response
     @app.exception_handler(RequestValidationError)
     async def validation_request_exception_handler(request: Request, exc: RequestValidationError):
-        """Custom exception handler for request validation errors""" 
+        """Custom exception handler for request validation errors"""
         return JSONResponse(
             status_code=422,
             content={
@@ -132,7 +132,7 @@ def add_exception_handlers(app: FastAPI):
                 "path": request.url.path
             }
         )
-    
+
     @app.exception_handler(BaseAPIException)
     async def base_api_exception_handler(request: Request, exc: BaseAPIException):
         """Base exception handler for all custom API exceptions"""
@@ -144,8 +144,8 @@ def add_exception_handlers(app: FastAPI):
                      "path": request.url.path
             },
         )
-        
-   
+
+
     @app.exception_handler(RateLimitExceededError)
     async def rate_limit_handler(request: Request, exc: RateLimitExceededError):
         """Custom exception handler for rate limit exceeded errors"""
@@ -159,13 +159,13 @@ def add_exception_handlers(app: FastAPI):
             }
         )
 
-        
-# adding exception handlers to the app      
-add_exception_handlers(app)
-        
 
-# CORS or "Cross-Origin Resource Sharing" is a mechanism that 
-# allows restricted resources on a web page to be requested from another domain 
+# adding exception handlers to the app
+add_exception_handlers(app)
+
+
+# CORS or "Cross-Origin Resource Sharing" is a mechanism that
+# allows restricted resources on a web page to be requested from another domain
 # outside the domain from which the first resource was served.
 app.add_middleware(
     CORSMiddleware,

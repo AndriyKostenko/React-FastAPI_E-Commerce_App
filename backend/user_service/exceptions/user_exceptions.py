@@ -1,10 +1,8 @@
 from shared.base_exceptions import BaseAPIException
 
 
-
-
 #------User Service Errors------
-        
+
 class UserNotFoundError(BaseAPIException):
     """Raised when user is not found"""
     def __init__(self, detail: str = "User not found"):
@@ -54,11 +52,3 @@ class UserIsNotVerifiedError(BaseAPIException):
     """Raised when user is not verified"""
     def __init__(self, detail: str = "User is not verified"):
         super().__init__(detail=detail, status_code=403)
-        
-        
-
-
-
-
-
-

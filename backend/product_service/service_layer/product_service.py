@@ -8,7 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from database_layer.product_repository import ProductRepository
 from exceptions.product_exceptions import ProductCreationError, ProductNotFoundError
 from models.product_models import Product
-from schemas.product_schemas import (
+from shared.schemas.product_schemas import (
     CreateProduct,
     ProductBase,
     ProductSchema,
@@ -123,7 +123,7 @@ class ProductService:
         if not db_product:
             raise ProductNotFoundError(f"Product with name: {name} not found")
         return ProductBase.model_validate(db_product)
-        
+
     async def get_products_by_ids(self, products_ids: list[UUID]) -> List[ProductBase]:
         products = await self.repository.get_many_by_field(field_name='id', values=products_ids)
         if not products:

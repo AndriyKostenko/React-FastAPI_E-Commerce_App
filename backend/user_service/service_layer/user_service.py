@@ -5,7 +5,7 @@ from pydantic import EmailStr
 from fastapi import Query
 
 from models.user_models import User
-from schemas.user_schemas import (
+from shared.schemas.user_schemas import (
     UserSignUp,
     UserInfo,
     UserBasicUpdate,
@@ -43,14 +43,14 @@ class UserService:
 
     async def get_all_users(self, filters: Annotated[UsersFilterParams, Query()]) -> list[UserInfo]:
         filters_dict = filters.model_dump()
-        
+
         # Extracting pagination and sorting params
         offset = filters_dict.pop("offset", None)
         limit = filters_dict.pop("limit", None)
         sort_by = filters_dict.pop("sort_by", None)
         sort_order = filters_dict.pop("sort_order", "asc").lower()
         search_term = filters_dict.pop("search_term", None)
-        
+
         # Range filters
         date_filters = {
             "date_created_from": filters_dict.pop("date_created_from", None),
@@ -58,10 +58,10 @@ class UserService:
             "date_updated_from": filters_dict.pop("date_updated_from", None),
             "date_updated_to": filters_dict.pop("date_updated_to", None)
         }
-        
+
         # Remaining filters
         cleaned_filters = {key: value for key, value in filters_dict.items() if value is not None}
-        
+
         # General query params
         users = await self.repository.get_all(filters=cleaned_filters,
                                               sort_by=sort_by,
@@ -80,13 +80,13 @@ class UserService:
         if not user:
             raise UserNotFoundError(f"User with email {email} not found.")
         return UserInfo.model_validate(user)
- 
+
     async def get_user_by_id(self, user_id: UUID) -> UserInfo:
         user = await self.repository.get_by_id(user_id)
         if not user:
             raise UserNotFoundError(f"User with id {user_id} not found.")
         return UserInfo.model_validate(user)
-    
+
     async def get_user_hashed_password(self, email: EmailStr) -> str:
         user = await self.repository.get_by_field(field_name="email", value=email)
         if not user:
@@ -105,7 +105,7 @@ class UserService:
         if not updated_user:
             raise UserNotFoundError(f"User with id: {user_id} not found.")
         return UserInfo.model_validate(updated_user)
-    
+
     async def update_user_verified_status(self, email: EmailStr, status: bool) -> UserInfo:
         updated_user = await self.repository.update_by_field(field_name="email", value=email, is_verified=status)
         if not updated_user:
