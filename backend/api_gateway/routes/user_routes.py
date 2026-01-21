@@ -1,14 +1,14 @@
-
 from uuid import UUID
-from fastapi import APIRouter, Request, Depends
+
 import orjson
+from fastapi import APIRouter, Request, Depends
 
 from apigateway import api_gateway_manager
 from dependencies.auth_dependencies import (get_current_user,
                                             require_admin,
                                             require_user_or_admin)
 from shared.schemas.user_schemas import CurrentUserInfo
-from events.publisher import events_publisher
+from shared.
 from shared.customized_json_response import JSONResponse
 
 
@@ -24,7 +24,8 @@ async def register_user(request: Request):
         service_name="user-service",
     )
     # Check if registration was successful
-    if user_service_response.status_code != 201: return user_service_response
+    if user_service_response.status_code != 201:
+        return user_service_response
     # parsing the response content (new user data + token)
     response_data = orjson.loads(user_service_response.body)
     # publishing the event with token
@@ -49,7 +50,8 @@ async def login_user(request: Request):
         service_name="user-service",
     )
     # Check if login was successful
-    if user_service_response.status_code != 200: return user_service_response
+    if user_service_response.status_code != 200:
+        return user_service_response
     # publish the login event
     response_data = orjson.loads(user_service_response.body)
     await events_publisher.publish_user_login(

@@ -5,7 +5,7 @@ FROM python:3.12-slim AS builder
 
 WORKDIR /app
 
-# Environment variables 
+# Environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PATH="/root/.local/bin:${PATH}"
@@ -68,4 +68,4 @@ HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
     CMD ps aux | grep -v grep | grep "faststream run" || exit 1
 
 # Use faststream run to start the consumer
-CMD ["faststream", "run", "main:app"]
+CMD ["faststream", "run", "events_consumer.notification_events_consumer:app"]

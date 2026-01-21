@@ -23,3 +23,8 @@ dependencies = [
     "alembic>=1.17.1",
 ]
 
+[tool.uv.sources]
+shared = { path = "../shared", editable = true }
+
+[tool.pyright]
+extraPaths = [".."]

@@ -8,9 +8,9 @@ from starlette.background import BackgroundTask
 
 class JSONResponse(Response):
     """Custom JSON response class that uses orjson for serialization."""
-    
+
     media_type = "application/json"
-    
+
     def __init__(
         self,
         content: Any,
@@ -24,5 +24,6 @@ class JSONResponse(Response):
     def render(self, content: Any):
         """
         1. Encoding data using jsonable_encoder to ensure all data types are serializable.
-        2. Re-assigned rendering the content as JSON using orjson instead of standart json library."""
+        2. Re-assigned rendering the content as JSON using orjson instead of standart json library.
+        """
         return orjson.dumps(jsonable_encoder(content))

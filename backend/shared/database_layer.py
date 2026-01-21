@@ -24,8 +24,8 @@ class BaseRepository(Generic[ModelType]):
     EQUAL_ONLY_FIELDS = ["sku", "id", "uuid", "email", "phone_number"]
 
     def __init__(self, session: AsyncSession, model: Type[ModelType]):
-        self.session = session
-        self.model = model
+        self.session: AsyncSession = session
+        self.model: Type[ModelType] = model
 
     # ---------------- CREATE ----------------
     async def create(self, obj: ModelType) -> ModelType:

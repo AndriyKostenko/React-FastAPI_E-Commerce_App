@@ -1,9 +1,12 @@
-from shared.email_service import EmailService # type: ignore
-from shared.logger_config import setup_logger # type: ignore
-from shared.redis_manager import RedisManager # type: ignore
-from shared.settings import get_settings # type: ignore
-from shared.database_setup import DatabaseSessionManager # type: ignore
-from shared.authentication import AuthenticationManager # type: ignore
+from faststream.rabbit import RabbitBroker
+
+from shared.email_service import EmailService
+from shared.logger_config import setup_logger
+from shared.redis_manager import RedisManager
+from shared.settings import get_settings
+from shared.database_setup import DatabaseSessionManager
+from shared.authentication import AuthenticationManager
+from shared.event_publisher import BaseEventPublisher
 
 
 # Initialize settings
@@ -16,9 +19,15 @@ logger = setup_logger(__name__)
 email_service = EmailService(settings=settings, logger=logger)
 
 # Authentication Manager
-auth_manager = AuthenticationManager(settings_instance=settings)
+auth_manager = AuthenticationManager(settings=settings)
 
-
+# FastStream Event Publisher (RabbitMQ)
+broker = RabbitBroker(settings.RABBITMQ_BROKER_URL)
+base_event_publisher = BaseEventPublisher(
+    broker=broker,
+    logger=logger,
+    settings=settings
+)
 
 #-----------------------------------Redis-Managers------------------------------------------------
 

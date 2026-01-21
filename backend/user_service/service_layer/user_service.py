@@ -11,7 +11,7 @@ from shared.schemas.user_schemas import (
     UserBasicUpdate,
     UsersFilterParams,
 )
-from shared.shared_instances import auth_manager # type: ignore
+from shared.shared_instances import auth_manager
 from exceptions.user_exceptions import (
     UserAlreadyExistsError,
     UserNotFoundError
@@ -22,7 +22,7 @@ from database_layer.user_repository import UserRepository
 class UserService:
     """Service layer for user management operations, business logic and data validation."""
     def __init__(self, repository: UserRepository):
-        self.repository = repository
+        self.repository: UserRepository = repository
 
     async def create_user(self, data: UserSignUp) -> UserInfo:
         existing_user = await self.repository.get_by_field("email", data.email)

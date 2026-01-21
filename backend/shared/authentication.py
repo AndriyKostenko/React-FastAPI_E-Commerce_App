@@ -26,23 +26,23 @@ class AuthenticationManager:
     This class handles password hashing, token creation, and user authentication.
     It uses the settings from the shared settings module for configuration.
     """
-    
-    def __init__(self, settings_instance):
+
+    def __init__(self, settings):
         self.settings = settings_instance
         self.pwd_context = CryptContext(schemes=self.settings.CRYPT_CONTEXT_SCHEME, deprecated="auto")
-    
-        
+
+
     def hash_password(self, entered_password: str) -> str:
         """Hash password using bcrypt with caching for frequently used passwords"""
         return self.pwd_context.hash(entered_password)
-    
+
     def _verify_password(self, entered_password: str, hashed_password: str) -> bool:
         return self.pwd_context.verify(entered_password, hashed_password)
 
-    def create_access_token(self, 
-                            email: EmailStr, 
-                            user_id: UUID, 
-                            role: str | None, 
+    def create_access_token(self,
+                            email: EmailStr,
+                            user_id: UUID,
+                            role: str | None,
                             expires_delta: timedelta,
                             purpose: str = "access") -> tuple[str, int]:
         """Creating JWT access token"""
@@ -66,11 +66,11 @@ class AuthenticationManager:
             email: str | None = payload.get('sub')
             user_id: str | None = payload.get("id")
             role: str | None = payload.get("role")
-            purpose: str | None = payload.get('purpose', required_purpose) # Default to "access" if not specified   
-            
+            purpose: str | None = payload.get('purpose', required_purpose) # Default to "access" if not specified
+
             if not email or not user_id:
                 raise HTTPException(status_code=401, detail="User's email or id is not provided / verified.")
-               
+
             if purpose != required_purpose:
                 raise HTTPException(status_code=401, detail=f"Invalid token purpose. Expected: {required_purpose}, got: {purpose}")
 
@@ -80,36 +80,36 @@ class AuthenticationManager:
                 "role": role,
                 "purpose": purpose
             }
-        
+
         except JWTError as jwt_error:
             raise HTTPException(status_code=401, detail=f"Token error: {str(jwt_error)}")
         except Exception as e:
             raise HTTPException(status_code=401, detail=f"Token decoding error: {str(e)}")
 
     async def authenticate_user(self,
-                            email: EmailStr, 
-                            password: str, 
-                            user_service) -> CurrentUserInfo: 
+                            email: EmailStr,
+                            password: str,
+                            user_service) -> CurrentUserInfo:
         """Authenticate user with email and password"""
         users_hashed_password = await user_service.get_user_hashed_password(email=email)
-            
+
         if not self._verify_password(password, users_hashed_password):
             raise HTTPException(status_code=401, detail="Incorrect email or password")
-        
-        
+
+
         #TODO : check if needed verification logic of user
         user = await user_service.get_user_by_email(email=email)
-            
+
         if not user.is_verified:
             raise HTTPException(status_code=401, detail="User is not verified")
-            
+
         return CurrentUserInfo(
             email=user.email,
             id=user.id,
             role=user.role
         )
-    
-    async def get_current_user_from_token(self, 
+
+    async def get_current_user_from_token(self,
                                           token: Annotated[str, Depends(oauth2_scheme)],
                                           required_purpose: str = "access") -> CurrentUserInfo:
         """Checking if user is logged in and with valid token"""
@@ -129,10 +129,3 @@ class AuthenticationManager:
             password=form_data.password,
             user_service=user_service
         )
-            
-
-
-            
-            
-
-

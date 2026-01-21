@@ -2,7 +2,7 @@ from uuid import UUID
 from fastapi import HTTPException, status, Depends, Request
 from pydantic import EmailStr
 from shared.shared_instances import settings, logger
-from schemas.schemas import CurrentUserInfo
+from shared.schemas.user_schemas import CurrentUserInfo
 
 
 def get_current_user(request: Request) -> CurrentUserInfo:
@@ -29,14 +29,14 @@ def require_admin(current_user: CurrentUserInfo = Depends(get_current_user)) -> 
 
 
 def require_user_or_admin(current_user: CurrentUserInfo,
-                          target_user_id: UUID | None = None, 
+                          target_user_id: UUID | None = None,
                           target_user_email: EmailStr | None = None) -> CurrentUserInfo:
     is_admin = current_user.role == settings.SECRET_ROLE
     is_own_data = (
-        (target_user_id and current_user.id == target_user_id) or 
+        (target_user_id and current_user.id == target_user_id) or
         (target_user_email and current_user.email == target_user_email)
     )
-    
+
     if not (is_admin or is_own_data):
         logger.warning(f"User id: {target_user_id} and / or user email: {target_user_email} is trying to acces not personal data")
         raise HTTPException(
@@ -44,4 +44,3 @@ def require_user_or_admin(current_user: CurrentUserInfo,
             detail="Access denied: You can only access your own data"
         )
     return current_user
-

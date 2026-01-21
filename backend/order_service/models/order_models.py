@@ -5,8 +5,8 @@ from sqlalchemy import ForeignKey, Index, inspect
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 
-from shared.models.models_base_class import Base  # type: ignore
-from shared.models_mixins import TimestampMixin  # type: ignore
+from shared.models.models_base_class import Base
+from shared.models_mixins import TimestampMixin
 
 
 class Order(Base, TimestampMixin):

@@ -8,10 +8,9 @@ from fastapi import FastAPI, Request, Response
 from exceptions import BaseAPIException
 from routes.user_routes import user_proxy
 from routes.product_routes import product_proxy
-from shared.shared_instances import (api_gateway_redis_manager, 
-                                     logger, 
+from shared.shared_instances import (api_gateway_redis_manager,
+                                     logger,
                                      settings)
-from events.publisher import events_publisher
 from middleware.auth_middleware import auth_middleware
 
 
@@ -24,14 +23,12 @@ async def lifespan(app: FastAPI):
     """
     logger.info(f"Server is starting up on {settings.APP_HOST}:{settings.API_GATEWAY_SERVICE_APP_PORT}...")
     await api_gateway_redis_manager.health_check()
-    await events_publisher.start()
     logger.info('Server startup complete!')
-    
+
     yield
-    
+
     # Cleanup on shutdown
     await api_gateway_redis_manager.close()
-    await events_publisher.stop()
     logger.warning("Cache connection closed on shutdown!")
     logger.warning(f"Server has shut down !")
 
@@ -62,15 +59,15 @@ async def gateway_middleware(request: Request, call_next) -> Response:
     return response
 
 
- 
-@app.get("/health", tags=["Health Check"])  
+
+@app.get("/health", tags=["Health Check"])
 async def health_check():
     """
     A simple health check endpoint to verify that the service is running.
     """
     return JSONResponse(
         content={
-            "status": "ok", 
+            "status": "ok",
             "timestamp": datetime.now().isoformat(),
             "service": "api-gateway"
         },
@@ -82,8 +79,8 @@ async def health_check():
 def add_exception_handlers(app: FastAPI):
     """
     This function adds exception handlers to the FastAPI application.
-    """  
-   
+    """
+
     @app.exception_handler(BaseAPIException)
     async def base_api_exception_handler(request: Request, exc: BaseAPIException):
         """Base exception handler for all custom API exceptions"""
@@ -96,8 +93,8 @@ def add_exception_handlers(app: FastAPI):
             },
         )
 
-   
-# adding exception handlers to the app      
+
+# adding exception handlers to the app
 add_exception_handlers(app)
 
 # Include the user service proxy routes

@@ -12,4 +12,11 @@ dependencies = [
     "redis>=6.2.0",
     "passlib>=1.7.4",
     "python-jose>=3.5.0",
+    "sqlalchemy>=2.0.45",
 ]
+
+[tool.uv.sources]
+shared = { path = "../shared", editable = true }
+
+[tool.pyright]
+extraPaths = [".."]

@@ -1,0 +1,124 @@
+from uuid import UUID, uuid4
+from datetime import datetime, timezone
+from logging import Logger
+
+from pydantic import PositiveFloat
+from faststream.rabbit import RabbitQueue
+
+from shared.settings import Settings
+from shared.event_publisher import BaseEventPublisher
+from shared.shared_instances import settings, logger
+from shared.schemas.event_schemas import (OrderItem,
+    OrderCreatedEvent,
+    OrderCancelledEvent,
+    OrderConfirmedEvent,
+    InventoryReserveRequested,
+    InventoryReleaseRequested
+)
+
+
+class OrderEventPublisher(BaseEventPublisher):
+    """Event publisher for Order Service using FastStream"""
+    def __init__(self, logger: Logger, settings: Settings):
+        super().__init__(logger, settings)
+        self.order_events_queue: RabbitQueue = RabbitQueue("order.events", durable=True)
+        self.inventory_events_queue: RabbitQueue = RabbitQueue("inventory.events", durable=True)
+
+    async def publish_order_created(
+        self,
+        order_id: UUID,
+        user_id: UUID,
+        items: list[OrderItem],
+        total_amount: PositiveFloat
+    ):
+        """Publish order created event (SAGA start)"""
+        event = OrderCreatedEvent(
+            event_id=uuid4(),
+            timestamp=datetime.now(timezone.utc),
+            service="order-service",
+            event_type="order.created",
+            order_id=order_id,
+            user_id=user_id,
+            items=items,
+            total_amount=total_amount
+        )
+        await self.publish_an_event(
+            message=event,
+            queue=self.order_events_queue
+        )
+
+    async def publish_inventory_reserve_requested(
+        self,
+        order_id: UUID,
+        user_id: UUID,
+        items: list[OrderItem]
+    ):
+        """Request inventory reservation from Product Service"""
+        event = InventoryReserveRequested(
+            event_id=uuid4(),
+            timestamp=datetime.now(timezone.utc),
+            service="order-service",
+            event_type="inventory.reserve.requested",
+            order_id=order_id,
+            user_id=user_id,
+            items=items
+        )
+        await self.publish_an_event(
+            message=event,
+            queue=self.inventory_events_queue
+        )
+
+    async def publish_order_confirmed(self, order_id: UUID, user_id: UUID):
+        """Publish order confirmed event (SAGA success)"""
+        event = OrderConfirmedEvent(
+            event_id=uuid4(),
+            timestamp=datetime.now(timezone.utc),
+            service="order-service",
+            event_type="order.confirmed",
+            order_id=order_id,
+            user_id=user_id
+        )
+        await self.publish_an_event(
+            message=event,
+            queue=self.order_events_queue
+        )
+
+    async def publish_order_cancelled(self, order_id: UUID, user_id: str, reason: str):
+        """Publish order cancelled event (SAGA compensation)"""
+        event = OrderCancelledEvent(
+            event_id=uuid4(),
+            timestamp=datetime.now(timezone.utc),
+            service="order-service",
+            event_type="order.cancelled",
+            order_id=order_id,
+            user_id=user_id,
+            reason=reason
+        )
+        await self.publish_an_event(
+            message=event,
+            queue=self.order_events_queue
+        )
+
+    async def publish_inventory_release_requested(
+        self,
+        order_id: UUID,
+        items: list[OrderItem],
+        reason: str
+    ):
+        """Request inventory release (compensation transaction)"""
+        event = InventoryReleaseRequested(
+            event_id=uuid4(),
+            timestamp=datetime.now(timezone.utc),
+            service="order-service",
+            event_type="inventory.release.requested",
+            order_id=order_id,
+            items=items,
+            reason=reason
+        )
+        await self.publish_an_event(
+            message=event,
+            queue=self.inventory_events_queue
+        )
+
+
+order_event_publisher = OrderEventPublisher(logger=logger, settings=settings)

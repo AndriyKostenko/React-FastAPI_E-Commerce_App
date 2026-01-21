@@ -183,8 +183,8 @@ services:
 
   notification-consumer:
     build:
-      context: ./notification_consumer
-      dockerfile: Dockerfile
+      context: ./notification_service
+      dockerfile: Dockerfile.consumer
     restart: unless-stopped
     ports:
       - "8004:8004"

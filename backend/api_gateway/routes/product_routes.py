@@ -6,7 +6,7 @@ from apigateway import api_gateway_manager
 from dependencies.auth_dependencies import (get_current_user,
                                             require_admin,
                                             require_user_or_admin)
-from schemas.schemas import CurrentUserInfo
+from shared.schemas.user_schemas import CurrentUserInfo
 
 product_proxy = APIRouter(tags=["Product Service Proxy"])
 

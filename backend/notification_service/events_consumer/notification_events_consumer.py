@@ -1,12 +1,11 @@
 from typing import Any
 
 from faststream import FastStream
-from faststream.rabbit import RabbitBroker, RabbitQueue
+from faststream.rabbit import RabbitQueue
 
-from shared.shared_instances import logger, settings, email_service
-from shared.customized_json_response import JSONResponse
+from shared.shared_instances import logger, email_service
 from shared.schemas.event_schemas import UserRegisteredEvent, PasswordResetRequestedEvent, UserLoginEvent, PasswordResetSuccessEvent
-
+from shared.shared_instances import broker
 
 """
 The FastStream app (app) will be executed by faststream run via the command line,
@@ -16,8 +15,7 @@ connects directly to RabbitMQ
 """
 
 
-# Create the broker and FastStream app
-broker = RabbitBroker(settings.RABBITMQ_BROKER_URL)
+# Create the FastStream app
 app = FastStream(broker, title="Notification Consumer Service")
 
 

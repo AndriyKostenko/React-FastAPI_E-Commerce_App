@@ -8,6 +8,7 @@ PROJECT_ROOT = Path(__file__).parent.parent
 
 # Create logs directory relative to the project root
 LOG_DIR = PROJECT_ROOT / "logs"
+
 try:
     LOG_DIR.mkdir(exist_ok=True, mode=0o755)
 except PermissionError:

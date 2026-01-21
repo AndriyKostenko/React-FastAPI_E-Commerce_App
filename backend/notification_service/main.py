@@ -15,6 +15,7 @@ from shared.shared_instances import (notification_service_redis_manager,
                                     settings)
 from shared.base_exceptions import (BaseAPIException, RateLimitExceededError)
 from routes.notification_routes import notification_routes
+from events_publisher.notification_events_publisher import notification_events_publisher
 
 
 
@@ -27,16 +28,22 @@ async def lifespan(app: FastAPI):
     """
     logger.info(f"Server is starting up on {settings.APP_HOST}:{settings.NOTIFICATION_SERVICE_APP_PORT}...")
     await notification_service_redis_manager.health_check()
+    logger.info("Redis health check passed.")
     await notification_service_database_session_manager.init_db()
+    logger.info("Database initialized successfully.")
+    await notification_events_publisher.start()
+    logger.info("Notification events publisher started.")
     logger.info('Server startup complete!')
-    
+
     yield
 
     await notification_service_database_session_manager.close()
     logger.warning("Database connection closed on shutdown!")
     await notification_service_redis_manager.close()
     logger.warning("Cache connection closed on shutdown!")
-    logger.warning(f"Server has shut down !")
+    await notification_events_publisher.stop()
+    logger.warning("Notification events publisher stopped on shutdown!")
+    logger.warning("Server has shut down !")
 
 
 
@@ -62,36 +69,36 @@ async def host_validation_middleware(request: Request, call_next):
     if settings.DEBUG_MODE or host in settings.ALLOWED_HOSTS:
         response = await call_next(request)
         return response
-    
+
     logger.warning(f"Invalid Host header: {host} from {request.client.host}") # type: ignore
     raise HTTPException(
         status_code=400,
         detail="Invalid Host header",
         headers={"X-Error": "Invalid Host header"}
     )
-    
-    
-@app.get("/health", tags=["Health Check"])  
+
+
+@app.get("/health", tags=["Health Check"])
 async def health_check():
     """
     A simple health check endpoint to verify that the service is running.
     """
     return JSONResponse(
         content={
-            "status": "ok", 
+            "status": "ok",
             "timestamp": datetime.now().isoformat(),
             "service": "user-service"
         },
         status_code=200,
         headers={"Cache-Control": "no-cache"}
     )
-    
-    
+
+
 def add_exception_handlers(app: FastAPI):
     """
     This function adds exception handlers to the FastAPI application.
     """
-   
+
     @app.exception_handler(ValidationError)
     async def validation_exception_handler(request: Request, exc: ValidationError):
         """Custom exception handler for Pydantic validation errors"""
@@ -104,7 +111,7 @@ def add_exception_handlers(app: FastAPI):
                 "path": request.url.path
             }
         )
-        
+
     # Custom Exception handlers for Pydantic validation errors in request and response
     @app.exception_handler(ResponseValidationError)
     async def validation_response_exception_handler(request: Request, exc: ResponseValidationError):
@@ -122,7 +129,7 @@ def add_exception_handlers(app: FastAPI):
     # Custom Exception handlers for Pydantic validation errors in request and response
     @app.exception_handler(RequestValidationError)
     async def validation_request_exception_handler(request: Request, exc: RequestValidationError):
-        """Custom exception handler for request validation errors""" 
+        """Custom exception handler for request validation errors"""
         return JSONResponse(
             status_code=422,
             content={
@@ -132,7 +139,7 @@ def add_exception_handlers(app: FastAPI):
                 "path": request.url.path
             }
         )
-    
+
     @app.exception_handler(BaseAPIException)
     async def base_api_exception_handler(request: Request, exc: BaseAPIException):
         """Base exception handler for all custom API exceptions"""
@@ -144,8 +151,8 @@ def add_exception_handlers(app: FastAPI):
                      "path": request.url.path
             },
         )
-        
-   
+
+
     @app.exception_handler(RateLimitExceededError)
     async def rate_limit_handler(request: Request, exc: RateLimitExceededError):
         """Custom exception handler for rate limit exceeded errors"""
@@ -159,13 +166,13 @@ def add_exception_handlers(app: FastAPI):
             }
         )
 
-        
-# adding exception handlers to the app      
-add_exception_handlers(app)
-        
 
-# CORS or "Cross-Origin Resource Sharing" is a mechanism that 
-# allows restricted resources on a web page to be requested from another domain 
+# adding exception handlers to the app
+add_exception_handlers(app)
+
+
+# CORS or "Cross-Origin Resource Sharing" is a mechanism that
+# allows restricted resources on a web page to be requested from another domain
 # outside the domain from which the first resource was served.
 app.add_middleware(
     CORSMiddleware,
