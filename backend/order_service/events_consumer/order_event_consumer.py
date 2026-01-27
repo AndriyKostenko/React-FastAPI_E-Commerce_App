@@ -12,7 +12,6 @@ from service_layer.order_service import OrderStatus
 
 """
 Order Event Consumer - SAGA Orchestrator
-
 This consumer listens to events from other services (primarily Product Service)
 and orchestrates the Order SAGA workflow:
 
@@ -92,7 +91,7 @@ class OrderEventConsumer:
             user_id=event.user_id
         )
 
-        # Payment & Notification..
+        # Payment & Notification -> ..
 
     async def _handle_inventory_reserve_failed(self, message):
         """
@@ -119,4 +118,4 @@ class OrderEventConsumer:
             reason=event.reason
         )
 
-        # Payment & Notification..
+        # Payment & Notification ->..

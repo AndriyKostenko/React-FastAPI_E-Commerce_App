@@ -60,7 +60,7 @@ async def host_validation_middleware(request: Request, call_next):
         response = await call_next(request)
         return response
 
-    logger.warning(f"Invalid Host header: {host} from {request.client.host}") # type: ignore
+    logger.warning(f"Invalid Host header: {host} from {request.client}")
     raise HTTPException(
         status_code=400,
         detail="Invalid Host header",

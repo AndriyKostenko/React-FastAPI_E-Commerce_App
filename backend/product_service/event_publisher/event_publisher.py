@@ -10,7 +10,6 @@ from shared.settings import Settings
 from shared.schemas.event_schemas import (
     InventoryReserveSucceeded,
     InventoryReserveFailed,
-    OrderItem
 )
 
 
