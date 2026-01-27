@@ -1,4 +1,6 @@
-from pydantic import BaseModel
+from uuid import UUID
+
+from pydantic import BaseModel, PositiveFloat, PositiveInt
 
 from schemas.product_schemas import ProductSchema
 
@@ -19,6 +21,10 @@ class AddressType(BaseModel):
     province: str
     postal_code: str
 
+class OrderAddressBase(AddressType):
+    id: UUID
+    user_id: UUID
+
 
 class CreateOrder(BaseModel):
     amount: float
@@ -27,8 +33,14 @@ class CreateOrder(BaseModel):
     delivery_status: str
     payment_intent_id: str
     products: list[ProductSchema]
-    address: list[AddressType]
-    user_id: str
+    address: AddressType
+    user_id: UUID
+
+class OrderItemBase(BaseModel):
+    order_id: UUID
+    product_id: UUID
+    quantity: PositiveInt
+    price: PositiveFloat
 
 
 class UpdateOrder(BaseModel):

@@ -1,4 +1,3 @@
-from typing import List
 from uuid import UUID, uuid4
 
 from sqlalchemy import ForeignKey, Index, inspect
@@ -20,7 +19,7 @@ class Order(Base, TimestampMixin):
     )
 
     id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4, unique=True)
-    user_id: Mapped[str] = mapped_column(ForeignKey('users.id'), nullable=False)
+    user_id: Mapped[UUID] = mapped_column(ForeignKey('users.id'), nullable=False)
     amount: Mapped[float] = mapped_column(nullable=False)
     currency: Mapped[str] = mapped_column(nullable=False)
     status: Mapped[str] = mapped_column(nullable=False)
@@ -29,8 +28,8 @@ class Order(Base, TimestampMixin):
     address_id: Mapped[str] = mapped_column(ForeignKey('order_addresses.id'), nullable=False)
 
     address: Mapped['OrderAddress'] = relationship('OrderAddress', back_populates='orders')
-    items: Mapped[List['OrderItem']] = relationship('OrderItem', back_populates='order')
-    user: Mapped['User'] = relationship('User', back_populates='orders') # type: ignore
+    items: Mapped[list['OrderItem']] = relationship('OrderItem', back_populates='order')
+    user: Mapped['User'] = relationship('User', back_populates='orders')
 
     @classmethod
     def get_search_fields(cls) -> list[str]:
@@ -72,39 +71,3 @@ class Order(Base, TimestampMixin):
 
         type_name = sql_type.__class__.__name__.upper()
         return type_mapping.get(type_name, 'string')
-
-
-class OrderItem(Base):
-    __tablename__ = 'order_items'
-
-    __table_args__ = (
-        Index('idx_order_items_order_id', 'order_id'),
-        Index('idx_order_items_product_id', 'product_id'),
-    )
-
-    id: Mapped[str] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4, unique=True)
-    order_id: Mapped[str] = mapped_column(ForeignKey('orders.id'), nullable=False)
-    product_id: Mapped[str] = mapped_column(ForeignKey('products.id'), nullable=False)
-    quantity: Mapped[int] = mapped_column(nullable=False)
-    price: Mapped[float] = mapped_column(nullable=False)
-
-    order: Mapped['Order'] = relationship('Order', back_populates='items')
-    product: Mapped['Product'] = relationship('Product') # type: ignore
-
-
-class OrderAddress(Base):
-    __tablename__ = 'order_addresses'
-
-    __table_args__ = (
-        Index('idx_order_addresses_user_id', 'user_id'),
-    )
-
-    id: Mapped[str] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4, unique=True)
-    user_id: Mapped[str] = mapped_column(ForeignKey('users.id'), nullable=False)
-    street: Mapped[str] = mapped_column(nullable=True)
-    city: Mapped[str] = mapped_column(nullable=True)
-    province: Mapped[str] = mapped_column(nullable=True)
-    postal_code: Mapped[str] = mapped_column(nullable=True)
-
-    orders: Mapped[List['Order']] = relationship('Order', back_populates='address')
-    user: Mapped['User'] = relationship('User', back_populates='addresses')

@@ -136,14 +136,4 @@ class UsersFilterParams(BaseModel):
     date_updated_to: Optional[datetime] = Field(None, description="Filter users updated up to this date")
 
 
-class ServiceConfig(BaseModel):
-    name: str
-    instances: list[str]
-    health_check_path: str
-    api_version: str
 
-
-class GatewayConfig(BaseModel):
-    services: dict[str, ServiceConfig]
-    jwt_secret: str
-    rate_limit_per_minute: int = 100

@@ -2,9 +2,10 @@ from typing import Any, AsyncGenerator, Callable, Optional
 from functools import wraps
 from time import perf_counter
 from math import ceil
+from logging import Logger
 
 import orjson
-from fastapi import Request
+from fastapi import Request, Response
 from redis import asyncio as aioredis
 from shared.base_exceptions import BaseAPIException, RateLimitExceededError
 from shared.customized_json_response import JSONResponse
@@ -18,14 +19,14 @@ class RedisManager:
     Unified Redis manager for caching and rate limiting across microservices.
     Provides decorators for both caching and rate limiting functionality (for endpoints) and cache / ratelimiting methods for api-gateway.
     """
-    def __init__(self, service_prefix: str, redis_url: str, logger, service_api_version: str):
-        self.logger = logger
-        self.service_prefix = service_prefix
-        self.redis_url = redis_url
-        self._redis: Optional[aioredis.Redis] = None
-        self.http_methods = ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"]
-        self.service_api_version = service_api_version
-        self.namespaces = ["users", "products", "categories", "orders", "reviews", "images"]
+    def __init__(self, service_prefix: str, redis_url: str, logger: Logger, service_api_version: str):
+        self.logger: Logger = logger
+        self.service_prefix: str = service_prefix
+        self.redis_url: str = redis_url
+        self._redis: aioredis.Redis | None = None
+        self.http_methods: list[str] = ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"]
+        self.service_api_version: str = service_api_version
+        self.namespaces: list[str] = ["users", "products", "categories", "orders", "reviews", "images"]
         
     # property to lazily initialize RedisCache
     @property
@@ -60,8 +61,7 @@ class RedisManager:
         self,
         request: Request,
         pattern: str | None = None,
-        force_method: str | None = None
-    ) -> str | None:
+        force_method: str | None = None) -> str | None:
         """
         Generate cache key for a request or a namespace pattern.
         Includes:
@@ -109,8 +109,7 @@ class RedisManager:
         self,
         request: Request,
         namespace: str,
-        force_method: str | None = "GET"
-    ) -> bool:
+        force_method: str | None = "GET") -> bool:
         """
         Clear all keys in a namespace (pattern-based) safely using Redis SCAN.
         Works with API versioning automatically.
@@ -145,7 +144,7 @@ class RedisManager:
             return False
 
         
-    def _should_skip_caching(self, request: Request, response) -> bool:
+    def _should_skip_caching(self, request: Request, response: Response) -> bool:
         """
         Determining if response should be cached
         """
@@ -161,13 +160,12 @@ class RedisManager:
         )
     
     
-    async def cache_response(self, request: Request, response, ttl: int = 300):
+    async def cache_response(self, request: Request, response: Response, ttl: int = 300):
         """
         Cache a response for a given request.
         Includes API version in cache keys.
         Default TTL is 5 minutes.
         """
-
         if self._should_skip_caching(request, response):
             self.logger.warning(
                 f"Skipping caching response for method: {request.method}, path: {request.url.path} "
@@ -400,13 +398,13 @@ class RedisManager:
 
     def _generate_rate_limit_key(self, request: Request) -> str:
         """Generate a unique rate limit key based on client IP and endpoint"""
-        client_ip = request.client.host # type: ignore
+        client_ip = request.client.host 
         endpoint = request.url.path
         return f"{self.service_prefix}:ratelimit:{client_ip}:{endpoint}"
 
 
     # by default max 100 calls to any proxy per 60 secs
-    async def is_rate_limited(self, request: Request,times: int = 100, seconds: int = 60) -> bool | Exception:
+    async def is_rate_limited(self, request: Request, times: int = 100, seconds: int = 60) -> bool | Exception:
         """Check if the rate limit is exceeded using sliding window"""
         try:
             self.logger.debug(f'Checking if endpoint: {request.url} is rate limited...')

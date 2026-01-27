@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 from faststream.rabbit import RabbitQueue
 
-from shared.shared_instances import logger, settings
+from shared.shared_instances import logger, settings, broker
 from shared.event_publisher import BaseEventPublisher
 from shared.settings import Settings
 from shared.schemas.event_schemas import (
@@ -18,7 +18,7 @@ class ProductEventPublisher(BaseEventPublisher):
     """Event publisher for Product Service using FastStream"""
 
     def __init__(self, logger: Logger, settings: Settings):
-        super().__init__(logger, settings)
+        super().__init__(broker, logger, settings)
         self.order_saga_response_queue: RabbitQueue = RabbitQueue("order.saga.response", durable=True)
 
     async def publish_inventory_reserve_succeeded(

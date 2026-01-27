@@ -7,30 +7,29 @@ from faststream.rabbit import RabbitQueue
 
 from shared.settings import Settings
 from shared.event_publisher import BaseEventPublisher
-from shared.shared_instances import settings, logger
-from shared.schemas.event_schemas import (OrderItem,
+from shared.shared_instances import settings, logger, broker
+from shared.schemas.event_schemas import (
     OrderCreatedEvent,
     OrderCancelledEvent,
     OrderConfirmedEvent,
     InventoryReserveRequested,
-    InventoryReleaseRequested
+    InventoryReleaseRequested,
 )
+from shared.schemas.order_schemas import OrderItemBase
 
 
 class OrderEventPublisher(BaseEventPublisher):
     """Event publisher for Order Service using FastStream"""
     def __init__(self, logger: Logger, settings: Settings):
-        super().__init__(logger, settings)
+        super().__init__(broker, logger, settings)
         self.order_events_queue: RabbitQueue = RabbitQueue("order.events", durable=True)
         self.inventory_events_queue: RabbitQueue = RabbitQueue("inventory.events", durable=True)
 
-    async def publish_order_created(
-        self,
-        order_id: UUID,
-        user_id: UUID,
-        items: list[OrderItem],
-        total_amount: PositiveFloat
-    ):
+    async def publish_order_created(self,
+                                    order_id: UUID,
+                                    user_id: UUID,
+                                    items: list[OrderItemBase],
+                                    total_amount: PositiveFloat):
         """Publish order created event (SAGA start)"""
         event = OrderCreatedEvent(
             event_id=uuid4(),
@@ -47,12 +46,10 @@ class OrderEventPublisher(BaseEventPublisher):
             queue=self.order_events_queue
         )
 
-    async def publish_inventory_reserve_requested(
-        self,
-        order_id: UUID,
-        user_id: UUID,
-        items: list[OrderItem]
-    ):
+    async def publish_inventory_reserve_requested(self,
+                                                  order_id: UUID,
+                                                  user_id: UUID,
+                                                  items: list[OrderItemBase]):
         """Request inventory reservation from Product Service"""
         event = InventoryReserveRequested(
             event_id=uuid4(),
@@ -83,7 +80,7 @@ class OrderEventPublisher(BaseEventPublisher):
             queue=self.order_events_queue
         )
 
-    async def publish_order_cancelled(self, order_id: UUID, user_id: str, reason: str):
+    async def publish_order_cancelled(self, order_id: UUID, user_id: UUID, reason: str):
         """Publish order cancelled event (SAGA compensation)"""
         event = OrderCancelledEvent(
             event_id=uuid4(),
@@ -99,15 +96,15 @@ class OrderEventPublisher(BaseEventPublisher):
             queue=self.order_events_queue
         )
 
-    async def publish_inventory_release_requested(
-        self,
-        order_id: UUID,
-        items: list[OrderItem],
-        reason: str
-    ):
+    async def publish_inventory_release_requested(self,
+                                                  order_id: UUID,
+                                                  user_id: UUID,
+                                                  items: list[OrderItemBase],
+                                                  reason: str):
         """Request inventory release (compensation transaction)"""
         event = InventoryReleaseRequested(
             event_id=uuid4(),
+            user_id=user_id,
             timestamp=datetime.now(timezone.utc),
             service="order-service",
             event_type="inventory.release.requested",

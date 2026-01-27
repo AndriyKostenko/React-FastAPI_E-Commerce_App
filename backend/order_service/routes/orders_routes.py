@@ -1,14 +1,13 @@
-from typing import Annotated
-from uuid import UUID
-
-from fastapi import APIRouter, Query, Request, status
+from fastapi import APIRouter, Request, status
 
 from shared.customized_json_response import JSONResponse  # type: ignore
 from shared.shared_instances import order_service_redis_manager # type: ignore
 from shared.schemas.order_schemas import CreateOrder, UpdateOrder, OrderSchema
 from dependencies.dependencies import order_service_dependency
 
+
 order_routes = APIRouter(tags=["orders"])
+
 
 @order_routes.post("/orders",response_model=OrderSchema,summary="Create order",response_description="New order created")
 @order_service_redis_manager.ratelimiter(times=10, seconds=60)

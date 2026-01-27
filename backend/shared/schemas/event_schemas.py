@@ -1,7 +1,9 @@
 from uuid import UUID
 from datetime import datetime
 
-from pydantic import BaseModel, EmailStr, PositiveFloat, PositiveInt
+from pydantic import BaseModel, EmailStr, PositiveFloat
+
+from schemas.order_schemas import OrderItemBase
 
 
 class BaseEvent(BaseModel):
@@ -37,18 +39,11 @@ class EmailVerificationRequestedEvent(BaseEvent):
 
 
 # ============== ORDER SAGA EVENTS ==============
-class OrderItem(BaseModel):
-    """Individual order item for events"""
-    product_id: UUID
-    quantity: PositiveInt
-    price: PositiveFloat
-
-
 class OrderCreatedEvent(BaseEvent):
     """Event published when an order is created (start of SAGA)"""
     order_id: UUID
     user_id: UUID
-    items: list[OrderItem]
+    items: list[OrderItemBase]
     total_amount: PositiveFloat
 
 
@@ -61,7 +56,7 @@ class OrderConfirmedEvent(BaseEvent):
 class OrderCancelledEvent(BaseEvent):
     """Event published when order is cancelled (SAGA compensation)"""
     order_id: UUID
-    user_id: str
+    user_id: UUID
     reason: str
 
 
@@ -69,24 +64,27 @@ class InventoryReserveRequested(BaseEvent):
     """Event published when inventory reserve is requested"""
     order_id: UUID
     user_id: UUID
-    items: list[OrderItem]
+    items: list[OrderItemBase]
 
 
 class InventoryReserveSucceeded(BaseEvent):
     """Event published when inventory reserve succeeds"""
     order_id: UUID
-    reserved_items: list[OrderItem]
+    user_id: UUID
+    reserved_items: list[OrderItemBase]
 
 
 class InventoryReserveFailed(BaseEvent):
     """Event published when inventory reserve fails"""
     order_id: UUID
+    user_id: UUID
     reason: str
-    failed_items: list[OrderItem]
+    failed_items: list[OrderItemBase]
 
 
 class InventoryReleaseRequested(BaseEvent):
     """Event published when inventory needs to be released (compensation)"""
     order_id: UUID
-    items: list[OrderItem]
+    user_id: UUID
+    items: list[OrderItemBase]
     reason: str

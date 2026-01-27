@@ -1,27 +1,28 @@
 import random
-from urllib.parse import urljoin, urlparse, urlunparse
-import orjson
+from urllib.parse import urlparse, urlunparse
+from logging import Logger
 
+import orjson
 from fastapi import HTTPException, Request
-from httpx import AsyncClient, HTTPStatusError, RequestError #type: ignore
-from circuitbreaker import circuit #type: ignore
+from httpx import AsyncClient, HTTPStatusError, RequestError
+from circuitbreaker import circuit
 from shared.customized_json_response import JSONResponse
 
+from shared.settings import Settings
 from shared.shared_instances import settings, logger
-from schemas.schemas import GatewayConfig, ServiceConfig
+from schemas.gateway_schemas import GatewayConfig, ServiceConfig
 
 
 class UrlManager:
-    
-    def __init__(self, config: ServiceConfig, logger):
-        self.config = config
-        self.logger = logger
-        
-    
+    """Url Manager for handling service-specific URL manipulations."""
+    def __init__(self, config: ServiceConfig, logger: Logger):
+        self.config: ServiceConfig = config
+        self.logger: Logger = logger
+
     def extract_service_path(self, path: str, service_name: str) -> str:
         """
         Extract the path that should be forwarded to the given microservice.
-        
+
         Example:
         - Incoming path: http://127.0.0.1:8000/api/v1/login
         - Service: user-service
@@ -30,11 +31,11 @@ class UrlManager:
         """
         parsed = urlparse(path)
         api_version = self.config.services[service_name].api_version  # e.g. "/api/v1"
-        
+
         # Normalize both paths to avoid double slashes or mismatches
         path_only = parsed.path.strip("/")
         api_version_clean = api_version.strip("/")
-        
+
         # Remove the API version prefix if present
         if path_only.startswith(api_version_clean):
             service_specific_path = path_only[len(api_version_clean):]
@@ -47,15 +48,13 @@ class UrlManager:
         # Reattach query if it exists
         if parsed.query:
             service_specific_path += f"?{parsed.query}"
-            
+
         self.logger.debug(f"Extracted service-specific path for {service_name}: {service_specific_path}")
         return service_specific_path
 
-
-    
     def build_url(self, service_name: str, path: str) -> str:
         """
-        Build the complete URL for a given microservice, 
+        Build the complete URL for a given microservice,
         randomly choosing one instance for load balancing.
 
         Example:
@@ -66,10 +65,10 @@ class UrlManager:
         """
         service_instances = self.config.services[service_name].instances # List of instance URLs
         api_version = self.config.services[service_name].api_version  # e.g. "/api/v1"
-        
+
         # Pick a random instance for load balancing
         service_instance = random.choice(service_instances)
-        
+
         parsed_base = urlparse(service_instance)
         parsed_path = urlparse(path)
 
@@ -94,12 +93,11 @@ class UrlManager:
 class ApiGateway:
     """
     A class representing the API Gateway that forwards requests to microservices.
-    """  
-    
-    def __init__(self, settings, logger):
-        self.settings = settings
-        self.logger = logger
-        self.config = GatewayConfig(
+    """
+    def __init__(self, settings: Settings, logger: Logger):
+        self.settings: Settings= settings
+        self.logger:Logger = logger
+        self.config: GatewayConfig = GatewayConfig(
             services={
                 "user-service": ServiceConfig(
                     name="user-service",
@@ -119,7 +117,7 @@ class ApiGateway:
                     health_check_path="/health",
                     api_version=self.settings.NOTIFICATION_SERVICE_URL_API_VERSION
                 )
-                
+
             }
         )
         self.url_manager = UrlManager(config=self.config, logger=self.logger)
@@ -132,9 +130,9 @@ class ApiGateway:
         # No body for these methods
         if request.method in ("GET", "HEAD", "OPTIONS"):
             return None, None  # No body expected
-        
+
         content_type = request.headers.get("content-type", "").lower()
-        
+
         # Handle JSON
         if "application/json" in content_type:
             try:
@@ -143,13 +141,13 @@ class ApiGateway:
             except Exception as e:
                 logger.warning(f"Failed to parse JSON body for {path}: {e}")
                 return None, None
-            
+
         elif "application/x-www-form-urlencoded" in content_type:
             try:
                 form_data = await request.form()
                 # Convert FormData to dict
                 body_dict = {key: form_data[key] for key in form_data.keys()}
-                
+
                 # For login, ensure username field exists as OAuth2 expects it (assuming u are passing email and password)
                 if path == "/login":
                     form_data = {
@@ -157,12 +155,12 @@ class ApiGateway:
                         "password": form_data.get("password")
                     }
                     return form_data, "application/x-www-form-urlencoded"
-                
+
                 return body_dict, "application/x-www-form-urlencoded"
             except Exception as e:
                 logger.warning(f"Failed to parse form-urlencoded body for {path}: {e}")
                 return None, None
-            
+
         elif "multipart/form-data" in content_type:
             try:
                 form_data = await request.form()
@@ -173,7 +171,7 @@ class ApiGateway:
                 return None, None
 
         else:
-            try: 
+            try:
                 # Raw body for other content types
                 raw_body = await request.body()
                 if len(raw_body) == 0:
@@ -192,16 +190,16 @@ class ApiGateway:
             for key, value in dict(request_headers).items():
                 if key.lower() not in ["host", "content-length", "transfer-encoding", "connection", "content-type"]:
                     filtered_headers[key] = value
-        
+
         if new_content_type:
             filtered_headers["Content-Type"] = new_content_type
-            
+
         return filtered_headers
 
     @circuit(failure_threshold=5, recovery_timeout=30)
     async def forward_request(self, request: Request, service_name: str) -> JSONResponse:
         """
-        Forward request to microservice. 
+        Forward request to microservice.
         Now automatically extracts the correct path based on service mapping.
         """
 
@@ -217,10 +215,10 @@ class ApiGateway:
 
         # Detect and prepare body
         prepared_body, content_type = await self._detect_and_prepare_body(request, service_path)
-        
+
         if prepared_body:
             self.logger.debug(f"Prepared body content: {prepared_body}")
-        
+
         # Prepare headers
         headers = self._prepare_headers(request_headers=request.headers, new_content_type=content_type)
 
@@ -228,7 +226,7 @@ class ApiGateway:
         self.logger.debug(f"Service path: {service_path}")
         self.logger.debug(f"Body type: {type(prepared_body)}, Content-Type: {content_type}")
         self.logger.debug(f"Headers: {headers}")
-        
+
         # perform the request using httpx
         async with AsyncClient() as client:
             try:
@@ -271,7 +269,7 @@ class ApiGateway:
                         content=prepared_body,
                         headers=headers
                     )
-                    
+
                 # Parse response
                 try:
                     content = response.json()
@@ -286,7 +284,7 @@ class ApiGateway:
                     status_code=response.status_code,
                     headers=dict(response.headers)
                 )
-                
+
             except HTTPStatusError as e:
                 self.logger.error(f"HTTP error occurred: {e}")
                 raise HTTPException(status_code=e.response.status_code, detail=str(e))

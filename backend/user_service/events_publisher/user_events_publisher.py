@@ -7,7 +7,7 @@ from faststream.rabbit import RabbitQueue
 
 from shared.event_publisher import BaseEventPublisher
 from shared.settings import Settings
-from shared.shared_instances import settings, logger
+from shared.shared_instances import settings, logger, broker
 from shared.schemas.event_schemas import (
     UserRegisteredEvent,
     UserLoginEvent,
@@ -16,13 +16,13 @@ from shared.schemas.event_schemas import (
 )
 
 
-class NotificationEventdPublisher(BaseEventPublisher):
-    def __init__(self, settings: Settings, logger: Logger) -> None:
-        super().__init__(logger, settings)
+class NotificationEventPublisher(BaseEventPublisher):
+    def __init__(self, logger: Logger, settings: Settings) -> None:
+        super().__init__(broker, logger, settings)
         self.user_events_queue: RabbitQueue = RabbitQueue("user.events", durable=True)
         self.notification_events_queue: RabbitQueue = RabbitQueue("notification.events", durable=True)
 
-    async def publish_user_registered(self, email: EmailStr, token: str):
+    async def publish_user_registered(self, email: EmailStr, token: str) -> None:
         """Publish user registration event"""
         event = UserRegisteredEvent(
             email=email,
@@ -37,7 +37,7 @@ class NotificationEventdPublisher(BaseEventPublisher):
             queue=self.user_events_queue,
         )
 
-    async def publish_user_login(self, email: EmailStr):
+    async def publish_user_login(self, email: EmailStr) -> None:
         """Publish user login event"""
         event = UserLoginEvent(
             email=email,
@@ -51,7 +51,7 @@ class NotificationEventdPublisher(BaseEventPublisher):
             queue=self.user_events_queue
         )
 
-    async def publish_password_reset_request(self, email: EmailStr, reset_token: str):
+    async def publish_password_reset_request(self, email: EmailStr, reset_token: str) -> None:
         """Publish user password reset request"""
         event = PasswordResetRequestedEvent(
             email=email,
@@ -80,4 +80,4 @@ class NotificationEventdPublisher(BaseEventPublisher):
         )
 
 
-notification_events_publisher = NotificationEventdPublisher(settings, logger)
+notification_events_publisher = NotificationEventPublisher(logger=logger, settings=settings)

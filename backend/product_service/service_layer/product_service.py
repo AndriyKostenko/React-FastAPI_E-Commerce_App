@@ -1,8 +1,8 @@
-from typing import Annotated, List
+from typing import Annotated
 from uuid import UUID
 
 from fastapi import Query, UploadFile
-from shared.filter_parser import FilterParser  # type: ignore
+from shared.filter_parser import FilterParser
 from sqlalchemy.exc import IntegrityError
 
 from database_layer.product_repository import ProductRepository
@@ -23,11 +23,11 @@ class ProductService:
     """Service layer for product management operations, business logic and data validation."""
 
     def __init__(self, repository: ProductRepository, product_image_service: ProductImageService):
-        self.repository = repository
-        self.product_image_service = product_image_service
-        self.product_relations = Product.get_relations()
-        self.product_search_fileds = Product.get_search_fields()
-        self.filter_parser = FilterParser()
+        self.repository: ProductRepository = repository
+        self.product_image_service:ProductImageService = product_image_service
+        self.product_relations: list[str] = Product.get_relations()
+        self.product_search_fileds: list[str] = Product.get_search_fields()
+        self.filter_parser: FilterParser = FilterParser()
 
     async def create_product_item(self, product_data: CreateProduct) -> ProductBase:
         existing_product = await self.repository.get_by_field(
@@ -75,7 +75,8 @@ class ProductService:
         )
         new_product = await self.create_product_item(product_data)
         await self.product_image_service.create_product_images(
-            product_id=new_product.id, images=image_metadata
+            product_id=new_product.id,
+            images=image_metadata
         )
         full_product = await self.repository.get_by_id(
             item_id=new_product.id,
@@ -99,7 +100,7 @@ class ProductService:
 
     async def get_all_products_without_relations(
         self, filters_query: Annotated[ProductsFilterParams, Query()]
-    ) -> List[ProductBase]:
+    ) -> list[ProductBase]:
         params = self.filter_parser.parse_filter_params(filter_query=filters_query)
         products = await self.repository.get_all(**params)
         if not products:
@@ -108,7 +109,7 @@ class ProductService:
 
     async def get_all_products_with_relations(
         self, filters_query: Annotated[ProductsFilterParams, Query()]
-    ) -> List[ProductSchema]:
+    ) -> list[ProductSchema]:
         # Parse filters using helper method and add relations
         params = self.filter_parser.parse_filter_params(filter_query=filters_query)
         params["load_relations"] = self.product_relations
@@ -131,19 +132,11 @@ class ProductService:
         return [ProductBase.model_validate(product) for product in products]
 
     # TODO: check for correct implementstion
-    async def update_product(
-        self,
-        product_id: UUID,
-        product_data: UpdateProduct,
-    ) -> ProductBase:
+    async def update_product(self,
+                            product_id: UUID,
+                            product_data: UpdateProduct) -> ProductBase:
+        # unpackiong the data with key\value provided
         update_dict = product_data.model_dump(exclude_unset=True)
-        if "name" in update_dict and update_dict["name"]:
-            update_dict["name"] = update_dict["name"].lower()
-        if "brand" in update_dict and update_dict["brand"]:
-            update_dict["brand"] = update_dict["brand"].lower()
-
-        # Remove None values
-        update_dict = {k: v for k, v in update_dict.items() if v is not None}
 
         updated_product = None
 
