@@ -16,14 +16,21 @@ connects directly to RabbitMQ
 
 
 # Create the FastStream app
-app = FastStream(broker, title="Notification Consumer Service")
+app = FastStream(broker)
 
 
 # Define queues and their dead-letter settings
-user_events_queue = RabbitQueue("user.events", durable=True, arguments={"x-dead-letter-exchange": "dlx", "x-dead-letter-routing-key": "user.events.dlq"})
+user_events_queue = RabbitQueue(
+    "user.events",
+    durable=True,
+    arguments={
+        "x-dead-letter-exchange": "dlx",
+        "x-dead-letter-routing-key": "user.events.dlq"
+    }
+)
 
 
-@broker.subscriber(user_events_queue, retry=3)
+@broker.subscriber(queue=user_events_queue)
 async def handle_user_events(message: dict[str, Any]):
     """Handle user registration and password reset events"""
     match message.get("event_type"):

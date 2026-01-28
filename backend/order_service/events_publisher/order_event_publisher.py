@@ -22,8 +22,23 @@ class OrderEventPublisher(BaseEventPublisher):
     """Event publisher for Order Service using FastStream"""
     def __init__(self, logger: Logger, settings: Settings):
         super().__init__(broker, logger, settings)
-        self.order_events_queue: RabbitQueue = RabbitQueue("order.events", durable=True)
-        self.inventory_events_queue: RabbitQueue = RabbitQueue("inventory.events", durable=True)
+        # Queue definitions with dead-letter configuration
+        self.order_events_queue: RabbitQueue = RabbitQueue(
+            "order.events",
+            durable=True,
+            arguments={
+                "x-dead-letter-exchange": "dlx",
+                "x-dead-letter-routing-key": "order.events.dlq"
+            }
+        )
+        self.inventory_events_queue: RabbitQueue = RabbitQueue(
+            "inventory.events",
+            durable=True,
+            arguments={
+                "x-dead-letter-exchange": "dlx",
+                "x-dead-letter-routing-key": "inventory.events.dlq"
+            }
+        )
 
     async def publish_order_created(self,
                                     order_id: UUID,
@@ -45,6 +60,7 @@ class OrderEventPublisher(BaseEventPublisher):
             message=event,
             queue=self.order_events_queue
         )
+        self.logger.info(f"Published OrderCreatedEvent for order {order_id}")
 
     async def publish_inventory_reserve_requested(self,
                                                   order_id: UUID,
@@ -64,6 +80,7 @@ class OrderEventPublisher(BaseEventPublisher):
             message=event,
             queue=self.inventory_events_queue
         )
+        self.logger.info(f"Published InventoryReserveRequested for order {order_id}")
 
     async def publish_order_confirmed(self, order_id: UUID, user_id: UUID):
         """Publish order confirmed event (SAGA success)"""
@@ -79,6 +96,7 @@ class OrderEventPublisher(BaseEventPublisher):
             message=event,
             queue=self.order_events_queue
         )
+        self.logger.info(f"Published OrderConfirmedEvent for order {order_id}")
 
     async def publish_order_cancelled(self, order_id: UUID, user_id: UUID, reason: str):
         """Publish order cancelled event (SAGA compensation)"""
@@ -95,6 +113,7 @@ class OrderEventPublisher(BaseEventPublisher):
             message=event,
             queue=self.order_events_queue
         )
+        self.logger.info(f"Published OrderCancelledEvent for order {order_id}: {reason}")
 
     async def publish_inventory_release_requested(self,
                                                   order_id: UUID,
@@ -104,11 +123,11 @@ class OrderEventPublisher(BaseEventPublisher):
         """Request inventory release (compensation transaction)"""
         event = InventoryReleaseRequested(
             event_id=uuid4(),
-            user_id=user_id,
             timestamp=datetime.now(timezone.utc),
             service="order-service",
             event_type="inventory.release.requested",
             order_id=order_id,
+            user_id=user_id,
             items=items,
             reason=reason
         )
@@ -116,6 +135,7 @@ class OrderEventPublisher(BaseEventPublisher):
             message=event,
             queue=self.inventory_events_queue
         )
+        self.logger.info(f"Published InventoryReleaseRequested for order {order_id}: {reason}")
 
 
 order_event_publisher = OrderEventPublisher(logger=logger, settings=settings)

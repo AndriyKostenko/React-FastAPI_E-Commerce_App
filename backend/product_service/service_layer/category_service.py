@@ -2,6 +2,7 @@ from typing import Optional
 from uuid import UUID
 
 from fastapi import UploadFile
+from pydantic import HttpUrl
 
 from database_layer.category_repository import CategoryRepository
 from exceptions.category_exceptions import CategoryCreationError, CategoryNotFoundError
@@ -14,13 +15,11 @@ class CategoryService:
     """Service layer for category management operations, business logic and data validation."""
 
     def __init__(self, repository: CategoryRepository):
-        self.repository = repository
+        self.repository: CategoryRepository  = repository
 
-    async def create_category(
-        self,
-        category_data: CreateCategory,
-        image: Optional[UploadFile] = None,
-    ) -> CategorySchema:
+    async def create_category(self,
+                              category_data: CreateCategory,
+                              image: UploadFile | None = None) -> CategorySchema:
         # Check if category already exists
         existing_category = await self.repository.get_by_field(
             "name", category_data.name.lower()
@@ -31,7 +30,7 @@ class CategoryService:
             )
 
         # Determine image URL: uploaded image takes priority, else use provided URL
-        image_url: Optional[str] = category_data.image_url
+        image_url: HttpUrl | str | None = category_data.image_url
         if image:
             image_url = await image_processing_manager.save_icon(image)
 

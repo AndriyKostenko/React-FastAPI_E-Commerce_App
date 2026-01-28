@@ -11,6 +11,7 @@ from shared.schemas.event_schemas import (
     InventoryReserveSucceeded,
     InventoryReserveFailed,
 )
+from shared.schemas.order_schemas import OrderItemBase
 
 
 class ProductEventPublisher(BaseEventPublisher):
@@ -20,13 +21,14 @@ class ProductEventPublisher(BaseEventPublisher):
         super().__init__(broker, logger, settings)
         self.order_saga_response_queue: RabbitQueue = RabbitQueue("order.saga.response", durable=True)
 
-    async def publish_inventory_reserve_succeeded(
-        self,
-        order_id: UUID,
-        reserved_items: list[OrderItem]):
+    async def publish_inventory_reserve_succeeded(self,
+                                                  order_id: UUID,
+                                                  user_id: UUID,
+                                                  reserved_items: list[OrderItemBase]):
         """Notify Order Service that inventory reservation succeeded"""
         event = InventoryReserveSucceeded(
             event_id=uuid4(),
+            user_id=user_id,
             timestamp=datetime.now(timezone.utc),
             service="product-service",
             event_type="inventory.reserve.succeeded",
@@ -38,14 +40,15 @@ class ProductEventPublisher(BaseEventPublisher):
             queue=self.order_saga_response_queue
         )
 
-    async def publish_inventory_reserve_failed(
-        self,
-        order_id: UUID,
-        reason: str,
-        failed_items: list[OrderItem]):
+    async def publish_inventory_reserve_failed(self,
+                                              order_id: UUID,
+                                              user_id: UUID,
+                                              reason: str,
+                                              failed_items: list[OrderItemBase]):
         """Notify Order Service that inventory reservation failed"""
         event = InventoryReserveFailed(
             event_id=uuid4(),
+            user_id=user_id,
             timestamp=datetime.now(timezone.utc),
             service="product-service",
             event_type="inventory.reserve.failed",

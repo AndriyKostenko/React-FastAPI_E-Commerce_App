@@ -108,18 +108,23 @@ View Connections (active connections)
 Monitor Message rates
 Debug Message flow
 
-User Action → API Gateway → User Service → Response
-↓
-Publish Event → RabbitMQ Queue
-↓
-Notification Service → Send Email
+Order Creation Flow (Success):
+1. User creates order → Order Service
+2. Order Service saves order with status=PENDING
+3. Order Service publishes: OrderCreatedEvent + InventoryReserveRequested
+4. Product Service receives InventoryReserveRequested
+5. Product Service reserves inventory
+6. Product Service publishes: InventoryReserveSucceeded
+7. Order Consumer (this file) receives InventoryReserveSucceeded
+8. Order Consumer updates order status=CONFIRMED
+9. Order Consumer publishes: OrderConfirmedEvent
+10. Notification Service sends confirmation email
 
-Event Flow Summary:
+Order Creation Flow (Failure):
+1-4. Same as above
+5. Product Service cannot reserve (out of stock)
+6. Product Service publishes: InventoryReserveFailed
 
-User Registration: API Gateway → User Service → Event → Notification Consumer
-Password Reset Request: API Gateway → User Service → Event → Notification Consumer
-Email Verification: API Gateway → Event → Notification Consumer
-Direct Email Endpoints: For testing/admin purposes only
 
 ## PG Admin
 

@@ -1,6 +1,6 @@
 from datetime import datetime
 from uuid import UUID
-from typing import Generic, Optional, Type, TypeVar, Any
+from typing import Generic, Optional, TypeVar, Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import func, select, asc, desc, or_
@@ -23,9 +23,9 @@ class BaseRepository(Generic[ModelType]):
     # list of fields that must always use equality, even if string type
     EQUAL_ONLY_FIELDS = ["sku", "id", "uuid", "email", "phone_number"]
 
-    def __init__(self, session: AsyncSession, model: Type[ModelType]):
+    def __init__(self, session: AsyncSession, model: type[ModelType]):
         self.session: AsyncSession = session
-        self.model: Type[ModelType] = model
+        self.model: type[ModelType] = model
 
     # ---------------- CREATE ----------------
     async def create(self, obj: ModelType) -> ModelType:
@@ -184,7 +184,7 @@ class BaseRepository(Generic[ModelType]):
     async def count(self, **kwargs) -> int:
         """Count records with optional filters"""
         # counting by primary key (id) as default
-        query = select(func.count(self.model.id))  # type: ignore
+        query = select(func.count(self.model.id))
         for field, value in kwargs.items():
             if hasattr(self.model, field):
                 query = query.where(getattr(self.model, field) == value)

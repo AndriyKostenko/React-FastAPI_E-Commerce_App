@@ -1,14 +1,15 @@
 from logging import Logger
 from typing import Any
 
-from faststream import FastStream
-from faststream.rabbit import RabbitQueue, RabbitBroker
-
+from database_layer.order_address_repository import OrderAddressRepository
+from database_layer.order_item_repository import OrderItemRepository
+from database_layer.order_repository import OrderRepository
 from events_publisher.order_event_publisher import order_event_publisher
+from service_layer.order_address_service import OrderAddressService
+from service_layer.order_item_service import OrderItemService
 from shared.schemas.event_schemas import InventoryReserveFailed, InventoryReserveSucceeded
-from shared.shared_instances import broker, logger
-from dependencies.dependencies import order_service_dependency
-from service_layer.order_service import OrderStatus
+from shared.shared_instances import logger, order_service_database_session_manager
+from service_layer.order_service import OrderService, OrderStatus
 
 """
 Order Event Consumer - SAGA Orchestrator
@@ -22,80 +23,87 @@ The FastStream app will be executed via `faststream run`, so no manual uvicorn s
 """
 
 
-app = FastStream(broker)
-
-
 class OrderEventConsumer:
     """
-    Handle SAGA orchestration responses from other services
-
-    This is the central coordinator for the order SAGA pattern.
-    It receives responses from services like Product Service and decides
-    whether to proceed with order confirmation or trigger compensation.
+    Business logic handler for Order SAGA orchestration.
+    This class handles the actual business logic, while the subscriber functions
+    handle the FastStream integration.
     """
-    def __init__(self):
-        self.broker: RabbitBroker = broker
+    def __init__(self, logger: Logger):
         self.logger: Logger = logger
-        self.order_service = ...
 
-        # Define the queue for SAGA responses from other services
-        self.order_saga_response_queue: RabbitQueue = RabbitQueue(
-            "order.saga.response",
-            durable=True,
-            arguments={
-                "x-dead-letter-exchange": "dlx",
-                "x-dead-letter-routing-key": "order.saga.response.dlq"
-            }
-        )
-
-    @self.broker.subscriber(queue=self.order_saga_response_queue, retry=3)
-    async def handle_saga_responses(self, message: dict[str, Any]):
+    async def _get_order_service(self):
         """
-        Handle SAGA orchestration responses from other services
+        Creating an OrderService instance with a fresh database session.
+        This is similar to FastAPI's dependency injection but for FastStream consumers.
+        """
+        async with order_service_database_session_manager.transaction() as session:
+            order_item_service = OrderItemService(
+                repository=OrderItemRepository(session=session)
+            )
+            order_address_service = OrderAddressService(
+                repository=OrderAddressRepository(session=session)
+            )
+            order_service = OrderService(
+                repository=OrderRepository(session=session),
+                order_item_service=order_item_service,
+                order_address_service=order_address_service
+            )
+            yield order_service
 
-        This is the central coordinator for the order SAGA pattern.
-        It receives responses from services like Product Service and decides
-        whether to proceed with order confirmation or trigger compensation.
+    async def handle_order_saga_response(self, message: dict[str, Any]):
+        """
+        Route SAGA responses to appropriate handlers based on event type.
         """
         event_type = message.get("event_type")
-        match event_type:
-            case "inventory.reserve.succedded":
-                await self._handle_inventory_reserve_suceeded(message)
 
-            case "inventory.reserve.failer":
-                await self._handle_inventory_reserve_failed(message)
+        match event_type:
+            case "inventory.reserve.succeeded":
+                await self.handle_inventory_reserve_succeeded(message)
+            case "inventory.reserve.failed":
+                await self.handle_inventory_reserve_failed(message)
             case _:
                 self.logger.warning(f"Unhandled SAGA event type: {event_type}")
 
-    async def _handle_inventory_reserve_suceeded(self, message):
+    async def handle_inventory_reserve_succeeded(self, message: dict[str, Any]):
         """
-        Handle successful inventory reservation
+        Handle successful inventory reservation.
 
         Steps:
         1. Parse the event
         2. Update order status to CONFIRMED in database
-        3. Publish OrderConfirmedEvent for downstream services (e.g., notification)
-        4. Payment???
+        3. Publish OrderConfirmedEvent for downstream services (e.g., notification / payments)
         """
-        # getting an event
-        event = InventoryReserveSucceeded(**message)
-        self.logger.info(f"Inventory reservation succeeded for order id: {event.order_id}")
+        try:
+            # Parse the event
+            event = InventoryReserveSucceeded(**message)
+            self.logger.info(f"Inventory reservation succeeded for order id: {event.order_id}")
 
-        # updating order status in db
-        await order_service_dependency.update_order_status(order_id=event.order_id, order_status=OrderStatus.CONFIRMED)
-        self.logger.info(f"Updated status: {OrderStatus.CONFIRMED} for order id: {event.order_id}")
+            # Get order service with database session
+            async for order_service in self._get_order_service():
+                # Update order status to CONFIRMED
+                await order_service.update_order_status(  # pyright: ignore[reportUnusedCallResult]
+                    order_id=event.order_id,
+                    order_status=OrderStatus.CONFIRMED
+                )
+                self.logger.info(f"Updated status to: {OrderStatus.CONFIRMED} for order id: {event.order_id}")
 
-        # publishing an order confirmed for downstream events
-        await order_event_publisher.publish_order_confirmed(
-            order_id=event.order_id,
-            user_id=event.user_id
-        )
+            # Publish OrderConfirmedEvent for downstream services (notification, etc.)
+            await order_event_publisher.publish_order_confirmed(
+                order_id=event.order_id,
+                user_id=event.user_id
+            )
+            self.logger.info(f"Published OrderConfirmedEvent for order {event.order_id}")
 
-        # Payment & Notification -> ..
+            # TODO: notification service/payment services events -> ...
 
-    async def _handle_inventory_reserve_failed(self, message):
+        except Exception as e:
+            self.logger.error(f"Error handling inventory reserve succeeded for order {message.get('order_id')}: {str(e)}")
+            raise
+
+    async def handle_inventory_reserve_failed(self, message: dict[str, Any]):
         """
-        Handle failed inventory reservation (SAGA Compensation)
+        Handle failed inventory reservation (SAGA Compensation).
 
         Steps:
         1. Parse the event
@@ -103,19 +111,34 @@ class OrderEventConsumer:
         3. Publish OrderCancelledEvent for downstream services
         4. No need to release inventory since it was never reserved
         """
-        # getting an event
-        event = InventoryReserveFailed(**message)
-        self.logger.info(f"Inventory reservation failed for order {event.order_id}: {event.reason}")
+        try:
+            # Parse the event
+            event = InventoryReserveFailed(**message)
+            self.logger.info(f"Inventory reservation failed for order {event.order_id}: {event.reason}")
 
-        # updating order status in db
-        await order_service_dependency.update_order_status(order_id=event.order_id, order_status=OrderStatus.CANCELLED)
+            # Get order service with database session
+            async for order_service in self._get_order_service():
+                # Update order status to CANCELLED
+                await order_service.update_order_status(  # pyright: ignore[reportUnusedCallResult]
+                    order_id=event.order_id,
+                    order_status=OrderStatus.CANCELLED
+                )
+                self.logger.info(f"Updated status to {OrderStatus.CANCELLED} for order id: {event.order_id}")
 
-        # Publish order cancelled event for downstream services
-        # This will notify user about the cancellation
-        await order_event_publisher.publish_order_cancelled(
-            order_id=event.order_id,
-            user_id=event.user_id,
-            reason=event.reason
-        )
+            # Publish OrderCancelledEvent for downstream services (notification, etc.)
+            await order_event_publisher.publish_order_cancelled(
+                order_id=event.order_id,
+                user_id=event.user_id,
+                reason=event.reason
+            )
+            self.logger.info(f"Published OrderCancelledEvent for order {event.order_id}")
 
-        # Payment & Notification ->..
+            # TODO: notification service/payment services events -> ...
+
+        except Exception as e:
+            self.logger.error(f"Error handling inventory reserve failed for order {message.get('order_id')}: {str(e)}")
+            raise
+
+
+# Create consumer instance
+order_event_consumer = OrderEventConsumer(logger=logger)

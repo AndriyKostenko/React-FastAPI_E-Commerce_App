@@ -125,8 +125,8 @@ class ProductService:
             raise ProductNotFoundError(f"Product with name: {name} not found")
         return ProductBase.model_validate(db_product)
 
-    async def get_products_by_ids(self, products_ids: list[UUID]) -> List[ProductBase]:
-        products = await self.repository.get_many_by_field(field_name='id', values=products_ids)
+    async def get_products_by_ids(self, products_ids: list[UUID]) -> list[ProductBase]:
+        products = await self.repository.get_many_by_field(field_name='id', value=products_ids)
         if not products:
             raise ProductNotFoundError("No products found with the given IDs.")
         return [ProductBase.model_validate(product) for product in products]
@@ -161,3 +161,15 @@ class ProductService:
         success = await self.repository.delete_by_id(product_id)
         if not success:
             raise ProductNotFoundError(f"Product with id: {product_id} not found")
+
+    async def validate_inventory_availability(self, products: list[ProductBase]):
+        failed_items = []
+        reasons = []
+
+        for item in products:
+            product = await self.get_product_by_id_without_relations(item.id)
+            if product:
+                if not product.in_stock:
+                    failed_items.append(item)
+                    reasons.append(f"Product {product.name} (ID: {product.id}) is out of stock")
+                    continue
