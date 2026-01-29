@@ -6,8 +6,14 @@ from shared.filter_parser import FilterParser
 from sqlalchemy.exc import IntegrityError
 
 from database_layer.product_repository import ProductRepository
-from exceptions.product_exceptions import ProductCreationError, ProductNotFoundError
+from exceptions.product_exceptions import (
+    ProductCreationError,
+    ProductNotFoundError,
+    ProductReleaseError,
+    ProductUpdateError
+)
 from models.product_models import Product
+from shared.schemas.order_schemas import OrderItemBase
 from shared.schemas.product_schemas import (
     CreateProduct,
     ProductBase,
@@ -60,13 +66,11 @@ class ProductService:
 
         return ProductBase.model_validate(new_db_product)
 
-    async def create_product_with_images(
-        self,
-        product_data: CreateProduct,
-        images: list[UploadFile],
-        image_colors: list[str],
-        image_color_codes: list[str],
-    ) -> ProductSchema:
+    async def create_product_with_images(self,
+                                         product_data: CreateProduct,
+                                         images: list[UploadFile],
+                                         image_colors: list[str],
+                                         image_color_codes: list[str]) -> ProductSchema:
         image_urls = await image_processing_manager.save_images(images)
         image_metadata = image_processing_manager.create_metadata_list(
             image_urls=image_urls,
@@ -92,28 +96,26 @@ class ProductService:
 
     async def get_product_by_id_with_relations(self, product_id: UUID) -> ProductSchema:
         product = await self.repository.get_by_id(
-            item_id=product_id, load_relations=self.product_relations
+            item_id=product_id,
+            load_relations=self.product_relations
         )
         if not product:
             raise ProductNotFoundError(f"Product with id: {product_id} not found.")
         return ProductSchema.model_validate(product)
 
-    async def get_all_products_without_relations(
-        self, filters_query: Annotated[ProductsFilterParams, Query()]
-    ) -> list[ProductBase]:
+    async def get_all_products_without_relations(self,
+                                                filters_query: Annotated[ProductsFilterParams, Query()]) -> list[ProductBase]:
         params = self.filter_parser.parse_filter_params(filter_query=filters_query)
         products = await self.repository.get_all(**params)
         if not products:
             raise ProductNotFoundError("No products found with the given criteria.")
         return [ProductBase.model_validate(product) for product in products]
 
-    async def get_all_products_with_relations(
-        self, filters_query: Annotated[ProductsFilterParams, Query()]
-    ) -> list[ProductSchema]:
+    async def get_all_products_with_relations(self,
+                                              filters_query: Annotated[ProductsFilterParams, Query()]) -> list[ProductSchema]:
         # Parse filters using helper method and add relations
         params = self.filter_parser.parse_filter_params(filter_query=filters_query)
         params["load_relations"] = self.product_relations
-
         products = await self.repository.get_all(**params)
         if not products:
             raise ProductNotFoundError("No products found with the given criteria.")
@@ -142,34 +144,68 @@ class ProductService:
 
         if update_dict:
             try:
-                updated_product = await self.repository.update_by_id(
-                    product_id, **update_dict
-                )
+                updated_product = await self.repository.update_by_id(product_id, **update_dict)
+                return ProductBase.model_validate(updated_product)
             except IntegrityError as e:
                 if "products_category_id_fkey" in str(e):
                     raise ProductCreationError(
                         f'Category with id "{update_dict.get("category_id")}" does not exist.'
                     )
-                raise ProductCreationError(f"Failed to update product: {str(e)}")
+                raise ProductUpdateError(f"Failed to update product: {str(e)}")
+        else:
+            raise ProductNotFoundError(f"Product with id: {product_id} not found.")
 
-            if not updated_product:
-                raise ProductNotFoundError(f"Product with id: {product_id} not found.")
 
-        return ProductBase.model_validate(updated_product)
 
     async def delete_product_by_id(self, product_id: UUID) -> None:
         success = await self.repository.delete_by_id(product_id)
         if not success:
             raise ProductNotFoundError(f"Product with id: {product_id} not found")
 
-    async def validate_inventory_availability(self, products: list[ProductBase]):
-        failed_items = []
-        reasons = []
+    async def validate_inventory_availability(self, products: list[OrderItemBase]) -> dict[str, bool|str|list[OrderItemBase]]:
+        """
+        Reserve inventory by decrementing product quantities.
 
+        Returns:
+            List of successfully reserved items
+        """
+        failed_items: list[OrderItemBase] = []
+        reasons: set[str] = set()
         for item in products:
-            product = await self.get_product_by_id_without_relations(item.id)
-            if product:
+            try:
+                product = await self.get_product_by_id_without_relations(item.product_id)
                 if not product.in_stock:
                     failed_items.append(item)
-                    reasons.append(f"Product {product.name} (ID: {product.id}) is out of stock")
+                    reasons.add(f"Product: {product.name}, ID: {product.id}) is out of stock")
                     continue
+                if product.quantity < item.quantity:
+                    failed_items.append(item)
+                    reasons.add(f"Insufficient quantity for product: {product.name}, ID: {product.id}, requested: {item.quantity}, available: {product.quantity}")
+                    continue
+            except ProductNotFoundError:
+                failed_items.append(item)
+                reasons.add(f"Product with ID: {item.product_id} not found")
+                continue
+        return {
+            "success": False,
+            "reasons": "; ".join(reasons),
+            "failed_products": failed_items
+        } if failed_items else {"success" : True}
+
+    async def reserve_inventory(self, products: list[OrderItemBase]):
+        pass
+
+    async def release_inventory(self, products: list[OrderItemBase]):
+        """
+        Release inventory by incrementing product quantities back.
+        This is a compensation action (SAGA rollback).
+        """
+        for product in products:
+            try:
+                db_product = await self.get_product_by_id_without_relations(product.product_id)
+                update_data = UpdateProduct(quantity=db_product.quantity+product.quantity,
+                                            in_stock=True)
+                await self.update_product(product_id=db_product.id,
+                                          product_data=update_data)
+            except (ProductNotFoundError, ProductUpdateError, ProductCreationError) as error:
+                raise ProductReleaseError(f"Cannot release inventory for product: {product.product_id}, error: {error}")

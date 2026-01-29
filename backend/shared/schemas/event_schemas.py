@@ -13,6 +13,8 @@ class BaseEvent(BaseModel):
     service: str
     event_type: str
 
+# ============== USER SAGA EVENTS ==============
+
 class UserRegisteredEvent(BaseEvent):
     """Event published when a user registers"""
     email: EmailStr
@@ -39,6 +41,7 @@ class EmailVerificationRequestedEvent(BaseEvent):
 
 
 # ============== ORDER SAGA EVENTS ==============
+
 class OrderCreatedEvent(BaseEvent):
     """Event published when an order is created (start of SAGA)"""
     order_id: UUID
@@ -67,6 +70,14 @@ class InventoryReserveRequested(BaseEvent):
     items: list[OrderItemBase]
 
 
+class InventoryReleaseRequested(BaseEvent):
+    """Event published when inventory needs to be released (compensation)"""
+    order_id: UUID
+    user_id: UUID
+    items: list[OrderItemBase]
+    reason: str
+
+# ============== PRODUCT SAGA EVENTS ==============
 class InventoryReserveSucceeded(BaseEvent):
     """Event published when inventory reserve succeeds"""
     order_id: UUID
@@ -78,13 +89,5 @@ class InventoryReserveFailed(BaseEvent):
     """Event published when inventory reserve fails"""
     order_id: UUID
     user_id: UUID
-    reason: str
+    reasons: str
     failed_items: list[OrderItemBase]
-
-
-class InventoryReleaseRequested(BaseEvent):
-    """Event published when inventory needs to be released (compensation)"""
-    order_id: UUID
-    user_id: UUID
-    items: list[OrderItemBase]
-    reason: str

@@ -32,3 +32,8 @@ class ProductDeletionError(BaseAPIException):
     """Raised when Product deletion fails"""
     def __init__(self, detail: str = "Product deletion failed"):
         super().__init__(detail=detail, status_code=422)
+
+class ProductReleaseError(BaseAPIException):
+    """Raised when product release (setting the prod. amount back) fails"""
+    def __init__(self, detail: str = "Product release (setting quantity back) failed"):
+        super().__init__(status_code=422, detail=detail)

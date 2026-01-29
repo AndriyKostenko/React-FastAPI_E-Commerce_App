@@ -43,7 +43,7 @@ class ProductEventPublisher(BaseEventPublisher):
     async def publish_inventory_reserve_failed(self,
                                               order_id: UUID,
                                               user_id: UUID,
-                                              reason: str,
+                                              reasons: str,
                                               failed_items: list[OrderItemBase]):
         """Notify Order Service that inventory reservation failed"""
         event = InventoryReserveFailed(
@@ -53,7 +53,7 @@ class ProductEventPublisher(BaseEventPublisher):
             service="product-service",
             event_type="inventory.reserve.failed",
             order_id=order_id,
-            reason=reason,
+            reasons=reasons,
             failed_items=failed_items
         )
         await self.publish_an_event(
