@@ -22,7 +22,7 @@ product_inventory_events_queue = RabbitQueue(
 
 # Register the subscriber function (FastStream requires this at module level)
 @broker.subscriber(product_inventory_events_queue)
-async def handle_inventory_events(event: dict[str, Any]):
+async def handle_inventory_events(message: dict[str, Any]):
     """
     FastStream subscriber function that delegates to the OrderEventConsumer class.
 
@@ -32,4 +32,4 @@ async def handle_inventory_events(event: dict[str, Any]):
     - Clear separation of concerns
     - Easy testing (can test OrderEventConsumer independently)
     """
-    await product_event_consumer.handle_inventory_saga_event(event=event)
+    await product_event_consumer.handle_inventory_saga_event(message)

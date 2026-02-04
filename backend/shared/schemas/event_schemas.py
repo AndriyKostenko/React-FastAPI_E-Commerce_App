@@ -14,80 +14,69 @@ class BaseEvent(BaseModel):
     event_type: str
 
 # ============== USER SAGA EVENTS ==============
+class UserBaseEvent(BaseEvent):
+    user_email: EmailStr
 
-class UserRegisteredEvent(BaseEvent):
+class UserRegisteredEvent(UserBaseEvent):
     """Event published when a user registers"""
-    email: EmailStr
     token: str
 
-class UserLoginEvent(BaseEvent):
+class UserLoginEvent(UserBaseEvent):
     """Event published when a user logs in"""
-    email: EmailStr
+    ...
 
-class PasswordResetRequestedEvent(BaseEvent):
+class PasswordResetRequestedEvent(UserBaseEvent):
     """Event published when password reset is requested"""
-    email: EmailStr
     reset_token: str
 
-class PasswordResetSuccessEvent(BaseEvent):
+class PasswordResetSuccessEvent(UserBaseEvent):
     """Event published when pussword reset success"""
-    email: EmailStr
+    ...
 
-class EmailVerificationRequestedEvent(BaseEvent):
+class EmailVerificationRequestedEvent(UserBaseEvent):
     """Event published when email verification is requested"""
-    email: EmailStr
     verification_token: str | None = None
-    event_type: str
 
 
 # ============== ORDER SAGA EVENTS ==============
-
-class OrderCreatedEvent(BaseEvent):
-    """Event published when an order is created (start of SAGA)"""
+class OrderBaseEvent(BaseEvent):
     order_id: UUID
     user_id: UUID
+    user_email: EmailStr
+
+class OrderCreatedEvent(OrderBaseEvent):
+    """Event published when an order is created (start of SAGA)"""
     items: list[OrderItemBase]
     total_amount: PositiveFloat
 
 
-class OrderConfirmedEvent(BaseEvent):
+class OrderConfirmedEvent(OrderBaseEvent):
     """Event published when order is confirmed (SAGA success)"""
-    order_id: UUID
-    user_id: UUID
+    ...
 
 
-class OrderCancelledEvent(BaseEvent):
+class OrderCancelledEvent(OrderBaseEvent):
     """Event published when order is cancelled (SAGA compensation)"""
-    order_id: UUID
-    user_id: UUID
     reason: str
 
 
-class InventoryReserveRequested(BaseEvent):
+class InventoryReserveRequested(OrderBaseEvent):
     """Event published when inventory reserve is requested"""
-    order_id: UUID
-    user_id: UUID
     items: list[OrderItemBase]
 
 
-class InventoryReleaseRequested(BaseEvent):
+class InventoryReleaseRequested(OrderBaseEvent):
     """Event published when inventory needs to be released (compensation)"""
-    order_id: UUID
-    user_id: UUID
     items: list[OrderItemBase]
     reason: str
 
 # ============== PRODUCT SAGA EVENTS ==============
-class InventoryReserveSucceeded(BaseEvent):
+class InventoryReserveSucceeded(OrderBaseEvent):
     """Event published when inventory reserve succeeds"""
-    order_id: UUID
-    user_id: UUID
     reserved_items: list[OrderItemBase]
 
 
-class InventoryReserveFailed(BaseEvent):
+class InventoryReserveFailed(OrderBaseEvent):
     """Event published when inventory reserve fails"""
-    order_id: UUID
-    user_id: UUID
     reasons: str
     failed_items: list[OrderItemBase]

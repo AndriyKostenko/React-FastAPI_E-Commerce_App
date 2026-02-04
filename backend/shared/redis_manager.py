@@ -27,7 +27,7 @@ class RedisManager:
         self.http_methods: list[str] = ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"]
         self.service_api_version: str = service_api_version
         self.namespaces: list[str] = ["users", "products", "categories", "orders", "reviews", "images"]
-        
+
     # property to lazily initialize RedisCache
     @property
     def redis(self) -> aioredis.Redis:
@@ -45,23 +45,14 @@ class RedisManager:
                 raise RuntimeError(f"Failed to initialize Redis connection: {str(e)}")
         # This allows us to use self.redis to access the Redis instance
         return self._redis
-    
-    
+
+
     # ==================== CACHING FUNCTIONALITY ====================
-    
-    async def _async_gen_wrapper(self, data: list[bytes]) -> AsyncGenerator[bytes, None]:
-        """
-        Helper method to recreate body iterator
-        """
-        for chunk in data:
-            yield chunk
-    
-    
-    def _generate_cache_key(
-        self,
-        request: Request,
-        pattern: str | None = None,
-        force_method: str | None = None) -> str | None:
+
+    def _generate_cache_key(self,
+                            request: Request,
+                            pattern: str | None = None,
+                            force_method: str | None = None) -> str | None:
         """
         Generate cache key for a request or a namespace pattern.
         Includes:
@@ -104,12 +95,10 @@ class RedisManager:
 
         return cache_key
 
-
-    async def clear_cache_namespace(
-        self,
-        request: Request,
-        namespace: str,
-        force_method: str | None = "GET") -> bool:
+    async def clear_cache_namespace(self,
+                                    request: Request,
+                                    namespace: str,
+                                    force_method: str | None = "GET") -> bool:
         """
         Clear all keys in a namespace (pattern-based) safely using Redis SCAN.
         Works with API versioning automatically.
@@ -143,7 +132,6 @@ class RedisManager:
             self.logger.error(f"Error clearing namespace '{namespace}': {str(e)}", exc_info=True)
             return False
 
-        
     def _should_skip_caching(self, request: Request, response: Response) -> bool:
         """
         Determining if response should be cached
@@ -151,15 +139,14 @@ class RedisManager:
         # Defining paths that should never be cached
         not_monitoring_patterns = ["/health", "/metrics", "/status", "/ping", "/ready", "/live"]
         is_not_monitoring_endpoint = any(request.url.path.startswith(pattern) for pattern in not_monitoring_patterns)
-        
+
         return (
-            request.method != "GET" 
-            or not (200 <= response.status_code < 300) 
+            request.method != "GET"
+            or not (200 <= response.status_code < 300)
             or response.headers.get("Cache-Control") == "no-cache"
             or is_not_monitoring_endpoint
         )
-    
-    
+
     async def cache_response(self, request: Request, response: Response, ttl: int = 300):
         """
         Cache a response for a given request.
@@ -185,20 +172,8 @@ class RedisManager:
 
             response_body = None
 
-            # 1. Regular JSONResponse
             if hasattr(response, "body") and response.body:
                 response_body = response.body
-            # 2. Custom response with content
-            elif hasattr(response, "content") and response.content:
-                response_body = response.content
-            # 3. Streaming response
-            elif hasattr(response, "body_iterator") and response.body_iterator:
-                body_parts = []
-                async for chunk in response.body_iterator:
-                    body_parts.append(chunk)
-
-                response_body = b"".join(body_parts)
-                response.body_iterator = self._async_gen_wrapper(body_parts)
             else:
                 self.logger.warning(f"Cannot access response body for caching: {cache_key}")
                 return
@@ -229,33 +204,31 @@ class RedisManager:
             self.logger.error(f"Error caching response: {str(e)}")
             return
 
-            
     async def get_cached_response(self, request: Request) -> Optional[JSONResponse]:
         """
         Check if a response for this request is cached and return it.
         For use in API Gateway middleware.
         """
         if request.method != "GET" or "Authorization" in request.headers:
-            self.logger.info(f"Skipping getting the cached response coz of non GET or Authorization in headers...")
+            self.logger.info("Skipping getting the cached response coz of non GET or Authorization in headers...")
             return None
-        
+
         cache_key = self._generate_cache_key(request=request)
         cached_data = await self.redis.get(cache_key)
-        
+
         if cached_data:
             cached_dict = orjson.loads(cached_data)
-            self.logger.debug(f"Gateway returnes cached data for: {cache_key}")
+            self.logger.debug(f"RedisManager returnes cached data for: {cache_key}")
             return JSONResponse(content=cached_dict["content"],
                                 status_code=cached_dict["status_code"])
-        
+
         self.logger.debug(f"No cached data for key: {cache_key}")
         return None
-           
-            
+
     async def set_response_for_caching(self, key: str, seconds: int, value: dict) -> None:
         """
         Set a response in Redis for caching.
-        
+
         Args:
             key: Cache key
             seconds: Time to live in seconds
@@ -270,9 +243,8 @@ class RedisManager:
             self.logger.debug(f"Set response for caching with key: {key}")
         except Exception as e:
             self.logger.error(f"Error setting response for caching: {str(e)}")
-    
-    
-    def cached(self, ttl: int) -> Callable:
+
+    def cached(self, ttl: int):
         """
         Decorator for caching endpoint responses with API version included in cache key.
         Only caches successful JSONResponse objects.
@@ -287,7 +259,7 @@ class RedisManager:
                 )
 
                 if not request:
-                    self.logger.error(f"No Request object provided. Skipping cache for {func.__name__}")
+                    self.logger.error(f"No Request object provided. Skipping cache for: {func.__name__}")
                     return await func(*args, **kwargs)
 
                 # Generate cache key including API version
@@ -314,15 +286,6 @@ class RedisManager:
                         response_body = None
                         if hasattr(response, "body") and response.body:
                             response_body = response.body
-                        elif hasattr(response, "content") and response.content:
-                            response_body = response.content
-                        elif hasattr(response, "body_iterator") and response.body_iterator:
-                            body_parts = []
-                            async for chunk in response.body_iterator:
-                                body_parts.append(chunk)
-                            response_body = b"".join(body_parts)
-                            response.body_iterator = self._async_gen_wrapper(body_parts)
-
                         if response_body:
                             if isinstance(response_body, bytes):
                                 response_body = response_body.decode("utf-8")
@@ -349,7 +312,6 @@ class RedisManager:
             return wrapper
         return decorator
 
-
     async def invalidate_cache(self, request: Request) -> bool:
         """
         Invalidate cache for a specific key in the given namespace.
@@ -370,13 +332,13 @@ class RedisManager:
         else:
             self.logger.warning(f"Cache key not found for invalidation: {cache_key}")
             return False
-        
+
     # ==================== RATE LIMITING FUNCTIONALITY ====================
-    
-    def ratelimiter(self, times: int , seconds: int ) -> Callable:
+
+    def ratelimiter(self, times: int , seconds: int ):
         """
         Decorator to apply rate limiting to a FastAPI route.
-        
+
         Args:
             times: Maximum number of requests allowed in the time window
             seconds: Time window in seconds
@@ -389,19 +351,17 @@ class RedisManager:
                 if not request:
                     self.logger.warning(f'No request object for func.: {func.__name__} is provided for ratelimiting!')
                     return await func(*args, **kwargs)
-                    
+
                 await self.is_rate_limited(request, times, seconds)
                 return await func(*args, **kwargs)
             return wrapper
         return decorator
 
-
     def _generate_rate_limit_key(self, request: Request) -> str:
         """Generate a unique rate limit key based on client IP and endpoint"""
-        client_ip = request.client.host 
+        client_ip = request.client
         endpoint = request.url.path
         return f"{self.service_prefix}:ratelimit:{client_ip}:{endpoint}"
-
 
     # by default max 100 calls to any proxy per 60 secs
     async def is_rate_limited(self, request: Request, times: int = 100, seconds: int = 60) -> bool | Exception:
@@ -411,7 +371,7 @@ class RedisManager:
             key = self._generate_rate_limit_key(request)
             pipe = self.redis.pipeline()
             now = perf_counter()
-            
+
             # Add current request timestamp
             pipe.zadd(key, {str(now): now})
             # Remove old requests outside the window
@@ -422,14 +382,14 @@ class RedisManager:
             pipe.expire(key, seconds)
             # Get oldest timestamp
             pipe.zrange(key, 0, 0)
-            
+
             results = await pipe.execute()
             request_count = results[2]
             oldest = results[4]
-            
+
             if request_count <= times:
                 return False
-            
+
             # Calculate retry_after
             if oldest:
                 oldest_ts = float(oldest[0])
@@ -437,16 +397,16 @@ class RedisManager:
                 retry_after = max(retry_after, 1)
             else:
                 retry_after = seconds
-            
+
             self.logger.warning(f"Rate limit exceeded for: {key}")
             raise RateLimitExceededError(
-                client_ip=request.client.host, # type: ignore
+                client_ip=request.client,
                 retry_after=retry_after
             )
         except RateLimitExceededError:
         # Re-raise rate limit errors
             raise
-            
+
         except Exception as e:
             self.logger.error(f"Rate limit check failed: {str(e)}")
             # Allow request on Redis failure (fail-open approach)
@@ -454,17 +414,17 @@ class RedisManager:
 
     # ==================== CONNECTION MANAGEMENT ====================
 
-    async def health_check(self) -> dict:
+    async def health_check(self) -> dict[str, Any]:
         """Comprehensive health check for Redis"""
         try:
             redis_client = await self.redis
             start_time = perf_counter()
             await redis_client.ping()
             response_time = perf_counter() - start_time
-            
+
             info = await redis_client.info()
             self.logger.debug(f"Redis is healthy")
-            
+
             return {
                 "status": "healthy",
                 "response_time_ms": round(response_time * 1000, 2),
@@ -479,21 +439,10 @@ class RedisManager:
                 "error": str(e),
                 "response_time_ms": None
             }
-    
-    
+
     async def close(self) -> None:
         """Close the Redis connection"""
         if self._redis:
             await self._redis.close()
             self._redis = None
             self.logger.info(f"Redis connection closed for {self.service_prefix}")
-        
-
-
-
-    
-    
-
-
-
-

@@ -1,12 +1,13 @@
 from faststream.rabbit import RabbitBroker
 
-from shared.email_service import EmailService
+from shared.email_service import UserRelatedNotifications, OrderRelatedNotifications
 from shared.logger_config import setup_logger
 from shared.redis_manager import RedisManager
 from shared.settings import get_settings
 from shared.database_setup import DatabaseSessionManager
 from shared.authentication import AuthenticationManager
 from shared.event_publisher import BaseEventPublisher
+from idempotency_service import IdempotencyEventService
 
 
 # Initialize settings
@@ -16,17 +17,17 @@ settings = get_settings()
 logger = setup_logger(__name__)
 
 # Email Service
-email_service = EmailService(settings=settings, logger=logger)
+user_notification_email_service = UserRelatedNotifications(settings=settings, logger=logger)
+order_notification_email_service = OrderRelatedNotifications(settings=settings, logger=logger)
 
 # Authentication Manager
 auth_manager = AuthenticationManager(settings=settings)
 
 # FastStream Event Publisher (RabbitMQ)
 broker = RabbitBroker(settings.RABBITMQ_BROKER_URL)
-base_event_publisher = BaseEventPublisher(
-    broker=broker,
-    logger=logger,
-    settings=settings
+base_event_publisher = BaseEventPublisher(broker=broker,
+                                          logger=logger,
+                                          settings=settings
 )
 
 #-----------------------------------Redis-Managers------------------------------------------------
@@ -53,6 +54,11 @@ order_service_redis_manager = RedisManager(service_prefix="order-service",
                                           logger=logger,
                                           service_api_version=settings.ORDER_SERVICE_URL_API_VERSION,)
 
+# Redis idempotency managers
+product_event_idempotency_service = IdempotencyEventService(service_prefix="product-service",
+                                                            logger=logger,
+                                                            redis_url=settings.PRODUCT_SERVICE_REDIS_URL,
+                                                            service_api_version=settings.PRODUCT_SERVICE_URL_API_VERSION)
 
 
 #------------------------------------DB-Managers-----------------------------------------------

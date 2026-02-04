@@ -210,7 +210,7 @@ class BaseRepository(Generic[ModelType]):
                 setattr(existing_obj, field, new_value)
         return await self.update(existing_obj)
 
-    async def update_by_id(self, item_id: UUID, **kwargs) -> ModelType | None:
+    async def update_by_id(self, item_id: UUID, **kwargs: dict[str, Any]) -> ModelType | None:
         """Update a record by ID with new values"""
         existing_obj = await self.get_by_id(item_id)
         if not existing_obj:

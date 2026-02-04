@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import List
 
 
+from pydantic import SecretStr, DirectoryPath
 from pydantic_settings import BaseSettings
 
 
@@ -20,7 +21,7 @@ class Settings(BaseSettings):
     ORDER_SERVICE_APP_PORT: int
 
     DEBUG_MODE: bool
-    ALLOWED_HOSTS: List[str]
+    ALLOWED_HOSTS: list[str]
 
     # Service URLs
     API_GATEWAY_SERVICE_URL: str
@@ -96,7 +97,7 @@ class Settings(BaseSettings):
 
     # Email
     MAIL_USERNAME: str
-    MAIL_PASSWORD: str
+    MAIL_PASSWORD: SecretStr
     MAIL_PORT: int
     MAIL_SERVER: str
     MAIL_STARTTLS: bool
@@ -105,14 +106,14 @@ class Settings(BaseSettings):
     MAIL_FROM: str
     MAIL_FROM_NAME: str
     USE_CREDENTIALS: bool
-    TEMPLATES_DIR: str = str(Path(__file__).parent / "templates")
+    TEMPLATES_DIR: DirectoryPath | None = Path(__file__).parent / "templates"
     VALIDATE_CERTS: bool
 
     # CORS
-    CORS_ALLOWED_ORIGINS: List[str]
+    CORS_ALLOWED_ORIGINS: list[str]
     CORS_ALLOW_CREDENTIALS: bool
-    CORS_ALLOWED_METHODS: List[str]
-    CORS_ALLOWED_HEADERS: List[str]
+    CORS_ALLOWED_METHODS: list[str]
+    CORS_ALLOWED_HEADERS: list[str]
 
     #AdminJs
     ADMINJS_SERVICE_TOKEN: str
@@ -238,4 +239,4 @@ class Settings(BaseSettings):
 
 @lru_cache()
 def get_settings():
-    return Settings() # type: ignore
+    return Settings()

@@ -7,10 +7,9 @@ from exceptions.product_exceptions import ProductReleaseError
 from service_layer.product_service import ProductService
 from service_layer.product_image_service import ProductImageService
 from shared.schemas.event_schemas import InventoryReserveRequested, InventoryReleaseRequested
-from shared.shared_instances import logger, product_service_database_session_manager
+from shared.shared_instances import logger, product_service_database_session_manager, product_event_idempotency_service
 from event_publisher.event_publisher import product_event_publisher
-from shared.schemas.event_schemas import BaseEvent
-
+from shared.idempotency_service import IdempotencyEventService
 
 """
 Product Event Consumer - SAGA Orchestrator
@@ -28,6 +27,7 @@ The FastStream app will be executed via `faststream run`, so no manual uvicorn s
 class ProductEventConsumer:
     def __init__(self, logger: Logger) -> None:
         self.logger: Logger = logger
+        self.idempotency_service: IdempotencyEventService = product_event_idempotency_service
 
     async def _get_product_service(self):
         """
@@ -44,59 +44,76 @@ class ProductEventConsumer:
             )
             yield product_service
 
-    async def handle_inventory_saga_event(self, event: InventoryReserveRequested | InventoryReleaseRequested):
+    async def handle_inventory_saga_event(self, message: dict[str, Any]):
         """
         Route inventory events to appropriate handlers based on event type
         """
-        match event.event_type:
+        event_type = message.get("event_type")
+        match event_type:
             case "inventory.reserve.requested":
-                await self.handle_inventory_reserve_requested(event)
+                await self.handle_inventory_reserve_requested(message)
             case "inventory.release.requested":
-                await self.handle_inventory_release_requested(event)
+                await self.handle_inventory_release_requested(message)
             case _:
-                self.logger.warning(f"Unhandled inventory event type: {event.event_type}")
+                self.logger.warning(f"Unhandled inventory event type: {event_type}")
 
-    async def handle_inventory_reserve_requested(self, event: InventoryReserveRequested):
+    async def handle_inventory_reserve_requested(self, message: dict[str, Any]):
         """
         Handle inventory reservation request from Order Service.
 
         Steps:
         1. Parse the event
-        2. Check if all products are available in sufficient quantities
-        3. If yes: Reserve inventory and publish InventoryReserveSucceeded
-        4. If no: Publish InventoryReserveFailed with details
+        2. Check if its saved in Redis
+        3. Check if all products are available in sufficient quantities
+        4. If yes: Reserve inventory and publish InventoryReserveSucceeded
+        5. If no: Publish InventoryReserveFailed with details
 
         Business Rules:
         - All items must be available, otherwise the entire reservation fails (atomicity)
         - Products must be in stock (in_stock=True)
         - Quantity must be sufficient for each item
         """
+        # 1.Parse the event
+        event = InventoryReserveRequested(**message)
         try:
-            # 1.Parse the event
-            event = InventoryReserveRequested(**event)
+            # 2. checking idempotency FIRST - befoer any processing
+            if await self.idempotency_service.is_event_processed(event.event_id, event.event_type)
+                self.logger.info(f"Skipping duplicate inventory reservation for order: {event.order_id}")
+                return # skipping coa already processed
             self.logger.info(f"Processing inventory reservation for order {event.order_id} with: {len(event.items)} items")
-            # 2.getting product service with db session
+            # 3.getting product service with db session
             async for product_service in self._get_product_service():
-                # 3.validating for sufficient quantity
-                validation_result = await product_service.validate_inventory_availability(event.items)
-                if not validation_result["success"]:
+                # 4.validating for sufficient quantity and successfull reservetion
+                reserved_items = await product_service.reserve_inventory(event.items)
+                if not reserved_items["success"]:
+                    # marking as processed event even on failure
+                    await self.idempotency_service.mark_event_as_processed(
+                        event_id=event.event_id,
+                        event_type=event.event_type,
+                        order_id=event.order_id,
+                        result="failed"
+                    )
                     # inventory reserv failed, publishing failure event
                     await product_event_publisher.publish_inventory_reserve_failed(
                         order_id=event.order_id,
                         user_id=event.user_id,
-                        reasons=validation_result["reasons"],
-                        failed_items=validation_result["failed_products"]
+                        reasons=reserved_items["reasons"],
+                        failed_items=reserved_items["failed_products"]
                     )
-                    self.logger.warning(f"Inventory reservation failed for order: {str(event.order_id)} reasons: {validation_result['reasons']}")
+                    self.logger.warning(f"Inventory reservation failed for order: {str(event.order_id)} reasons: {reserved_items['reasons']}")
                     return
-                #4. decrementing quantitites
-                reserved_items = await product_service.reserve_inventory(event.items)
-                self.logger.info(f"Successfully reserved inventory for order {event.order_id}")
+                await self.idempotency_service.mark_event_as_processed(
+                    event_id=event.event_id,
+                    event_type=event.event_type,
+                    order_id=event.order_id,
+                    result="succeeded"
+                )
+                self.logger.info(f"Successfully reserved inventory for order: {event.order_id}")
                 #5. publishing a success event to Order service
                 await product_event_publisher.publish_inventory_reserve_succeeded(
                     order_id=event.order_id,
                     user_id=event.user_id,
-                    reserved_items=reserved_items
+                    reserved_items=reserved_items["products"]
                 )
 
         except Exception as error:
@@ -110,7 +127,7 @@ class ProductEventConsumer:
             )
             raise
 
-    async def handle_inventory_release_requested(self, event: InventoryReleaseRequested):
+    async def handle_inventory_release_requested(self, message: dict[str, Any]):
         """
         Handle inventory release request (SAGA Compensation).
 
@@ -124,18 +141,25 @@ class ProductEventConsumer:
         2. Release inventory (increment quantities back)
         3. Log the release for audit purposes
         """
+        # Parse the event
+        event = InventoryReleaseRequested(**message)
         try:
-            # Parse the event
-            event = InventoryReleaseRequested(**event)
-            self.logger.info(
-                f"Processing inventory release for order {event.order_id}: "
-                f"{event.reason}"
-            )
+            # checking idempotency (if event been already processed)
+            if await self.idempotency_service.is_event_processed(event_id=event.event_id,
+                                                                event_type=event.event_type):
+                self.logger.info(f"Skipping duplicate inventory release for order: {event.order_id}")
+                return
 
+            self.logger.info(f"Processing inventory release for order {event.order_id}:{event.reason}")
             # Get product service with database session
             async for product_service in self._get_product_service():
                 # Release inventory (restore quantities)
                 await product_service.release_inventory(event.items)
+                # marking event as processed
+                await self.idempotency_service.mark_event_as_processed(event_id=event.event_id,
+                                                                       event_type=event.event_type,
+                                                                       order_id=event.order_id,
+                                                                       result="released")
                 self.logger.info(f"Successfully released inventory for order: {event.order_id}")
 
         except ProductReleaseError as error:
