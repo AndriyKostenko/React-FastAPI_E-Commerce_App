@@ -25,10 +25,7 @@ auth_manager = AuthenticationManager(settings=settings)
 
 # FastStream Event Publisher (RabbitMQ)
 broker = RabbitBroker(settings.RABBITMQ_BROKER_URL)
-base_event_publisher = BaseEventPublisher(broker=broker,
-                                          logger=logger,
-                                          settings=settings
-)
+base_event_publisher = BaseEventPublisher(broker=broker,logger=logger,settings=settings)
 
 #-----------------------------------Redis-Managers------------------------------------------------
 

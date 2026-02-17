@@ -21,6 +21,11 @@ class UserRegisteredEvent(UserBaseEvent):
     """Event published when a user registers"""
     token: str
 
+class UserRegistrationFailedEvent(UserBaseEvent):
+    """Event published when a user registration failed"""
+    ...
+
+
 class UserLoginEvent(UserBaseEvent):
     """Event published when a user logs in"""
     ...

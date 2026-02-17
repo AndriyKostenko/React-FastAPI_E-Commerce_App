@@ -1,17 +1,16 @@
 from datetime import timedelta, datetime, timezone
-from typing import Annotated
+from typing import Annotated, Any
 from uuid import UUID
 
 from passlib.context import CryptContext
-from fastapi import Depends, HTTPException, HTTPException
+from fastapi import Depends, HTTPException
 from pydantic import EmailStr
 from jose import jwt, JWTError
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 
 from shared.schemas.user_schemas import CurrentUserInfo
-from shared.settings import get_settings
-
-settings = get_settings()
+from shared.shared_instances import settings
+from shared.settings import Settings
 
 # OAuth2PasswordBearer is a class that provides a way to extract the token from the request
 # scheme_name is similar to variable name
@@ -24,11 +23,9 @@ oauth2_scheme = OAuth2PasswordBearer(
 class AuthenticationManager:
     """
     This class handles password hashing, token creation, and user authentication.
-    It uses the settings from the shared settings module for configuration.
     """
-
-    def __init__(self, settings):
-        self.settings = settings_instance
+    def __init__(self, settings: Settings):
+        self.settings: Settings = settings
         self.pwd_context = CryptContext(schemes=self.settings.CRYPT_CONTEXT_SCHEME, deprecated="auto")
 
 
@@ -45,7 +42,11 @@ class AuthenticationManager:
                             role: str | None,
                             expires_delta: timedelta,
                             purpose: str = "access") -> tuple[str, int]:
-        """Creating JWT access token"""
+        """
+        Creating JWT access token
+        Returnes:
+            (token, expire_timestamp)
+        """
         expire_timestamp = int((datetime.now(timezone.utc) + expires_delta).timestamp())
         payload = {
             'sub': email,
@@ -57,7 +58,7 @@ class AuthenticationManager:
         token = jwt.encode(payload, self.settings.SECRET_KEY, algorithm=self.settings.ALGORITHM)
         return token, expire_timestamp
 
-    def decode_token(self, token: str, required_purpose: str = "access") -> dict:
+    def decode_token(self, token: str, required_purpose: str = "access") -> dict[str, Any]:
         """Decode JWT token and validate its purpose"""
         try:
             payload = jwt.decode(token, self.settings.SECRET_KEY, algorithms=[self.settings.ALGORITHM])
@@ -69,7 +70,7 @@ class AuthenticationManager:
             purpose: str | None = payload.get('purpose', required_purpose) # Default to "access" if not specified
 
             if not email or not user_id:
-                raise HTTPException(status_code=401, detail="User's email or id is not provided / verified.")
+                raise HTTPException(status_code=401, detail="User's email or id is not provided / verified for token decoding.")
 
             if purpose != required_purpose:
                 raise HTTPException(status_code=401, detail=f"Invalid token purpose. Expected: {required_purpose}, got: {purpose}")
@@ -87,9 +88,9 @@ class AuthenticationManager:
             raise HTTPException(status_code=401, detail=f"Token decoding error: {str(e)}")
 
     async def authenticate_user(self,
-                            email: EmailStr,
-                            password: str,
-                            user_service) -> CurrentUserInfo:
+                                email: EmailStr,
+                                password: str,
+                                user_service) -> CurrentUserInfo:
         """Authenticate user with email and password"""
         users_hashed_password = await user_service.get_user_hashed_password(email=email)
 

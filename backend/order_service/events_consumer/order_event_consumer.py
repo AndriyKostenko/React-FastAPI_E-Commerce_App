@@ -82,7 +82,7 @@ class OrderEventConsumer:
             # Get order service with database session
             async for order_service in self._get_order_service():
                 # Update order status to CONFIRMED
-                await order_service.update_order_status(  # pyright: ignore[reportUnusedCallResult]
+                await order_service.update_order_status(
                     order_id=event.order_id,
                     order_status=OrderStatus.CONFIRMED
                 )
@@ -114,7 +114,7 @@ class OrderEventConsumer:
         try:
             # Parse the event
             event = InventoryReserveFailed(**message)
-            self.logger.info(f"Inventory reservation failed for order {event.order_id}: {event.reason}")
+            self.logger.info(f"Inventory reservation failed for order {event.order_id}: {event.reasons}")
 
             # Get order service with database session
             async for order_service in self._get_order_service():
@@ -129,7 +129,7 @@ class OrderEventConsumer:
             await order_event_publisher.publish_order_cancelled(
                 order_id=event.order_id,
                 user_id=event.user_id,
-                reason=event.reason
+                reason=event.reasons
             )
             self.logger.info(f"Published OrderCancelledEvent for order {event.order_id}")
 

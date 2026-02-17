@@ -3,6 +3,7 @@ from uuid import UUID, uuid4
 from datetime import datetime, timezone
 
 from faststream.rabbit import RabbitQueue
+from pydantic import EmailStr
 
 from shared.shared_instances import logger, settings, broker
 from shared.event_publisher import BaseEventPublisher
@@ -24,11 +25,13 @@ class ProductEventPublisher(BaseEventPublisher):
     async def publish_inventory_reserve_succeeded(self,
                                                   order_id: UUID,
                                                   user_id: UUID,
-                                                  reserved_items: list[OrderItemBase]):
+                                                  reserved_items: list[OrderItemBase],
+                                                  user_email: EmailStr):
         """Notify Order Service that inventory reservation succeeded"""
         event = InventoryReserveSucceeded(
             event_id=uuid4(),
             user_id=user_id,
+            user_email=user_email,
             timestamp=datetime.now(timezone.utc),
             service="product-service",
             event_type="inventory.reserve.succeeded",
@@ -39,16 +42,19 @@ class ProductEventPublisher(BaseEventPublisher):
             message=event,
             queue=self.order_saga_response_queue
         )
+        self.logger.info(f"Publihing inventory reserve succeedded event for order id: {event.order_id}")
 
     async def publish_inventory_reserve_failed(self,
                                               order_id: UUID,
                                               user_id: UUID,
                                               reasons: str,
-                                              failed_items: list[OrderItemBase]):
+                                              failed_items: list[OrderItemBase],
+                                              user_email: EmailStr):
         """Notify Order Service that inventory reservation failed"""
         event = InventoryReserveFailed(
             event_id=uuid4(),
             user_id=user_id,
+            user_email=user_email,
             timestamp=datetime.now(timezone.utc),
             service="product-service",
             event_type="inventory.reserve.failed",
@@ -60,6 +66,7 @@ class ProductEventPublisher(BaseEventPublisher):
             message=event,
             queue=self.order_saga_response_queue
         )
+        self.logger.info(f"Publishing inventory reserve failed event for order id:{event.order_id}")
 
 
 product_event_publisher = ProductEventPublisher(logger=logger, settings=settings)

@@ -1,9 +1,11 @@
+from logging import Logger
 from fastapi import Request, HTTPException
 from fastapi.responses import JSONResponse
 
 from shared.shared_instances import settings, logger
 from shared.metaclasses import SingletonMetaClass
 from shared.shared_instances import auth_manager
+from shared.settings import Settings
 
 
 class AuthMiddleware(metaclass=SingletonMetaClass):
@@ -11,10 +13,10 @@ class AuthMiddleware(metaclass=SingletonMetaClass):
     Middleware to handle proper access via JWT authentication by validating tokens with the User Service.
     """
 
-    def __init__(self, settings, logger):
-        self.settings = settings
-        self.logger = logger
-        self.PUBLIC_ENDPOINTS = {
+    def __init__(self, settings: Settings, logger: Logger):
+        self.settings: Settings = settings
+        self.logger: Logger = logger
+        self.PUBLIC_ENDPOINTS: dict[str, list[str] | None] = {
             "/health": None,
             "/docs": None,
             "/redoc": None,

@@ -97,6 +97,7 @@ class ProductEventConsumer:
                     await product_event_publisher.publish_inventory_reserve_failed(
                         order_id=event.order_id,
                         user_id=event.user_id,
+                        user_email=event.user_email,
                         reasons=reserved_items["reasons"],
                         failed_items=reserved_items["failed_products"]
                     )
@@ -113,6 +114,7 @@ class ProductEventConsumer:
                 await product_event_publisher.publish_inventory_reserve_succeeded(
                     order_id=event.order_id,
                     user_id=event.user_id,
+                    user_email=event.user_email,
                     reserved_items=reserved_items["products"]
                 )
 
@@ -122,6 +124,7 @@ class ProductEventConsumer:
             await product_event_publisher.publish_inventory_reserve_failed(
                 order_id=event.order_id,
                 user_id=event.user_id,
+                user_email=event.user_email,
                 reasons=f"System error: {str(error)}",
                 failed_items=event.items
             )

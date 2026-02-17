@@ -98,14 +98,14 @@ class RedisManager:
     async def clear_cache_namespace(self,
                                     request: Request,
                                     namespace: str,
-                                    force_method: str | None = "GET") -> bool:
+                                    force_method: str | None = "GET") -> None:
         """
         Clear all keys in a namespace (pattern-based) safely using Redis SCAN.
         Works with API versioning automatically.
         """
         if namespace not in self.namespaces:
             self.logger.error("Namespace is missing or incorrect for clearing cache.")
-            return False
+            return
 
         # Generate pattern-based cache key including API version
         pattern_key = self._generate_cache_key(
@@ -116,7 +116,7 @@ class RedisManager:
 
         if not pattern_key:
             self.logger.error(f"Failed to generate cache key for namespace: {namespace}")
-            return False
+            return
 
         deleted_count = 0
         try:
@@ -126,11 +126,11 @@ class RedisManager:
                 deleted_count += 1
 
             self.logger.info(f"Cleared: {deleted_count} keys in namespace: '{namespace}'")
-            return True
+            return
 
         except Exception as e:
             self.logger.error(f"Error clearing namespace '{namespace}': {str(e)}", exc_info=True)
-            return False
+            return
 
     def _should_skip_caching(self, request: Request, response: Response) -> bool:
         """
