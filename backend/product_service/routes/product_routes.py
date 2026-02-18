@@ -3,14 +3,14 @@ from typing import Annotated, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, File, Form, Query, Request, UploadFile, status
-from shared.customized_json_response import JSONResponse  # type: ignore
-from shared.shared_instances import product_service_redis_manager  # type: ignore
+from shared.customized_json_response import JSONResponse
+from shared.shared_instances import product_service_redis_manager
 
 from dependencies.dependencies import (
     product_service_dependency,
 )
 from models.product_models import Product
-from schemas.product_schemas import (
+from shared.schemas.product_schemas import (
     CreateProduct,
     ProductBase,
     ProductSchema,

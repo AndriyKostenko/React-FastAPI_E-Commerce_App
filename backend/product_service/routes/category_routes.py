@@ -16,7 +16,7 @@ from shared.shared_instances import product_service_redis_manager, settings
 
 from dependencies.dependencies import category_service_dependency
 from models.category_models import ProductCategory
-from schemas.category_schema import (
+from shared.schemas.category_schema import (
     CategoriesFilterParams,
     CategorySchema,
     CreateCategory,

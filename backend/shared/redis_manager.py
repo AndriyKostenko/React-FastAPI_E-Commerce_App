@@ -1,4 +1,4 @@
-from typing import Any, AsyncGenerator, Callable, Optional
+from typing import Any, Optional
 from functools import wraps
 from time import perf_counter
 from math import ceil
@@ -413,6 +413,18 @@ class RedisManager:
             return False
 
     # ==================== CONNECTION MANAGEMENT ====================
+    async def connect(self) -> None:
+        """
+        Establish and verify the Redis connection at service startup.
+        Raises RuntimeError if Redis is unreachable — aborts startup intentionally.
+        Use this in FastAPI lifespans. Use health_check() for health endpoints.
+        """
+        try:
+            await self.redis.ping()
+            self.logger.info(f"Redis connection established for {self.service_prefix}")
+        except Exception as error:
+            self.logger.error(f"Redis connection failed for {self.service_prefix}: {str(error)}")
+            raise RuntimeError(f"Redis unavailable for {self.service_prefix}: {str(error)}")
 
     async def health_check(self) -> dict[str, Any]:
         """Comprehensive health check for Redis"""

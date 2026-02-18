@@ -11,6 +11,7 @@ from shared.metaclasses import SingletonMetaClass
 from shared.base_exceptions import EmailServiceError
 from shared.settings import Settings
 from shared.schemas.event_schemas import (
+    EmailVerificationEvent,
     UserRegisteredEvent,
     PasswordResetRequestedEvent,
     UserLoginEvent,
@@ -113,6 +114,20 @@ class UserRelatedNotifications(EmailService):
             template_name="email_verification.html"
         )
         self.logger.info(f"Sending verification email to: {event.user_email} with token: {event.token}")
+
+    async def send_email_verified_notification(self, event: EmailVerificationEvent) -> None:
+        """Send account activation confirmation email."""
+        await self.send_email_async(
+            subject="Your Email Has Been Verified!",
+            recipients=[event.user_email],
+            template_name="email_verified.html",
+            template_body={
+                "app_name": self.settings.MAIL_FROM_NAME,
+                "email": event.user_email,
+                "login_url": f"http://{self.settings.APP_HOST}:{self.settings.API_GATEWAY_SERVICE_APP_PORT}{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/login"
+            }
+        )
+
 
     async def send_password_reset_email(self, event: PasswordResetRequestedEvent) -> None:
         """Send password reset email - called from event consumer."""

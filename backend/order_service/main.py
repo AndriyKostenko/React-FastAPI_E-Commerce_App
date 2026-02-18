@@ -13,7 +13,8 @@ from shared.base_exceptions import (BaseAPIException, RateLimitExceededError)
 from shared.shared_instances import (order_service_redis_manager,
                                     order_service_database_session_manager,
                                     logger,
-                                    settings)
+                                    settings,
+                                    base_event_publisher)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -23,8 +24,11 @@ async def lifespan(app: FastAPI):
     """
 
     logger.info(f"Server is starting up on {settings.APP_HOST}:{settings.ORDER_SERVICE_APP_PORT}...")
-    await order_service_redis_manager.health_check()
+    await order_service_redis_manager.connect()
     await order_service_database_session_manager.init_db()
+    logger.info("Order service DB connection is closed.")
+    await base_event_publisher.start()
+    logger.info("RabbitMQ Event publisher is started.")
     logger.info('Server startup complete!')
 
     yield
@@ -32,8 +36,10 @@ async def lifespan(app: FastAPI):
     await order_service_database_session_manager.close()
     logger.warning("Database connection closed on shutdown!")
     await order_service_redis_manager.close()
-    logger.warning("Cache connection closed on shutdown!")
-    logger.warning(f"Server has shut down !")
+    logger.warning("Redis Cache connection closed on shutdown!")
+    await base_event_publisher.stop()
+    logger.warning("RabbitMQ Event publisher is stopped.")
+    logger.warning("Server has shut down !")
 
 
 

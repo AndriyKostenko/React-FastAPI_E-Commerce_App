@@ -6,9 +6,9 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, PositiveInt, field_validator
 
-from schemas.category_schema import CategorySchema
-from schemas.product_image_schema import ImageType
-from schemas.review_schemas import ReviewSchema
+from shared.schemas.category_schema import CategorySchema
+from shared.schemas.product_image_schema import ImageType
+from shared.schemas.review_schemas import ReviewSchema
 
 # --- Product Schemas ---
 

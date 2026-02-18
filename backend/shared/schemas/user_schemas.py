@@ -25,14 +25,14 @@ class UserSignUp(BaseModel):
     email: EmailStr = Field(..., description="User's email")
     password: str = Field(..., min_length=8, max_length=100,description="User's password")
     is_verified: Optional[bool] = Field(False, description="User's verification status")
-    role: Optional[str] = "user"
+    role: str = "user"
 
     model_config = ConfigDict(from_attributes=True)
 
 class CurrentUserInfo(BaseModel):
     email: EmailStr
     id: UUID
-    role: str | None
+    role: str
 
 
 
@@ -103,7 +103,6 @@ class ForgotPasswordRequest(BaseModel):
 
 class ForgotPasswordResponse(BaseModel):
     email: EmailStr
-    reset_token: str
     detail: str
 
 
@@ -134,6 +133,3 @@ class UsersFilterParams(BaseModel):
     date_created_to: Optional[datetime] = Field(None, description="Filter users created up to this date")
     date_updated_from: Optional[datetime] = Field(None, description="Filter users updated from this date")
     date_updated_to: Optional[datetime] = Field(None, description="Filter users updated up to this date")
-
-
-

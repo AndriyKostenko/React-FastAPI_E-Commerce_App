@@ -19,17 +19,16 @@ class Order(Base, TimestampMixin):
     )
 
     id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4, unique=True)
-    user_id: Mapped[UUID] = mapped_column(ForeignKey('users.id'), nullable=False)
+    user_id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), nullable=False)
     amount: Mapped[float] = mapped_column(nullable=False)
     currency: Mapped[str] = mapped_column(nullable=False)
     status: Mapped[str] = mapped_column(nullable=False)
     delivery_status: Mapped[str] = mapped_column(nullable=False)
     payment_intent_id: Mapped[str] = mapped_column(unique=True, nullable=True)
-    address_id: Mapped[str] = mapped_column(ForeignKey('order_addresses.id'), nullable=False)
+    address_id: Mapped[UUID] = mapped_column(ForeignKey('order_addresses.id'), nullable=False)
 
     address: Mapped['OrderAddress'] = relationship('OrderAddress', back_populates='orders')
     items: Mapped[list['OrderItem']] = relationship('OrderItem', back_populates='order')
-    user: Mapped['User'] = relationship('User', back_populates='orders')
 
     @classmethod
     def get_search_fields(cls) -> list[str]:

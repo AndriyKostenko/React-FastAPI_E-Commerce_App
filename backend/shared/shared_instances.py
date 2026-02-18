@@ -5,9 +5,10 @@ from shared.logger_config import setup_logger
 from shared.redis_manager import RedisManager
 from shared.settings import get_settings
 from shared.database_setup import DatabaseSessionManager
-from shared.authentication import AuthenticationManager
+from shared.password_manager import PasswordManager
+from shared.token_manager import TokenManager
 from shared.event_publisher import BaseEventPublisher
-from idempotency_service import IdempotencyEventService
+from shared.idempotency_service import IdempotencyEventService
 
 
 # Initialize settings
@@ -20,8 +21,11 @@ logger = setup_logger(__name__)
 user_notification_email_service = UserRelatedNotifications(settings=settings, logger=logger)
 order_notification_email_service = OrderRelatedNotifications(settings=settings, logger=logger)
 
-# Authentication Manager
-auth_manager = AuthenticationManager(settings=settings)
+#Password manager
+password_manager = PasswordManager(settings=settings)
+
+#Token Manager
+token_manager = TokenManager(settings=settings)
 
 # FastStream Event Publisher (RabbitMQ)
 broker = RabbitBroker(settings.RABBITMQ_BROKER_URL)

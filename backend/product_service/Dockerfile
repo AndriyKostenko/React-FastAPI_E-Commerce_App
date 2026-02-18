@@ -51,8 +51,8 @@ RUN apt-get update \
     && adduser --system --uid 1002 --ingroup productgroup productuser \
     && mkdir -p /app/logs \
     && mkdir -p /media/images \
-    $$ mkdir -p /media/icons \
-    && chown -R productuser:productgroup /app \ 
+    && mkdir -p /media/icons \
+    && chown -R productuser:productgroup /app \
     && chown -R productuser:productgroup /media
 
 # Copy dependencies from builder

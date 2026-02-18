@@ -200,7 +200,7 @@ class BaseRepository(Generic[ModelType]):
         await self.session.refresh(obj)
         return obj
 
-    async def update_by_field(self, field_name: str, value: str, **kwargs) -> Optional[ModelType]:
+    async def update_by_field(self, field_name: str, value: str, **kwargs) -> ModelType | None:
         """Update a record by field value with new values"""
         existing_obj = await self.get_by_field(field_name, value)
         if not existing_obj:

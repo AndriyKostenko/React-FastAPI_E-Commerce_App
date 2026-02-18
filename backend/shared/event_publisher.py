@@ -34,7 +34,7 @@ class BaseEventPublisher:
         """Generic method to publish an event"""
         # the message will be automaticallyy converted to JSON by FastStream
         await self.broker.publish(
-            message=message,
+            message=message.model_dump_json(),
             queue=queue,
         )
         self.logger.info(f"Published event with msg: {message.model_dump_json()} to: {queue}")

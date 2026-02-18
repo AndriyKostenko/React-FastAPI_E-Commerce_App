@@ -10,7 +10,7 @@ from fastapi.exceptions import ResponseValidationError, RequestValidationError
 
 from routes.user_routes import user_routes
 from shared.base_exceptions import (BaseAPIException, RateLimitExceededError)
-from shared.shared_instances import (user_service_redis_manager,
+from shared.shared_instances import (base_event_publisher, user_service_redis_manager,
                                     user_service_database_session_manager,
                                     logger,
                                     settings)
@@ -26,17 +26,23 @@ async def lifespan(app: FastAPI):
     """
 
     logger.info(f"Server is starting up on {settings.APP_HOST}:{settings.USER_SERVICE_APP_PORT}...")
-    await user_service_redis_manager.health_check()
+    await user_service_redis_manager.connect()
+    logger.info("User service redis manager is ok.")
     await user_service_database_session_manager.init_db()
+    logger.info("User service DB manager is started.")
+    await base_event_publisher.start()
+    logger.info("RabbitMQ Event publisher is started.")
     logger.info('Server startup complete!')
 
     yield
 
     await user_service_database_session_manager.close()
     logger.warning("Database connection closed on shutdown!")
+    await base_event_publisher.stop()
+    logger.warning("RabbitMQ broker disconnected on shutdown!")
     await user_service_redis_manager.close()
     logger.warning("Cache connection closed on shutdown!")
-    logger.warning("Server has shut down !")
+    logger.warning("Server has shut down!")
 
 
 
@@ -63,7 +69,7 @@ async def host_validation_middleware(request: Request, call_next):
         response = await call_next(request)
         return response
 
-    logger.warning(f"Invalid Host header: {host} from {request.client.host}") # type: ignore
+    logger.warning(f"Invalid Host header: {host} from {request.client.host}")
     raise HTTPException(
         status_code=400,
         detail="Invalid Host header",

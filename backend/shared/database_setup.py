@@ -1,10 +1,11 @@
 from contextlib import asynccontextmanager
+from logging import Logger
 from typing import AsyncGenerator, Dict
 
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker, AsyncEngine # type: ignore
 
 from shared.models.models_base_class import Base # type: ignore
-from shared.base_exceptions import DatabaseConnectionError, DatabaseSessionError # type: ignore
+from shared.base_exceptions import BaseAPIException, DatabaseConnectionError, DatabaseSessionError # type: ignore
 
 
 
@@ -22,12 +23,12 @@ class DatabaseSessionManager:
     - Uses SQLAlchemy's async engine and sessionmaker for asynchronous operations.
     - Uses a logger for logging database operations and errors.
     """
-    def __init__(self, database_url: str, engine_settings: Dict[str, int], logger) -> None:
+    def __init__(self, database_url: str, engine_settings: Dict[str, int], logger: Logger) -> None:
         self.async_engine: AsyncEngine | None = None
         self.async_session: async_sessionmaker[AsyncSession] | None = None
-        self.database_url = database_url
+        self.database_url: str = database_url
         self.engine_settings = engine_settings
-        self.logger = logger
+        self.logger: Logger = logger
 
         # Initializing the database engine and session maker
         self._initialize_engine()
@@ -76,6 +77,11 @@ class DatabaseSessionManager:
             try:
                 yield session
                 await session.commit()
+            except BaseAPIException as e:
+                # Expected business logic errors (4xx) - rollbacl silently
+                await session.rollback()
+                self.logger.warning(f"Session rollback due to expected exception: {e.status_code}: {e.detail}")
+                raise
             except Exception as e:
                 await session.rollback()
                 self.logger.exception(f"Session rollback due to exception: {str(e)}")

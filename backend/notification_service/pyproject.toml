@@ -20,7 +20,7 @@ dependencies = [
     "passlib>=1.7.4",
     "python-jose>=3.5.0",
     "alembic>=1.17.1",
-    "faststream[rabbit]>=0.6.5",
+    "faststream[cli,rabbit]>=0.6.5",
 ]
 
 [tool.uv.sources]

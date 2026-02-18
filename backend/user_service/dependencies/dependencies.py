@@ -1,15 +1,15 @@
 from typing import Annotated, AsyncGenerator
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi.security import OAuth2PasswordBearer
 
 from service_layer.user_service import UserService
 from database_layer.user_repository import UserRepository
-from shared.shared_instances import user_service_database_session_manager, auth_manager
+from shared.token_manager import TokenManager
+from shared.password_manager import PasswordManager
+from shared.shared_instances import user_service_database_session_manager, settings
 from shared.schemas.user_schemas import CurrentUserInfo
-from shared.shared_instances import settings
-
-
 
 """
 FLow Diagram for Database Session Management in FastAPI:
@@ -34,7 +34,12 @@ FLow Diagram for Database Session Management in FastAPI:
     8.After the response (or on error), the AsyncSession context manager exits and closes/cleans up.
 """
 
-
+# OAuth2PasswordBearer is a class that provides a way to extract the token from the request
+# scheme_name is similar to variable name
+oauth2_scheme = OAuth2PasswordBearer(
+    tokenUrl=settings.TOKEN_URL,
+    scheme_name="oauth2_scheme"
+ )
 
 async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
     """
@@ -48,17 +53,32 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
     async with user_service_database_session_manager.transaction() as session:
         yield session
 
+def get_password_manager() -> PasswordManager:
+    """Provide password manager instance"""
+    return PasswordManager(settings)
 
-def get_user_service(session: AsyncSession = Depends(get_db_session)) -> UserService:
+def get_token_manager() -> TokenManager:
+    """Provide token manager instance"""
+    return TokenManager(settings)
+
+def get_user_service(session: AsyncSession = Depends(get_db_session),
+                    password_manager: PasswordManager = Depends(get_password_manager),
+                    token_manager: TokenManager = Depends(get_token_manager)) -> UserService:
     """Dependency to provide UserService with UserRepository for database operations."""
-    return UserService(UserRepository(session=session))
+    return UserService(
+        repository=UserRepository(session=session),
+        password_manager=password_manager,
+        token_manager=token_manager
+    )
+
+# Type annotations for dependency injection
+user_service_dependency = Annotated[UserService, Depends(get_user_service)]
 
 
-
-async def require_admin(current_user: CurrentUserInfo = Depends(auth_manager.get_current_user_from_token)):
-    if not current_user or current_user.role != settings.SECRET_ROLE:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required")
-    return current_user
-
-
-user_crud_dependency = Annotated[UserService, Depends(get_user_service)]
+async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)],user_service: user_service_dependency) -> CurrentUserInfo:
+    """
+    Dependency
+    - extracts token from request
+    - delegetas validation to UserService
+    """
+    return await user_service.get_current_user_from_token(token)

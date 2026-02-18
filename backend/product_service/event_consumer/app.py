@@ -2,6 +2,7 @@ from typing import Any
 
 from faststream import FastStream
 from faststream.rabbit import RabbitQueue
+from orjson import loads
 
 from shared.shared_instances import broker
 from event_consumer.product_event_consumer import product_event_consumer
@@ -22,7 +23,7 @@ product_inventory_events_queue = RabbitQueue(
 
 # Register the subscriber function (FastStream requires this at module level)
 @broker.subscriber(product_inventory_events_queue)
-async def handle_inventory_events(message: dict[str, Any]):
+async def handle_inventory_events(body: str):
     """
     FastStream subscriber function that delegates to the OrderEventConsumer class.
 
@@ -32,4 +33,5 @@ async def handle_inventory_events(message: dict[str, Any]):
     - Clear separation of concerns
     - Easy testing (can test OrderEventConsumer independently)
     """
+    message: dict[str, Any] = loads(body)
     await product_event_consumer.handle_inventory_saga_event(message)

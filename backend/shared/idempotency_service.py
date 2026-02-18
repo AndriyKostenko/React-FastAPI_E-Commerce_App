@@ -2,8 +2,10 @@ from logging import Logger
 from uuid import UUID
 from datetime import datetime, timezone
 
-from redis_manager import RedisManager
 from orjson import dumps
+
+from shared.redis_manager import RedisManager
+
 
 
 class IdempotencyEventService(RedisManager):

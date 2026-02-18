@@ -3,7 +3,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, EmailStr, PositiveFloat
 
-from schemas.order_schemas import OrderItemBase
+from shared.schemas.order_schemas import OrderItemBase
 
 
 class BaseEvent(BaseModel):
@@ -42,6 +42,9 @@ class EmailVerificationRequestedEvent(UserBaseEvent):
     """Event published when email verification is requested"""
     verification_token: str | None = None
 
+class EmailVerificationEvent(UserBaseEvent):
+    """Event published when email verification is proceeded"""
+    ...
 
 # ============== ORDER SAGA EVENTS ==============
 class OrderBaseEvent(BaseEvent):

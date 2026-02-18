@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr, Field
-from typing import List
+from typing import Any, List
 
 
 class VerificationEmailSchema(BaseModel):
@@ -11,7 +11,7 @@ class PasswordUpdateResponse(BaseModel):
 
 class EmailSchema(BaseModel):
     email: EmailStr
-    body: dict
+    body: dict[str, Any]
 
 class ForgotPasswordRequest(BaseModel):
     email: EmailStr

@@ -104,6 +104,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
     env_file:
       - .env
     environment:
@@ -150,6 +152,23 @@ services:
       timeout: 10s
       retries: 3
 
+  product-consumer:
+    build:
+      context: ./product_service
+      dockerfile: Dockerfile.consumer
+    restart: unless-stopped
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      product-service:
+        condition: service_healthy
+    env_file:
+      - .env
+    networks:
+      - usernet
+    volumes:
+      - ./shared:/app/shared:ro
+
   notification-service:
     build:
       context: ./notification_service
@@ -186,8 +205,6 @@ services:
       context: ./notification_service
       dockerfile: Dockerfile.consumer
     restart: unless-stopped
-    ports:
-      - "8004:8004"
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -199,7 +216,6 @@ services:
       - usernet
     volumes:
       - ./shared:/app/shared:ro
-    # healthcheck implementation?
 
   order-service:
     build:
@@ -230,6 +246,23 @@ services:
       interval: 60s
       timeout: 10s
       retries: 3
+
+  order-consumer:
+    build:
+      context: ./order_service
+      dockerfile: Dockerfile.consumer
+    restart: unless-stopped
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      order-service:
+        condition: service_healthy
+    env_file:
+      - .env
+    networks:
+      - usernet
+    volumes:
+      - ./shared:/app/shared:ro
 
 
   admin-js-service:

@@ -3,11 +3,11 @@ from uuid import UUID
 
 from fastapi import APIRouter, File, Form, Request, UploadFile, status
 
-from shared.customized_json_response import JSONResponse  # type: ignore
-from shared.shared_instances import product_service_redis_manager  # type: ignore
+from shared.customized_json_response import JSONResponse
+from shared.shared_instances import product_service_redis_manager
 from dependencies.dependencies import product_image_service_dependency
 from models.product_image_models import ProductImage
-from schemas.product_image_schema import ProductImageSchema
+from shared.schemas.product_image_schema import ProductImageSchema
 
 product_images_routes = APIRouter(tags=["product_images"])
 
@@ -135,7 +135,7 @@ async def update_product_image(
 @product_service_redis_manager.ratelimiter(times=10, seconds=60)
 async def delete_product_image(
     request: Request, image_id: UUID, image_service: product_image_service_dependency
-) -> JSONResponse:
+) -> None:
     await image_service.delete_product_image(image_id)
     await product_service_redis_manager.clear_cache_namespace(
         request=request, namespace="product_images"

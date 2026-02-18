@@ -2,9 +2,8 @@ from logging import Logger
 from fastapi import Request, HTTPException
 from fastapi.responses import JSONResponse
 
-from shared.shared_instances import settings, logger
+from shared.shared_instances import settings, logger, token_manager
 from shared.metaclasses import SingletonMetaClass
-from shared.shared_instances import auth_manager
 from shared.settings import Settings
 
 
@@ -85,11 +84,9 @@ class AuthMiddleware(metaclass=SingletonMetaClass):
         token = auth_header.split(" ")[1]
         self.logger.info(f"🔍 Extracted token (first 20 chars): {token[:20]}...")
 
-        # 3. Validate the token with the User Service
+        # 3. Validate token using token_manager
         try:
-            # Use shared auth manager to decode token
-            user_data = auth_manager.decode_token(token)
-
+            user_data = token_manager.decode_token(token)
             # Attach user data to request state for downstream access
             request.state.current_user = user_data
             self.logger.info(f"Token is validated for: {user_data.get('email')}")

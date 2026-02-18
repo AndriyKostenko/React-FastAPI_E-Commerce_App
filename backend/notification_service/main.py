@@ -15,9 +15,6 @@ from shared.shared_instances import (notification_service_redis_manager,
                                     settings)
 from shared.base_exceptions import (BaseAPIException, RateLimitExceededError)
 from routes.notification_routes import notification_routes
-from events_publisher.notification_events_publisher import notification_events_publisher
-
-
 
 
 @asynccontextmanager
@@ -27,12 +24,10 @@ async def lifespan(app: FastAPI):
     events of a FastAPI application.
     """
     logger.info(f"Server is starting up on {settings.APP_HOST}:{settings.NOTIFICATION_SERVICE_APP_PORT}...")
-    await notification_service_redis_manager.health_check()
+    await notification_service_redis_manager.connect()
     logger.info("Redis health check passed.")
     await notification_service_database_session_manager.init_db()
     logger.info("Database initialized successfully.")
-    await notification_events_publisher.start()
-    logger.info("Notification events publisher started.")
     logger.info('Server startup complete!')
 
     yield
@@ -41,8 +36,6 @@ async def lifespan(app: FastAPI):
     logger.warning("Database connection closed on shutdown!")
     await notification_service_redis_manager.close()
     logger.warning("Cache connection closed on shutdown!")
-    await notification_events_publisher.stop()
-    logger.warning("Notification events publisher stopped on shutdown!")
     logger.warning("Server has shut down !")
 
 
@@ -70,7 +63,7 @@ async def host_validation_middleware(request: Request, call_next):
         response = await call_next(request)
         return response
 
-    logger.warning(f"Invalid Host header: {host} from {request.client.host}") # type: ignore
+    logger.warning(f"Invalid Host header: {host} from {request.client.host}")
     raise HTTPException(
         status_code=400,
         detail="Invalid Host header",

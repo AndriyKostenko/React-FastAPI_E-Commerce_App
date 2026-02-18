@@ -9,7 +9,8 @@ from shared.schemas.event_schemas import (
     PasswordResetRequestedEvent,
     PasswordResetSuccessEvent,
     UserLoginEvent,
-    UserRegisteredEvent
+    UserRegisteredEvent,
+    EmailVerificationEvent
 )
 from shared.settings import Settings
 from shared.shared_instances import broker, logger, settings
@@ -68,7 +69,7 @@ class NotificationEventPublisher(BaseEventPublisher):
         await self.publish_an_event(message=event, queue=self.user_events_queue)
         self.logger.info(f"Published password.reset.requested event for {email}")
 
-    async def publish_password_reset_seccess(self, email: EmailStr):
+    async def publish_password_reset_success(self, email: EmailStr):
         event = PasswordResetSuccessEvent(
             user_email=email,
             event_id=uuid4(),
@@ -79,6 +80,17 @@ class NotificationEventPublisher(BaseEventPublisher):
         await self.publish_an_event(message=event, queue=self.user_events_queue)
         self.logger.info(f"Published password.reset.success event for {email}")
 
+
+    async def publish_email_verified(self, email: EmailStr):
+        event = EmailVerificationEvent(
+            user_email=email,
+            event_id=uuid4(),
+            timestamp=datetime.now(timezone.utc),
+            service="user-service",
+            event_type="user.email.verified",
+        )
+        await self.publish_an_event(message=event, queue=self.user_events_queue)
+        self.logger.info(f"Published email.verified event for {email}")
 
 notification_events_publisher = NotificationEventPublisher(
     logger=logger, settings=settings

@@ -2,9 +2,11 @@ from typing import Any
 
 from faststream import FastStream
 from faststream.rabbit import RabbitQueue
+from orjson import loads
 
 from shared.shared_instances import logger, user_notification_email_service, order_notification_email_service
 from shared.schemas.event_schemas import (
+    EmailVerificationEvent,
     UserRegisteredEvent,
     PasswordResetRequestedEvent,
     UserLoginEvent,
@@ -49,12 +51,17 @@ order_events_queue = RabbitQueue(
 
 
 @broker.subscriber(queue=user_events_queue)
-async def handle_user_events(message: dict[str, Any]):
-    """Handle user registration and password reset events"""
-    match message.get("event_type"):
+async def handle_user_events(body: str):
+    """Handle user-related events"""
+    message: dict[str, Any] = loads(body)
+    event_type = message.get("event_type")
+    match event_type:
         case "user.registered":
             event = UserRegisteredEvent(**message)
             await user_notification_email_service.send_verification_email(event)
+        case "user.email.verified":
+            event = EmailVerificationEvent(**message)
+            await user_notification_email_service.send_email_verified_notification(event)
         case "user.logged.in":
             event = UserLoginEvent(**message)
             await user_notification_email_service.send_login_notification_email(event)
@@ -69,9 +76,11 @@ async def handle_user_events(message: dict[str, Any]):
 
 
 @broker.subscriber(queue=order_events_queue)
-async def handle_order_events(message: dict[str, Any]):
+async def handle_order_events(body: str):
     """Handle order-related notification events."""
-    match message.get("event_type"):
+    message: dict[str, Any] = loads(body)
+    event_type = message.get("event_type")
+    match event_type:
         case "order.created":
             event = OrderCreatedEvent(**message)
             await order_notification_email_service.send_order_created_notification(event)

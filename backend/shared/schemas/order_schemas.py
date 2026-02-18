@@ -2,7 +2,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, PositiveFloat, PositiveInt
 
-from schemas.product_schemas import ProductSchema
+from shared.schemas.product_schemas import ProductSchema
 
 
 class OrderSchema(BaseModel):

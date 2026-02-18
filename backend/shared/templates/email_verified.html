@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Verify Your Email</title>
+    <title>Email Verified Successfully</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -48,18 +48,16 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>Welcome to {{ app_name }}! 👋</h1>
+            <h1>You're All Set! ✅</h1>
         </div>
 
         <div class="content">
             <p>Hi <strong>{{ email }}</strong>,</p>
-            <p>Thanks for signing up! Please verify your email address to activate your account.</p>
-            <p>Click the button below — this link expires in 24 hours.</p>
-            <a href="{{ activate_url }}" class="button">Verify Email Address</a>
-            <p>If the button doesn't work, copy and paste this link into your browser:</p>
-            <p style="word-break: break-all; color: #007bff;">{{ activate_url }}</p>
-            <p>If you did not create an account, you can safely ignore this email.</p>
-            <p>Best regards,<br>The {{ app_name }} Team</p>
+            <p>Your email address has been successfully verified. Your <strong>{{ app_name }}</strong> account is now fully active.</p>
+            <p>You can now log in and start shopping!</p>
+            <a href="{{ login_url }}" class="button">Go to Login</a>
+            <p>If you have any questions, feel free to reach out to our support team.</p>
+            <p>Welcome aboard,<br>The {{ app_name }} Team</p>
         </div>
 
         <div class="footer">

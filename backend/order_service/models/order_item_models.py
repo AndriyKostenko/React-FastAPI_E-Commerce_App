@@ -17,15 +17,14 @@ class OrderItem(Base, TimestampMixin):
         Index('idx_order_items_product_id', 'product_id'),
     )
 
-    id: Mapped[str] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4, unique=True)
-    order_id: Mapped[str] = mapped_column(ForeignKey('orders.id'), nullable=False)
-    product_id: Mapped[str] = mapped_column(ForeignKey('products.id'), nullable=False)
+    id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4, unique=True)
+    order_id: Mapped[UUID] = mapped_column(ForeignKey('orders.id'), nullable=False)
+    product_id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), nullable=False)
     quantity: Mapped[int] = mapped_column(nullable=False)
     price: Mapped[float] = mapped_column(nullable=False)
 
     order: Mapped['Order'] = relationship('Order', back_populates='items')
-    product: Mapped['Product'] = relationship('Product') 
-    
+
     @classmethod
     def get_search_fields(cls) -> list[str]:
         """Return list of fields to be used in search operations"""
@@ -66,4 +65,3 @@ class OrderItem(Base, TimestampMixin):
 
         type_name = sql_type.__class__.__name__.upper()
         return type_mapping.get(type_name, 'string')
-

@@ -5,7 +5,7 @@ import aiofiles
 from fastapi import UploadFile
 
 from exceptions.product_image_exceptions import ProductImageProcessingError
-from schemas.product_image_schema import ImageType
+from shared.schemas.product_image_schema import ImageType
 
 
 class ImageProcessingManager:
@@ -14,8 +14,13 @@ class ImageProcessingManager:
     ICONS_DIR = os.path.abspath(os.path.join(BASE_DIR, "../../media/icons"))
 
     def __init__(self):
+        pass  # Directories are created lazily when files are first saved
+
+    def _ensure_dirs(self):
+        """Create media directories only when actually needed (lazy init)."""
         os.makedirs(self.MEDIA_DIR, exist_ok=True)
         os.makedirs(self.ICONS_DIR, exist_ok=True)
+
 
     @staticmethod
     def _safe_split_filename(filename: str | None) -> tuple[str, str]:
@@ -37,14 +42,15 @@ class ImageProcessingManager:
 
     async def _save_file(self, file: UploadFile, target_dir: str) -> str:
         """Save an uploaded image to the specified directory and return its path."""
+        self._ensure_dirs()  # create dirs only when actually saving a file
         filename = self._generate_filename(file.filename)
         file_path = os.path.join(target_dir, filename)
         async with aiofiles.open(file_path, "wb") as out_file:
             content = await file.read()
             await out_file.write(content)
-        # Optional: reset file pointer if image is reused later
         await file.seek(0)
         return file_path
+
 
     async def save_image(self, image: UploadFile) -> str:
         """Save a single image and return its path."""

@@ -56,7 +56,6 @@ class OrderEventConsumer:
         Route SAGA responses to appropriate handlers based on event type.
         """
         event_type = message.get("event_type")
-
         match event_type:
             case "inventory.reserve.succeeded":
                 await self.handle_inventory_reserve_succeeded(message)

@@ -13,6 +13,14 @@ class UserRepository(BaseRepository[User]):
     def __init__(self, session: AsyncSession):
         super().__init__(session, User)
 
+    # TODO: make this repository more specific to user and make BaseRepository simplier for basic CRUD operations
+    async def search(self,
+                    filters: dict,
+                    search_term: str | None,
+                    limit: int,
+                    offset: int):
+                        pass
+
     async def get_users_by_role(self, role: str) -> list[User]:
         """Get all users with specific role"""
         return await self.filter_by(role=role)

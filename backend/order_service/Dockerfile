@@ -51,7 +51,7 @@ RUN apt-get update \
     && adduser --system --uid 1005 --ingroup ordergroup orderuser \
     && mkdir -p /app/logs \
     && mkdir -p /media/images \
-    $$ mkdir -p /media/icons \
+    && mkdir -p /media/icons \
     && chown -R orderuser:ordergroup /app \
     && chown -R orderuser:ordergroup /media
 

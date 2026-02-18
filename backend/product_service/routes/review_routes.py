@@ -3,7 +3,7 @@ from typing import List
 
 from fastapi import APIRouter, status, Request
 
-from schemas.review_schemas import ReviewSchema, CreateReview, UpdateReview
+from shared.schemas.review_schemas import ReviewSchema, CreateReview, UpdateReview
 from dependencies.dependencies import review_service_dependency, product_service_dependency
 from shared.customized_json_response import JSONResponse
 from shared.shared_instances import product_service_redis_manager, settings
@@ -15,8 +15,8 @@ review_routes = APIRouter(
 )
 
 
-@review_routes.post("/products/{product_id}/users/{user_id}/reviews", 
-                   response_model=ReviewSchema, 
+@review_routes.post("/products/{product_id}/users/{user_id}/reviews",
+                   response_model=ReviewSchema,
                    response_description="Create product review")
 @product_service_redis_manager.ratelimiter(times=10, seconds=60)
 async def create_product_review(request: Request,
@@ -102,7 +102,7 @@ async def get_review_by_product_id_and_user_id(request: Request,
                                                product_id: UUID,
                                                user_id: UUID,
                                                review_service: review_service_dependency) -> JSONResponse:
-    review = await review_service.get_review_by_product_id_and_user_id(product_id=product_id, 
+    review = await review_service.get_review_by_product_id_and_user_id(product_id=product_id,
                                                                        user_id=user_id)
     return JSONResponse(
         content=review,
@@ -110,7 +110,7 @@ async def get_review_by_product_id_and_user_id(request: Request,
     )
 
 
-@review_routes.put("/products/{product_id}/users/{user_id}/reviews", 
+@review_routes.put("/products/{product_id}/users/{user_id}/reviews",
                   response_model=ReviewSchema,
                   response_description="Update product review")
 @product_service_redis_manager.ratelimiter(times=20, seconds=60)
@@ -149,7 +149,7 @@ async def delete_product_review(request: Request,
         content=None,
         status_code=status.HTTP_204_NO_CONTENT
     )
-    
+
 @review_routes.get("/admin/schema/reviews", summary="Schema for AdminJS")
 async def get_product_reviews_schema_for_admin_js(request: Request):
     return JSONResponse(content={"fields": ProductReview.get_admin_schema()},

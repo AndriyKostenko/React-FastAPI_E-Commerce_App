@@ -22,7 +22,7 @@ async def lifespan(app: FastAPI):
     events of a FastAPI application.
     """
     logger.info(f"Server is starting up on {settings.APP_HOST}:{settings.API_GATEWAY_SERVICE_APP_PORT}...")
-    await api_gateway_redis_manager.health_check()
+    await api_gateway_redis_manager.connect()
     logger.info('Server startup complete!')
 
     yield

@@ -11,7 +11,7 @@ from shared.models_mixins import TimestampMixin
 
 class Notification(Base, TimestampMixin):
     __tablename__ = 'notifications'
-    
+
     __table_args__ = (
         Index('idx_notification_user_id', 'user_id'),
         Index('idx_notification_date_created', 'date_created'),
@@ -22,8 +22,6 @@ class Notification(Base, TimestampMixin):
     user_id: Mapped[UUID] = mapped_column(ForeignKey('users.id'), nullable=False)
     message: Mapped[str] = mapped_column(nullable=False)
     is_read: Mapped[bool] = mapped_column(default=False, nullable=False)
-
-    user: Mapped['User'] = relationship('User', back_populates='notifications') # type: ignore
 
     def __repr__(self):
         return f"<Notification(id={self.id}, user_id={self.user_id}, message='{self.message}', is_read={self.is_read})>"
