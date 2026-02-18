@@ -116,6 +116,12 @@ class ApiGateway:
                     instances=[self.settings.FULL_NOTIFICATION_SERVICE_URL],
                     health_check_path="/health",
                     api_version=self.settings.NOTIFICATION_SERVICE_URL_API_VERSION
+                ),
+                "order-service": ServiceConfig(
+                    name="order-service",
+                    instances=[self.settings.FULL_ORDER_SERVICE_URL],
+                    health_check_path="/health",
+                    api_version=self.settings.ORDER_SERVICE_URL_API_VERSION
                 )
 
             }
@@ -196,7 +202,8 @@ class ApiGateway:
 
         return filtered_headers
 
-    @circuit(failure_threshold=5, recovery_timeout=30)
+    # TODO: check the correct work of circuit breaker, looks like now its blocikng all the services if one going to break
+    #@circuit(failure_threshold=5, recovery_timeout=30)
     async def forward_request(self, request: Request, service_name: str) -> JSONResponse:
         """
         Forward request to microservice.

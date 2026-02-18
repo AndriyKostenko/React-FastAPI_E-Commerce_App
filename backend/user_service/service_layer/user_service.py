@@ -23,7 +23,6 @@ from exceptions.user_exceptions import (
     UserUpdateError
 )
 from database_layer.user_repository import UserRepository
-from events_publisher.user_events_publisher import notification_events_publisher
 from shared.password_manager import PasswordManager
 from shared.token_manager import TokenManager
 
@@ -48,7 +47,7 @@ class UserService:
         self.password_manager: PasswordManager = password_manager
         self.token_manager: TokenManager = token_manager
 
-    async def create_user(self, data: UserSignUp) -> UserInfo:
+    async def create_user(self, data: UserSignUp) -> tuple[UserInfo , str]:
         """
         Create a new user and publish registration event.
 
@@ -63,24 +62,20 @@ class UserService:
             name=data.name,
             email=data.email,
             hashed_password=hashed_password,
-            is_verified=data.is_verified,
-            role=data.role
+            is_verified=False,
+            role="user",
+            is_active=True,
         )
         user = await self.repository.create(new_user)
         verification_token, _ = self.token_manager.create_access_token(
             email=user.email,
             user_id=user.id,
             role=user.role,
-            expires_delta=timedelta(minutes=settings.TOKEN_TIME_DELTA_MINUTES),
+            expires_delta=timedelta(minutes=settings.VERIFICATION_TOKEN_EXPIRY_MINUTES),
             purpose="email_verification"
         )
 
-        # This triggers the notification service to send verification email
-        await notification_events_publisher.publish_user_registered(
-            email=user.email,
-            token=verification_token
-        )
-        return UserInfo.model_validate(user)
+        return UserInfo.model_validate(user), verification_token
 
     async def verify_password(self, email: EmailStr, password: str) -> bool:
         user = await self.repository.get_by_field("email", email)
@@ -126,7 +121,7 @@ class UserService:
         return [UserInfo.model_validate(user) for user in users]
 
     async def get_user_by_email(self, email: EmailStr) -> UserInfo:
-        user = await self.repository.get_by_field(field_name="email", value=email)
+        user: User | None = await self.repository.get_by_field(field_name="email", value=email)
         if not user:
             raise UserNotFoundError(f"User with email {email} not found.")
         return UserInfo.model_validate(user)
@@ -231,6 +226,9 @@ class UserService:
         user = await self.get_user_by_email(email)
         if not user.is_verified:
             raise HTTPException(status_code=401, detail="User is not verified")
+        if not user.is_active:                                          # ← missing
+            raise HTTPException(status_code=401, detail="Account is deactivated")
+
         access_token, expiry_timestamp = self.token_manager.create_access_token(
             email=email,
             user_id=user.id,

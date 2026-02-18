@@ -10,6 +10,7 @@ from shared.shared_instances import settings, user_service_redis_manager
 from dependencies.dependencies import user_service_dependency
 from dependencies.dependencies import get_current_user
 from models.user_models import User
+from events_publisher.user_events_publisher import notification_events_publisher
 from shared.schemas.user_schemas import (
     CurrentUserInfo,
     EmailVerificationResponse,
@@ -58,17 +59,15 @@ the service layer, so no need to handle them here.
 async def create_user(request: Request,
                       data: UserSignUp,
                       user_service: user_service_dependency):
-    new_db_user = await user_service.create_user(data=data)
-    await user_service_redis_manager.clear_cache_namespace(
-        namespace="users", request=request
-    )
+    new_db_user, verification_token = await user_service.create_user(data=data)
+    await notification_events_publisher.publish_user_registered(new_db_user.email,verification_token)
+    await user_service_redis_manager.clear_cache_namespace(request, "users")
     return JSONResponse(content=new_db_user,status_code=status.HTTP_201_CREATED)
 
 
 @user_routes.post("/activate/{token}",
                   summary="Verify user email",
                   response_description="Email verified successfully",)
-@user_service_redis_manager.cached(ttl=60)  # Cache for 1 minute
 @user_service_redis_manager.ratelimiter(times=5, seconds=3600)
 async def verify_email(request: Request, token: str, user_service: user_service_dependency):
     db_user = await user_service.verify_email(token=token)

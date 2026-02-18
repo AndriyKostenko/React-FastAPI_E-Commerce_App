@@ -16,6 +16,7 @@ class UserInfo(BaseModel):
     date_created: datetime
     date_updated: Optional[datetime]
     is_verified: bool
+    is_active: bool
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -24,8 +25,6 @@ class UserSignUp(BaseModel):
     name: str = Field(..., min_length=2, max_length=50, description="User's name")
     email: EmailStr = Field(..., description="User's email")
     password: str = Field(..., min_length=8, max_length=100,description="User's password")
-    is_verified: Optional[bool] = Field(False, description="User's verification status")
-    role: str = "user"
 
     model_config = ConfigDict(from_attributes=True)
 
