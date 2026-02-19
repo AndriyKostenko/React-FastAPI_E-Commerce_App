@@ -1,6 +1,5 @@
 # shared/token_manager.py
 from datetime import timedelta, datetime, timezone
-from typing import Any
 from uuid import UUID
 
 from jose import jwt, JWTError
@@ -8,6 +7,7 @@ from fastapi import HTTPException
 from pydantic import EmailStr
 
 from shared.settings import Settings
+from shared.schemas.user_schemas import DecodedTokenSchema
 
 
 class TokenManager:
@@ -45,7 +45,7 @@ class TokenManager:
         )
         return token, expire_timestamp
 
-    def decode_token(self, token: str, required_purpose: str = "access") -> dict[str, Any]:
+    def decode_token(self, token: str, required_purpose: str = "access") -> DecodedTokenSchema:
         """
         Decode JWT token and validate its purpose.
 
@@ -59,8 +59,8 @@ class TokenManager:
                 algorithms=[self.settings.ALGORITHM]
             )
 
-            email: str | None = payload.get("sub")
-            user_id: str | None = payload.get("id")
+            email: EmailStr | None = payload.get("sub")
+            user_id: UUID | None = payload.get("id")
             role: str | None = payload.get("role")
             purpose: str | None = payload.get("purpose", required_purpose)
 
@@ -76,12 +76,13 @@ class TokenManager:
                     detail=f"Invalid token purpose. Expected: {required_purpose}, got: {purpose}"
                 )
 
-            return {
-                "email": email,
-                "id": user_id,
-                "role": role,
-                "purpose": purpose
-            }
+            return DecodedTokenSchema(
+                email=email,
+                id=user_id,
+                role=role,
+                purpose=purpose
+            )
+
 
         except JWTError as jwt_error:
             raise HTTPException(

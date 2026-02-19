@@ -82,3 +82,5 @@ async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)],user_se
     - delegetas validation to UserService
     """
     return await user_service.get_current_user_from_token(token)
+
+current_user_dependency = Annotated[CurrentUserInfo, Depends(get_current_user)]

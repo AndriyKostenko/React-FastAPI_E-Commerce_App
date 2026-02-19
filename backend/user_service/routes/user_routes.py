@@ -4,15 +4,13 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import EmailStr
+
 from shared.customized_json_response import JSONResponse
 from shared.shared_instances import settings, user_service_redis_manager
-
-from dependencies.dependencies import user_service_dependency
-from dependencies.dependencies import get_current_user
+from dependencies.dependencies import user_service_dependency, current_user_dependency
 from models.user_models import User
 from events_publisher.user_events_publisher import notification_events_publisher
 from shared.schemas.user_schemas import (
-    CurrentUserInfo,
     EmailVerificationResponse,
     ForgotPasswordResponse,
     PasswordUpdateResponse,
@@ -25,31 +23,6 @@ from shared.schemas.user_schemas import (
 )
 
 user_routes = APIRouter(tags=["users"])
-
-"""
-Usefull tips / rules in that module:
-1. Using `Depends(get_user_service)` to inject the user service dependency.
-2. Using `BackgroundTasks` to send emails without blocking the request.
-3. Using `ratelimiter` decorator to apply rate limiting to endpoints.
-    - each endpoint should have "request: Request" parameter for rate limiting to work
-    - GET endpoints: Use both caching and rate limiting
-    - POST/PUT/DELETE endpoints: Use rate limiting and cache invalidation
-    - Security-sensitive endpoints (login, password reset): Stricter rate limits
-    - Data retrieval endpoints: More lenient rate limits with caching
-    - Email-related endpoints: Strict rate limits to prevent spam
-
-4. Using `cached` decorator to cache GET responses.
-    - cache responses using aio Redis for improving performance
-    - GET endpoints: Use both caching and rate limiting
-    - cache key should be unique per user, e.g. by email or user ID
-    - Use `invalidate_cache` to clear cache when user data changes.
-
-5. All potential exceptions are handled in
-the service layer, so no need to handle them here.
-6. All data returned according to Pydantic schemas in service layer.
-7. Use `JSONResponse` for consistent response format and getting data and status codes for caching / ratelimiting.
-"""
-
 
 @user_routes.post("/register",
                   summary="Create new user",
@@ -64,13 +37,13 @@ async def create_user(request: Request,
     await user_service_redis_manager.clear_cache_namespace(request, "users")
     return JSONResponse(content=new_db_user,status_code=status.HTTP_201_CREATED)
 
-
 @user_routes.post("/activate/{token}",
                   summary="Verify user email",
                   response_description="Email verified successfully",)
 @user_service_redis_manager.ratelimiter(times=5, seconds=3600)
 async def verify_email(request: Request, token: str, user_service: user_service_dependency):
     db_user = await user_service.verify_email(token=token)
+    await notification_events_publisher.publish_email_verified(email=db_user.email)
     return JSONResponse(
         content=EmailVerificationResponse(
             detail="Email verified successfully",
@@ -80,18 +53,18 @@ async def verify_email(request: Request, token: str, user_service: user_service_
         status_code=status.HTTP_200_OK,
     )
 
-
 @user_routes.post("/forgot-password",
                     summary="Request password reset",
                     response_description="Password reset email sent successfully",
                     response_model=ForgotPasswordResponse)
 @user_service_redis_manager.ratelimiter(times=3, seconds=3600)
 async def forgot_password(request: Request, email: EmailStr, user_service: user_service_dependency):
-    await user_service.request_password_reset(email)
+    user, reset_token = await user_service.request_password_reset(email)
+    await notification_events_publisher.publish_password_reset_request(email=user.email,reset_token=reset_token)
     return JSONResponse(
         content=ForgotPasswordResponse(
             detail="Password reset email has been sent!",
-            email=email,
+            email=user.email,
         ),
         status_code=status.HTTP_200_OK,
     )
@@ -105,7 +78,7 @@ async def forgot_password(request: Request, email: EmailStr, user_service: user_
 async def reset_password(request: Request, token: str, data: ResetPasswordRequest, user_service: user_service_dependency):
     """Reset password using token"""
     user = await user_service.reset_password_with_token(token=token, new_password=data.new_password)
-    # Invalidate user-specific caches only
+    await notification_events_publisher.publish_password_reset_success(email=user.email)
     await user_service_redis_manager.clear_cache_namespace(namespace="users", request=request)
     await user_service_redis_manager.clear_cache_namespace(namespace="me", request=request)
     return JSONResponse(
@@ -114,7 +87,6 @@ async def reset_password(request: Request, token: str, data: ResetPasswordReques
         ),
         status_code=status.HTTP_200_OK,
     )
-
 
 @user_routes.post("/login",
                     summary="User login",
@@ -125,6 +97,7 @@ async def login(request: Request,
                 form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
                 user_service: user_service_dependency):  # request is reqired for rate limiting decorator
     user, access_token, expiry_timestamp = await user_service.login_user(form_data)
+    await notification_events_publisher.publish_user_logged_in(email=user.email)
     return JSONResponse(
         content=UserLoginDetails(
             access_token=access_token,
@@ -137,9 +110,9 @@ async def login(request: Request,
         status_code=status.HTTP_200_OK,
     )
 
-
 @user_routes.get("/me")
-async def get_me(current_user: CurrentUserInfo = Depends(get_current_user)):
+@user_service_redis_manager.cached(ttl=60)
+async def get_me(current_user: current_user_dependency):
     return current_user
 
 

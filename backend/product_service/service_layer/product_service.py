@@ -27,7 +27,6 @@ from utils.image_processing import image_processing_manager
 
 class ProductService:
     """Service layer for product management operations, business logic and data validation."""
-
     def __init__(self, repository: ProductRepository, product_image_service: ProductImageService):
         self.repository: ProductRepository = repository
         self.product_image_service:ProductImageService = product_image_service

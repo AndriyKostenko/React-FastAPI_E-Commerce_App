@@ -6,7 +6,6 @@ from service_layer.order_item_service import OrderItemService
 from database_layer.order_repository import OrderRepository
 from models.order_models import Order
 from shared.schemas.order_schemas import CreateOrder, OrderItemBase, OrderSchema, OrderAddressBase
-from events_publisher.order_event_publisher import order_event_publisher
 from exceptions.order_exceptions import OrderNotFoundError
 
 
@@ -23,14 +22,13 @@ class OrderService:
         self.order_item_service: OrderItemService = order_item_service
         self.order_address_service:OrderAddressService = order_address_service
 
-    async def create_order(self, order_data: CreateOrder) -> OrderSchema:
+    async def create_order(self, order_data: CreateOrder) -> tuple[OrderSchema, list[OrderItemBase]]:
         """
         Creating new order and initiating the SAGA pattern.
         The order status is "pending" untill the inventory is confirmed
         """
         # creating an order address
         new_db_order_address: OrderAddressBase = await self.order_address_service.create_order_address(order_data)
-
         # creating order
         new_db_order: Order = await self.repository.create(
             Order(
@@ -43,26 +41,9 @@ class OrderService:
                 address_id=new_db_order_address.id
             )
         )
-
         # creating order items
         new_db_order_items: list[OrderItemBase]  = await self.order_item_service.create_order_items(new_db_order.id, order_data)
-
-        # publishing order created event
-        await order_event_publisher.publish_order_created(
-            order_id=new_db_order.id,
-            user_id=new_db_order.user_id,
-            items=new_db_order_items,
-            total_amount=new_db_order.amount
-        )
-
-        # request inventory reservation (start SAGA)
-        await order_event_publisher.publish_inventory_reserve_requested(
-            order_id=new_db_order.id,
-            items=new_db_order_items,
-            user_id=new_db_order.user_id
-        )
-
-        return OrderSchema.model_validate(new_db_order)
+        return OrderSchema.model_validate(new_db_order), new_db_order_items
 
     async def cancel_order(self):
        pass

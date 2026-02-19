@@ -6,7 +6,8 @@ from shared.schemas.product_schemas import ProductSchema
 
 
 class OrderSchema(BaseModel):
-    id: str
+    id: UUID
+    user_id: UUID
     amount: float
     currency: str
     status: str

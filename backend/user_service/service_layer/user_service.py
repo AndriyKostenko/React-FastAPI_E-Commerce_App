@@ -6,7 +6,6 @@ from pydantic import EmailStr
 from fastapi import Query
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.exceptions import HTTPException
-from sqlalchemy.ext.asyncio.session import AsyncSession
 
 from models.user_models import User
 from shared.schemas.user_schemas import CurrentUserInfo
@@ -25,9 +24,6 @@ from exceptions.user_exceptions import (
 from database_layer.user_repository import UserRepository
 from shared.password_manager import PasswordManager
 from shared.token_manager import TokenManager
-
-
-
 
 
 class UserService:
@@ -64,17 +60,14 @@ class UserService:
             hashed_password=hashed_password,
             is_verified=False,
             role="user",
-            is_active=True,
-        )
+            is_active=True)
         user = await self.repository.create(new_user)
         verification_token, _ = self.token_manager.create_access_token(
             email=user.email,
             user_id=user.id,
             role=user.role,
             expires_delta=timedelta(minutes=settings.VERIFICATION_TOKEN_EXPIRY_MINUTES),
-            purpose="email_verification"
-        )
-
+            purpose="email_verification")
         return UserInfo.model_validate(user), verification_token
 
     async def verify_password(self, email: EmailStr, password: str) -> bool:
@@ -85,7 +78,6 @@ class UserService:
 
     async def login_user(self, form_data: OAuth2PasswordRequestForm) -> tuple[CurrentUserInfo, str, int]:
         current_user, access_token, expiry_timestamp = await self.authenticate_user(email=form_data.username, password=form_data.password)
-        await notification_events_publisher.publish_user_logged_in(email=current_user.email)
         return current_user, access_token, expiry_timestamp
 
     async def get_all_users(self, filters: Annotated[UsersFilterParams, Query()]) -> list[UserInfo]:
@@ -152,16 +144,12 @@ class UserService:
         return UserInfo.model_validate(updated_user)
 
     async def verify_email(self, token: str) -> UserInfo:
-        token_data = self.token_manager.decode_token(
-            token=token,
-            required_purpose="email_verification")
-        updated_user = await self.repository.update_by_field(
-            field_name="email",
-            value=token_data["email"],
-            is_verified=True)
+        token_data = self.token_manager.decode_token(token=token, required_purpose="email_verification")
+        updated_user = await self.repository.update_by_field(field_name="email",
+                                                            value=token_data.email,
+                                                            is_verified=True)
         if not updated_user:
             raise UserNotFoundError("User not found for verification")
-        await notification_events_publisher.publish_email_verified(email=updated_user.email)
         return UserInfo.model_validate(updated_user)
 
     async def delete_user_by_id(self, user_id: UUID) -> None:
@@ -177,7 +165,7 @@ class UserService:
         users = await self.repository.get_users_by_role(role=role)
         return [UserInfo.model_validate(user) for user in users]
 
-    async def request_password_reset(self, email: EmailStr) -> None:
+    async def request_password_reset(self, email: EmailStr) -> tuple[UserInfo, str]:
         user = await self.repository.get_by_field("email", email)
         if not user:
             raise UserNotFoundError("User not found")
@@ -188,27 +176,16 @@ class UserService:
             expires_delta=timedelta(minutes=settings.RESET_TOKEN_EXPIRY_MINUTES),
             purpose="password_reset"
         )
-        await notification_events_publisher.publish_password_reset_request(
-            email=user.email,
-            reset_token=reset_token
-        )
+        return UserInfo.model_validate(user), reset_token
 
     async def reset_password_with_token(self, token: str, new_password: str) -> UserInfo:
-        token_data = self.token_manager.decode_token(
-            token=token,
-            required_purpose="password_reset"
-        )
+        token_data = self.token_manager.decode_token(token=token,required_purpose="password_reset")
         hashed_password = self.password_manager.hash_password(new_password)
-        updated_user = await self.repository.update_by_field(
-            field_name="email",
-            value=token_data["email"],
-            hashed_password=hashed_password
-        )
+        updated_user = await self.repository.update_by_field(field_name="email",
+                                                            value=token_data.email,
+                                                            hashed_password=hashed_password)
         if not updated_user:
             raise UserUpdateError("Password reset failed")
-        await notification_events_publisher.publish_password_reset_success(
-            email=updated_user.email
-        )
         return UserInfo.model_validate(updated_user)
 
     async def authenticate_user(self,
@@ -246,7 +223,7 @@ class UserService:
     async def get_current_user_from_token(self, token: str) -> CurrentUserInfo:
         user_info = self.token_manager.decode_token(token)
         return CurrentUserInfo(
-            email=user_info["email"],
-            id=user_info["id"],
-            role=user_info["role"]
+            email=user_info.email,
+            id=user_info.id,
+            role=user_info.role
         )

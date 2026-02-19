@@ -33,17 +33,13 @@ class CurrentUserInfo(BaseModel):
     id: UUID
     role: str
 
-
-
 class UserSaveWithGoogle(BaseModel):
     email: str
     password: str = Field(..., min_length=8, description="User's password")
 
-
 class UserUpdate(BaseModel):
     name: str
     password: str
-
 
 class UserBasicUpdate(BaseModel):
     """Schema for basic user information updates"""
@@ -55,13 +51,19 @@ class UserBasicUpdate(BaseModel):
 class GetUser(BaseModel):
     email: str
 
-
 class DeleteUser(BaseModel):
     email: str
 
 class TokenSchema(BaseModel):
     access_token: str
     token_type: str
+    
+class DecodedTokenSchema(BaseModel):
+    email: EmailStr
+    id: UUID
+    role: str
+    purpose: str
+
 
 class UserLoginDetails(BaseModel):
     access_token: str

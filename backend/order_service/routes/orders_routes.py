@@ -1,9 +1,10 @@
 from fastapi import APIRouter, Request, status
 
-from shared.customized_json_response import JSONResponse  # type: ignore
-from shared.shared_instances import order_service_redis_manager # type: ignore
+from shared.customized_json_response import JSONResponse
+from shared.shared_instances import order_service_redis_manager
 from shared.schemas.order_schemas import CreateOrder, UpdateOrder, OrderSchema
 from dependencies.dependencies import order_service_dependency
+from events_publisher.order_event_publisher import order_event_publisher
 
 
 order_routes = APIRouter(tags=["orders"])
@@ -12,9 +13,18 @@ order_routes = APIRouter(tags=["orders"])
 @order_routes.post("/orders",response_model=OrderSchema,summary="Create order",response_description="New order created")
 @order_service_redis_manager.ratelimiter(times=10, seconds=60)
 async def create_order(request: Request, order_service: order_service_dependency, order_data: CreateOrder,) -> JSONResponse:
-    created_order = await order_service.create_order(order_data=order_data)
+    new_db_order, new_db_order_items = await order_service.create_order(order_data=order_data)
+    # publishing order created event
+    await order_event_publisher.publish_order_created(order_id=new_db_order.id,
+                                                      user_id=new_db_order.user_id,
+                                                      items=new_db_order_items,
+                                                      total_amount=new_db_order.amount)
+    # request inventory reservation (start SAGA)
+    await order_event_publisher.publish_inventory_reserve_requested(order_id=new_db_order.id,
+                                                                    items=new_db_order_items,
+                                                                    user_id=new_db_order.user_id)
     await order_service_redis_manager.clear_cache_namespace(namespace="orders", request=request)
-    return JSONResponse(content=created_order, status_code=status.HTTP_201_CREATED)
+    return JSONResponse(content=new_db_order, status_code=status.HTTP_201_CREATED)
 
 # @order_routes.get(
 #     "/orders",
