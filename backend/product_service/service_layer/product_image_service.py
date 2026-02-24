@@ -1,7 +1,6 @@
 from typing import List, Optional
 from uuid import UUID
 
-from annotated_types import UpperCase
 from fastapi import UploadFile
 
 from database_layer.product_image_repository import ProductImageRepository
@@ -22,12 +21,10 @@ class ProductImageService:
         self.product_image_relations = ProductImage.get_relations()
         self.product_image_search_fields = ProductImage.get_search_fields()
 
-    async def _build_image_metadata(
-        self,
-        images: List[UploadFile],
-        colors: List[str],
-        color_codes: List[str],
-    ) -> List[ImageType]:
+    async def _build_image_metadata(self,
+                                    images: list[UploadFile],
+                                    colors: list[str],
+                                    color_codes: list[str]) -> list[ImageType]:
         if not (len(images) == len(colors) == len(color_codes)):
             raise ProductImageProcessingError("Mismatched image metadata")
         image_urls = await image_processing_manager.save_images(images)

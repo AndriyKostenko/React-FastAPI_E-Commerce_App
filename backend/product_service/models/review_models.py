@@ -12,7 +12,7 @@ from shared.models_mixins import TimestampMixin
 
 class ProductReview(Base, TimestampMixin):
     __tablename__ = 'product_reviews'
-    
+
     __table_args__ = (
         Index('idx_product_review_user_id', 'user_id'),
         Index('idx_product_review_product_id', 'product_id'),
@@ -27,24 +27,24 @@ class ProductReview(Base, TimestampMixin):
 
 
     product: Mapped['Product'] = relationship('Product', back_populates='reviews') # type: ignore
-    
-    
+
+
     @classmethod
     def get_search_fields(cls) -> list[str]:
         """Return list of fields to be used in search operations"""
         return ["comment", "rating"]
-    
+
     @classmethod
     def get_relations(cls) -> list[str]:
         """Return list of related entities to be loaded with the product"""
         return ["product"]
-    
+
     @classmethod
     def get_admin_schema(cls) -> list[dict[str, Any]]:
         """Get schema information for AdminJS"""
         inspector = inspect(cls)
         fields = []
-        
+
         for column in inspector.columns:
             field_info = {
                 "path": column.name,
@@ -52,9 +52,9 @@ class ProductReview(Base, TimestampMixin):
                 "isId": column.primary_key,
             }
             fields.append(field_info)
-        
+
         return fields
-    
+
     @staticmethod
     def _map_sqlalchemy_type_to_adminjs(sql_type) -> str:
         """Map SQLAlchemy types to AdminJS types"""
@@ -72,10 +72,10 @@ class ProductReview(Base, TimestampMixin):
             'JSON': 'mixed',
             'UUID': 'uuid',
         }
-        
+
         type_name = sql_type.__class__.__name__.upper()
         return type_mapping.get(type_name, 'string')
-    
+
     def __repr__(self) -> str:
         return f"<ProductReview(id={self.id}, user_id={self.user_id}, product_id={self.product_id}, comment={self.comment}, rating={self.rating})>"
     def __str__(self) -> str:

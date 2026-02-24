@@ -9,3 +9,11 @@ class OrderNotFoundError(BaseAPIException):
             status_code=404,
             detail=f"Order with ID: {order_id} is not found."
         )
+
+class OrdersNotFoundError(BaseAPIException):
+    """Exception raised when an orders are not found in the database."""
+    def __init__(self) -> None:
+        super().__init__(
+            status_code=404,
+            detail="Orders are not found."
+        )

@@ -32,7 +32,7 @@ class BaseEventPublisher:
     # @broker.publisher(queue=RabbitQueue("user.events", durable=True))
     async def publish_an_event(self, message: BaseModel, queue: RabbitQueue):
         """Generic method to publish an event"""
-        # the message will be automaticallyy converted to JSON by FastStream
+        # the message will be automaticallyy converted to JSON by FastStream..(suppouse to be)
         await self.broker.publish(
             message=message.model_dump_json(),
             queue=queue,

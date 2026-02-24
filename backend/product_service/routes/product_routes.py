@@ -31,8 +31,7 @@ product_routes = APIRouter(tags=["products"])
 async def create_product_json(
     request: Request,
     product_service: product_service_dependency,
-    product_data: CreateProduct,
-) -> JSONResponse:
+    product_data: CreateProduct) -> JSONResponse:
     """
     Create a new product using JSON payload.
     Used by AdminJS and API clients. (without images uploads for now)

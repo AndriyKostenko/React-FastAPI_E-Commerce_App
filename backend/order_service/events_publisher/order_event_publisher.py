@@ -2,7 +2,7 @@ from uuid import UUID, uuid4
 from datetime import datetime, timezone
 from logging import Logger
 
-from pydantic import PositiveFloat
+from pydantic import EmailStr, PositiveFloat
 from faststream.rabbit import RabbitQueue
 
 from shared.settings import Settings
@@ -32,7 +32,7 @@ class OrderEventPublisher(BaseEventPublisher):
             }
         )
         self.inventory_events_queue: RabbitQueue = RabbitQueue(
-            "inventory.events",
+            "product.inventory.events",
             durable=True,
             arguments={
                 "x-dead-letter-exchange": "dlx",
@@ -43,11 +43,13 @@ class OrderEventPublisher(BaseEventPublisher):
     async def publish_order_created(self,
                                     order_id: UUID,
                                     user_id: UUID,
+                                    user_email: EmailStr,
                                     items: list[OrderItemBase],
                                     total_amount: PositiveFloat):
         """Publish order created event (SAGA start)"""
         event = OrderCreatedEvent(
             event_id=uuid4(),
+            user_email=user_email,
             timestamp=datetime.now(timezone.utc),
             service="order-service",
             event_type="order.created",
@@ -65,10 +67,12 @@ class OrderEventPublisher(BaseEventPublisher):
     async def publish_inventory_reserve_requested(self,
                                                   order_id: UUID,
                                                   user_id: UUID,
+                                                  user_email: EmailStr,
                                                   items: list[OrderItemBase]):
         """Request inventory reservation from Product Service"""
         event = InventoryReserveRequested(
             event_id=uuid4(),
+            user_email=user_email,
             timestamp=datetime.now(timezone.utc),
             service="order-service",
             event_type="inventory.reserve.requested",
@@ -80,12 +84,13 @@ class OrderEventPublisher(BaseEventPublisher):
             message=event,
             queue=self.inventory_events_queue
         )
-        self.logger.info(f"Published InventoryReserveRequested for order {order_id}")
+        self.logger.info(f"Published InventoryReserveRequested for order: {order_id}")
 
-    async def publish_order_confirmed(self, order_id: UUID, user_id: UUID):
+    async def publish_order_confirmed(self, order_id: UUID, user_id: UUID, user_email: EmailStr):
         """Publish order confirmed event (SAGA success)"""
         event = OrderConfirmedEvent(
             event_id=uuid4(),
+            user_email=user_email,
             timestamp=datetime.now(timezone.utc),
             service="order-service",
             event_type="order.confirmed",
@@ -98,10 +103,11 @@ class OrderEventPublisher(BaseEventPublisher):
         )
         self.logger.info(f"Published OrderConfirmedEvent for order {order_id}")
 
-    async def publish_order_cancelled(self, order_id: UUID, user_id: UUID, reason: str):
+    async def publish_order_cancelled(self, order_id: UUID, user_id: UUID, reason: str, user_email: EmailStr):
         """Publish order cancelled event (SAGA compensation)"""
         event = OrderCancelledEvent(
             event_id=uuid4(),
+            user_email=user_email,
             timestamp=datetime.now(timezone.utc),
             service="order-service",
             event_type="order.cancelled",
@@ -118,11 +124,13 @@ class OrderEventPublisher(BaseEventPublisher):
     async def publish_inventory_release_requested(self,
                                                   order_id: UUID,
                                                   user_id: UUID,
+                                                  user_email: EmailStr,
                                                   items: list[OrderItemBase],
                                                   reason: str):
         """Request inventory release (compensation transaction)"""
         event = InventoryReleaseRequested(
             event_id=uuid4(),
+            user_email=user_email,
             timestamp=datetime.now(timezone.utc),
             service="order-service",
             event_type="inventory.release.requested",

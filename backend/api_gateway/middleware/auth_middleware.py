@@ -25,12 +25,13 @@ class AuthMiddleware(metaclass=SingletonMetaClass):
             f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/forgot-password": ['POST'],
             f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/activate/": ['POST'],
             f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/password-reset/": ['POST'],
-            f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/admin/schema/users": ['GET'],
             f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/products": ['GET'],
+            f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/admin/schema/users": ['GET'],
             f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/admin/schema/products": ['GET'],
             f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/admin/schema/categories": ['GET'],
             f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/admin/schema/images": ['GET'],
             f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/admin/schema/reviews": ['GET'],
+            f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/admin/schema/orders": ['GET'],
 
         }
 
@@ -89,7 +90,7 @@ class AuthMiddleware(metaclass=SingletonMetaClass):
             user_data = token_manager.decode_token(token)
             # Attach user data to request state for downstream access
             request.state.current_user = user_data
-            self.logger.info(f"Token is validated for: {user_data.get('email')}")
+            self.logger.info(f"Token is validated for: {user_data.email}")
         except HTTPException as exc:
             return JSONResponse(
                 status_code=exc.status_code,

@@ -229,10 +229,7 @@ class ApiGateway:
         # Prepare headers
         headers = self._prepare_headers(request_headers=request.headers, new_content_type=content_type)
 
-        self.logger.info(f"Forwarding request to: {url} with method: {request.method}")
-        self.logger.debug(f"Service path: {service_path}")
-        self.logger.debug(f"Body type: {type(prepared_body)}, Content-Type: {content_type}")
-        self.logger.debug(f"Headers: {headers}")
+        self.logger.info(f"Forwarding request to: {url} with method: {request.method}, Service path: {service_path}, Body type: {type(prepared_body)}, Content-Type: {content_type}, Headers: {headers}")
 
         # perform the request using httpx
         async with AsyncClient() as client:

@@ -21,44 +21,14 @@ async def register_user(request: Request) -> JSONResponse:
         request=request,
         service_name="user-service",
     )
-    # # Check if registration was successful
-    # if user_service_response.status_code != 201:
-    #     return user_service_response
-    # # parsing the response content (new user data + token)
-    # response_data = orjson.loads(user_service_response.body)
-    # # publishing the event with token
-    # await events_publisher.publish_user_registered(
-    #     email=response_data["email"],
-    #     token=response_data["verification_token"]
-    #     )
-    # # Remove token from response !!!
-    # del response_data["verification_token"]
-    # return JSONResponse(
-    #     content=response_data,
-    #     status_code=user_service_response.status_code
-    # )
 
 
 @user_proxy.post("/login", summary="User login")
 async def login_user(request: Request) -> JSONResponse:
-    # passing form data as body to user service coz it expects form data for OAuth2
-    # so we need to forward the form data as is
     return await api_gateway_manager.forward_request(
         request=request,
         service_name="user-service",
     )
-    # # Check if login was successful
-    # if user_service_response.status_code != 200:
-    #     return user_service_response
-    # # publish the login event
-    # response_data = orjson.loads(user_service_response.body)
-    # await events_publisher.publish_user_login(
-    #     email=response_data["user_email"],
-    # )
-    # return JSONResponse(
-    #     content=response_data,
-    #     status_code=user_service_response.status_code
-    # )
 
 @user_proxy.post("/activate/{token}", summary="Verify user email")
 async def verify_email(request: Request) -> JSONResponse:
@@ -73,14 +43,6 @@ async def forgot_password(request: Request) -> JSONResponse:
         service_name="user-service",
         request=request,
     )
-    # if user_service_response.status_code != 200: return user_service_response
-    # response_data = orjson.loads(user_service_response.body)
-    # await events_publisher.publish_password_reset_request(email=response_data["email"],
-    #                                                       reset_token=response_data["reset_token"])
-    # del response_data["reset_token"]
-    # return JSONResponse(content=response_data,
-    #                     status_code=user_service_response.status_code)
-
 
 @user_proxy.post("/password-reset/{token}", summary="Reset password with token")
 async def reset_password(request: Request) -> JSONResponse:
@@ -88,13 +50,6 @@ async def reset_password(request: Request) -> JSONResponse:
         service_name="user-service",
         request=request,
     )
-    # if user_service_response.status_code != 200: return user_service_response
-    # response_data = orjson.loads(user_service_response.body)
-    # await events_publisher.publish_password_reset_seccess(email=response_data["email"])
-    # return JSONResponse(content=response_data,
-    #                     status_code=user_service_response.status_code)
-
-
 
 # ==================== AUTHENTICATED USER ENDPOINTS ====================
 

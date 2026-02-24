@@ -105,7 +105,7 @@ def add_exception_handlers(app: FastAPI):
             status_code=422,
             content={
                 "detail": "Validation error",
-                "errors": [{"field": err["loc"][0], "message": err["msg"]} for err in exc.errors()],
+                "errors": [{"field": err["loc"][-1] if err.get("loc") else "unknown", "message": err.get("msg", "Unknown validation error")} for err in exc.errors()],
                 "timestamp": datetime.now().isoformat(),
                 "path": request.url.path
             }
@@ -119,7 +119,7 @@ def add_exception_handlers(app: FastAPI):
             status_code=422,
             content={
                 "detail": "Validation response error",
-                "errors": [{"field": err["loc"][0], "message": err["msg"]} for err in exc.errors()],
+                "errors": [{"field": err["loc"][-1] if err.get("loc") else "unknown", "message": err.get("msg", "Unknown validation error")} for err in exc.errors()],
                 "timestamp": datetime.now().isoformat(),
                 "path": request.url.path
             }
@@ -133,7 +133,7 @@ def add_exception_handlers(app: FastAPI):
             status_code=422,
             content={
                 "detail": "Validation request error",
-                "errors": [{"field": err["loc"][0], "message": err["msg"]} for err in exc.errors()],
+                "errors": [{"field": err["loc"][-1] if err.get("loc") else "unknown", "message": err.get("msg", "Unknown validation error")} for err in exc.errors()],
                 "timestamp": datetime.now().isoformat(),
                 "path": request.url.path
             }

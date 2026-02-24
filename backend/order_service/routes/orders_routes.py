@@ -5,26 +5,49 @@ from shared.shared_instances import order_service_redis_manager
 from shared.schemas.order_schemas import CreateOrder, UpdateOrder, OrderSchema
 from dependencies.dependencies import order_service_dependency
 from events_publisher.order_event_publisher import order_event_publisher
-
+from models.order_models import Order
 
 order_routes = APIRouter(tags=["orders"])
 
 
-@order_routes.post("/orders",response_model=OrderSchema,summary="Create order",response_description="New order created")
+@order_routes.post("/orders",
+                    response_model=OrderSchema,
+                    summary="Create order",
+                    response_description="New order created")
 @order_service_redis_manager.ratelimiter(times=10, seconds=60)
 async def create_order(request: Request, order_service: order_service_dependency, order_data: CreateOrder,) -> JSONResponse:
     new_db_order, new_db_order_items = await order_service.create_order(order_data=order_data)
     # publishing order created event
     await order_event_publisher.publish_order_created(order_id=new_db_order.id,
                                                       user_id=new_db_order.user_id,
+                                                      user_email=new_db_order.user_email,
                                                       items=new_db_order_items,
                                                       total_amount=new_db_order.amount)
     # request inventory reservation (start SAGA)
     await order_event_publisher.publish_inventory_reserve_requested(order_id=new_db_order.id,
                                                                     items=new_db_order_items,
-                                                                    user_id=new_db_order.user_id)
+                                                                    user_id=new_db_order.user_id,
+                                                                    user_email=new_db_order.user_email)
     await order_service_redis_manager.clear_cache_namespace(namespace="orders", request=request)
     return JSONResponse(content=new_db_order, status_code=status.HTTP_201_CREATED)
+
+
+@order_routes.get("/orders",
+                    response_model=list[OrderSchema])
+@order_service_redis_manager.cached(ttl=300)
+@order_service_redis_manager.ratelimiter(times=100, seconds=60)
+async def get_orders(request: Request,
+                    order_service: order_service_dependency) -> JSONResponse:
+    orders = await order_service.get_orders()
+    return JSONResponse(content=orders, status_code=status.HTTP_200_OK)
+
+
+
+@order_routes.get("/admin/schema/orders", summary="Schema for AdminJS")
+async def get_order_schema_for_admin_js(request: Request):
+    return JSONResponse(
+        content={"fields": Order.get_admin_schema()}, status_code=status.HTTP_200_OK
+    )
 
 # @order_routes.get(
 #     "/orders",

@@ -30,7 +30,7 @@ def require_admin(current_user: CurrentUserInfo = Depends(get_current_user)) -> 
 
 def require_user_or_admin(current_user: CurrentUserInfo,
                           target_user_id: UUID | None = None,
-                          target_user_email: EmailStr | None = None) -> CurrentUserInfo:
+                          target_user_email: EmailStr | None = None) -> None:
     is_admin = current_user.role == settings.SECRET_ROLE
     is_own_data = (
         (target_user_id and current_user.id == target_user_id) or
@@ -43,4 +43,4 @@ def require_user_or_admin(current_user: CurrentUserInfo,
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied: You can only access your own data"
         )
-    return current_user
+    return

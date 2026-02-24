@@ -29,7 +29,14 @@ async function buildDynamicResource(
 }
 
 // Load resources in parallel for faster startup
-const [userResources, productResources, categoryResources, imageResources, reviewResources] = await Promise.all([
+const [
+	userResources,
+	productResources,
+	categoryResources,
+	imageResources,
+	reviewResources,
+	orderResources
+] = await Promise.all([
     buildDynamicResource(
         `${process.env.API_GATEWAY_SERVICE_URL}${process.env.API_GATEWAY_SERVICE_URL_API_VERSION}/users`,
         `${process.env.API_GATEWAY_SERVICE_URL}${process.env.API_GATEWAY_SERVICE_URL_API_VERSION}/admin/schema/users`,
@@ -63,7 +70,14 @@ const [userResources, productResources, categoryResources, imageResources, revie
         `${process.env.API_GATEWAY_SERVICE_URL}${process.env.API_GATEWAY_SERVICE_URL_API_VERSION}/admin/schema/reviews`,
         'Reviews',
         false,
-    ),
+	),
+    buildDynamicResource(
+        `${process.env.API_GATEWAY_SERVICE_URL}${process.env.API_GATEWAY_SERVICE_URL_API_VERSION}/orders`,
+        // eslint-disable-next-line max-len
+        `${process.env.API_GATEWAY_SERVICE_URL}${process.env.API_GATEWAY_SERVICE_URL_API_VERSION}/admin/schema/orders`,
+        'Orders',
+        false,
+    )
 ]);
 
 const options: AdminJSOptions = {
@@ -72,7 +86,7 @@ const options: AdminJSOptions = {
     componentLoader,
     rootPath: '/admin',
     // Including the API Resource Provider for User management
-    resources: [userResources, productResources, categoryResources, imageResources, reviewResources],
+    resources: [userResources, productResources, categoryResources, imageResources, reviewResources, orderResources],
 };
 
 export default options;

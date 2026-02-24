@@ -6,10 +6,15 @@ from service_layer.order_item_service import OrderItemService
 from database_layer.order_repository import OrderRepository
 from models.order_models import Order
 from shared.schemas.order_schemas import CreateOrder, OrderItemBase, OrderSchema, OrderAddressBase
-from exceptions.order_exceptions import OrderNotFoundError
+from exceptions.order_exceptions import OrderNotFoundError, OrdersNotFoundError
 
 
 class OrderStatus(str, Enum):
+    PENDING = "pending"
+    CONFIRMED = "confirmed"
+    CANCELLED = "cancelled"
+
+class OrderDeliveryStatus(str, Enum):
     PENDING = "pending"
     CONFIRMED = "confirmed"
     CANCELLED = "cancelled"
@@ -33,10 +38,11 @@ class OrderService:
         new_db_order: Order = await self.repository.create(
             Order(
                 user_id=order_data.user_id,
+                user_email=order_data.user_email,
                 amount=order_data.amount,
                 currency=order_data.currency,
                 status=OrderStatus.PENDING,
-                delivery_status=order_data.delivery_status,
+                delivery_status=OrderDeliveryStatus.PENDING,
                 payment_intent_id=order_data.payment_intent_id,
                 address_id=new_db_order_address.id
             )
@@ -64,3 +70,9 @@ class OrderService:
 
     async def create_order_address(self, order_address_data):
         pass
+
+    async def get_orders(self) -> list[OrderSchema]:
+        db_orders = await self.repository.get_all()
+        if not db_orders:
+            raise OrdersNotFoundError()
+        return [OrderSchema.model_validate(order) for  order in db_orders]

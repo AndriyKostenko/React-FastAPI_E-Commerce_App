@@ -90,7 +90,8 @@ class OrderEventConsumer:
             # Publish OrderConfirmedEvent for downstream services (notification, etc.)
             await order_event_publisher.publish_order_confirmed(
                 order_id=event.order_id,
-                user_id=event.user_id
+                user_id=event.user_id,
+                user_email=event.user_email
             )
             self.logger.info(f"Published OrderConfirmedEvent for order {event.order_id}")
 
@@ -118,7 +119,7 @@ class OrderEventConsumer:
             # Get order service with database session
             async for order_service in self._get_order_service():
                 # Update order status to CANCELLED
-                await order_service.update_order_status(  # pyright: ignore[reportUnusedCallResult]
+                await order_service.update_order_status(
                     order_id=event.order_id,
                     order_status=OrderStatus.CANCELLED
                 )
@@ -128,6 +129,7 @@ class OrderEventConsumer:
             await order_event_publisher.publish_order_cancelled(
                 order_id=event.order_id,
                 user_id=event.user_id,
+                user_email=event.user_email,
                 reason=event.reasons
             )
             self.logger.info(f"Published OrderCancelledEvent for order {event.order_id}")

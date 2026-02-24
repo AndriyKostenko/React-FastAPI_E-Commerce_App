@@ -29,7 +29,7 @@ class ProductBase(BaseModel):
     category_id: UUID
     brand: str = Field(..., min_length=3, max_length=50)
     quantity: int
-    price: Decimal = Field(..., gt=0, le=100)
+    price: Decimal = Field(..., gt=0, le=99999)
     in_stock: bool
     date_created: datetime
     date_updated: Optional[datetime] = None
@@ -45,7 +45,7 @@ class CreateProduct(BaseModel):
     category_id: UUID
     brand: str = Field(..., min_length=3, max_length=50)
     quantity: PositiveInt = Field(..., gt=0, le=100)
-    price: Decimal = Field(..., gt=0, le=100)
+    price: Decimal = Field(..., gt=0, le=9000)
     in_stock: bool
 
     @field_validator("in_stock", mode="before")
