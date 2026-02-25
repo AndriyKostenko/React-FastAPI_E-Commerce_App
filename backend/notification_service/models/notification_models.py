@@ -1,12 +1,11 @@
 from uuid import UUID, uuid4
 
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import ForeignKey, Index
+from sqlalchemy import Index
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 
 from shared.models.models_base_class import Base
 from shared.models_mixins import TimestampMixin
-
 
 
 class Notification(Base, TimestampMixin):
@@ -19,11 +18,6 @@ class Notification(Base, TimestampMixin):
     )
 
     id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4, unique=True)
-    user_id: Mapped[UUID] = mapped_column(ForeignKey('users.id'), nullable=False)
+    user_id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), nullable=False)
     message: Mapped[str] = mapped_column(nullable=False)
     is_read: Mapped[bool] = mapped_column(default=False, nullable=False)
-
-    def __repr__(self):
-        return f"<Notification(id={self.id}, user_id={self.user_id}, message='{self.message}', is_read={self.is_read})>"
-    def __str__(self):
-        return f"Notification(id={self.id}, user_id={self.user_id}, message='{self.message}', is_read={self.is_read})"

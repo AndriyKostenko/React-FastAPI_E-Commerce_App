@@ -1,41 +1,31 @@
-from typing import Any
-from uuid import uuid4, UUID
+from datetime import datetime
+from uuid import UUID, uuid4
 
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import Index, inspect
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
+from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.types import JSON
+from sqlalchemy import DateTime, inspect
 
 from shared.models.models_base_class import Base
 from shared.models_mixins import TimestampMixin
 
 
-class ProductCategory(Base, TimestampMixin):
-    __tablename__ = 'product_categories'
-
-    __table_args__ = (
-        Index('idx_product_categories_name', 'name'),
-        Index('idx_product_categories_date_created', 'date_created'),
-        Index('idx_product_categories_image_url', 'image_url'),
-    )
+class OutboxEvent(Base, TimestampMixin):
+    __tablename__ = "outbox_events"
 
     id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4, unique=True)
-    name: Mapped[str] = mapped_column(unique=True, nullable=False)
-    image_url: Mapped[str] = mapped_column(nullable=True)
-
-    products: Mapped[list['Product']] = relationship('Product', back_populates='category', cascade='all, delete-orphan') #type: ignore
+    event_type: Mapped[str] = mapped_column(nullable=False)
+    payload: Mapped[JSON] = mapped_column(nullable=False)
+    processed: Mapped[bool] = mapped_column(default=False)
+    processed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True),nullable=True)
 
     @classmethod
     def get_search_fields(cls) -> list[str]:
         """Return list of fields to be used in search operations"""
-        return ["name"]
+        return ["event_type", "payload", "processed", "processed_at"]
 
     @classmethod
-    def get_relations(cls) -> list[str]:
-        """Return list of related entities to be loaded with the product"""
-        return ["products"]
-
-    @classmethod
-    def get_admin_schema(cls) -> list[dict[str, Any]]:
+    def get_admin_schema(cls) -> list[dict[str, str]]:
         """Get schema information for AdminJS"""
         inspector = inspect(cls)
         fields = []
@@ -49,6 +39,7 @@ class ProductCategory(Base, TimestampMixin):
             fields.append(field_info)
 
         return fields
+
 
     @staticmethod
     def _map_sqlalchemy_type_to_adminjs(sql_type) -> str:
@@ -68,8 +59,3 @@ class ProductCategory(Base, TimestampMixin):
 
         type_name = sql_type.__class__.__name__.upper()
         return type_mapping.get(type_name, 'string')
-
-    def __repr__(self):
-        return f"<ProductCategory(id={self.id}, name={self.name}, image_url={self.image_url})>"
-    def __str__(self):
-        return f"ProductCategory(id={self.id}, name={self.name}, image_url={self.image_url})"

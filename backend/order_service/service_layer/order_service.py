@@ -5,14 +5,17 @@ from service_layer.order_address_service import OrderAddressService
 from service_layer.order_item_service import OrderItemService
 from database_layer.order_repository import OrderRepository
 from models.order_models import Order
+from service_layer.outbox_event_service import OutboxEventService
 from shared.schemas.order_schemas import CreateOrder, OrderItemBase, OrderSchema, OrderAddressBase
 from exceptions.order_exceptions import OrderNotFoundError, OrdersNotFoundError
+from shared.schemas.event_schemas import OrderCreatedEvent
 
 
 class OrderStatus(str, Enum):
     PENDING = "pending"
     CONFIRMED = "confirmed"
     CANCELLED = "cancelled"
+
 
 class OrderDeliveryStatus(str, Enum):
     PENDING = "pending"
@@ -22,19 +25,20 @@ class OrderDeliveryStatus(str, Enum):
 
 class OrderService:
     """Service layer for order management operations, business logic, data validation."""
-    def __init__(self, repository: OrderRepository, order_item_service: OrderItemService, order_address_service: OrderAddressService):
+    def __init__(self, repository: OrderRepository, order_item_service: OrderItemService, order_address_service: OrderAddressService, outbox_event_service: OutboxEventService):
         self.repository: OrderRepository = repository
+        self.outbox_event_service: OutboxEventService = outbox_event_service
         self.order_item_service: OrderItemService = order_item_service
         self.order_address_service:OrderAddressService = order_address_service
 
-    async def create_order(self, order_data: CreateOrder) -> tuple[OrderSchema, list[OrderItemBase]]:
+    async def create_order(self, order_data: CreateOrder) -> OrderSchema:
         """
         Creating new order and initiating the SAGA pattern.
         The order status is "pending" untill the inventory is confirmed
         """
-        # creating an order address
+        # 1. creating an order address
         new_db_order_address: OrderAddressBase = await self.order_address_service.create_order_address(order_data)
-        # creating order
+        # 2. creating order
         new_db_order: Order = await self.repository.create(
             Order(
                 user_id=order_data.user_id,
@@ -47,9 +51,23 @@ class OrderService:
                 address_id=new_db_order_address.id
             )
         )
-        # creating order items
+        # 3. creating order items
         new_db_order_items: list[OrderItemBase]  = await self.order_item_service.create_order_items(new_db_order.id, order_data)
-        return OrderSchema.model_validate(new_db_order), new_db_order_items
+        # 4. creating outbox event "order.created"
+        await self.outbox_event_service.add_outbox_event(
+            event_type="order.created",
+            payload=OrderCreatedEvent(
+                timestamp=
+            )
+        )
+
+        # 5. creating outbox event "inventory.reserve.requested"
+        await self.outbox_event_service.add_outbox_event(
+            event_type="inventory.reserve.requested",
+            payload=
+        )
+
+        return OrderSchema.model_validate(new_db_order)
 
     async def cancel_order(self):
        pass

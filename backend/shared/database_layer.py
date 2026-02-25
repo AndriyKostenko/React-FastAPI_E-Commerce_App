@@ -4,7 +4,7 @@ from typing import Generic, Optional, TypeVar, Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import func, select, asc, desc, or_
-from sqlalchemy.orm import selectinload, InstrumentedAttribute
+from sqlalchemy.orm import selectinload
 
 from shared.base_exceptions import NoFieldInTheModelError
 from shared.models.models_base_class import Base
@@ -14,6 +14,12 @@ from shared.models.models_base_class import Base
 ModelType = TypeVar("ModelType", bound=Base)
 
 
+# TODO: make simplification of a base class to only methods like:
+# get_by_id
+# get_by_field
+# create
+# update
+# delete
 class BaseRepository(Generic[ModelType]):
     """
     A database service layer.
@@ -89,7 +95,7 @@ class BaseRepository(Generic[ModelType]):
                 if not hasattr(self.model, key):
                     continue
                 # Determine if equality or LIKE should be used
-                column: InstrumentedAttribute = getattr(self.model, key)
+                column = getattr(self.model, key)
                 if isinstance(value, str) and key not in self.EQUAL_ONLY_FIELDS:
                     # Use case-insensitive LIKE for string fields (except those in EQUAL_ONLY_FIELDS)
                     query = query.where(column.ilike(f"%{value}%"))

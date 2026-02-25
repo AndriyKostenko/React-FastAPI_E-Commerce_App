@@ -16,19 +16,19 @@ order_routes = APIRouter(tags=["orders"])
                     response_description="New order created")
 @order_service_redis_manager.ratelimiter(times=10, seconds=60)
 async def create_order(request: Request, order_service: order_service_dependency, order_data: CreateOrder,) -> JSONResponse:
-    new_db_order, new_db_order_items = await order_service.create_order(order_data=order_data)
+    new_db_order = await order_service.create_order(order_data=order_data)
     # publishing order created event
-    await order_event_publisher.publish_order_created(order_id=new_db_order.id,
-                                                      user_id=new_db_order.user_id,
-                                                      user_email=new_db_order.user_email,
-                                                      items=new_db_order_items,
-                                                      total_amount=new_db_order.amount)
-    # request inventory reservation (start SAGA)
-    await order_event_publisher.publish_inventory_reserve_requested(order_id=new_db_order.id,
-                                                                    items=new_db_order_items,
-                                                                    user_id=new_db_order.user_id,
-                                                                    user_email=new_db_order.user_email)
-    await order_service_redis_manager.clear_cache_namespace(namespace="orders", request=request)
+    # await order_event_publisher.publish_order_created(order_id=new_db_order.id,
+    #                                                   user_id=new_db_order.user_id,
+    #                                                   user_email=new_db_order.user_email,
+    #                                                   items=new_db_order_items,
+    #                                                   total_amount=new_db_order.amount)
+    # # request inventory reservation (start SAGA)
+    # await order_event_publisher.publish_inventory_reserve_requested(order_id=new_db_order.id,
+    #                                                                 items=new_db_order_items,
+    #                                                                 user_id=new_db_order.user_id,
+    #                                                                 user_email=new_db_order.user_email)
+    # await order_service_redis_manager.clear_cache_namespace(namespace="orders", request=request)
     return JSONResponse(content=new_db_order, status_code=status.HTTP_201_CREATED)
 
 
