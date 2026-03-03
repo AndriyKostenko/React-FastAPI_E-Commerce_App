@@ -31,5 +31,6 @@ dependencies = [
 [tool.uv.sources]
 shared = { path = "../shared", editable = true }
 
-[tool.pyright]
+[tool.basedpyright]
+# Use tool.basedpyright instead of tool.pyright for better compatibility
 extraPaths = [".."]

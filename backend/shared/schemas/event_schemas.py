@@ -1,15 +1,15 @@
-from uuid import UUID
-from datetime import datetime
+from uuid import UUID, uuid4
+from datetime import datetime, timezone
 
-from pydantic import BaseModel, EmailStr, PositiveFloat
+from pydantic import BaseModel, EmailStr, PositiveFloat, Field
 
 from shared.schemas.order_schemas import OrderItemBase
 
 
 class BaseEvent(BaseModel):
     """Base class for all events"""
-    event_id: UUID
-    timestamp: datetime
+    event_id: UUID = Field(default_factory=uuid4)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     service: str
     event_type: str
 

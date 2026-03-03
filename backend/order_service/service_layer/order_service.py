@@ -1,4 +1,4 @@
-from uuid import UUID
+from uuid import UUID, uuid4
 from enum import Enum
 
 from service_layer.order_address_service import OrderAddressService
@@ -8,7 +8,7 @@ from models.order_models import Order
 from service_layer.outbox_event_service import OutboxEventService
 from shared.schemas.order_schemas import CreateOrder, OrderItemBase, OrderSchema, OrderAddressBase
 from exceptions.order_exceptions import OrderNotFoundError, OrdersNotFoundError
-from shared.schemas.event_schemas import OrderCreatedEvent
+from shared.schemas.event_schemas import OrderCreatedEvent, InventoryReserveRequested
 
 
 class OrderStatus(str, Enum):
@@ -33,7 +33,7 @@ class OrderService:
 
     async def create_order(self, order_data: CreateOrder) -> OrderSchema:
         """
-        Creating new order and initiating the SAGA pattern.
+        Creating new order with outbox events.
         The order status is "pending" untill the inventory is confirmed
         """
         # 1. creating an order address
@@ -53,18 +53,32 @@ class OrderService:
         )
         # 3. creating order items
         new_db_order_items: list[OrderItemBase]  = await self.order_item_service.create_order_items(new_db_order.id, order_data)
+
         # 4. creating outbox event "order.created"
         await self.outbox_event_service.add_outbox_event(
             event_type="order.created",
             payload=OrderCreatedEvent(
-                timestamp=
+                service="order-service",
+                event_type="order.created",
+                order_id=new_db_order.id,
+                user_id=new_db_order.user_id,
+                user_email=new_db_order.user_email,
+                items=new_db_order_items,
+                total_amount=new_db_order.amount
             )
         )
 
         # 5. creating outbox event "inventory.reserve.requested"
         await self.outbox_event_service.add_outbox_event(
             event_type="inventory.reserve.requested",
-            payload=
+            payload=InventoryReserveRequested(
+                service="product-service",
+                event_type="inventory.reserve.requested",
+                order_id=new_db_order.id,
+                user_id=new_db_order.user_id,
+                user_email=new_db_order.user_email,
+                items=new_db_order_items
+            )
         )
 
         return OrderSchema.model_validate(new_db_order)

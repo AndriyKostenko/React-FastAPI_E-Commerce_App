@@ -81,9 +81,6 @@ async def handle_order_events(body: str):
     message: dict[str, Any] = loads(body)
     event_type = message.get("event_type")
     match event_type:
-        case "order.created":
-            event = OrderCreatedEvent(**message)
-            await order_notification_email_service.send_order_created_notification(event)
         case "order.confirmed":
             event = OrderConfirmedEvent(**message)
             await order_notification_email_service.send_order_confirmed_notification(event)

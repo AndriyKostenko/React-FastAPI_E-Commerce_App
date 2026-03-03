@@ -4,12 +4,14 @@ from typing import Any
 from database_layer.order_address_repository import OrderAddressRepository
 from database_layer.order_item_repository import OrderItemRepository
 from database_layer.order_repository import OrderRepository
+from database_layer.outbox_repository import OutboxRepository
 from events_publisher.order_event_publisher import order_event_publisher
 from service_layer.order_address_service import OrderAddressService
 from service_layer.order_item_service import OrderItemService
 from shared.schemas.event_schemas import InventoryReserveFailed, InventoryReserveSucceeded
 from shared.shared_instances import logger, order_service_database_session_manager
 from service_layer.order_service import OrderService, OrderStatus
+from service_layer.outbox_event_service import OutboxEventService
 
 """
 Order Event Consumer - SAGA Orchestrator
@@ -44,10 +46,14 @@ class OrderEventConsumer:
             order_address_service = OrderAddressService(
                 repository=OrderAddressRepository(session=session)
             )
+            outbox_event_service = OutboxEventService(
+                repository=OutboxRepository(session=session)
+            )
             order_service = OrderService(
                 repository=OrderRepository(session=session),
                 order_item_service=order_item_service,
-                order_address_service=order_address_service
+                order_address_service=order_address_service,
+                outbox_event_service=outbox_event_service
             )
             yield order_service
 
