@@ -160,7 +160,7 @@ class BaseRepository(Generic[ModelType]):
         print("Executed query:", str(query))
         return list(result.scalars().all())
 
-    async def get_by_field(self, field_name: str, value: str | UUID) -> Optional[ModelType]:
+    async def get_by_field(self, field_name: str, value: str | UUID | bool) -> Optional[ModelType]:
         """Get record by any field"""
         if not hasattr(self.model, field_name):
             raise NoFieldInTheModelError(field_name=field_name, model_name=self.model.__name__)
@@ -169,12 +169,12 @@ class BaseRepository(Generic[ModelType]):
         )
         return result.scalar_one_or_none()
 
-    async def get_many_by_field(self, field_name: str, value: str | UUID) -> list[Optional[ModelType]]:
+    async def get_many_by_field(self, field_name: str, value: str | UUID | bool, limit: int) -> list[ModelType] | None:
         """Get multiple records by field value"""
         if not hasattr(self.model, field_name):
-            return []
+            return None
         result = await self.session.execute(
-            select(self.model).where(getattr(self.model, field_name) == value)
+            select(self.model).where(getattr(self.model, field_name) == value).limit(limit)
         )
         return list(result.scalars().all())
 
@@ -216,12 +216,12 @@ class BaseRepository(Generic[ModelType]):
                 setattr(existing_obj, field, new_value)
         return await self.update(existing_obj)
 
-    async def update_by_id(self, item_id: UUID, **kwargs: dict[str, Any]) -> ModelType | None:
+    async def update_by_id(self, item_id: UUID, data: dict[str, Any]) -> ModelType | None:
         """Update a record by ID with new values"""
         existing_obj = await self.get_by_id(item_id)
         if not existing_obj:
             return None
-        for field, value in kwargs.items():
+        for field, value in data.items():
             if hasattr(existing_obj, field):
                 setattr(existing_obj, field, value)
         return await self.update(existing_obj)

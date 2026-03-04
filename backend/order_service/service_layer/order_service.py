@@ -36,50 +36,51 @@ class OrderService:
         Creating new order with outbox events.
         The order status is "pending" untill the inventory is confirmed
         """
-        # 1. creating an order address
-        new_db_order_address: OrderAddressBase = await self.order_address_service.create_order_address(order_data)
-        # 2. creating order
-        new_db_order: Order = await self.repository.create(
-            Order(
-                user_id=order_data.user_id,
-                user_email=order_data.user_email,
-                amount=order_data.amount,
-                currency=order_data.currency,
-                status=OrderStatus.PENDING,
-                delivery_status=OrderDeliveryStatus.PENDING,
-                payment_intent_id=order_data.payment_intent_id,
-                address_id=new_db_order_address.id
+        async with self.repository.session.begin_nested():
+            # 1. creating an order address
+            new_db_order_address: OrderAddressBase = await self.order_address_service.create_order_address(order_data)
+            # 2. creating order
+            new_db_order: Order = await self.repository.create(
+                Order(
+                    user_id=order_data.user_id,
+                    user_email=order_data.user_email,
+                    amount=order_data.amount,
+                    currency=order_data.currency,
+                    status=OrderStatus.PENDING,
+                    delivery_status=OrderDeliveryStatus.PENDING,
+                    payment_intent_id=order_data.payment_intent_id,
+                    address_id=new_db_order_address.id
+                )
             )
-        )
-        # 3. creating order items
-        new_db_order_items: list[OrderItemBase]  = await self.order_item_service.create_order_items(new_db_order.id, order_data)
-
-        # 4. creating outbox event "order.created"
-        await self.outbox_event_service.add_outbox_event(
-            event_type="order.created",
-            payload=OrderCreatedEvent(
-                service="order-service",
+            # 3. creating order items
+            new_db_order_items: list[OrderItemBase]  = await self.order_item_service.create_order_items(new_db_order.id, order_data)
+        
+            # 4. creating outbox event "order.created"
+            await self.outbox_event_service.add_outbox_event(
                 event_type="order.created",
-                order_id=new_db_order.id,
-                user_id=new_db_order.user_id,
-                user_email=new_db_order.user_email,
-                items=new_db_order_items,
-                total_amount=new_db_order.amount
+                payload=OrderCreatedEvent(
+                    service="order-service",
+                    event_type="order.created",
+                    order_id=new_db_order.id,
+                    user_id=new_db_order.user_id,
+                    user_email=new_db_order.user_email,
+                    items=new_db_order_items,
+                    total_amount=new_db_order.amount
+                )
             )
-        )
-
-        # 5. creating outbox event "inventory.reserve.requested"
-        await self.outbox_event_service.add_outbox_event(
-            event_type="inventory.reserve.requested",
-            payload=InventoryReserveRequested(
-                service="product-service",
+        
+            # 5. creating outbox event "inventory.reserve.requested"
+            await self.outbox_event_service.add_outbox_event(
                 event_type="inventory.reserve.requested",
-                order_id=new_db_order.id,
-                user_id=new_db_order.user_id,
-                user_email=new_db_order.user_email,
-                items=new_db_order_items
+                payload=InventoryReserveRequested(
+                    service="product-service",
+                    event_type="inventory.reserve.requested",
+                    order_id=new_db_order.id,
+                    user_id=new_db_order.user_id,
+                    user_email=new_db_order.user_email,
+                    items=new_db_order_items
+                )
             )
-        )
 
         return OrderSchema.model_validate(new_db_order)
 

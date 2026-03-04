@@ -31,6 +31,7 @@ class OutboxEvent(Base, TimestampMixin):
         fields = []
 
         for column in inspector.columns:
+            print(column)
             field_info = {
                 "path": column.name,
                 "type": cls._map_sqlalchemy_type_to_adminjs(column.type),
@@ -59,3 +60,4 @@ class OutboxEvent(Base, TimestampMixin):
 
         type_name = sql_type.__class__.__name__.upper()
         return type_mapping.get(type_name, 'string')
+
