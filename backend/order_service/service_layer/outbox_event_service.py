@@ -41,4 +41,4 @@ class OutboxEventService:
         if not outbox_event:
             raise OutboxEventUpdateError(event_id)
 
-outbox_event_service = OutboxEventService(repository=OutboxRepository)
+outbox_event_service = OutboxEventService(?????)

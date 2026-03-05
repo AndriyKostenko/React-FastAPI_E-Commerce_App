@@ -120,6 +120,7 @@ class Settings(BaseSettings):
 
     # Other
     SECRET_ROLE: str
+    POLLING_INTERVAL_FROM_DB: int | float
 
 
     #--------------RABBITMQ-----------------------

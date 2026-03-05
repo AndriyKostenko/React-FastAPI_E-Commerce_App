@@ -1,13 +1,15 @@
 from datetime import datetime
 from contextlib import asynccontextmanager
+from asyncio import create_task
 
-import uvicorn
+from uvicorn import run
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi import FastAPI, Request, HTTPException
 from pydantic import ValidationError
 from fastapi.exceptions import ResponseValidationError, RequestValidationError
 
+from service_layer.outbox_poller_service import outbox_poller_service
 from routes.orders_routes import order_routes
 from shared.base_exceptions import (BaseAPIException, RateLimitExceededError)
 from shared.shared_instances import (order_service_redis_manager,
@@ -29,6 +31,8 @@ async def lifespan(app: FastAPI):
     logger.info("Order service DB connection is closed.")
     await base_event_publisher.start()
     logger.info("RabbitMQ Event publisher is started.")
+    poller_task = create_task(outbox_poller_service.start_outbox_poller())
+    logger.info("The poller task for fetching an unprocessed events is created.")
     logger.info('Server startup complete!')
 
     yield
@@ -39,6 +43,8 @@ async def lifespan(app: FastAPI):
     logger.warning("Redis Cache connection closed on shutdown!")
     await base_event_publisher.stop()
     logger.warning("RabbitMQ Event publisher is stopped.")
+    poller_task.cancel()
+    logger.warning("Poller task has been cancelled")
     logger.warning("Server has shut down !")
 
 
@@ -182,7 +188,7 @@ app.include_router(order_routes, prefix=settings.ORDER_SERVICE_URL_API_VERSION)
 
 
 if __name__ == "__main__":
-    uvicorn.run("main:app",
-                host=settings.APP_HOST,
-                port=settings.ORDER_SERVICE_APP_PORT,
-                reload=True)
+    run("main:app",
+        host=settings.APP_HOST,
+        port=settings.ORDER_SERVICE_APP_PORT,
+        reload=True)

@@ -1,8 +1,6 @@
-from uuid import UUID, uuid4
-from datetime import datetime, timezone
+from typing import Any
 from logging import Logger
 
-from pydantic import EmailStr, PositiveFloat
 from faststream.rabbit import RabbitQueue
 
 from shared.settings import Settings
@@ -15,7 +13,6 @@ from shared.schemas.event_schemas import (
     InventoryReserveRequested,
     InventoryReleaseRequested,
 )
-from shared.schemas.order_schemas import OrderItemBase
 
 
 class OrderEventPublisher(BaseEventPublisher):
@@ -40,110 +37,50 @@ class OrderEventPublisher(BaseEventPublisher):
             }
         )
 
-    async def publish_order_created(self,
-                                    order_id: UUID,
-                                    user_id: UUID,
-                                    user_email: EmailStr,
-                                    items: list[OrderItemBase],
-                                    total_amount: PositiveFloat):
+    async def publish_order_created(self, event_data: dict[str, Any]):
         """Publish order created event (SAGA start)"""
-        event = OrderCreatedEvent(
-            event_id=uuid4(),
-            user_email=user_email,
-            timestamp=datetime.now(timezone.utc),
-            service="order-service",
-            event_type="order.created",
-            order_id=order_id,
-            user_id=user_id,
-            items=items,
-            total_amount=total_amount
-        )
+        event = OrderCreatedEvent(**event_data)
         await self.publish_an_event(
-            message=event,
+            message= event,
             queue=self.order_events_queue
         )
-        self.logger.info(f"Published OrderCreatedEvent for order {order_id}")
+        self.logger.info(f"Published OrderCreatedEvent for order {event.order_id}")
 
-    async def publish_inventory_reserve_requested(self,
-                                                  order_id: UUID,
-                                                  user_id: UUID,
-                                                  user_email: EmailStr,
-                                                  items: list[OrderItemBase]):
+    async def publish_inventory_reserve_requested(self, event_data: dict[str, Any]):
         """Request inventory reservation from Product Service"""
-        event = InventoryReserveRequested(
-            event_id=uuid4(),
-            user_email=user_email,
-            timestamp=datetime.now(timezone.utc),
-            service="order-service",
-            event_type="inventory.reserve.requested",
-            order_id=order_id,
-            user_id=user_id,
-            items=items
-        )
+        event = InventoryReserveRequested(**event_data)
         await self.publish_an_event(
             message=event,
             queue=self.inventory_events_queue
         )
-        self.logger.info(f"Published InventoryReserveRequested for order: {order_id}")
+        self.logger.info(f"Published InventoryReserveRequested for order: {event.order_id}")
 
-    async def publish_order_confirmed(self, order_id: UUID, user_id: UUID, user_email: EmailStr):
+    async def publish_order_confirmed(self, event_data: dict[str, Any]):
         """Publish order confirmed event (SAGA success)"""
-        event = OrderConfirmedEvent(
-            event_id=uuid4(),
-            user_email=user_email,
-            timestamp=datetime.now(timezone.utc),
-            service="order-service",
-            event_type="order.confirmed",
-            order_id=order_id,
-            user_id=user_id
-        )
+        event = OrderConfirmedEvent(**event_data)
         await self.publish_an_event(
             message=event,
             queue=self.order_events_queue
         )
-        self.logger.info(f"Published OrderConfirmedEvent for order {order_id}")
+        self.logger.info(f"Published OrderConfirmedEvent for order {event.order_id}")
 
-    async def publish_order_cancelled(self, order_id: UUID, user_id: UUID, reason: str, user_email: EmailStr):
+    async def publish_order_cancelled(self, event_data: dict[str, Any]):
         """Publish order cancelled event (SAGA compensation)"""
-        event = OrderCancelledEvent(
-            event_id=uuid4(),
-            user_email=user_email,
-            timestamp=datetime.now(timezone.utc),
-            service="order-service",
-            event_type="order.cancelled",
-            order_id=order_id,
-            user_id=user_id,
-            reason=reason
-        )
+        event = OrderCancelledEvent(**event_data)
         await self.publish_an_event(
             message=event,
             queue=self.order_events_queue
         )
-        self.logger.info(f"Published OrderCancelledEvent for order {order_id}: {reason}")
+        self.logger.info(f"Published OrderCancelledEvent for order: {event.order_id}: {event.reason}")
 
-    async def publish_inventory_release_requested(self,
-                                                  order_id: UUID,
-                                                  user_id: UUID,
-                                                  user_email: EmailStr,
-                                                  items: list[OrderItemBase],
-                                                  reason: str):
+    async def publish_inventory_release_requested(self, event_data: dict[str, Any]):
         """Request inventory release (compensation transaction)"""
-        event = InventoryReleaseRequested(
-            event_id=uuid4(),
-            user_email=user_email,
-            timestamp=datetime.now(timezone.utc),
-            service="order-service",
-            event_type="inventory.release.requested",
-            order_id=order_id,
-            user_id=user_id,
-            items=items,
-            reason=reason
-        )
+        event = InventoryReleaseRequested(**event_data)
         await self.publish_an_event(
             message=event,
             queue=self.inventory_events_queue
         )
-        self.logger.info(f"Published InventoryReleaseRequested for order {order_id}: {reason}")
+        self.logger.info(f"Published InventoryReleaseRequested for order: {event.order_id}: {event.reason}")
 
 
 order_event_publisher = OrderEventPublisher(logger=logger, settings=settings)
