@@ -9,6 +9,7 @@ from exceptions.outbox_event_exceptions import OutboxEventCreatioError, OutboxEv
 
 
 class OutboxEventService:
+    """Service for handling outbox events, such as creating an event, getting unprocessed events and marking events as processed"""
     def __init__(self, repository: OutboxRepository) -> None:
         self.repository: OutboxRepository = repository
         self.field_names: list[str] = OutboxEvent.get_search_fields()
@@ -41,4 +42,3 @@ class OutboxEventService:
         if not outbox_event:
             raise OutboxEventUpdateError(event_id)
 
-outbox_event_service = OutboxEventService(?????)

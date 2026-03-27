@@ -2,18 +2,18 @@ from typing import Any
 from logging import Logger
 from asyncio import sleep
 
-from shared.logger_config import
 from shared.settings import Settings
-from shared.shared_instances import logger, settings
+from shared.shared_instances import logger, settings, order_service_database_session_manager
 from exceptions.outbox_event_exceptions import OutboxEventNotFoundError
-from service_layer.outbox_event_service import outbox_event_service, OutboxEventService
+from service_layer.outbox_event_service import OutboxEventService
 from events_publisher.order_event_publisher import order_event_publisher, OrderEventPublisher
 from shared.schemas.event_schemas import OrderCreatedEvent, InventoryReserveRequested
-
+from database_layer.outbox_repository import OutboxRepository
 
 class OutboxPollerService:
+    """Service for polling unprocessed events from the outbox table and publishing them to the message broker"""
     def __init__(self) -> None:
-        self.outbox_event_service: OutboxEventService = outbox_event_service
+        self.session_manager = order_service_database_session_manager
         self.order_event_publisher: OrderEventPublisher = order_event_publisher
         self.logger: Logger = logger
         self.settings: Settings = settings
@@ -27,26 +27,33 @@ class OutboxPollerService:
                 await self.order_event_publisher.publish_inventory_reserve_requested(event_data)
 
     async def poll_and_publish(self) -> None:
-        try:
-            unprocessed_events = await self.outbox_event_service.get_unprocessed_events()
-        except OutboxEventNotFoundError as error:
-            self.logger.error(f"Error while getting an unprocessed events: {error}")
-            # nothing to process, continue
-            return
-        for event in unprocessed_events:
+        """
+        Creating its own session for each poll to avoid conflicts with the main application sessions.
+        Polling unprocessed events and publish them to the message broker
+        """
+        async with self.session_manager.transaction() as session:
+            outbox_event_service = OutboxEventService(repository=OutboxRepository(session=session))
             try:
-                await self.event_type_to_publisher(event_data=event.payload)
-                await self.outbox_event_service.mark_event_as_processed(event_id=event.id)
-            except Exception as error:
-                self.logger.error(f"An error is occured during outbox event processing: {error}")
+                unprocessed_events = await outbox_event_service.get_unprocessed_events()
+            except OutboxEventNotFoundError:
+                self.logger.error("No unprocessed events found during outbox polling.")
+                # nothing to process, continue
+                return
+            for event in unprocessed_events:
+                try:
+                    await self.event_type_to_publisher(event_data=event.payload)
+                    await outbox_event_service.mark_event_as_processed(event_id=event.id)
+                except Exception as error:
+                    self.logger.error(f"An error is occured during outbox event processing: {error}")
 
     async def start_outbox_poller(self):
         """Starting an outbox polling every 500ms"""
         while True:
             try:
-                await self.poll_and_publish()
+                 await self.poll_and_publish()
             except Exception as error:
                 self.logger.error(f"Outbox poller service error: {error}")
             await sleep(self.settings.POLLING_INTERVAL_FROM_DB)
+
 
 outbox_poller_service = OutboxPollerService()

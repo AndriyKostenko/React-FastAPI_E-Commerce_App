@@ -24,7 +24,6 @@ async def lifespan(app: FastAPI):
     This is a context manager that will run the startup and shutdown
     events of a FastAPI application.
     """
-
     logger.info(f"Server is starting up on {settings.APP_HOST}:{settings.ORDER_SERVICE_APP_PORT}...")
     await order_service_redis_manager.connect()
     await order_service_database_session_manager.init_db()

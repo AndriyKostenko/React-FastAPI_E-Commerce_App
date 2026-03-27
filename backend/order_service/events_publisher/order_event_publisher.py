@@ -41,7 +41,7 @@ class OrderEventPublisher(BaseEventPublisher):
         """Publish order created event (SAGA start)"""
         event = OrderCreatedEvent(**event_data)
         await self.publish_an_event(
-            message= event,
+            message=event,
             queue=self.order_events_queue
         )
         self.logger.info(f"Published OrderCreatedEvent for order {event.order_id}")
