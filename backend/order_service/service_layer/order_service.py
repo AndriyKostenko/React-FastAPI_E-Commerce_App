@@ -1,5 +1,4 @@
-from uuid import UUID, uuid4
-from enum import Enum
+from uuid import UUID
 
 from sqlalchemy.exc import IntegrityError
 
@@ -11,19 +10,9 @@ from service_layer.outbox_event_service import OutboxEventService
 from shared.schemas.order_schemas import CreateOrder, OrderItemBase, OrderSchema, OrderAddressBase
 from exceptions.order_exceptions import OrderNotFoundError, OrdersNotFoundError, DuplicatePaymentIntentError
 from shared.schemas.event_schemas import OrderCreatedEvent, InventoryReserveRequested
-
-
-class OrderStatus(str, Enum):
-    PENDING = "pending"
-    CONFIRMED = "confirmed"
-    CANCELLED = "cancelled"
-
-
-class OrderDeliveryStatus(str, Enum):
-    PENDING = "pending"
-    CONFIRMED = "confirmed"
-    CANCELLED = "cancelled"
-
+from shared.enums.event_enums import InventoryEvents, OrderEvents
+from shared.enums.status_enums import OrderStatus, OrderDeliveryStatus
+from shared.enums.services_enums import Services
 
 class OrderService:
     """Service layer for order management operations, business logic, data validation."""
@@ -57,13 +46,13 @@ class OrderService:
                 )
                 # 3. creating order items
                 new_db_order_items: list[OrderItemBase]  = await self.order_item_service.create_order_items(new_db_order.id, order_data)
-            
+
                 # 4. creating outbox event "order.created"
                 await self.outbox_event_service.add_outbox_event(
-                    event_type="order.created",
+                    event_type=OrderEvents.ORDER_CREATED,
                     payload=OrderCreatedEvent(
-                        service="order-service",
-                        event_type="order.created",
+                        service=Services.ORDER_SERVICE,
+                        event_type=OrderEvents.ORDER_CREATED,
                         order_id=new_db_order.id,
                         user_id=new_db_order.user_id,
                         user_email=new_db_order.user_email,
@@ -71,13 +60,13 @@ class OrderService:
                         total_amount=new_db_order.amount
                     )
                 )
-            
+
                 # 5. creating outbox event "inventory.reserve.requested"
                 await self.outbox_event_service.add_outbox_event(
-                    event_type="inventory.reserve.requested",
+                    event_type=InventoryEvents.INVENTORY_RESERVE_REQUESTED,
                     payload=InventoryReserveRequested(
-                        service="product-service",
-                        event_type="inventory.reserve.requested",
+                        service=Services.PRODUCT_SERVICE,
+                        event_type=InventoryEvents.INVENTORY_RESERVE_REQUESTED,
                         order_id=new_db_order.id,
                         user_id=new_db_order.user_id,
                         user_email=new_db_order.user_email,

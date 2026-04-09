@@ -9,6 +9,7 @@ from exceptions.outbox_event_exceptions import OutboxEventNotFoundError
 from service_layer.outbox_event_service import OutboxEventService
 from events_publisher.order_event_publisher import order_event_publisher, OrderEventPublisher
 from database_layer.outbox_repository import OutboxRepository
+from shared.enums.event_enums import OrderEvents, InventoryEvents
 
 
 class OutboxPollerService:
@@ -22,10 +23,12 @@ class OutboxPollerService:
     async def event_type_to_publisher(self, event_data: dict[str, Any]):
         event_type = event_data.get("event_type")
         match event_type:
-            case "order.created":
+            case OrderEvents.ORDER_CREATED:
                 await self.order_event_publisher.publish_order_created(event_data)
-            case "inventory.reserve.requested":
+            case InventoryEvents.INVENTORY_RESERVE_REQUESTED:
                 await self.order_event_publisher.publish_inventory_reserve_requested(event_data)
+            case _:
+                self.logger.warning(f"Unhandeled event type in OutboxPollerService: {event_type}")
 
     async def poll_and_publish(self) -> None:
         """

@@ -14,6 +14,7 @@ from service_layer.order_service import OrderService, OrderStatus
 from service_layer.outbox_event_service import OutboxEventService
 from shared.shared_instances import order_event_idempotency_service
 from shared.idempotency_service import IdempotencyEventService
+from shared.enums.event_enums import InventoryEvents
 
 """
 Order Event Consumer - SAGA Orchestrator
@@ -66,9 +67,9 @@ class OrderEventConsumer:
         """
         event_type = message.get("event_type")
         match event_type:
-            case "inventory.reserve.succeeded":
+            case InventoryEvents.INVENTORY_RESERVE_SUCCEEDED:
                 await self.handle_inventory_reserve_succeeded(message)
-            case "inventory.reserve.failed":
+            case InventoryEvents.INVENTORY_RESERVE_FAILED:
                 await self.handle_inventory_reserve_failed(message)
             case _:
                 self.logger.warning(f"Unhandled SAGA event type: {event_type}")

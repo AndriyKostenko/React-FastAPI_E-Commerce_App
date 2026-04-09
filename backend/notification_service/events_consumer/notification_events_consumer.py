@@ -11,11 +11,11 @@ from shared.schemas.event_schemas import (
     PasswordResetRequestedEvent,
     UserLoginEvent,
     PasswordResetSuccessEvent,
-    OrderCreatedEvent,
     OrderConfirmedEvent,
     OrderCancelledEvent
 )
 from shared.shared_instances import broker
+from shared.enums.event_enums import UserEvents, OrderEvents, UserEventsQueue, OrderEventsQueue
 
 
 """
@@ -32,20 +32,20 @@ app = FastStream(broker)
 
 # Define queues and their dead-letter settings
 user_events_queue = RabbitQueue(
-    "user.events",
+    UserEventsQueue.USER_EVENTS_QUEUE,
     durable=True,
     arguments={
         "x-dead-letter-exchange": "dlx",
-        "x-dead-letter-routing-key": "user.events.dlq"
+        "x-dead-letter-routing-key": UserEventsQueue.USER_EVENTS_DEAD_LETTER_QUEUE
     }
 )
 
 order_events_queue = RabbitQueue(
-    "order.events",
+    OrderEventsQueue.ORDER_EVENTS_QUEUE,
     durable=True,
     arguments={
         "x-dead-letter-exchange": "dlx",
-        "x-dead-letter-routing-key": "order.events.dlq"
+        "x-dead-letter-routing-key": OrderEventsQueue.ORDER_EVENTS_DEAD_LETTER_QUEUE
     }
 )
 
@@ -56,19 +56,19 @@ async def handle_user_events(body: str):
     message: dict[str, Any] = loads(body)
     event_type = message.get("event_type")
     match event_type:
-        case "user.registered":
+        case UserEvents.USER_REGISTERED:
             event = UserRegisteredEvent(**message)
             await user_notification_email_service.send_verification_email(event)
-        case "user.email.verified":
+        case UserEvents.USER_EMAIL_VERIFIED:
             event = EmailVerificationEvent(**message)
             await user_notification_email_service.send_email_verified_notification(event)
-        case "user.logged.in":
+        case UserEvents.USER_LOGGED_IN:
             event = UserLoginEvent(**message)
             await user_notification_email_service.send_login_notification_email(event)
-        case "user.password.reset.request":
+        case UserEvents.USER_PASSWORD_RESET_REQUEST:
             event = PasswordResetRequestedEvent(**message)
             await user_notification_email_service.send_password_reset_email(event)
-        case "user.password.reset.success":
+        case UserEvents.USER_PASWORD_RESET_SUCCESS:
             event = PasswordResetSuccessEvent(**message)
             await user_notification_email_service.send_password_reset_success_email(event)
         case _:
@@ -81,10 +81,10 @@ async def handle_order_events(body: str):
     message: dict[str, Any] = loads(body)
     event_type = message.get("event_type")
     match event_type:
-        case "order.confirmed":
+        case OrderEvents.ORDER_CONFIRMED:
             event = OrderConfirmedEvent(**message)
             await order_notification_email_service.send_order_confirmed_notification(event)
-        case "order.cancelled":
+        case OrderEvents.ORDER_CANCELLED:
             event = OrderCancelledEvent(**message)
             await order_notification_email_service.send_order_cancelled_notification(event)
         case _:

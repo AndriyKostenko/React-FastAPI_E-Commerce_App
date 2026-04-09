@@ -216,6 +216,7 @@ services:
       - usernet
     volumes:
       - ./shared:/app/shared:ro
+      - ./shared/templates:/app/templates:ro
 
   order-service:
     build:

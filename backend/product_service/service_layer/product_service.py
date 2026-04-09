@@ -127,7 +127,7 @@ class ProductService:
         return ProductBase.model_validate(db_product)
 
     async def get_products_by_ids(self, products_ids: list[UUID]) -> list[ProductBase]:
-        products = await self.repository.get_many_by_field(field_name='id', value=products_ids)
+        products = await self.repository.get_many_by_field(field_name='id', value=products_ids, limit=50)
         if not products:
             raise ProductNotFoundError("No products found with the given IDs.")
         return [ProductBase.model_validate(product) for product in products]

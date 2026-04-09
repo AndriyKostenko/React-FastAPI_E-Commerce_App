@@ -13,6 +13,7 @@ from shared.schemas.event_schemas import (
     InventoryReserveRequested,
     InventoryReleaseRequested,
 )
+from shared.enums.event_enums import OrderEventsQueue, ProductEventsQueue
 
 
 class OrderEventPublisher(BaseEventPublisher):
@@ -21,65 +22,50 @@ class OrderEventPublisher(BaseEventPublisher):
         super().__init__(broker, logger, settings)
         # Queue definitions with dead-letter configuration
         self.order_events_queue: RabbitQueue = RabbitQueue(
-            "order.events",
+            OrderEventsQueue.ORDER_EVENTS_QUEUE,
             durable=True,
             arguments={
                 "x-dead-letter-exchange": "dlx",
-                "x-dead-letter-routing-key": "order.events.dlq"
+                "x-dead-letter-routing-key": OrderEventsQueue.ORDER_EVENTS_DEAD_LETTER_QUEUE
             }
         )
         self.inventory_events_queue: RabbitQueue = RabbitQueue(
-            "product.inventory.events",
+            ProductEventsQueue.PRODUCT_EVENTS_QUEUE,
             durable=True,
             arguments={
                 "x-dead-letter-exchange": "dlx",
-                "x-dead-letter-routing-key": "inventory.events.dlq"
+                "x-dead-letter-routing-key": ProductEventsQueue.PRODUCT_EVENTS_DEAD_LETTER_QUEUE
             }
         )
 
     async def publish_order_created(self, event_data: dict[str, Any]):
         """Publish order created event (SAGA start)"""
         event = OrderCreatedEvent(**event_data)
-        await self.publish_an_event(
-            message=event,
-            queue=self.order_events_queue
-        )
+        await self.publish_an_event(message=event,queue=self.order_events_queue)
         self.logger.info(f"Published OrderCreatedEvent for order {event.order_id}")
 
     async def publish_inventory_reserve_requested(self, event_data: dict[str, Any]):
         """Request inventory reservation from Product Service"""
         event = InventoryReserveRequested(**event_data)
-        await self.publish_an_event(
-            message=event,
-            queue=self.inventory_events_queue
-        )
+        await self.publish_an_event(message=event,queue=self.inventory_events_queue)
         self.logger.info(f"Published InventoryReserveRequested for order: {event.order_id}")
 
     async def publish_order_confirmed(self, event_data: dict[str, Any]):
         """Publish order confirmed event (SAGA success)"""
         event = OrderConfirmedEvent(**event_data)
-        await self.publish_an_event(
-            message=event,
-            queue=self.order_events_queue
-        )
+        await self.publish_an_event(message=event,queue=self.order_events_queue)
         self.logger.info(f"Published OrderConfirmedEvent for order {event.order_id}")
 
     async def publish_order_cancelled(self, event_data: dict[str, Any]):
         """Publish order cancelled event (SAGA compensation)"""
         event = OrderCancelledEvent(**event_data)
-        await self.publish_an_event(
-            message=event,
-            queue=self.order_events_queue
-        )
+        await self.publish_an_event(message=event,queue=self.order_events_queue)
         self.logger.info(f"Published OrderCancelledEvent for order: {event.order_id}: {event.reason}")
 
     async def publish_inventory_release_requested(self, event_data: dict[str, Any]):
         """Request inventory release (compensation transaction)"""
         event = InventoryReleaseRequested(**event_data)
-        await self.publish_an_event(
-            message=event,
-            queue=self.inventory_events_queue
-        )
+        await self.publish_an_event(message=event,queue=self.inventory_events_queue)
         self.logger.info(f"Published InventoryReleaseRequested for order: {event.order_id}: {event.reason}")
 
 

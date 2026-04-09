@@ -10,6 +10,7 @@ from shared.schemas.event_schemas import InventoryReserveRequested, InventoryRel
 from shared.shared_instances import logger, product_service_database_session_manager, product_event_idempotency_service
 from event_publisher.event_publisher import product_event_publisher
 from shared.idempotency_service import IdempotencyEventService
+from shared.enums.event_enums import InventoryEvents
 
 """
 Product Event Consumer - SAGA Orchestrator
@@ -50,9 +51,9 @@ class ProductEventConsumer:
         """
         event_type = message.get("event_type")
         match event_type:
-            case "inventory.reserve.requested":
+            case InventoryEvents.INVENTORY_RESERVE_REQUESTED:
                 await self.handle_inventory_reserve_requested(message)
-            case "inventory.release.requested":
+            case InventoryEvents.INVENTORY_RELEASE_REQUESTED:
                 await self.handle_inventory_release_requested(message)
             case _:
                 self.logger.warning(f"Unhandled inventory event type: {event_type}")

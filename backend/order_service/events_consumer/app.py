@@ -6,6 +6,8 @@ from orjson import loads
 
 from shared.shared_instances import broker
 from events_consumer.order_event_consumer import order_event_consumer
+from shared.enums.event_enums import OrderSagaResponseQueue
+
 
 # Create the FastStream app
 app = FastStream(broker)
@@ -13,11 +15,11 @@ app = FastStream(broker)
 
 # Define the queue for SAGA responses from other services
 order_saga_response_queue = RabbitQueue(
-    "order.saga.response",
+    OrderSagaResponseQueue.ORDER_SAGA_RESPONSE_QUEUE,
     durable=True,
     arguments={
         "x-dead-letter-exchange": "dlx",
-        "x-dead-letter-routing-key": "order.saga.response.dlq"
+        "x-dead-letter-routing-key": OrderSagaResponseQueue.ORDER_SAGA_RESPONSE_DEAD_LETTER_QUEUE
     }
 )
 
