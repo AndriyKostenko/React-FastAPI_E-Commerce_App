@@ -9,10 +9,10 @@ from fastapi import FastAPI, Request, HTTPException
 from pydantic import ValidationError
 from fastapi.exceptions import ResponseValidationError, RequestValidationError
 
-from service_layer.outbox_poller_service import outbox_poller_service
+from service_layer.outbox_poller_service import OutboxPollerService
 from routes.orders_routes import order_routes
 from shared.base_exceptions import (BaseAPIException, RateLimitExceededError)
-from shared.shared_instances import (order_service_redis_manager,
+from shared.shared_instances import (order_event_idempotency_service, order_service_redis_manager,
                                     order_service_database_session_manager,
                                     logger,
                                     settings,
@@ -26,11 +26,12 @@ async def lifespan(app: FastAPI):
     """
     logger.info(f"Server is starting up on {settings.APP_HOST}:{settings.ORDER_SERVICE_APP_PORT}...")
     await order_service_redis_manager.connect()
+    await order_event_idempotency_service.connect()
     await order_service_database_session_manager.init_db()
     logger.info("Order service DB connection is closed.")
     await base_event_publisher.start()
     logger.info("RabbitMQ Event publisher is started.")
-    poller_task = create_task(outbox_poller_service.start_outbox_poller())
+    poller_task = create_task(OutboxPollerService().start_outbox_poller())
     logger.info("The poller task for fetching an unprocessed events is created.")
     logger.info('Server startup complete!')
 

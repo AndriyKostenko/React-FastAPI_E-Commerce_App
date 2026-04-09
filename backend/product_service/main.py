@@ -14,7 +14,7 @@ from routes.product_routes import product_routes
 from routes.category_routes import category_routes
 from routes.review_routes import review_routes
 from shared.base_exceptions import (BaseAPIException,RateLimitExceededError)
-from shared.shared_instances import (product_service_redis_manager,
+from shared.shared_instances import (product_event_idempotency_service, product_service_redis_manager,
                                     product_service_database_session_manager,
                                     logger,
                                     settings,
@@ -30,13 +30,12 @@ async def lifespan(app: FastAPI):
 
     logger.info(f"Server is starting up on {settings.APP_HOST}:{settings.PRODUCT_SERVICE_APP_PORT}...")
     await product_service_redis_manager.connect()
+    await product_event_idempotency_service.connect()
     await product_service_database_session_manager.init_db()
     logger.info("Product service DB session is started.")
     await base_event_publisher.start()
     logger.info("RabbitMQ Event publisher is started.")
     logger.info("Product DB session is started.")
-
-
     logger.info('Server startup complete!')
 
     yield

@@ -76,6 +76,7 @@ class ProductEventConsumer:
         # 1.Parse the event
         event = InventoryReserveRequested(**message)
         try:
+
             # 2. checking idempotency FIRST - befoer any processing
             if await self.idempotency_service.is_event_processed(event.event_id, event.event_type):
                 self.logger.info(f"Skipping duplicate inventory reservation for order: {event.order_id}")
@@ -103,6 +104,8 @@ class ProductEventConsumer:
                     )
                     self.logger.warning(f"Inventory reservation failed for order: {str(event.order_id)} reasons: {reserved_items['reasons']}")
                     return
+
+                # marking an event as processed
                 await self.idempotency_service.mark_event_as_processed(
                     event_id=event.event_id,
                     event_type=event.event_type,

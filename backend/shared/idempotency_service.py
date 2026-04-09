@@ -9,7 +9,7 @@ from shared.redis_manager import RedisManager
 
 
 class IdempotencyEventService(RedisManager):
-    """Service to ensure idempotent proctssing of events using Redis"""
+    """Service to ensure idempotent processing of events using Redis"""
     def __init__(self,
                 service_prefix: str,
                 logger: Logger,

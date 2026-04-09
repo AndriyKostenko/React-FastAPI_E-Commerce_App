@@ -12,6 +12,8 @@ from shared.schemas.event_schemas import InventoryReserveFailed, InventoryReserv
 from shared.shared_instances import logger, order_service_database_session_manager
 from service_layer.order_service import OrderService, OrderStatus
 from service_layer.outbox_event_service import OutboxEventService
+from shared.shared_instances import order_event_idempotency_service
+from shared.idempotency_service import IdempotencyEventService
 
 """
 Order Event Consumer - SAGA Orchestrator
@@ -33,6 +35,7 @@ class OrderEventConsumer:
     """
     def __init__(self, logger: Logger):
         self.logger: Logger = logger
+        self.idempotency_service: IdempotencyEventService = order_event_idempotency_service
 
     async def _get_order_service(self):
         """
@@ -82,8 +85,10 @@ class OrderEventConsumer:
         try:
             # Parse the event
             event = InventoryReserveSucceeded(**message)
-            self.logger.info(f"Inventory reservation succeeded for order id: {event.order_id}")
-
+            if await self.idempotency_service.is_event_processed(event_id=event.event_id, event_type=event.event_type):
+                self.logger.info(f"Skipping duplicate 'Inventory reservation succedded' event for order: {event.order_id}")
+                return # skipping coa already processed
+            self.logger.info(f"Processing 'Inventory reservation succedded' for order {event.order_id}")
             # Get order service with database session
             async for order_service in self._get_order_service():
                 # Update order status to CONFIRMED
@@ -95,11 +100,17 @@ class OrderEventConsumer:
 
             # Publish OrderConfirmedEvent for downstream services (notification, etc.)
             await order_event_publisher.publish_order_confirmed(
-                order_id=event.order_id,
-                user_id=event.user_id,
-                user_email=event.user_email
+                event_data=event.model_dump(mode="json")
             )
-            self.logger.info(f"Published OrderConfirmedEvent for order {event.order_id}")
+            self.logger.info(f"Published OrderConfirmedEvent for order: {event.order_id}")
+
+            # marking an event as proccessed
+            await self.idempotency_service.mark_event_as_processed(
+                event_id=event.event_id,
+                event_type=event.event_type,
+                order_id=event.order_id,
+                result='success'
+            )
 
             # TODO: notification service/payment services events -> ...
 
@@ -120,6 +131,9 @@ class OrderEventConsumer:
         try:
             # Parse the event
             event = InventoryReserveFailed(**message)
+            if await self.idempotency_service.is_event_processed(event_id=event.event_id, event_type=event.event_type):
+                self.logger.info(f"Skipping duplicate 'Inventory reservation failed' event for order: {event.order_id}")
+                return # skipping coa already processed
             self.logger.info(f"Inventory reservation failed for order {event.order_id}: {event.reasons}")
 
             # Get order service with database session
@@ -133,13 +147,16 @@ class OrderEventConsumer:
 
             # Publish OrderCancelledEvent for downstream services (notification, etc.)
             await order_event_publisher.publish_order_cancelled(
-                order_id=event.order_id,
-                user_id=event.user_id,
-                user_email=event.user_email,
-                reason=event.reasons
+                event_data=event.model_dump(mode="json")
             )
             self.logger.info(f"Published OrderCancelledEvent for order {event.order_id}")
 
+            await self.idempotency_service.mark_event_as_processed(
+                event_id=event.event_id,
+                event_type=event.event_type,
+                order_id=event.order_id,
+                result='success'
+            )
             # TODO: notification service/payment services events -> ...
 
         except Exception as e:
@@ -148,4 +165,5 @@ class OrderEventConsumer:
 
 
 # Create consumer instance
+
 order_event_consumer = OrderEventConsumer(logger=logger)

@@ -60,7 +60,10 @@ product_event_idempotency_service = IdempotencyEventService(service_prefix="prod
                                                             logger=logger,
                                                             redis_url=settings.PRODUCT_SERVICE_REDIS_URL,
                                                             service_api_version=settings.PRODUCT_SERVICE_URL_API_VERSION)
-
+order_event_idempotency_service = IdempotencyEventService(service_prefix="order-service",
+                                                          logger=logger,
+                                                          redis_url=settings.ORDER_SERVICE_REDIS_URL,
+                                                          service_api_version=settings.ORDER_SERVICE_URL_API_VERSION)
 
 #------------------------------------DB-Managers-----------------------------------------------
 

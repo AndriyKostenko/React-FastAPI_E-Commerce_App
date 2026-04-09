@@ -157,7 +157,6 @@ class BaseRepository(Generic[ModelType]):
             query = query.limit(limit)
 
         result = await self.session.execute(query)
-        print("Executed query:", str(query))
         return list(result.scalars().all())
 
     async def get_by_field(self, field_name: str, value: str | UUID | bool) -> Optional[ModelType]:

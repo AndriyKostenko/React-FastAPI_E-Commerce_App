@@ -1,5 +1,6 @@
 from datetime import datetime
 from uuid import UUID, uuid4
+from typing import Any
 
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -11,11 +12,11 @@ from shared.models_mixins import TimestampMixin
 
 
 class OutboxEvent(Base, TimestampMixin):
-    __tablename__ = "outbox_events"
+    __tablename__: str = "outbox_events"
 
     id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4, unique=True)
     event_type: Mapped[str] = mapped_column(nullable=False)
-    payload: Mapped[JSON] = mapped_column(nullable=False)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
     processed: Mapped[bool] = mapped_column(default=False)
     processed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True),nullable=True)
 
@@ -60,4 +61,3 @@ class OutboxEvent(Base, TimestampMixin):
 
         type_name = sql_type.__class__.__name__.upper()
         return type_mapping.get(type_name, 'string')
-
