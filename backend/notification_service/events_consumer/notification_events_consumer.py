@@ -16,6 +16,19 @@ from shared.schemas.event_schemas import (
 )
 from shared.shared_instances import broker
 from shared.enums.event_enums import UserEvents, OrderEvents, UserEventsQueue, OrderEventsQueue
+from shared.idempotency_service import IdempotencyEventService
+from shared.settings import Settings
+from shared.shared_instances import settings, notification_service_redis_manager
+
+
+# Create idempotency service for notification consumer
+notification_idempotency_service = IdempotencyEventService(
+    service_prefix=settings.NOTIFICATION_SERVICE_REDIS_PREFIX,
+    logger=logger,
+    redis_url=settings.NOTIFICATION_SERVICE_REDIS_URL,
+    service_api_version=settings.NOTIFICATION_SERVICE_URL_API_VERSION,
+    ttl_hours=72,
+)
 
 
 """
@@ -52,40 +65,87 @@ order_events_queue = RabbitQueue(
 
 @broker.subscriber(queue=user_events_queue)
 async def handle_user_events(body: str):
-    """Handle user-related events"""
+    """Handle user-related events with idempotency checking."""
     message: dict[str, Any] = loads(body)
     event_type = message.get("event_type")
-    match event_type:
-        case UserEvents.USER_REGISTERED:
-            event = UserRegisteredEvent(**message)
-            await user_notification_email_service.send_verification_email(event)
-        case UserEvents.USER_EMAIL_VERIFIED:
-            event = EmailVerificationEvent(**message)
-            await user_notification_email_service.send_email_verified_notification(event)
-        case UserEvents.USER_LOGGED_IN:
-            event = UserLoginEvent(**message)
-            await user_notification_email_service.send_login_notification_email(event)
-        case UserEvents.USER_PASSWORD_RESET_REQUEST:
-            event = PasswordResetRequestedEvent(**message)
-            await user_notification_email_service.send_password_reset_email(event)
-        case UserEvents.USER_PASSWORD_RESET_SUCCESS:
-            event = PasswordResetSuccessEvent(**message)
-            await user_notification_email_service.send_password_reset_success_email(event)
-        case _:
-            logger.warning(f"Unhandled user event type: {message.get('event_type')}")
+    event_id = message.get("event_id")
+
+    # Idempotency check — skip if already processed
+    if event_id and await notification_idempotency_service.is_event_processed(
+        event_id=event_id, event_type=event_type
+    ):
+        logger.debug(f"Skipping duplicate user event: {event_type} / {event_id}")
+        return
+
+    try:
+        match event_type:
+            case UserEvents.USER_REGISTERED:
+                event = UserRegisteredEvent(**message)
+                await user_notification_email_service.send_verification_email(event)
+            case UserEvents.USER_EMAIL_VERIFIED:
+                event = EmailVerificationEvent(**message)
+                await user_notification_email_service.send_email_verified_notification(event)
+            case UserEvents.USER_LOGGED_IN:
+                event = UserLoginEvent(**message)
+                await user_notification_email_service.send_login_notification_email(event)
+            case UserEvents.USER_PASSWORD_RESET_REQUEST:
+                event = PasswordResetRequestedEvent(**message)
+                await user_notification_email_service.send_password_reset_email(event)
+            case UserEvents.USER_PASSWORD_RESET_SUCCESS:
+                event = PasswordResetSuccessEvent(**message)
+                await user_notification_email_service.send_password_reset_success_email(event)
+            case _:
+                logger.warning(f"Unhandled user event type: {message.get('event_type')}")
+                return
+
+        # Mark as processed AFTER successful handling
+        if event_id:
+            await notification_idempotency_service.mark_event_as_processed(
+                event_id=event_id,
+                event_type=event_type,
+                order_id=None,
+                result="sent"
+            )
+    except Exception as error:
+        logger.error(f"Error handling user event {event_type}: {error}")
+        raise
 
 
 @broker.subscriber(queue=order_events_queue)
 async def handle_order_events(body: str):
-    """Handle order-related notification events."""
+    """Handle order-related notification events with idempotency checking."""
     message: dict[str, Any] = loads(body)
     event_type = message.get("event_type")
-    match event_type:
-        case OrderEvents.ORDER_CONFIRMED:
-            event = OrderConfirmedEvent(**message)
-            await order_notification_email_service.send_order_confirmed_notification(event)
-        case OrderEvents.ORDER_CANCELLED:
-            event = OrderCancelledEvent(**message)
-            await order_notification_email_service.send_order_cancelled_notification(event)
-        case _:
-            logger.warning(f"Unhandled order event type: {message.get("event_type")}")
+    event_id = message.get("event_id")
+
+    # Idempotency check — skip if already processed
+    if event_id and await notification_idempotency_service.is_event_processed(
+        event_id=event_id, event_type=event_type
+    ):
+        logger.debug(f"Skipping duplicate order event: {event_type} / {event_id}")
+        return
+
+    try:
+        match event_type:
+            case OrderEvents.ORDER_CONFIRMED:
+                event = OrderConfirmedEvent(**message)
+                await order_notification_email_service.send_order_confirmed_notification(event)
+            case OrderEvents.ORDER_CANCELLED:
+                event = OrderCancelledEvent(**message)
+                await order_notification_email_service.send_order_cancelled_notification(event)
+            case _:
+                logger.warning(f"Unhandled order event type: {message.get('event_type')}")
+                return
+
+        # Mark as processed AFTER successful handling
+        if event_id:
+            order_id = message.get("order_id")
+            await notification_idempotency_service.mark_event_as_processed(
+                event_id=event_id,
+                event_type=event_type,
+                order_id=order_id,
+                result="sent"
+            )
+    except Exception as error:
+        logger.error(f"Error handling order event {event_type}: {error}")
+        raise

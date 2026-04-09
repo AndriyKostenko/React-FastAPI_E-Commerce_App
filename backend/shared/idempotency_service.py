@@ -15,7 +15,7 @@ class IdempotencyEventService(RedisManager):
                 logger: Logger,
                 redis_url: str,
                 service_api_version: str,
-                ttl_hours: int = 24,) -> None:
+                ttl_hours: int = 72,) -> None:
         super().__init__(service_prefix,
                          redis_url,
                          logger,
@@ -40,14 +40,14 @@ class IdempotencyEventService(RedisManager):
     async def mark_event_as_processed(self,
                                       event_id: UUID,
                                       event_type: str,
-                                      order_id: UUID,
+                                      order_id: UUID | None,
                                       result: str) -> None:
         """Mark event as processed with metadata"""
         key = self._generate_event_cache_key(event_id, event_type)
         metadata = {
             "event_id": str(event_id),
             "event_type": event_type,
-            "order_id": str(order_id),
+            "order_id": str(order_id) if order_id else None,
             "result": result,
             "processed_at": str(datetime.now(timezone.utc))
         }
