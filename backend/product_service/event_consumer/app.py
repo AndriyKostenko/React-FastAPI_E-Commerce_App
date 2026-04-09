@@ -5,6 +5,7 @@ from faststream.rabbit import RabbitQueue
 from orjson import loads
 
 from shared.shared_instances import broker
+from shared.enums.event_enums import ProductInventoryEventsQueue
 from event_consumer.product_event_consumer import product_event_consumer
 
 
@@ -13,11 +14,11 @@ app = FastStream(broker)
 
 # Define the queue for SAGA responses from other services
 product_inventory_events_queue = RabbitQueue(
-    "product.inventory.events",
+    ProductInventoryEventsQueue.PRODUCT_INVENTORY_EVENTS_QUEUE,
     durable=True,
     arguments={
         "x-dead-letter-exchange": "dlx",
-        "x-dead-letter-routing-key": "product.inventory.events.dlq"
+        "x-dead-letter-routing-key": ProductInventoryEventsQueue.PRODUCT_INVENTORY_EVENTS_DEAD_LETTER_QUEUE
     }
 )
 

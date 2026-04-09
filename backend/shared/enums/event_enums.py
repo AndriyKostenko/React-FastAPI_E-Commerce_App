@@ -9,11 +9,16 @@ class UserEventsQueue(StrEnum):
 class OrderEventsQueue(StrEnum):
     ORDER_EVENTS_QUEUE = "order.events.queue"
     ORDER_EVENTS_DEAD_LETTER_QUEUE = "order.events.dlq"
-    
-    
+
+
 class OrderSagaResponseQueue(StrEnum):
-    ORDER_SAGA_RESPONSE_QUEUE = "order.saga.response.queue"
-    ORDER_SAGA_RESPONSE_DEAD_LETTER_QUEUE = "order.saga.response.dead.letter.queue"
+    ORDER_SAGA_RESPONSE_QUEUE = "order.saga.response"
+    ORDER_SAGA_RESPONSE_DEAD_LETTER_QUEUE = "order.saga.response.dlq"
+
+
+class ProductInventoryEventsQueue(StrEnum):
+    PRODUCT_INVENTORY_EVENTS_QUEUE = "product.inventory.events"
+    PRODUCT_INVENTORY_EVENTS_DEAD_LETTER_QUEUE = "product.inventory.events.dlq"
 
 
 class ProductEventsQueue(StrEnum):

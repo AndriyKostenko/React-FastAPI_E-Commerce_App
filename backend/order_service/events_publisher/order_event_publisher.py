@@ -13,7 +13,7 @@ from shared.schemas.event_schemas import (
     InventoryReserveRequested,
     InventoryReleaseRequested,
 )
-from shared.enums.event_enums import OrderEventsQueue, ProductEventsQueue
+from shared.enums.event_enums import OrderEventsQueue, ProductInventoryEventsQueue
 
 
 class OrderEventPublisher(BaseEventPublisher):
@@ -30,11 +30,11 @@ class OrderEventPublisher(BaseEventPublisher):
             }
         )
         self.inventory_events_queue: RabbitQueue = RabbitQueue(
-            ProductEventsQueue.PRODUCT_EVENTS_QUEUE,
+            ProductInventoryEventsQueue.PRODUCT_INVENTORY_EVENTS_QUEUE,
             durable=True,
             arguments={
                 "x-dead-letter-exchange": "dlx",
-                "x-dead-letter-routing-key": ProductEventsQueue.PRODUCT_EVENTS_DEAD_LETTER_QUEUE
+                "x-dead-letter-routing-key": ProductInventoryEventsQueue.PRODUCT_INVENTORY_EVENTS_DEAD_LETTER_QUEUE
             }
         )
 

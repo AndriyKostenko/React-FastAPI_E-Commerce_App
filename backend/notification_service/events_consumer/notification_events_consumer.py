@@ -68,7 +68,7 @@ async def handle_user_events(body: str):
         case UserEvents.USER_PASSWORD_RESET_REQUEST:
             event = PasswordResetRequestedEvent(**message)
             await user_notification_email_service.send_password_reset_email(event)
-        case UserEvents.USER_PASWORD_RESET_SUCCESS:
+        case UserEvents.USER_PASSWORD_RESET_SUCCESS:
             event = PasswordResetSuccessEvent(**message)
             await user_notification_email_service.send_password_reset_success_email(event)
         case _:
