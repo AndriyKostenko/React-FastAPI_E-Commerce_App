@@ -17,3 +17,11 @@ class OrdersNotFoundError(BaseAPIException):
             status_code=404,
             detail="Orders are not found."
         )
+
+class DuplicatePaymentIntentError(BaseAPIException):
+    """Exception raised when an order with the same payment_intent_id already exists."""
+    def __init__(self, payment_intent_id: str) -> None:
+        super().__init__(
+            status_code=409,
+            detail=f"Order with payment_intent_id '{payment_intent_id}' already exists."
+        )

@@ -1,13 +1,15 @@
 from uuid import UUID, uuid4
 from enum import Enum
 
+from sqlalchemy.exc import IntegrityError
+
 from service_layer.order_address_service import OrderAddressService
 from service_layer.order_item_service import OrderItemService
 from database_layer.order_repository import OrderRepository
 from models.order_models import Order
 from service_layer.outbox_event_service import OutboxEventService
 from shared.schemas.order_schemas import CreateOrder, OrderItemBase, OrderSchema, OrderAddressBase
-from exceptions.order_exceptions import OrderNotFoundError, OrdersNotFoundError
+from exceptions.order_exceptions import OrderNotFoundError, OrdersNotFoundError, DuplicatePaymentIntentError
 from shared.schemas.event_schemas import OrderCreatedEvent, InventoryReserveRequested
 
 
@@ -36,51 +38,54 @@ class OrderService:
         Creating new order with outbox events.
         The order status is "pending" untill the inventory is confirmed
         """
-        async with self.repository.session.begin_nested():
-            # 1. creating an order address
-            new_db_order_address: OrderAddressBase = await self.order_address_service.create_order_address(order_data)
-            # 2. creating order
-            new_db_order: Order = await self.repository.create(
-                Order(
-                    user_id=order_data.user_id,
-                    user_email=order_data.user_email,
-                    amount=order_data.amount,
-                    currency=order_data.currency,
-                    status=OrderStatus.PENDING,
-                    delivery_status=OrderDeliveryStatus.PENDING,
-                    payment_intent_id=order_data.payment_intent_id,
-                    address_id=new_db_order_address.id
+        try:
+            async with self.repository.session.begin_nested():
+                # 1. creating an order address
+                new_db_order_address: OrderAddressBase = await self.order_address_service.create_order_address(order_data)
+                # 2. creating order
+                new_db_order: Order = await self.repository.create(
+                    Order(
+                        user_id=order_data.user_id,
+                        user_email=order_data.user_email,
+                        amount=order_data.amount,
+                        currency=order_data.currency,
+                        status=OrderStatus.PENDING,
+                        delivery_status=OrderDeliveryStatus.PENDING,
+                        payment_intent_id=order_data.payment_intent_id,
+                        address_id=new_db_order_address.id
+                    )
                 )
-            )
-            # 3. creating order items
-            new_db_order_items: list[OrderItemBase]  = await self.order_item_service.create_order_items(new_db_order.id, order_data)
-        
-            # 4. creating outbox event "order.created"
-            await self.outbox_event_service.add_outbox_event(
-                event_type="order.created",
-                payload=OrderCreatedEvent(
-                    service="order-service",
+                # 3. creating order items
+                new_db_order_items: list[OrderItemBase]  = await self.order_item_service.create_order_items(new_db_order.id, order_data)
+            
+                # 4. creating outbox event "order.created"
+                await self.outbox_event_service.add_outbox_event(
                     event_type="order.created",
-                    order_id=new_db_order.id,
-                    user_id=new_db_order.user_id,
-                    user_email=new_db_order.user_email,
-                    items=new_db_order_items,
-                    total_amount=new_db_order.amount
+                    payload=OrderCreatedEvent(
+                        service="order-service",
+                        event_type="order.created",
+                        order_id=new_db_order.id,
+                        user_id=new_db_order.user_id,
+                        user_email=new_db_order.user_email,
+                        items=new_db_order_items,
+                        total_amount=new_db_order.amount
+                    )
                 )
-            )
-        
-            # 5. creating outbox event "inventory.reserve.requested"
-            await self.outbox_event_service.add_outbox_event(
-                event_type="inventory.reserve.requested",
-                payload=InventoryReserveRequested(
-                    service="product-service",
+            
+                # 5. creating outbox event "inventory.reserve.requested"
+                await self.outbox_event_service.add_outbox_event(
                     event_type="inventory.reserve.requested",
-                    order_id=new_db_order.id,
-                    user_id=new_db_order.user_id,
-                    user_email=new_db_order.user_email,
-                    items=new_db_order_items
+                    payload=InventoryReserveRequested(
+                        service="product-service",
+                        event_type="inventory.reserve.requested",
+                        order_id=new_db_order.id,
+                        user_id=new_db_order.user_id,
+                        user_email=new_db_order.user_email,
+                        items=new_db_order_items
+                    )
                 )
-            )
+        except IntegrityError:
+            raise DuplicatePaymentIntentError(payment_intent_id=order_data.payment_intent_id)
 
         return OrderSchema.model_validate(new_db_order)
 
@@ -94,8 +99,7 @@ class OrderService:
         return OrderSchema.model_validate(db_order)
 
     async def update_order_status(self, order_id: UUID, order_status: OrderStatus) -> OrderSchema:
-        update_dict = {"status": order_status}
-        updated_db_order = await self.repository.update_by_id(order_id, **update_dict)
+        updated_db_order = await self.repository.update_by_id(order_id, data={"status": order_status})
         return OrderSchema.model_validate(updated_db_order)
 
     async def create_order_item(self, order_item_data):

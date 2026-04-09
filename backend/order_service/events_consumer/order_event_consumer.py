@@ -147,7 +147,14 @@ class OrderEventConsumer:
 
             # Publish OrderCancelledEvent for downstream services (notification, etc.)
             await order_event_publisher.publish_order_cancelled(
-                event_data=event.model_dump(mode="json")
+                event_data={
+                    "service": "order-service",
+                    "event_type": "order.cancelled",
+                    "order_id": str(event.order_id),
+                    "user_id": str(event.user_id),
+                    "user_email": event.user_email,
+                    "reason": event.reasons,  # InventoryReserveFailed uses "reasons" (plural)
+                }
             )
             self.logger.info(f"Published OrderCancelledEvent for order {event.order_id}")
 
