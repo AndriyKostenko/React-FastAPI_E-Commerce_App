@@ -132,87 +132,77 @@ class ProductService:
             raise ProductNotFoundError("No products found with the given IDs.")
         return [ProductBase.model_validate(product) for product in products]
 
-    # TODO: check for correct implementstion
     async def update_product(self,
                             product_id: UUID,
                             product_data: UpdateProduct) -> ProductBase:
-        # unpackiong the data with key\value provided
         update_dict = product_data.model_dump(exclude_unset=True)
-        if update_dict:
-            try:
-                db_product = await self.get_product_by_id_without_relations(product_id)
-                updated_product = await self.repository.update_by_id(db_product.id, data=update_dict)
-                return ProductBase.model_validate(updated_product)
-            except (IntegrityError, ProductNotFoundError) as e:
-                if "products_category_id_fkey" in str(e):
-                    raise ProductCreationError(
-                        f'Category with id "{update_dict.get("category_id")}" does not exist.'
-                    )
-                raise
-        else:
+        if not update_dict:
             raise ProductUpdateError("Failed to update product: no data to update is provided")
+        try:
+            updated_product = await self.repository.update_by_id(product_id, data=update_dict)
+            if not updated_product:
+                raise ProductNotFoundError(f"Product with id: {product_id} not found")
+            return ProductBase.model_validate(updated_product)
+        except IntegrityError as e:
+            if "products_category_id_fkey" in str(e):
+                raise ProductCreationError(
+                    f'Category with id "{update_dict.get("category_id")}" does not exist.'
+                )
+            raise
 
     async def delete_product_by_id(self, product_id: UUID) -> None:
         success = await self.repository.delete_by_id(product_id)
         if not success:
             raise ProductNotFoundError(f"Product with id: {product_id} not found")
 
-    async def validate_inventory_availability(self, products: list[OrderItemBase]) -> dict[str, bool|str|list[OrderItemBase]]:
+    async def reserve_inventory(self, items: list[OrderItemBase]) -> dict[str, Any]:
         """
-        Reserve inventory by decrementing product quantities.
-
-        Returns:
-            List of successfully reserved items
+        Reserve inventory by decrementing the product quantities.
+        Validates and deducts in a single pass to avoid stale reads between
+        the validation and update steps.
         """
         failed_items: list[OrderItemBase] = []
         reasons: set[str] = set()
-        for item in products:
+        reserved_items: list[OrderItemBase] = []
+
+        for item in items:
             try:
                 product = await self.get_product_by_id_without_relations(item.product_id)
-                if not product.in_stock:
-                    failed_items.append(item)
-                    reasons.add(f"Product: {product.name}, ID: {product.id}) is out of stock")
-                    continue
-                if product.quantity < item.quantity:
-                    failed_items.append(item)
-                    reasons.add(f"Insufficient quantity for product: {product.name}, ID: {product.id}, requested: {item.quantity}, available: {product.quantity}")
-                    continue
             except ProductNotFoundError:
                 failed_items.append(item)
                 reasons.add(f"Product with ID: {item.product_id} not found")
                 continue
-        return {
-            "success": False,
-            "reasons": "; ".join(reasons),
-            "failed_products": failed_items
-        } if failed_items else {"success" : True}
 
-    async def reserve_inventory(self, items: list[OrderItemBase]) -> dict[str, Any]:
-        """
-        Reserve inventory by decrementing the product quantities
-        """
-        reserved_items = []
-        enough_quantites = await self.validate_inventory_availability(products=items)
-        if not enough_quantites["success"]:
-            return {
-                "success": enough_quantites["success"],
-                "reasons": enough_quantites["reasons"],
-                "failed_products": enough_quantites["failed_products"]
-            }
-        for item in items:
-            product = await self.get_product_by_id_without_relations(
-                product_id=item.product_id
-            )
+            if not product.in_stock:
+                failed_items.append(item)
+                reasons.add(f"Product: {product.name}, ID: {product.id} is out of stock")
+                continue
+
+            if product.quantity < item.quantity:
+                failed_items.append(item)
+                reasons.add(
+                    f"Insufficient quantity for product: {product.name}, ID: {product.id}, "
+                    f"requested: {item.quantity}, available: {product.quantity}"
+                )
+                continue
+
             new_quantity = product.quantity - item.quantity
-            update_data = UpdateProduct(quantity=new_quantity)
+            update_data = UpdateProduct(
+                quantity=new_quantity,
+                in_stock=new_quantity > 0,
+            )
             await self.update_product(product_id=product.id, product_data=update_data)
-            if new_quantity == 0:
-                update_stock_status = UpdateProduct(in_stock=False)
-                await self.update_product(product_id=product.id, product_data=update_stock_status)
             reserved_items.append(item)
+
+        if failed_items:
+            return {
+                "success": False,
+                "reasons": "; ".join(reasons),
+                "failed_products": failed_items,
+            }
         return {
             "success": True,
-            "products": reserved_items
+            "products": reserved_items,
         }
 
     async def release_inventory(self, products: list[OrderItemBase]):
@@ -223,9 +213,10 @@ class ProductService:
         for product in products:
             try:
                 db_product = await self.get_product_by_id_without_relations(product.product_id)
-                update_data = UpdateProduct(quantity=(db_product.quantity+product.quantity),
-                                            in_stock=True)
-                await self.update_product(product_id=db_product.id,
-                                          product_data=update_data)
+                update_data = UpdateProduct(
+                    quantity=db_product.quantity + product.quantity,
+                    in_stock=True,
+                )
+                await self.update_product(product_id=product.product_id, product_data=update_data)
             except (ProductNotFoundError, ProductUpdateError, ProductCreationError) as error:
                 raise ProductReleaseError(f"Cannot release inventory for product: {product.product_id}, error: {error}")

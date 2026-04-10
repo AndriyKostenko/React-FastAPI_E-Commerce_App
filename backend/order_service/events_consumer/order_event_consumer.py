@@ -101,7 +101,11 @@ class OrderEventConsumer:
 
             # Publish OrderConfirmedEvent for downstream services (notification, etc.)
             await order_event_publisher.publish_order_confirmed(
-                event_data=event.model_dump(mode="json")
+                event_data={
+                    "order_id": str(event.order_id),
+                    "user_id": str(event.user_id),
+                    "user_email": event.user_email,
+                }
             )
             self.logger.info(f"Published OrderConfirmedEvent for order: {event.order_id}")
 

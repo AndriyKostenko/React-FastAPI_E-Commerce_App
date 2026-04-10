@@ -87,7 +87,7 @@ class OrderService:
             raise OrderNotFoundError(order_id)
         return OrderSchema.model_validate(db_order)
 
-    async def update_order_status(self, order_id: UUID, order_status: OrderStatus) -> OrderSchema:
+    async def update_order_status(self, order_id: UUID, order_status: str) -> OrderSchema:
         updated_db_order = await self.repository.update_by_id(order_id, data={"status": order_status})
         return OrderSchema.model_validate(updated_db_order)
 

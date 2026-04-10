@@ -127,6 +127,9 @@ async def handle_order_events(body: str):
 
     try:
         match event_type:
+            case OrderEvents.ORDER_CREATED:
+                logger.info(f"Order created event received for order: {message.get('order_id')}, skipping notification.")
+                return
             case OrderEvents.ORDER_CONFIRMED:
                 event = OrderConfirmedEvent(**message)
                 await order_notification_email_service.send_order_confirmed_notification(event)
