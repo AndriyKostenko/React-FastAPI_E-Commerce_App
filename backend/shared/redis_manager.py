@@ -132,6 +132,30 @@ class RedisManager:
             self.logger.error(f"Error clearing namespace '{namespace}': {str(e)}", exc_info=True)
             return
 
+    async def invalidate_namespace(self, namespace: str, method: str = "GET") -> None:
+        """
+        Clear all cached keys for a namespace without requiring an HTTP Request object.
+        Intended for use in background consumers (e.g. FastStream) that mutate data
+        and need to evict stale cache entries.
+
+        Key pattern: {service_prefix}:cache:{method}:{api_version}/{namespace}*
+        """
+        if namespace not in self.namespaces:
+            self.logger.error(f"Unknown namespace '{namespace}' — skipping cache invalidation.")
+            return
+
+        versioned_path = f"{self.service_api_version.rstrip('/')}/{namespace.lstrip('/')}"
+        pattern_key = f"{self.service_prefix}:cache:{method}:{versioned_path}*"
+
+        deleted_count = 0
+        try:
+            async for key in self.redis.scan_iter(match=pattern_key, count=1000):
+                await self.redis.delete(key)
+                deleted_count += 1
+            self.logger.info(f"Invalidated {deleted_count} keys in namespace: '{namespace}'")
+        except Exception as e:
+            self.logger.error(f"Error invalidating namespace '{namespace}': {str(e)}", exc_info=True)
+
     def _should_skip_caching(self, request: Request, response: Response) -> bool:
         """
         Determining if response should be cached
