@@ -77,7 +77,7 @@ class CategoryService:
 
         # Update category
         updated_category = await self.repository.update_by_id(
-            category_id, **update_dict
+            category_id, data=update_dict
         )
         if not updated_category:
             raise CategoryNotFoundError(f"Category with id: {category_id} not found.")

@@ -141,7 +141,7 @@ class ProductService:
         if update_dict:
             try:
                 db_product = await self.get_product_by_id_without_relations(product_id)
-                updated_product = await self.repository.update_by_id(db_product.id, **update_dict)
+                updated_product = await self.repository.update_by_id(db_product.id, data=update_dict)
                 return ProductBase.model_validate(updated_product)
             except (IntegrityError, ProductNotFoundError) as e:
                 if "products_category_id_fkey" in str(e):

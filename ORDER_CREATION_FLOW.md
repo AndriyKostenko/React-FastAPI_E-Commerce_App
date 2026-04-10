@@ -217,15 +217,6 @@ order-service:inventory.reserve.failed:550e8400-e29b-41d4-a716-446655440000
 3. **Failed events are also marked as processed** — Prevents infinite retry loops.
 4. **Single poller instance** — Only one background task runs.
 
-### ⚠️ Potential Issues
-
-| # | Issue | Impact | Recommendation |
-|---|-------|--------|----------------|
-| 1 | **`event_id` generated in event schema constructor** — If outbox poller re-serializes the payload, the `event_id` is preserved from the original event (✅ safe), but if any service creates a NEW event with a NEW `event_id` for the same logical operation, idempotency breaks | Medium | Ensure `event_id` is ALWAYS preserved from the original outbox event — never regenerate |
-| 2 | **Outbox poller marks event as processed BEFORE consumer ACKs** — If RabbitMQ publish fails AFTER outbox marks as processed, the event is lost (not retried) | Medium | Consider marking as processed AFTER successful publish confirmation |
-| 3 | **No idempotency check for `order.created` event** in notification service — If notification service crashes and reprocesses, duplicate emails could be sent | Low | Add Redis idempotency in notification service consumers |
-| 4 | **Redis TTL of 24h** — If system is down >24h and backlog is processed, idempotency keys may have expired | Low (edge case) | Consider longer TTL (48-72h) or persistent idempotency store for critical events |
-
 ---
 
 ## State Transitions Summary

@@ -114,7 +114,7 @@ class ProductImageService:
             raise ProductImageProcessingError("No fields provided for update")
         updated_image = await self.repository.update_by_id(
             image_id,
-            **update_data,
+            data=update_data,
         )
         if not updated_image:
             raise ProductImageNotFoundError(
