@@ -15,8 +15,11 @@ _ACCESS_COOKIE = "access_token"
 _REFRESH_COOKIE = "refresh_token"
 
 
-def _set_auth_cookies(response: Response, access_token: str, access_expiry: int,
-                      refresh_token: str, refresh_expiry: int) -> None:
+def _set_auth_cookies(response: Response,
+                      access_token: str,
+                      refresh_token: str,
+                      access_expiry: int | None = None,
+                      refresh_expiry: int | None = None) -> None:
     """Set HttpOnly auth cookies on the response."""
     secure = settings.SECURE_COOKIES
     response.set_cookie(
@@ -58,6 +61,11 @@ async def register_user(request: Request) -> JSONResponse:
 
 @user_proxy.post("/login", summary="User login")
 async def login_user(request: Request, response: Response) -> JSONResponse:
+    """
+    Gateway forwards form data to user service → gets JSON with tokens
+    strips tokens from the body**, sets two HttpOnly cookie
+    Response body only contains `user_id`, `user_email`, `user_role
+    """
     upstream = await api_gateway_manager.forward_request(
         request=request,
         service_name="user-service",
@@ -77,6 +85,10 @@ async def login_user(request: Request, response: Response) -> JSONResponse:
 
 @user_proxy.post("/refresh", summary="Refresh access token")
 async def refresh_token(request: Request, response: Response) -> JSONResponse:
+    """
+    Gateway reads `refresh_token` cookie → forwards `{"refresh_token": ...}` to user service
+    Sets a new `access_token` cookie
+    """
     refresh = request.cookies.get(_REFRESH_COOKIE)
     if not refresh:
         return JSONResponse(
@@ -104,6 +116,10 @@ async def refresh_token(request: Request, response: Response) -> JSONResponse:
 
 @user_proxy.post("/logout", summary="Logout and revoke refresh token")
 async def logout(request: Request, response: Response) -> JSONResponse:
+    """
+    Gateway reads `refresh_token` cookie → revokes it in Redis via user service
+    - **Clears both cookies** immediately
+    """
     refresh = request.cookies.get(_REFRESH_COOKIE)
     _clear_auth_cookies(response)
     if refresh:

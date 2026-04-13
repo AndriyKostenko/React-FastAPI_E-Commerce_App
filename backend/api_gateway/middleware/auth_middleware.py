@@ -57,6 +57,7 @@ class AuthMiddleware(metaclass=SingletonMetaClass):
     async def middleware(self, request: Request, call_next):
         """
         Main middleware function to authenticate requests using JWT tokens.
+        Checks `access_token` **cookie first**, falls back to `Authorization: Bearer` header (so Swagger UI keeps working)
         """
         path = request.url.path
         method = request.method
