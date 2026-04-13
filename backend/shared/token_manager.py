@@ -45,6 +45,26 @@ class TokenManager:
         )
         return token, expire_timestamp
 
+    def create_refresh_token(self,
+                             email: EmailStr,
+                             user_id: UUID,
+                             role: str | None) -> tuple[str, int]:
+        """
+        Create a long-lived JWT refresh token (purpose='refresh').
+
+        Returns:
+            tuple: (token, expire_timestamp)
+        """
+        from datetime import timedelta
+        expires_delta = timedelta(days=self.settings.REFRESH_TOKEN_TIME_DELTA_DAYS)
+        return self.create_access_token(
+            email=email,
+            user_id=user_id,
+            role=role,
+            expires_delta=expires_delta,
+            purpose="refresh"
+        )
+
     def decode_token(self, token: str, required_purpose: str = "access") -> DecodedTokenSchema:
         """
         Decode JWT token and validate its purpose.

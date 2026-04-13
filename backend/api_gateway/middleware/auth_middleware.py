@@ -22,6 +22,8 @@ class AuthMiddleware(metaclass=SingletonMetaClass):
             "/openapi.json": None,
             f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/register": ['POST'],
             f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/login": ['POST'],
+            f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/refresh": ['POST'],
+            f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/logout": ['POST'],
             f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/forgot-password": ['POST'],
             f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/activate/": ['POST'],
             f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/password-reset/": ['POST'],

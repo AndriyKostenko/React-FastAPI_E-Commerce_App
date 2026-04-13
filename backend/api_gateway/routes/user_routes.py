@@ -44,6 +44,20 @@ async def forgot_password(request: Request) -> JSONResponse:
         request=request,
     )
 
+@user_proxy.post("/refresh", summary="Refresh access token")
+async def refresh_token(request: Request) -> JSONResponse:
+    return await api_gateway_manager.forward_request(
+        service_name="user-service",
+        request=request,
+    )
+
+@user_proxy.post("/logout", summary="Logout and revoke refresh token")
+async def logout(request: Request) -> JSONResponse:
+    return await api_gateway_manager.forward_request(
+        service_name="user-service",
+        request=request,
+    )
+
 @user_proxy.post("/password-reset/{token}", summary="Reset password with token")
 async def reset_password(request: Request) -> JSONResponse:
     return await api_gateway_manager.forward_request(

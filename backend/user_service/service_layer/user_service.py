@@ -16,6 +16,7 @@ from shared.schemas.user_schemas import (
     UsersFilterParams,
 )
 from shared.shared_instances import settings
+from shared.redis_manager import RedisManager
 from exceptions.user_exceptions import (
     UserAlreadyExistsError,
     UserNotFoundError,
@@ -24,6 +25,8 @@ from exceptions.user_exceptions import (
 from database_layer.user_repository import UserRepository
 from shared.password_manager import PasswordManager
 from shared.token_manager import TokenManager
+
+_REFRESH_TOKEN_PREFIX = "refresh"
 
 
 class UserService:
@@ -38,10 +41,15 @@ class UserService:
     def __init__(self,
                 repository: UserRepository,
                 password_manager: PasswordManager,
-                token_manager: TokenManager):
+                token_manager: TokenManager,
+                redis_manager: RedisManager):
         self.repository: UserRepository = repository
         self.password_manager: PasswordManager = password_manager
         self.token_manager: TokenManager = token_manager
+        self.redis_manager: RedisManager = redis_manager
+
+    def _refresh_key(self, token: str) -> str:
+        return f"{_REFRESH_TOKEN_PREFIX}:{token}"
 
     async def create_user(self, data: UserSignUp) -> tuple[UserInfo , str]:
         """
@@ -76,9 +84,11 @@ class UserService:
             raise UserNotFoundError(f"User with email: {email} is not found")
         return self.password_manager.verify_password(password, user.hashed_password)
 
-    async def login_user(self, form_data: OAuth2PasswordRequestForm) -> tuple[CurrentUserInfo, str, int]:
-        current_user, access_token, expiry_timestamp = await self.authenticate_user(email=form_data.username, password=form_data.password)
-        return current_user, access_token, expiry_timestamp
+    async def login_user(self, form_data: OAuth2PasswordRequestForm) -> tuple[CurrentUserInfo, str, int, str, int]:
+        current_user, access_token, access_expiry, refresh_token, refresh_expiry = await self.authenticate_user(
+            email=form_data.username, password=form_data.password
+        )
+        return current_user, access_token, access_expiry, refresh_token, refresh_expiry
 
     async def get_all_users(self, filters: Annotated[UsersFilterParams, Query()]) -> list[UserInfo]:
         filters_dict = filters.model_dump()
@@ -190,12 +200,12 @@ class UserService:
 
     async def authenticate_user(self,
                                 email: EmailStr,
-                                password: str) -> tuple[CurrentUserInfo, str, int]:
+                                password: str) -> tuple[CurrentUserInfo, str, int, str, int]:
         """
         Authenticate user with email and password.
 
         Returns:
-            tuple: (CurrentUserInfo, access_token, expiry_timestamp)
+            tuple: (CurrentUserInfo, access_token, access_expiry, refresh_token, refresh_expiry)
         """
         is_valid = await self.verify_password(email, password)
         if not is_valid:
@@ -203,22 +213,57 @@ class UserService:
         user = await self.get_user_by_email(email)
         if not user.is_verified:
             raise HTTPException(status_code=401, detail="User is not verified")
-        if not user.is_active:                                          # ← missing
+        if not user.is_active:
             raise HTTPException(status_code=401, detail="Account is deactivated")
 
-        access_token, expiry_timestamp = self.token_manager.create_access_token(
+        access_token, access_expiry = self.token_manager.create_access_token(
             email=email,
             user_id=user.id,
             role=user.role,
             expires_delta=timedelta(minutes=settings.TOKEN_TIME_DELTA_MINUTES),
             purpose="access"
         )
+        refresh_token, refresh_expiry = self.token_manager.create_refresh_token(
+            email=email,
+            user_id=user.id,
+            role=user.role,
+        )
+        ttl_seconds = settings.REFRESH_TOKEN_TIME_DELTA_DAYS * 86400
+        await self.redis_manager.redis.setex(
+            self._refresh_key(refresh_token),
+            ttl_seconds,
+            str(user.id)
+        )
         current_user = CurrentUserInfo(
             email=user.email,
             id=user.id,
             role=user.role
         )
-        return current_user, access_token, expiry_timestamp
+        return current_user, access_token, access_expiry, refresh_token, refresh_expiry
+
+    async def refresh_access_token(self, refresh_token: str) -> tuple[str, int]:
+        """
+        Validate a refresh token and issue a new access token.
+
+        Returns:
+            tuple: (new_access_token, expiry_timestamp)
+        """
+        token_data = self.token_manager.decode_token(refresh_token, required_purpose="refresh")
+        stored = await self.redis_manager.redis.get(self._refresh_key(refresh_token))
+        if not stored:
+            raise HTTPException(status_code=401, detail="Refresh token expired or revoked")
+        access_token, expiry = self.token_manager.create_access_token(
+            email=token_data.email,
+            user_id=token_data.id,
+            role=token_data.role,
+            expires_delta=timedelta(minutes=settings.TOKEN_TIME_DELTA_MINUTES),
+            purpose="access"
+        )
+        return access_token, expiry
+
+    async def logout_user(self, refresh_token: str) -> None:
+        """Revoke a refresh token so it can no longer be used."""
+        await self.redis_manager.redis.delete(self._refresh_key(refresh_token))
 
     async def get_current_user_from_token(self, token: str) -> CurrentUserInfo:
         user_info = self.token_manager.decode_token(token)

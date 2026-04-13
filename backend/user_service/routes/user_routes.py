@@ -14,6 +14,8 @@ from shared.schemas.user_schemas import (
     EmailVerificationResponse,
     ForgotPasswordResponse,
     PasswordUpdateResponse,
+    RefreshTokenRequest,
+    RefreshTokenResponse,
     ResetPasswordRequest,
     UserBasicUpdate,
     UserInfo,
@@ -96,17 +98,52 @@ async def reset_password(request: Request, token: str, data: ResetPasswordReques
 async def login(request: Request,
                 form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
                 user_service: user_service_dependency):  # request is reqired for rate limiting decorator
-    user, access_token, expiry_timestamp = await user_service.login_user(form_data)
+    user, access_token, access_expiry, refresh_token, refresh_expiry = await user_service.login_user(form_data)
     await notification_events_publisher.publish_user_logged_in(email=user.email)
     return JSONResponse(
         content=UserLoginDetails(
             access_token=access_token,
             token_type=settings.TOKEN_TYPE,
-            token_expiry=expiry_timestamp,
+            token_expiry=access_expiry,
+            refresh_token=refresh_token,
+            refresh_token_expiry=refresh_expiry,
             user_id=user.id,
             user_email=user.email,
             user_role=user.role,
         ),
+        status_code=status.HTTP_200_OK,
+    )
+
+
+@user_routes.post("/refresh",
+                  summary="Refresh access token",
+                  response_model=RefreshTokenResponse,
+                  response_description="New access token issued")
+@user_service_redis_manager.ratelimiter(times=10, seconds=60)
+async def refresh_token(request: Request,
+                        data: RefreshTokenRequest,
+                        user_service: user_service_dependency):
+    access_token, expiry = await user_service.refresh_access_token(data.refresh_token)
+    return JSONResponse(
+        content=RefreshTokenResponse(
+            access_token=access_token,
+            token_type=settings.TOKEN_TYPE,
+            token_expiry=expiry,
+        ),
+        status_code=status.HTTP_200_OK,
+    )
+
+
+@user_routes.post("/logout",
+                  summary="Logout and revoke refresh token",
+                  response_description="Logged out successfully")
+@user_service_redis_manager.ratelimiter(times=10, seconds=60)
+async def logout(request: Request,
+                 data: RefreshTokenRequest,
+                 user_service: user_service_dependency):
+    await user_service.logout_user(data.refresh_token)
+    return JSONResponse(
+        content={"detail": "Logged out successfully"},
         status_code=status.HTTP_200_OK,
     )
 

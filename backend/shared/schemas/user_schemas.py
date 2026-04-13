@@ -69,9 +69,19 @@ class UserLoginDetails(BaseModel):
     access_token: str
     token_type: str
     token_expiry: int
+    refresh_token: str
+    refresh_token_expiry: int
     user_id: UUID
     user_email: EmailStr
     user_role: str
+
+class RefreshTokenRequest(BaseModel):
+    refresh_token: str
+
+class RefreshTokenResponse(BaseModel):
+    access_token: str
+    token_type: str
+    token_expiry: int
 
 class TokenPayload(BaseModel):
     sub: str

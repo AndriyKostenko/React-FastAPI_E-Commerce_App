@@ -8,7 +8,7 @@ from service_layer.user_service import UserService
 from database_layer.user_repository import UserRepository
 from shared.token_manager import TokenManager
 from shared.password_manager import PasswordManager
-from shared.shared_instances import user_service_database_session_manager, settings
+from shared.shared_instances import user_service_database_session_manager, settings, user_service_redis_manager
 from shared.schemas.user_schemas import CurrentUserInfo
 
 """
@@ -68,7 +68,8 @@ def get_user_service(session: AsyncSession = Depends(get_db_session),
     return UserService(
         repository=UserRepository(session=session),
         password_manager=password_manager,
-        token_manager=token_manager
+        token_manager=token_manager,
+        redis_manager=user_service_redis_manager
     )
 
 # Type annotations for dependency injection
