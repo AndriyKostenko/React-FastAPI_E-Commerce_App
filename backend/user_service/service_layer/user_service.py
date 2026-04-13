@@ -26,8 +26,6 @@ from database_layer.user_repository import UserRepository
 from shared.password_manager import PasswordManager
 from shared.token_manager import TokenManager
 
-_REFRESH_TOKEN_PREFIX = "refresh"
-
 
 class UserService:
     """
@@ -48,8 +46,8 @@ class UserService:
         self.token_manager: TokenManager = token_manager
         self.redis_manager: RedisManager = redis_manager
 
-    def _refresh_key(self, token: str) -> str:
-        return f"{_REFRESH_TOKEN_PREFIX}:{token}"
+    def _refresh_key(self, token: str, prefix: str = "refresh") -> str:
+        return f"{prefix}:{token}"
 
     async def create_user(self, data: UserSignUp) -> tuple[UserInfo , str]:
         """
@@ -228,7 +226,7 @@ class UserService:
             user_id=user.id,
             role=user.role,
         )
-        ttl_seconds = settings.REFRESH_TOKEN_TIME_DELTA_DAYS * 86400
+        ttl_seconds = settings.REFRESH_TOKEN_TIME_DELTA_DAYS * 86400 # days
         await self.redis_manager.redis.setex(
             self._refresh_key(refresh_token),
             ttl_seconds,
@@ -249,8 +247,8 @@ class UserService:
             tuple: (new_access_token, expiry_timestamp)
         """
         token_data = self.token_manager.decode_token(refresh_token, required_purpose="refresh")
-        stored = await self.redis_manager.redis.get(self._refresh_key(refresh_token))
-        if not stored:
+        stored_refresh_token = await self.redis_manager.redis.get(self._refresh_key(refresh_token))
+        if not stored_refresh_token:
             raise HTTPException(status_code=401, detail="Refresh token expired or revoked")
         access_token, expiry = self.token_manager.create_access_token(
             email=token_data.email,

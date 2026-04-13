@@ -51,17 +51,16 @@ class TokenManager:
                              role: str | None) -> tuple[str, int]:
         """
         Create a long-lived JWT refresh token (purpose='refresh').
+         `refresh_token` (7 days, stored in Redis)
 
         Returns:
             tuple: (token, expire_timestamp)
         """
-        from datetime import timedelta
-        expires_delta = timedelta(days=self.settings.REFRESH_TOKEN_TIME_DELTA_DAYS)
         return self.create_access_token(
             email=email,
             user_id=user_id,
             role=role,
-            expires_delta=expires_delta,
+            expires_delta=timedelta(days=self.settings.REFRESH_TOKEN_TIME_DELTA_DAYS),
             purpose="refresh"
         )
 

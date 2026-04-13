@@ -71,6 +71,7 @@ async def forgot_password(request: Request, email: EmailStr, user_service: user_
         status_code=status.HTTP_200_OK,
     )
 
+
 # TODO: refactore the token_data acc unfo (place into business logic in user_service)
 @user_routes.post("/password-reset/{token}",
                     summary="Reset password with token",

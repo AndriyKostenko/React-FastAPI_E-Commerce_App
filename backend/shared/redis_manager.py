@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 from functools import wraps
 from time import perf_counter
 from math import ceil

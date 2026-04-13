@@ -1,11 +1,11 @@
 import random
+from typing import Any
 from urllib.parse import urlparse, urlunparse
 from logging import Logger
 
 import orjson
 from fastapi import HTTPException, Request
 from httpx import AsyncClient, HTTPStatusError, RequestError
-from circuitbreaker import circuit
 from shared.customized_json_response import JSONResponse
 
 from shared.settings import Settings
@@ -204,7 +204,7 @@ class ApiGateway:
 
     # TODO: check the correct work of circuit breaker, looks like now its blocikng all the services if one going to break
     #@circuit(failure_threshold=5, recovery_timeout=30)
-    async def forward_request(self, request: Request, service_name: str, override_body: dict | None = None) -> JSONResponse:
+    async def forward_request(self, request: Request, service_name: str, override_body: dict[str, Any] | None = None) -> JSONResponse:
         """
         Forward request to microservice.
         Now automatically extracts the correct path based on service mapping.

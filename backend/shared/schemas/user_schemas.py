@@ -61,8 +61,8 @@ class TokenSchema(BaseModel):
 class DecodedTokenSchema(BaseModel):
     email: EmailStr
     id: UUID
-    role: str
-    purpose: str
+    role: str | None
+    purpose: str | None
 
 
 class UserLoginDetails(BaseModel):

@@ -62,8 +62,8 @@ def get_token_manager() -> TokenManager:
     return TokenManager(settings)
 
 def get_user_service(session: AsyncSession = Depends(get_db_session),
-                    password_manager: PasswordManager = Depends(get_password_manager),
-                    token_manager: TokenManager = Depends(get_token_manager)) -> UserService:
+                     password_manager: PasswordManager = Depends(get_password_manager),
+                     token_manager: TokenManager = Depends(get_token_manager)) -> UserService:
     """Dependency to provide UserService with UserRepository for database operations."""
     return UserService(
         repository=UserRepository(session=session),
