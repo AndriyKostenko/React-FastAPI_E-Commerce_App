@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     ORDER_SERVICE_APP_PORT: int
 
     DEBUG_MODE: bool
+    SECURE_COOKIES: bool = False  # Set True in production (requires HTTPS)
     ALLOWED_HOSTS: list[str]
 
     # Service URLs
@@ -87,7 +88,7 @@ class Settings(BaseSettings):
     TOKEN_TYPE: str
     TOKEN_URL: str
     TOKEN_TIME_DELTA_MINUTES: int
-    REFRESH_TOKEN_TIME_DELTA_DAYS: int = 7
+    REFRESH_TOKEN_TIME_DELTA_DAYS: int
     RESET_TOKEN_EXPIRY_MINUTES: int
     VERIFICATION_TOKEN_EXPIRY_MINUTES: int
     CRYPT_CONTEXT_SCHEME: str

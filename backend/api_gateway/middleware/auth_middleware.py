@@ -72,19 +72,19 @@ class AuthMiddleware(metaclass=SingletonMetaClass):
 
         self.logger.info(f"Path {path} requires authentication")
 
-        # 2. Extract and validate the Authorization header
-        auth_header = request.headers.get("Authorization")
-        self.logger.info(f"🔍 Authorization header present: {auth_header is not None}")
-
-        if not auth_header or not auth_header.startswith("Bearer "):
-            self.logger.warning("Missing or invalid Authorization header")
-            return JSONResponse(
-                status_code=401,
-                content={"detail": "Missing or invalid Authorization header",
-                         "error": "missing_authorization_header"}
-            )
-
-        token = auth_header.split(" ")[1]
+        # 2. Extract token: prefer HttpOnly cookie, fall back to Authorization header
+        token = request.cookies.get("access_token")
+        if not token:
+            auth_header = request.headers.get("Authorization")
+            self.logger.info(f"🔍 Authorization header present: {auth_header is not None}")
+            if not auth_header or not auth_header.startswith("Bearer "):
+                self.logger.warning("Missing or invalid Authorization header and no access_token cookie")
+                return JSONResponse(
+                    status_code=401,
+                    content={"detail": "Missing or invalid Authorization header",
+                             "error": "missing_authorization_header"}
+                )
+            token = auth_header.split(" ")[1]
         self.logger.info(f"🔍 Extracted token (first 20 chars): {token[:20]}...")
 
         # 3. Validate token using token_manager

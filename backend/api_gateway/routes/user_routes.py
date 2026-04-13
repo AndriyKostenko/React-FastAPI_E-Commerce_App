@@ -1,6 +1,7 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Request, Depends
+import orjson
+from fastapi import APIRouter, Request, Response, Depends
 
 from apigateway import api_gateway_manager
 from dependencies.auth_dependencies import (get_current_user,
@@ -8,6 +9,38 @@ from dependencies.auth_dependencies import (get_current_user,
                                             require_user_or_admin)
 from shared.schemas.user_schemas import CurrentUserInfo
 from shared.customized_json_response import JSONResponse
+from shared.shared_instances import settings
+
+_ACCESS_COOKIE = "access_token"
+_REFRESH_COOKIE = "refresh_token"
+
+
+def _set_auth_cookies(response: Response, access_token: str, access_expiry: int,
+                      refresh_token: str, refresh_expiry: int) -> None:
+    """Set HttpOnly auth cookies on the response."""
+    secure = settings.SECURE_COOKIES
+    response.set_cookie(
+        key=_ACCESS_COOKIE,
+        value=access_token,
+        httponly=True,
+        secure=secure,
+        samesite="lax",
+        max_age=settings.TOKEN_TIME_DELTA_MINUTES * 60,
+    )
+    response.set_cookie(
+        key=_REFRESH_COOKIE,
+        value=refresh_token,
+        httponly=True,
+        secure=secure,
+        samesite="lax",
+        max_age=settings.REFRESH_TOKEN_TIME_DELTA_DAYS * 86400,
+    )
+
+
+def _clear_auth_cookies(response: Response) -> None:
+    """Clear auth cookies (logout)."""
+    response.delete_cookie(key=_ACCESS_COOKIE)
+    response.delete_cookie(key=_REFRESH_COOKIE)
 
 
 user_proxy = APIRouter(tags=["User Service Proxy"])
@@ -24,11 +57,63 @@ async def register_user(request: Request) -> JSONResponse:
 
 
 @user_proxy.post("/login", summary="User login")
-async def login_user(request: Request) -> JSONResponse:
-    return await api_gateway_manager.forward_request(
+async def login_user(request: Request, response: Response) -> JSONResponse:
+    upstream = await api_gateway_manager.forward_request(
         request=request,
         service_name="user-service",
     )
+    if upstream.status_code == 200:
+        body = orjson.loads(upstream.body)
+        _set_auth_cookies(
+            response,
+            access_token=body.pop("access_token"),
+            access_expiry=body.pop("token_expiry"),
+            refresh_token=body.pop("refresh_token"),
+            refresh_expiry=body.pop("refresh_token_expiry"),
+        )
+        return JSONResponse(content=body, status_code=200)
+    return upstream
+
+
+@user_proxy.post("/refresh", summary="Refresh access token")
+async def refresh_token(request: Request, response: Response) -> JSONResponse:
+    refresh = request.cookies.get(_REFRESH_COOKIE)
+    if not refresh:
+        return JSONResponse(
+            content={"detail": "Refresh token cookie missing"},
+            status_code=401,
+        )
+    upstream = await api_gateway_manager.forward_request(
+        request=request,
+        service_name="user-service",
+        override_body={"refresh_token": refresh},
+    )
+    if upstream.status_code == 200:
+        body = orjson.loads(upstream.body)
+        response.set_cookie(
+            key=_ACCESS_COOKIE,
+            value=body.pop("access_token"),
+            httponly=True,
+            secure=settings.SECURE_COOKIES,
+            samesite="lax",
+            max_age=settings.TOKEN_TIME_DELTA_MINUTES * 60,
+        )
+        return JSONResponse(content=body, status_code=200)
+    return upstream
+
+
+@user_proxy.post("/logout", summary="Logout and revoke refresh token")
+async def logout(request: Request, response: Response) -> JSONResponse:
+    refresh = request.cookies.get(_REFRESH_COOKIE)
+    _clear_auth_cookies(response)
+    if refresh:
+        await api_gateway_manager.forward_request(
+            request=request,
+            service_name="user-service",
+            override_body={"refresh_token": refresh},
+        )
+    return JSONResponse(content={"detail": "Logged out successfully"}, status_code=200)
+
 
 @user_proxy.post("/activate/{token}", summary="Verify user email")
 async def verify_email(request: Request) -> JSONResponse:
@@ -44,20 +129,6 @@ async def forgot_password(request: Request) -> JSONResponse:
         request=request,
     )
 
-@user_proxy.post("/refresh", summary="Refresh access token")
-async def refresh_token(request: Request) -> JSONResponse:
-    return await api_gateway_manager.forward_request(
-        service_name="user-service",
-        request=request,
-    )
-
-@user_proxy.post("/logout", summary="Logout and revoke refresh token")
-async def logout(request: Request) -> JSONResponse:
-    return await api_gateway_manager.forward_request(
-        service_name="user-service",
-        request=request,
-    )
-
 @user_proxy.post("/password-reset/{token}", summary="Reset password with token")
 async def reset_password(request: Request) -> JSONResponse:
     return await api_gateway_manager.forward_request(
@@ -67,7 +138,6 @@ async def reset_password(request: Request) -> JSONResponse:
 
 # ==================== AUTHENTICATED USER ENDPOINTS ====================
 
-# Protected endpoints with dependencies
 @user_proxy.get("/me", summary="Get current user data")
 async def get_current_user_data(request: Request,
                                 current_user: CurrentUserInfo = Depends(get_current_user)) -> JSONResponse:
@@ -84,7 +154,6 @@ async def get_current_user_data(request: Request,
 async def get_user_by_id(request: Request,
                          user_id: UUID,
                          current_user: CurrentUserInfo = Depends(get_current_user)):
-    # Check authorization using the dependency function
     require_user_or_admin(current_user, target_user_id=user_id)
     return await api_gateway_manager.forward_request(
         service_name="user-service",
@@ -129,7 +198,6 @@ async def get_all_users(request: Request,
 
 @user_proxy.get("/admin/schema/users")
 async def get_user_schema_for_admin_js(request: Request):
-    # for noew its unprotected, but later we can add admin auth if needed
     return await api_gateway_manager.forward_request(
         service_name="user-service",
         request=request

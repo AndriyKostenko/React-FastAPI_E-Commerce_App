@@ -204,10 +204,11 @@ class ApiGateway:
 
     # TODO: check the correct work of circuit breaker, looks like now its blocikng all the services if one going to break
     #@circuit(failure_threshold=5, recovery_timeout=30)
-    async def forward_request(self, request: Request, service_name: str) -> JSONResponse:
+    async def forward_request(self, request: Request, service_name: str, override_body: dict | None = None) -> JSONResponse:
         """
         Forward request to microservice.
         Now automatically extracts the correct path based on service mapping.
+        If override_body is provided it replaces the request body (sent as JSON).
         """
 
         if service_name not in self.config.services:
@@ -221,7 +222,11 @@ class ApiGateway:
         url = self.url_manager.build_url(service_name, service_path)
 
         # Detect and prepare body
-        prepared_body, content_type = await self._detect_and_prepare_body(request, service_path)
+        if override_body is not None:
+            prepared_body = override_body
+            content_type = "application/json"
+        else:
+            prepared_body, content_type = await self._detect_and_prepare_body(request, service_path)
 
         if prepared_body:
             self.logger.debug(f"Prepared body content: {prepared_body}")
