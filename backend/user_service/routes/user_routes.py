@@ -35,7 +35,7 @@ async def create_user(request: Request,
                       data: UserSignUp,
                       user_service: user_service_dependency):
     new_db_user, verification_token = await user_service.create_user(data=data)
-    await user_events_publisher.publish_user_registered(new_db_user.email,verification_token)
+    await user_events_publisher.publish_user_registered(new_db_user.email, verification_token, user_id=new_db_user.id)
     await user_service_redis_manager.clear_cache_namespace(request, "users")
     return JSONResponse(content=new_db_user,status_code=status.HTTP_201_CREATED)
 
@@ -45,7 +45,7 @@ async def create_user(request: Request,
 @user_service_redis_manager.ratelimiter(times=5, seconds=3600)
 async def verify_email(request: Request, token: str, user_service: user_service_dependency):
     db_user = await user_service.verify_email(token=token)
-    await user_events_publisher.publish_email_verified(email=db_user.email)
+    await user_events_publisher.publish_email_verified(email=db_user.email, user_id=db_user.id)
     return JSONResponse(
         content=EmailVerificationResponse(
             detail="Email verified successfully",
@@ -62,7 +62,7 @@ async def verify_email(request: Request, token: str, user_service: user_service_
 @user_service_redis_manager.ratelimiter(times=3, seconds=3600)
 async def forgot_password(request: Request, email: EmailStr, user_service: user_service_dependency):
     user, reset_token = await user_service.request_password_reset(email)
-    await user_events_publisher.publish_password_reset_request(email=user.email,reset_token=reset_token)
+    await user_events_publisher.publish_password_reset_request(email=user.email, reset_token=reset_token, user_id=user.id)
     return JSONResponse(
         content=ForgotPasswordResponse(
             detail="Password reset email has been sent!",
@@ -83,7 +83,7 @@ async def forgot_password(request: Request, email: EmailStr, user_service: user_
 async def reset_password(request: Request, token: str, data: ResetPasswordRequest, user_service: user_service_dependency):
     """Reset password using token"""
     user = await user_service.reset_password_with_token(token=token, new_password=data.new_password)
-    await user_events_publisher.publish_password_reset_success(email=user.email)
+    await user_events_publisher.publish_password_reset_success(email=user.email, user_id=user.id)
     await user_service_redis_manager.clear_cache_namespace(namespace="users", request=request)
     await user_service_redis_manager.clear_cache_namespace(namespace="me", request=request)
     return JSONResponse(
@@ -102,7 +102,7 @@ async def login(request: Request,
                 form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
                 user_service: user_service_dependency):  # request is reqired for rate limiting decorator
     user, access_token, access_expiry, refresh_token, refresh_expiry = await user_service.login_user(form_data)
-    await user_events_publisher.publish_user_logged_in(email=user.email)
+    await user_events_publisher.publish_user_logged_in(email=user.email, user_id=user.id)
     return JSONResponse(
         content=UserLoginDetails(
             access_token=access_token,

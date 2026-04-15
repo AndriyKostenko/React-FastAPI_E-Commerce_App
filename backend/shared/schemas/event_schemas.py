@@ -18,6 +18,7 @@ class BaseEvent(BaseModel):
 class UserBaseEvent(BaseEvent):
     service: str = Field(default_factory=lambda: Services.USER_SERVICE)
     user_email: EmailStr
+    user_id: UUID | None = None
 
 class UserRegisteredEvent(UserBaseEvent):
     """Event published when a user registers"""

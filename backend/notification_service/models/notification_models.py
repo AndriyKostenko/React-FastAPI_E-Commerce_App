@@ -1,7 +1,7 @@
 from uuid import UUID, uuid4
 
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import Index
+from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import Index, String
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 
 from shared.models.models_base_class import Base
@@ -14,10 +14,15 @@ class Notification(Base, TimestampMixin):
     __table_args__ = (
         Index('idx_notification_user_id', 'user_id'),
         Index('idx_notification_date_created', 'date_created'),
-        Index('idx_notification_is_read', 'is_read')
+        Index('idx_notification_is_read', 'is_read'),
+        Index('idx_notification_type', 'notification_type'),
     )
 
     id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4, unique=True)
-    user_id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), nullable=False)
+    user_id: Mapped[UUID | None] = mapped_column(PostgresUUID(as_uuid=True), nullable=True)
     message: Mapped[str] = mapped_column(nullable=False)
+    notification_type: Mapped[str] = mapped_column(String(100), nullable=False)
     is_read: Mapped[bool] = mapped_column(default=False, nullable=False)
+
+    def __repr__(self) -> str:
+        return f"Notification(id={self.id}, user_id={self.user_id}, type={self.notification_type}, is_read={self.is_read})"

@@ -1,4 +1,5 @@
 from logging import Logger
+from uuid import UUID
 
 from faststream.rabbit import RabbitQueue
 from pydantic import EmailStr
@@ -28,31 +29,31 @@ class UserEventPublisher(BaseEventPublisher):
                     }
                 )
 
-    async def publish_user_registered(self, email: EmailStr, token: str) -> None:
+    async def publish_user_registered(self, email: EmailStr, token: str, user_id: UUID | None = None) -> None:
         """Publish user registration event"""
-        event = UserRegisteredEvent(user_email=email,token=token)
-        await self.publish_an_event(message=event,queue=self.user_events_queue)
+        event = UserRegisteredEvent(user_email=email, token=token, user_id=user_id)
+        await self.publish_an_event(message=event, queue=self.user_events_queue)
         self.logger.info(f"Published user.registered event for {email}")
 
-    async def publish_user_logged_in(self, email: EmailStr) -> None:
+    async def publish_user_logged_in(self, email: EmailStr, user_id: UUID | None = None) -> None:
         """Publish user login event"""
-        event = UserLoginEvent(user_email=email)
+        event = UserLoginEvent(user_email=email, user_id=user_id)
         await self.publish_an_event(message=event, queue=self.user_events_queue)
         self.logger.info(f"Published user.logged.in event for {email}")
 
-    async def publish_password_reset_request(self, email: EmailStr, reset_token: str) -> None:
+    async def publish_password_reset_request(self, email: EmailStr, reset_token: str, user_id: UUID | None = None) -> None:
         """Publish user password reset request"""
-        event = PasswordResetRequestedEvent(user_email=email,reset_token=reset_token)
+        event = PasswordResetRequestedEvent(user_email=email, reset_token=reset_token, user_id=user_id)
         await self.publish_an_event(message=event, queue=self.user_events_queue)
         self.logger.info(f"Published password.reset.requested event for {email}")
 
-    async def publish_password_reset_success(self, email: EmailStr):
-        event = PasswordResetSuccessEvent(user_email=email)
+    async def publish_password_reset_success(self, email: EmailStr, user_id: UUID | None = None):
+        event = PasswordResetSuccessEvent(user_email=email, user_id=user_id)
         await self.publish_an_event(message=event, queue=self.user_events_queue)
         self.logger.info(f"Published password.reset.success event for {email}")
 
-    async def publish_email_verified(self, email: EmailStr):
-        event = EmailVerificationEvent(user_email=email)
+    async def publish_email_verified(self, email: EmailStr, user_id: UUID | None = None):
+        event = EmailVerificationEvent(user_email=email, user_id=user_id)
         await self.publish_an_event(message=event, queue=self.user_events_queue)
         self.logger.info(f"Published email.verified event for {email}")
 

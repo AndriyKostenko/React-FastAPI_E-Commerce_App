@@ -9,6 +9,7 @@ from exceptions import BaseAPIException
 from routes.user_routes import user_proxy
 from routes.product_routes import product_proxy
 from routes.order_routes import order_proxy
+from routes.notification_routes import notification_proxy
 from shared.shared_instances import (api_gateway_redis_manager,
                                      logger,
                                      settings)
@@ -101,6 +102,7 @@ add_exception_handlers(app)
 app.include_router(user_proxy, prefix=settings.API_GATEWAY_SERVICE_URL_API_VERSION, tags=["User Service Proxy"])
 app.include_router(product_proxy, prefix=settings.API_GATEWAY_SERVICE_URL_API_VERSION, tags=["Product Service Proxy"])
 app.include_router(order_proxy, prefix=settings.API_GATEWAY_SERVICE_URL_API_VERSION, tags=["Order Service Proxy"])
+app.include_router(notification_proxy, prefix=settings.API_GATEWAY_SERVICE_URL_API_VERSION, tags=["Notification Service Proxy"])
 
 if __name__ == "__main__":
     uvicorn.run("main:app",
