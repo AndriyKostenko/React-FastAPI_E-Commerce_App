@@ -7,7 +7,6 @@ from orjson import dumps
 from shared.redis_manager import RedisManager
 
 
-
 class IdempotencyEventService(RedisManager):
     """Service to ensure idempotent processing of events using Redis"""
     def __init__(self,
@@ -21,28 +20,35 @@ class IdempotencyEventService(RedisManager):
                          logger,
                          service_api_version)
         self.logger: Logger = logger
-        self.ttl_seconds: int= ttl_hours * 3600
+        self.ttl_seconds: int= ttl_hours * 3600 # Convert hours to seconds for Redis TTL
         self.prefix: str = service_prefix
 
-    def _generate_event_cache_key(self, event_id: UUID, event_type: str) -> str:
+    def _generate_event_cache_key(self, event_id: str | UUID, event_type: str) -> str:
         """Generating Redis key for event tracking"""
         return f"{self.prefix}:{event_type}:{str(event_id)}"
 
-    async def is_event_processed(self, event_id: UUID, event_type: str) -> bool:
-        """Checking if event been processed"""
+    async def try_claim_event(self, event_id: str | UUID, event_type: str) -> bool:
+        """Atomically claim an event for processing using SET NX.
+
+        Returns True if this worker successfully claimed the event (should process it).
+        Returns False if another worker already claimed or processed it (skip).
+
+        Uses a single atomic Redis SET NX to avoid the TOCTOU race condition
+        that would arise from separate EXISTS + SET calls.
+        """
         key = self._generate_event_cache_key(event_id, event_type)
-        exists = await self.redis.exists(key)
-        if exists:
-            self.logger.warning(f"Event: {event_id} of type: {event_type} was already processesd. Skipping duplicate processing")
-            return True
-        return False
+        claimed = await self.redis.set(key, "processing", nx=True, ex=self.ttl_seconds)
+        if claimed is None:
+            self.logger.warning(f"Event {event_id} of type {event_type} already claimed/processed — skipping.")
+            return False
+        return True
 
     async def mark_event_as_processed(self,
-                                      event_id: UUID,
+                                      event_id: str | UUID,
                                       event_type: str,
-                                      order_id: UUID | None,
+                                      order_id: str | UUID | None,
                                       result: str) -> None:
-        """Mark event as processed with metadata"""
+        """Overwrite the provisional 'processing' marker with full metadata once done."""
         key = self._generate_event_cache_key(event_id, event_type)
         metadata = {
             "event_id": str(event_id),

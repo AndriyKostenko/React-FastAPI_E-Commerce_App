@@ -28,8 +28,18 @@ password_manager = PasswordManager(settings=settings)
 token_manager = TokenManager(settings=settings)
 
 # FastStream Event Publisher (RabbitMQ)
-broker = RabbitBroker(settings.RABBITMQ_BROKER_URL)
+broker = RabbitBroker(url=settings.RABBITMQ_BROKER_URL)
 base_event_publisher = BaseEventPublisher(broker=broker,logger=logger,settings=settings)
+
+
+# Idempotency service for notification consumer
+notification_idempotency_service = IdempotencyEventService(
+    service_prefix=settings.NOTIFICATION_SERVICE_REDIS_PREFIX,
+    logger=logger,
+    redis_url=settings.NOTIFICATION_SERVICE_REDIS_URL,
+    service_api_version=settings.NOTIFICATION_SERVICE_URL_API_VERSION,
+    ttl_hours=settings.IDEMPOTENCY_EVENT_SERVICE_HOURS,
+)
 
 #-----------------------------------Redis-Managers------------------------------------------------
 

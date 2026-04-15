@@ -10,44 +10,12 @@ from dependencies.auth_dependencies import (get_current_user,
 from shared.schemas.user_schemas import CurrentUserInfo
 from shared.customized_json_response import JSONResponse
 from shared.shared_instances import settings
-
-_ACCESS_COOKIE = "access_token"
-_REFRESH_COOKIE = "refresh_token"
-
-
-def _set_auth_cookies(response: Response,
-                      access_token: str,
-                      refresh_token: str,
-                      access_expiry: int | None = None,
-                      refresh_expiry: int | None = None) -> None:
-    """Set HttpOnly auth cookies on the response."""
-    secure = settings.SECURE_COOKIES
-    response.set_cookie(
-        key=_ACCESS_COOKIE,
-        value=access_token,
-        httponly=True,
-        secure=secure,
-        samesite="lax",
-        max_age=settings.TOKEN_TIME_DELTA_MINUTES * 60,
-    )
-    response.set_cookie(
-        key=_REFRESH_COOKIE,
-        value=refresh_token,
-        httponly=True,
-        secure=secure,
-        samesite="lax",
-        max_age=settings.REFRESH_TOKEN_TIME_DELTA_DAYS * 86400,
-    )
-
-
-def _clear_auth_cookies(response: Response) -> None:
-    """Clear auth cookies (logout)."""
-    response.delete_cookie(key=_ACCESS_COOKIE)
-    response.delete_cookie(key=_REFRESH_COOKIE)
+from middleware.auth_middleware import auth_middleware
+from shared.enums.services_enums import Services
+from shared.enums.auth_enums import AuthCookies
 
 
 user_proxy = APIRouter(tags=["User Service Proxy"])
-
 
 # ==================== PUBLIC ENDPOINTS (No Auth) ====================
 
@@ -55,7 +23,7 @@ user_proxy = APIRouter(tags=["User Service Proxy"])
 async def register_user(request: Request) -> JSONResponse:
     return await api_gateway_manager.forward_request(
         request=request,
-        service_name="user-service",
+        service_name=Services.USER_SERVICE,
     )
 
 
@@ -68,16 +36,14 @@ async def login_user(request: Request, response: Response) -> JSONResponse:
     """
     upstream = await api_gateway_manager.forward_request(
         request=request,
-        service_name="user-service",
+        service_name=Services.USER_SERVICE,
     )
     if upstream.status_code == 200:
-        body = orjson.loads(upstream.body)
-        _set_auth_cookies(
+        body: dict[str,  str] = orjson.loads(upstream.body)
+        auth_middleware.set_auth_cookies(
             response,
-            access_token=body.pop("access_token"),
-            access_expiry=body.pop("token_expiry"),
-            refresh_token=body.pop("refresh_token"),
-            refresh_expiry=body.pop("refresh_token_expiry"),
+            access_token=body.pop(AuthCookies.ACCESS_COOKIE),
+            refresh_token=body.pop(AuthCookies.REFRESH_COOKIE)
         )
         return JSONResponse(content=body, status_code=200)
     return upstream
@@ -89,7 +55,7 @@ async def refresh_token(request: Request, response: Response) -> JSONResponse:
     Gateway reads `refresh_token` cookie → forwards `{"refresh_token": ...}` to user service
     Sets a new `access_token` cookie
     """
-    refresh = request.cookies.get(_REFRESH_COOKIE)
+    refresh = request.cookies.get(AuthCookies.REFRESH_COOKIE)
     if not refresh:
         return JSONResponse(
             content={"detail": "Refresh token cookie missing"},
@@ -97,18 +63,15 @@ async def refresh_token(request: Request, response: Response) -> JSONResponse:
         )
     upstream = await api_gateway_manager.forward_request(
         request=request,
-        service_name="user-service",
-        override_body={"refresh_token": refresh},
+        service_name=Services.USER_SERVICE,
+        override_body={AuthCookies.REFRESH_COOKIE: refresh},
     )
     if upstream.status_code == 200:
         body = orjson.loads(upstream.body)
-        response.set_cookie(
-            key=_ACCESS_COOKIE,
-            value=body.pop("access_token"),
-            httponly=True,
-            secure=settings.SECURE_COOKIES,
-            samesite="lax",
-            max_age=settings.TOKEN_TIME_DELTA_MINUTES * 60,
+        auth_middleware.set_auth_cookies(
+            response,
+            access_token=body.pop(AuthCookies.ACCESS_COOKIE),
+            refresh_token=None,
         )
         return JSONResponse(content=body, status_code=200)
     return upstream
@@ -120,12 +83,12 @@ async def logout(request: Request, response: Response) -> JSONResponse:
     Gateway reads `refresh_token` cookie → revokes it in Redis via user service
     - **Clears both cookies** immediately
     """
-    refresh = request.cookies.get(_REFRESH_COOKIE)
-    _clear_auth_cookies(response)
+    refresh = request.cookies.get(AuthCookies.REFRESH_COOKIE)
+    auth_middleware.clear_auth_cookies(response)
     if refresh:
         await api_gateway_manager.forward_request(
             request=request,
-            service_name="user-service",
+            service_name=Services.USER_SERVICE,
             override_body={"refresh_token": refresh},
         )
     return JSONResponse(content={"detail": "Logged out successfully"}, status_code=200)
@@ -134,21 +97,21 @@ async def logout(request: Request, response: Response) -> JSONResponse:
 @user_proxy.post("/activate/{token}", summary="Verify user email")
 async def verify_email(request: Request) -> JSONResponse:
     return await api_gateway_manager.forward_request(
-        service_name="user-service",
+        service_name=Services.USER_SERVICE,
         request=request,
     )
 
 @user_proxy.post("/forgot-password", summary="Request password reset")
 async def forgot_password(request: Request) -> JSONResponse:
     return await api_gateway_manager.forward_request(
-        service_name="user-service",
+        service_name=Services.USER_SERVICE,
         request=request,
     )
 
 @user_proxy.post("/password-reset/{token}", summary="Reset password with token")
 async def reset_password(request: Request) -> JSONResponse:
     return await api_gateway_manager.forward_request(
-        service_name="user-service",
+        service_name=Services.USER_SERVICE,
         request=request,
     )
 
@@ -158,7 +121,7 @@ async def reset_password(request: Request) -> JSONResponse:
 async def get_current_user_data(request: Request,
                                 current_user: CurrentUserInfo = Depends(get_current_user)) -> JSONResponse:
     return await api_gateway_manager.forward_request(
-        service_name="user-service",
+        service_name=Services.USER_SERVICE,
         request=request
     )
 
@@ -172,7 +135,7 @@ async def get_user_by_id(request: Request,
                          current_user: CurrentUserInfo = Depends(get_current_user)):
     require_user_or_admin(current_user, target_user_id=user_id)
     return await api_gateway_manager.forward_request(
-        service_name="user-service",
+        service_name=Services.USER_SERVICE,
         request=request,
     )
 
@@ -183,7 +146,7 @@ async def update_user_by_id(request: Request,
                             current_user: CurrentUserInfo = Depends(get_current_user)):
     require_user_or_admin(current_user, target_user_id=user_id)
     return await api_gateway_manager.forward_request(
-        service_name="user-service",
+        service_name=Services.USER_SERVICE,
         request=request,
     )
 
@@ -194,7 +157,7 @@ async def delete_user_by_id(request: Request,
                             current_user: CurrentUserInfo = Depends(get_current_user)):
     require_user_or_admin(current_user, target_user_id=user_id)
     return await api_gateway_manager.forward_request(
-        service_name="user-service",
+        service_name=Services.USER_SERVICE,
         request=request,
     )
 
@@ -205,7 +168,7 @@ async def delete_user_by_id(request: Request,
 async def get_all_users(request: Request,
                         current_user: CurrentUserInfo = Depends(require_admin)):
     return await api_gateway_manager.forward_request(
-        service_name="user-service",
+        service_name=Services.USER_SERVICE,
         request=request,
     )
 
@@ -215,6 +178,6 @@ async def get_all_users(request: Request,
 @user_proxy.get("/admin/schema/users")
 async def get_user_schema_for_admin_js(request: Request):
     return await api_gateway_manager.forward_request(
-        service_name="user-service",
+        service_name=Services.USER_SERVICE,
         request=request
     )

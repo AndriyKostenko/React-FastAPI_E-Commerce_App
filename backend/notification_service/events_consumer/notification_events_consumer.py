@@ -1,4 +1,5 @@
 from typing import Any
+from uuid import UUID
 
 from faststream import FastStream
 from faststream.rabbit import RabbitQueue
@@ -14,21 +15,11 @@ from shared.schemas.event_schemas import (
     OrderConfirmedEvent,
     OrderCancelledEvent
 )
-from shared.shared_instances import broker
+from shared.shared_instances import broker, notification_idempotency_service
 from shared.enums.event_enums import UserEvents, OrderEvents, UserEventsQueue, OrderEventsQueue
-from shared.idempotency_service import IdempotencyEventService
-from shared.settings import Settings
-from shared.shared_instances import settings, notification_service_redis_manager
 
 
-# Create idempotency service for notification consumer
-notification_idempotency_service = IdempotencyEventService(
-    service_prefix=settings.NOTIFICATION_SERVICE_REDIS_PREFIX,
-    logger=logger,
-    redis_url=settings.NOTIFICATION_SERVICE_REDIS_URL,
-    service_api_version=settings.NOTIFICATION_SERVICE_URL_API_VERSION,
-    ttl_hours=72,
-)
+
 
 
 """
@@ -67,11 +58,11 @@ order_events_queue = RabbitQueue(
 async def handle_user_events(body: str):
     """Handle user-related events with idempotency checking."""
     message: dict[str, Any] = loads(body)
-    event_type = message.get("event_type")
-    event_id = message.get("event_id")
+    event_type: str = message["event_type"]
+    event_id: UUID = message["event_id"]
 
-    # Idempotency check — skip if already processed
-    if event_id and await notification_idempotency_service.is_event_processed(
+    # Atomically claim the event — skip if already claimed/processed
+    if event_id and not await notification_idempotency_service.try_claim_event(
         event_id=event_id, event_type=event_type
     ):
         logger.debug(f"Skipping duplicate user event: {event_type} / {event_id}")
@@ -115,11 +106,11 @@ async def handle_user_events(body: str):
 async def handle_order_events(body: str):
     """Handle order-related notification events with idempotency checking."""
     message: dict[str, Any] = loads(body)
-    event_type = message.get("event_type")
-    event_id = message.get("event_id")
+    event_type: str = message["event_type"]
+    event_id: UUID = message["event_id"]
 
-    # Idempotency check — skip if already processed
-    if event_id and await notification_idempotency_service.is_event_processed(
+    # Atomically claim the event — skip if already claimed/processed
+    if event_id and not await notification_idempotency_service.try_claim_event(
         event_id=event_id, event_type=event_type
     ):
         logger.debug(f"Skipping duplicate order event: {event_type} / {event_id}")
@@ -129,7 +120,6 @@ async def handle_order_events(body: str):
         match event_type:
             case OrderEvents.ORDER_CREATED:
                 logger.info(f"Order created event received for order: {message.get('order_id')}, skipping notification.")
-                return
             case OrderEvents.ORDER_CONFIRMED:
                 event = OrderConfirmedEvent(**message)
                 await order_notification_email_service.send_order_confirmed_notification(event)
@@ -140,7 +130,7 @@ async def handle_order_events(body: str):
                 logger.warning(f"Unhandled order event type: {message.get('event_type')}")
                 return
 
-        # Mark as processed AFTER successful handling
+        # Mark as processed AFTER successful handling (covers all matched cases)
         if event_id:
             order_id = message.get("order_id")
             await notification_idempotency_service.mark_event_as_processed(

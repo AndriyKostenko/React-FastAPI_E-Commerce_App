@@ -27,14 +27,15 @@ class BaseEventPublisher:
             self._is_started = False
             self.logger.info("Base Event event publisher stopped")
 
-    # TODO: check for async compatibility (looks like correct)
-    # and check if needed to be refactored using the decorator:
-    # @broker.publisher(queue=RabbitQueue("user.events", durable=True))
     async def publish_an_event(self, message: BaseModel, queue: RabbitQueue):
-        """Generic method to publish an event"""
-        # the message will be automaticallyy converted to JSON by FastStream..(suppouse to be)
+        """Generic method to publish an event.
+        FastStream natively accepts BaseModel — it serializes to JSON and sets
+        content_type='application/json' automatically.
+        persist=True ensures messages survive a broker restart (queue is durable).
+        """
         await self.broker.publish(
-            message=message.model_dump_json(),
+            message=message,
             queue=queue,
+            persist=True,
         )
         self.logger.info(f"Published event with msg: {message.model_dump_json()} to: {queue}")

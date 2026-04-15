@@ -4,7 +4,7 @@ from typing import Any
 
 from fastapi_mail import FastMail, MessageSchema, ConnectionConfig, MessageType
 from fastapi_mail.errors import ConnectionErrors
-from pydantic import ValidationError, EmailStr
+from pydantic import ValidationError
 from jinja2 import Environment, FileSystemLoader, TemplateNotFound
 
 from shared.metaclasses import SingletonMetaClass
@@ -24,9 +24,9 @@ from shared.schemas.event_schemas import (
 class EmailService(metaclass=SingletonMetaClass):
     """Service for sending emails using FastAPI Mail and Jinja2 templates."""
     def __init__(self, settings: Settings, logger: Logger):
-        self.settings = settings
-        self.logger = logger
-        self.config = ConnectionConfig(
+        self.settings: Settings = settings
+        self.logger: Logger = logger
+        self.config: ConnectionConfig = ConnectionConfig(
             MAIL_USERNAME=self.settings.MAIL_USERNAME,
             MAIL_PASSWORD=self.settings.MAIL_PASSWORD,
             MAIL_FROM=self.settings.MAIL_FROM,
@@ -40,8 +40,8 @@ class EmailService(metaclass=SingletonMetaClass):
             TEMPLATE_FOLDER=self.settings.TEMPLATES_DIR,
             VALIDATE_CERTS=self.settings.VALIDATE_CERTS
         )
-        self.jinja_env = Environment(loader=FileSystemLoader(self.config.TEMPLATE_FOLDER))
-        self.fast_mail = FastMail(self.config)
+        self.jinja_env: Environment = Environment(loader=FileSystemLoader(self.settings.TEMPLATES_DIR))
+        self.fast_mail: FastMail = FastMail(self.config)
 
     def render_template(self, template_name: str, template_body: dict[str, str]) -> str:
         """Render a template with the given context."""
@@ -80,14 +80,10 @@ class EmailService(metaclass=SingletonMetaClass):
         """Send email asynchronously - used directly by event consumers."""
         try:
             self.logger.info(f"Preparing to send email to {recipients} with subject: {subject}")
-
             rendered_html = self.render_template(template_name=template_name, template_body=template_body)
             message = self.create_message(recipients, subject, rendered_html)
-
             await self.fast_mail.send_message(message, template_name=template_name)
-
             self.logger.info(f"Email successfully sent to {recipients}")
-
         except ConnectionErrors as e:
             self.logger.error(f"Connection error while sending email: {e}")
             raise EmailServiceError("Connection error while sending email")

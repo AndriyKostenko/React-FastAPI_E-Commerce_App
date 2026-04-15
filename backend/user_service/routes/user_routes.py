@@ -9,7 +9,7 @@ from shared.customized_json_response import JSONResponse
 from shared.shared_instances import settings, user_service_redis_manager
 from dependencies.dependencies import user_service_dependency, current_user_dependency
 from models.user_models import User
-from events_publisher.user_events_publisher import notification_events_publisher
+from events_publisher.user_events_publisher import user_events_publisher
 from shared.schemas.user_schemas import (
     EmailVerificationResponse,
     ForgotPasswordResponse,
@@ -35,7 +35,7 @@ async def create_user(request: Request,
                       data: UserSignUp,
                       user_service: user_service_dependency):
     new_db_user, verification_token = await user_service.create_user(data=data)
-    await notification_events_publisher.publish_user_registered(new_db_user.email,verification_token)
+    await user_events_publisher.publish_user_registered(new_db_user.email,verification_token)
     await user_service_redis_manager.clear_cache_namespace(request, "users")
     return JSONResponse(content=new_db_user,status_code=status.HTTP_201_CREATED)
 
@@ -45,7 +45,7 @@ async def create_user(request: Request,
 @user_service_redis_manager.ratelimiter(times=5, seconds=3600)
 async def verify_email(request: Request, token: str, user_service: user_service_dependency):
     db_user = await user_service.verify_email(token=token)
-    await notification_events_publisher.publish_email_verified(email=db_user.email)
+    await user_events_publisher.publish_email_verified(email=db_user.email)
     return JSONResponse(
         content=EmailVerificationResponse(
             detail="Email verified successfully",
@@ -62,7 +62,7 @@ async def verify_email(request: Request, token: str, user_service: user_service_
 @user_service_redis_manager.ratelimiter(times=3, seconds=3600)
 async def forgot_password(request: Request, email: EmailStr, user_service: user_service_dependency):
     user, reset_token = await user_service.request_password_reset(email)
-    await notification_events_publisher.publish_password_reset_request(email=user.email,reset_token=reset_token)
+    await user_events_publisher.publish_password_reset_request(email=user.email,reset_token=reset_token)
     return JSONResponse(
         content=ForgotPasswordResponse(
             detail="Password reset email has been sent!",
@@ -72,7 +72,9 @@ async def forgot_password(request: Request, email: EmailStr, user_service: user_
     )
 
 
+
 # TODO: refactore the token_data acc unfo (place into business logic in user_service)
+
 @user_routes.post("/password-reset/{token}",
                     summary="Reset password with token",
                     response_model=PasswordUpdateResponse,
@@ -81,7 +83,7 @@ async def forgot_password(request: Request, email: EmailStr, user_service: user_
 async def reset_password(request: Request, token: str, data: ResetPasswordRequest, user_service: user_service_dependency):
     """Reset password using token"""
     user = await user_service.reset_password_with_token(token=token, new_password=data.new_password)
-    await notification_events_publisher.publish_password_reset_success(email=user.email)
+    await user_events_publisher.publish_password_reset_success(email=user.email)
     await user_service_redis_manager.clear_cache_namespace(namespace="users", request=request)
     await user_service_redis_manager.clear_cache_namespace(namespace="me", request=request)
     return JSONResponse(
@@ -100,7 +102,7 @@ async def login(request: Request,
                 form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
                 user_service: user_service_dependency):  # request is reqired for rate limiting decorator
     user, access_token, access_expiry, refresh_token, refresh_expiry = await user_service.login_user(form_data)
-    await notification_events_publisher.publish_user_logged_in(email=user.email)
+    await user_events_publisher.publish_user_logged_in(email=user.email)
     return JSONResponse(
         content=UserLoginDetails(
             access_token=access_token,

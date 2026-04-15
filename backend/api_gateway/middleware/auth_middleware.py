@@ -1,17 +1,16 @@
 from logging import Logger
-from fastapi import Request, HTTPException
+from fastapi import Request, HTTPException, Response
 from fastapi.responses import JSONResponse
 
 from shared.shared_instances import settings, logger, token_manager
 from shared.metaclasses import SingletonMetaClass
 from shared.settings import Settings
-
+from shared.enums.auth_enums import AuthCookies
 
 class AuthMiddleware(metaclass=SingletonMetaClass):
     """
     Middleware to handle proper access via JWT authentication by validating tokens with the User Service.
     """
-
     def __init__(self, settings: Settings, logger: Logger):
         self.settings: Settings = settings
         self.logger: Logger = logger
@@ -106,6 +105,36 @@ class AuthMiddleware(metaclass=SingletonMetaClass):
             )
 
         return await call_next(request)
+
+    def set_auth_cookies(self,
+                          response: Response,
+                          access_token: str,
+                          refresh_token: str | None) -> None:
+        """Set HttpOnly auth cookies on the response. Pass refresh_token=None to skip it (token rotation)."""
+        secure = self.settings.SECURE_COOKIES
+        response.set_cookie(
+            key=AuthCookies.ACCESS_COOKIE,
+            value=access_token,
+            httponly=True,
+            secure=secure,
+            samesite="lax", # CSRF protection
+            max_age=self.settings.TOKEN_TIME_DELTA_MINUTES * 60, # Access token expires in minutes, convert to seconds for max_age
+        )
+        if refresh_token is not None:
+            response.set_cookie(
+                key=AuthCookies.REFRESH_COOKIE,
+                value=refresh_token,
+                httponly=True,
+                secure=secure,
+                samesite="lax",
+                max_age=self.settings.REFRESH_TOKEN_TIME_DELTA_DAYS * 86400, # Refresh token expires in days, convert to seconds
+            )
+
+    def clear_auth_cookies(self, response: Response) -> None:
+        """Clear auth cookies (logout)."""
+        secure = self.settings.SECURE_COOKIES
+        response.delete_cookie(key=AuthCookies.ACCESS_COOKIE, httponly=True, secure=secure, samesite="lax")
+        response.delete_cookie(key=AuthCookies.REFRESH_COOKIE, httponly=True, secure=secure, samesite="lax")
 
 
 auth_middleware = AuthMiddleware(settings, logger)

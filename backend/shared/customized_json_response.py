@@ -9,7 +9,7 @@ from starlette.background import BackgroundTask
 class JSONResponse(Response):
     """Custom JSON response class that uses orjson for serialization."""
 
-    media_type = "application/json"
+    media_type: str = "application/json"
 
     def __init__(
         self,

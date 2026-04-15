@@ -2,6 +2,7 @@ from logging import Logger
 
 from faststream.rabbit import RabbitQueue
 from pydantic import EmailStr
+
 from shared.event_publisher import BaseEventPublisher
 from shared.schemas.event_schemas import (
     PasswordResetRequestedEvent,
@@ -15,7 +16,7 @@ from shared.shared_instances import broker, logger, settings
 from shared.enums.event_enums import UserEventsQueue
 
 
-class NotificationEventPublisher(BaseEventPublisher):
+class UserEventPublisher(BaseEventPublisher):
     def __init__(self, logger: Logger, settings: Settings) -> None:
         super().__init__(broker, logger, settings)
         self.user_events_queue: RabbitQueue = RabbitQueue(
@@ -55,6 +56,4 @@ class NotificationEventPublisher(BaseEventPublisher):
         await self.publish_an_event(message=event, queue=self.user_events_queue)
         self.logger.info(f"Published email.verified event for {email}")
 
-notification_events_publisher = NotificationEventPublisher(
-    logger=logger, settings=settings
-)
+user_events_publisher = UserEventPublisher(logger=logger, settings=settings)

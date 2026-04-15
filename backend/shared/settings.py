@@ -82,6 +82,8 @@ class Settings(BaseSettings):
     NOTIFICATION_SERVICE_REDIS_PREFIX: str
     ORDER_SERVICE_REDIS_PREFIX: str
 
+    IDEMPOTENCY_EVENT_SERVICE_HOURS: int
+
     # JWT configuration
     SECRET_KEY: str
     ALGORITHM: str
@@ -108,7 +110,7 @@ class Settings(BaseSettings):
     MAIL_FROM: str
     MAIL_FROM_NAME: str
     USE_CREDENTIALS: bool
-    TEMPLATES_DIR: DirectoryPath | None = Path(__file__).parent / "templates"
+    TEMPLATES_DIR: DirectoryPath = Path(__file__).parent / "templates"
     VALIDATE_CERTS: bool
 
     # CORS
