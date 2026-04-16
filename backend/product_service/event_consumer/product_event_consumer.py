@@ -79,9 +79,9 @@ class ProductEventConsumer:
         try:
 
             # 2. checking idempotency FIRST - befoer any processing
-            if await self.idempotency_service.is_event_processed(event.event_id, event.event_type):
+            if not await self.idempotency_service.try_claim_event(event.event_id, event.event_type):
                 self.logger.info(f"Skipping duplicate inventory reservation for order: {event.order_id}")
-                return # skipping coa already processed
+                return
             self.logger.info(f"Processing inventory reservation for order {event.order_id} with: {len(event.items)} items")
             # 3.getting product service with db session
             async for product_service in self._get_product_service():
@@ -153,7 +153,7 @@ class ProductEventConsumer:
         event = InventoryReleaseRequested(**message)
         try:
             # checking idempotency (if event been already processed)
-            if await self.idempotency_service.is_event_processed(event_id=event.event_id,
+            if not await self.idempotency_service.try_claim_event(event_id=event.event_id,
                                                                 event_type=event.event_type):
                 self.logger.info(f"Skipping duplicate inventory release for order: {event.order_id}")
                 return

@@ -1,12 +1,14 @@
 from datetime import datetime
 from contextlib import asynccontextmanager
 
-import uvicorn
+from uvicorn import run
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi import FastAPI, Request, HTTPException
 from pydantic import ValidationError
 from fastapi.exceptions import ResponseValidationError, RequestValidationError
+from taskiq import TaskiqMiddleware
+from
 
 
 from shared.shared_instances import (notification_service_redis_manager,
@@ -180,7 +182,7 @@ app.include_router(notification_routes, prefix=settings.NOTIFICATION_SERVICE_URL
 
 
 if __name__ == "__main__":
-    uvicorn.run("main:app",
-                host=settings.APP_HOST,
-                port=settings.NOTIFICATION_SERVICE_APP_PORT,
-                reload=True)
+    run("main:app",
+        host=settings.APP_HOST,
+        port=settings.NOTIFICATION_SERVICE_APP_PORT,
+        reload=True)

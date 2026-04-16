@@ -52,12 +52,16 @@ class BaseEventHandler:
         """Return True if this worker claimed the event, False if already taken."""
         return await self._idempotency.try_claim_event(event_id=event_id, event_type=event_type)
 
-    async def _mark_processed(self, event_id: str, event_type: str, order_id: str | None = None) -> None:
+    async def _release_claim(self, event_id: str, event_type: str) -> None:
+        """Delete the 'processing' marker so the event can be retried after a failure."""
+        await self._idempotency.release_claim(event_id=event_id, event_type=event_type)
+
+    async def _mark_processed(self, event_id: str, event_type: str, order_id: str | None = None, result: str = "sent") -> None:
         await self._idempotency.mark_event_as_processed(
             event_id=event_id,
             event_type=event_type,
             order_id=order_id,
-            result="sent",
+            result=result,
         )
 
     async def _save_notification(self, user_id: UUID | None, message: str, notification_type: str) -> None:
@@ -81,8 +85,9 @@ class UserEventHandler(BaseEventHandler):
         message: dict[str, Any] = loads(body)
         event_type: str = message["event_type"]
         event_id: str = message["event_id"]
-
-        if event_id and not await self._try_claim(event_id, event_type):
+        
+        # Idempotency check first - before any processing
+        if not await self._try_claim(event_id, event_type):
             self._logger.debug(f"Skipping duplicate user event: {event_type} / {event_id}")
             return
 
@@ -113,6 +118,7 @@ class UserEventHandler(BaseEventHandler):
                     notification_message = "Your password has been reset successfully."
                 case _:
                     self._logger.warning(f"Unhandled user event type: {event_type}")
+                    await self._mark_processed(event_id=event_id, event_type=event_type, result="skipped")
                     return
 
             await self._save_notification(
@@ -120,11 +126,11 @@ class UserEventHandler(BaseEventHandler):
                 message=notification_message,
                 notification_type=event_type,
             )
-            if event_id:
-                await self._mark_processed(event_id=event_id, event_type=event_type)
+            await self._mark_processed(event_id=event_id, event_type=event_type)
 
         except Exception as error:
             self._logger.error(f"Error handling user event {event_type}: {error}")
+            await self._release_claim(event_id=event_id, event_type=event_type)
             raise
 
 
@@ -138,7 +144,8 @@ class OrderEventHandler(BaseEventHandler):
         event_type: str = message["event_type"]
         event_id: str = message["event_id"]
 
-        if event_id and not await self._try_claim(event_id, event_type):
+        # Idempotency check first - before any processing
+        if not await self._try_claim(event_id, event_type):
             self._logger.debug(f"Skipping duplicate order event: {event_type} / {event_id}")
             return
 
@@ -150,6 +157,7 @@ class OrderEventHandler(BaseEventHandler):
             match event_type:
                 case OrderEvents.ORDER_CREATED:
                     self._logger.info(f"Order created event received for order: {order_id}, skipping notification.")
+                    await self._mark_processed(event_id=event_id, event_type=event_type, order_id=order_id, result="skipped")
                     return
                 case OrderEvents.ORDER_CONFIRMED:
                     event = OrderConfirmedEvent(**message)
@@ -161,14 +169,15 @@ class OrderEventHandler(BaseEventHandler):
                     notification_message = f"Your order #{order_id} has been cancelled."
                 case _:
                     self._logger.warning(f"Unhandled order event type: {event_type}")
+                    await self._mark_processed(event_id=event_id, event_type=event_type, order_id=order_id, result="skipped")
                     return
 
             await self._save_notification(user_id=user_id,message=notification_message,notification_type=event_type)
-            if event_id:
-                await self._mark_processed(event_id=event_id, event_type=event_type, order_id=order_id)
+            await self._mark_processed(event_id=event_id, event_type=event_type, order_id=order_id)
 
         except Exception as error:
             self._logger.error(f"Error handling order event {event_type}: {error}")
+            await self._release_claim(event_id=event_id, event_type=event_type)
             raise
 
 

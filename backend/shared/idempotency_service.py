@@ -43,6 +43,25 @@ class IdempotencyEventService(RedisManager):
             return False
         return True
 
+    async def release_claim(self, event_id: str | UUID, event_type: str) -> None:
+        """Delete the provisional 'processing' marker so the event can be retried.
+
+        Must be called in exception handlers before re-raising, otherwise the
+        SET NX claim blocks all future retry attempts until the TTL expires.
+        """
+        key = self._generate_event_cache_key(event_id, event_type)
+        await self.redis.delete(key)
+        self.logger.debug(f"Released claim for event {event_id} ({event_type}) — eligible for retry.")
+
+    async def is_event_processed(self, event_id: str | UUID, event_type: str) -> bool:
+        """Return True if a 'processed' record already exists for this event.
+
+        NOTE: Unlike try_claim_event this is NOT atomic — use try_claim_event
+        when multiple workers may compete for the same event.
+        """
+        key = self._generate_event_cache_key(event_id, event_type)
+        return await self.redis.exists(key) == 1
+
     async def mark_event_as_processed(self,
                                       event_id: str | UUID,
                                       event_type: str,

@@ -1,10 +1,10 @@
 from logging import Logger
 from uuid import UUID
 
-from faststream.rabbit import RabbitQueue
 from pydantic import EmailStr
+from faststream.rabbit import RabbitExchange
 
-from shared.shared_instances import logger, settings, broker
+from shared.shared_instances import logger, settings, broker, inventory_exchange
 from shared.event_publisher import BaseEventPublisher
 from shared.settings import Settings
 from shared.schemas.event_schemas import (
@@ -12,7 +12,6 @@ from shared.schemas.event_schemas import (
     InventoryReserveFailed,
 )
 from shared.schemas.order_schemas import OrderItemBase
-from shared.enums.event_enums import OrderSagaResponseQueue
 
 
 class ProductEventPublisher(BaseEventPublisher):
@@ -20,15 +19,7 @@ class ProductEventPublisher(BaseEventPublisher):
 
     def __init__(self, logger: Logger, settings: Settings):
         super().__init__(broker, logger, settings)
-        # TODO: check if that's the correctly created a separate queue ?
-        self.order_saga_response_queue: RabbitQueue = RabbitQueue(
-            OrderSagaResponseQueue.ORDER_SAGA_RESPONSE_QUEUE,
-            durable=True,
-            arguments={
-                "x-dead-letter-exchange": "dlx",
-                "x-dead-letter-routing-key": OrderSagaResponseQueue.ORDER_SAGA_RESPONSE_DEAD_LETTER_QUEUE
-            }
-        )
+        self.exchange: RabbitExchange = inventory_exchange
 
     async def publish_inventory_reserve_succeeded(self,
                                                   order_id: UUID,
@@ -42,8 +33,8 @@ class ProductEventPublisher(BaseEventPublisher):
             order_id=order_id,
             reserved_items=reserved_items
         )
-        await self.publish_an_event(message=event,queue=self.order_saga_response_queue)
-        self.logger.info(f"Publihing inventory reserve succeedded event for order id: {event.order_id}")
+        await self.publish_an_event(event=event, exchange=self.exchange, routing_key=event.event_type)
+        self.logger.info(f"Published inventory reserve succeeded event for order id: {event.order_id}")
 
     async def publish_inventory_reserve_failed(self,
                                               order_id: UUID,
@@ -59,8 +50,8 @@ class ProductEventPublisher(BaseEventPublisher):
             reasons=reasons,
             failed_items=failed_items
         )
-        await self.publish_an_event(message=event,queue=self.order_saga_response_queue)
-        self.logger.info(f"Publishing inventory reserve failed event for order id:{event.order_id}")
+        await self.publish_an_event(event=event, exchange=self.exchange, routing_key=event.event_type)
+        self.logger.info(f"Published inventory reserve failed event for order id: {event.order_id}")
 
 
 product_event_publisher = ProductEventPublisher(logger=logger, settings=settings)

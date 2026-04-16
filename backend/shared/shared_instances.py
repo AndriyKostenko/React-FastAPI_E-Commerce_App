@@ -1,4 +1,4 @@
-from faststream.rabbit import RabbitBroker
+from faststream.rabbit import RabbitBroker, RabbitExchange, ExchangeType
 
 from shared.email_service import UserRelatedNotifications, OrderRelatedNotifications
 from shared.logger_config import setup_logger
@@ -29,8 +29,12 @@ token_manager = TokenManager(settings=settings)
 
 # FastStream Event Publisher (RabbitMQ)
 broker = RabbitBroker(url=settings.RABBITMQ_BROKER_URL)
+
 base_event_publisher = BaseEventPublisher(broker=broker,logger=logger,settings=settings)
 
+user_exchange = RabbitExchange(name="user.events.exchange", durable=True, type=ExchangeType.TOPIC)
+order_exchange = RabbitExchange(name="order.events.exchange", durable=True, type=ExchangeType.TOPIC)
+inventory_exchange = RabbitExchange(name="inventory.events.exchange", durable=True, type=ExchangeType.TOPIC)
 
 # Idempotency service for notification consumer
 notification_idempotency_service = IdempotencyEventService(
