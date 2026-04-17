@@ -4,7 +4,6 @@ from shared.shared_instances import (
     user_notification_email_service,
     order_notification_email_service,
     logger,
-    taskiq_broker
 )
 from shared.schemas.event_schemas import (
     UserRegisteredEvent,
@@ -15,6 +14,7 @@ from shared.schemas.event_schemas import (
     OrderConfirmedEvent,
     OrderCancelledEvent,
 )
+from .broker import taskiq_broker
 
 
 @taskiq_broker.task
