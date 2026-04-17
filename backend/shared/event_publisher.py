@@ -8,8 +8,8 @@ from shared.settings import Settings
 
 class BaseEventPublisher:
     """Base Event publisher using FastStream (RabbitMQ)"""
-    def __init__(self, broker: RabbitBroker, logger: Logger, settings: Settings) -> None:
-        self.broker: RabbitBroker = broker
+    def __init__(self, rabbitmq_broker: RabbitBroker, logger: Logger, settings: Settings) -> None:
+        self.broker: RabbitBroker = rabbitmq_broker
         self._is_started: bool = False
         self.logger: Logger = logger
 

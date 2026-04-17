@@ -7,14 +7,12 @@ from fastapi.responses import JSONResponse
 from fastapi import FastAPI, Request, HTTPException
 from pydantic import ValidationError
 from fastapi.exceptions import ResponseValidationError, RequestValidationError
-from taskiq import TaskiqMiddleware
-from
-
 
 from shared.shared_instances import (notification_service_redis_manager,
                                     notification_service_database_session_manager,
                                     logger,
-                                    settings)
+                                    settings,
+                                    taskiq_broker)
 from shared.base_exceptions import (BaseAPIException, RateLimitExceededError)
 from routes.notification_routes import notification_routes
 
@@ -26,6 +24,9 @@ async def lifespan(app: FastAPI):
     events of a FastAPI application.
     """
     logger.info(f"Server is starting up on {settings.APP_HOST}:{settings.NOTIFICATION_SERVICE_APP_PORT}...")
+    if not taskiq_broker.is_worker_process:
+        await taskiq_broker.startup()
+        logger.info("TaskIQ broker started successfully.")
     await notification_service_redis_manager.connect()
     logger.info("Redis health check passed.")
     await notification_service_database_session_manager.init_db()
@@ -38,6 +39,9 @@ async def lifespan(app: FastAPI):
     logger.warning("Database connection closed on shutdown!")
     await notification_service_redis_manager.close()
     logger.warning("Cache connection closed on shutdown!")
+    if not taskiq_broker.is_worker_process:
+        await taskiq_broker.shutdown()
+        logger.info("TaskIQ broker shut down successfully.")
     logger.warning("Server has shut down !")
 
 

@@ -218,6 +218,26 @@ services:
       - ./shared:/app/shared:ro
       - ./shared/templates:/app/templates:ro
 
+  notification-taskiq-worker:
+    build:
+      context: ./notification_service
+      dockerfile: Dockerfile.worker
+    restart: unless-stopped
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      notification-service:
+        condition: service_healthy
+    env_file:
+      - .env
+    networks:
+      - usernet
+    volumes:
+      - ./shared:/app/shared:ro
+      - ./shared/templates:/app/templates:ro
+
   order-service:
     build:
       context: ./order_service
@@ -282,8 +302,10 @@ services:
     networks:
       - usernet
 
+
 networks:
   usernet:
+
 
 volumes:
   postgres_data:

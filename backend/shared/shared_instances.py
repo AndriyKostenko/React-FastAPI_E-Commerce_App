@@ -27,14 +27,16 @@ password_manager = PasswordManager(settings=settings)
 #Token Manager
 token_manager = TokenManager(settings=settings)
 
-# FastStream Event Publisher (RabbitMQ)
-broker = RabbitBroker(url=settings.RABBITMQ_BROKER_URL)
+# RabbitMQ broker and exchanges setup
+rabbitmq_broker = RabbitBroker(url=settings.RABBITMQ_BROKER_URL)
 
-base_event_publisher = BaseEventPublisher(broker=broker,logger=logger,settings=settings)
+base_event_publisher = BaseEventPublisher(rabbitmq_broker=rabbitmq_broker, logger=logger, settings=settings)
 
 user_exchange = RabbitExchange(name="user.events.exchange", durable=True, type=ExchangeType.TOPIC)
 order_exchange = RabbitExchange(name="order.events.exchange", durable=True, type=ExchangeType.TOPIC)
 inventory_exchange = RabbitExchange(name="inventory.events.exchange", durable=True, type=ExchangeType.TOPIC)
+
+
 
 # Idempotency service for notification consumer
 notification_idempotency_service = IdempotencyEventService(

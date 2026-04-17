@@ -25,6 +25,13 @@ from shared.schemas.event_schemas import (
 from shared.enums.event_enums import UserEvents, OrderEvents
 from service_layer.notification_service import NotificationService
 from database_layer.notification_repository import NotificationRepository
+from tasks.email_tasks import (
+    send_verification_email,
+    send_email_verified_notification,
+    send_login_notification,
+    send_password_reset_email,
+    send_password_reset_success,
+)
 
 """
 Base handler
@@ -85,7 +92,7 @@ class UserEventHandler(BaseEventHandler):
         message: dict[str, Any] = loads(body)
         event_type: str = message["event_type"]
         event_id: str = message["event_id"]
-        
+
         # Idempotency check first - before any processing
         if not await self._try_claim(event_id, event_type):
             self._logger.debug(f"Skipping duplicate user event: {event_type} / {event_id}")
@@ -97,30 +104,25 @@ class UserEventHandler(BaseEventHandler):
 
             match event_type:
                 case UserEvents.USER_REGISTERED:
-                    event = UserRegisteredEvent(**message)
-                    await user_notification_email_service.send_verification_email(event)
-                    notification_message = "Welcome! Please verify your email address to activate your account."
+                    await send_verification_email.kiq(message)       # ← .kiq() instead of direct call
+                    notification_message = "Welcome! Please verify your email address."
                 case UserEvents.USER_EMAIL_VERIFIED:
-                    event = EmailVerificationEvent(**message)
-                    await user_notification_email_service.send_email_verified_notification(event)
+                    await send_email_verified_notification.kiq(message)
                     notification_message = "Your email address has been successfully verified."
                 case UserEvents.USER_LOGGED_IN:
-                    event = UserLoginEvent(**message)
-                    await user_notification_email_service.send_login_notification_email(event)
+                    await send_login_notification.kiq(message)
                     notification_message = "A new login was detected on your account."
                 case UserEvents.USER_PASSWORD_RESET_REQUEST:
-                    event = PasswordResetRequestedEvent(**message)
-                    await user_notification_email_service.send_password_reset_email(event)
-                    notification_message = "A password reset has been requested for your account."
+                    await send_password_reset_email.kiq(message)
+                    notification_message = "A password reset has been requested."
                 case UserEvents.USER_PASSWORD_RESET_SUCCESS:
-                    event = PasswordResetSuccessEvent(**message)
-                    await user_notification_email_service.send_password_reset_success_email(event)
+                    await send_password_reset_success.kiq(message)
                     notification_message = "Your password has been reset successfully."
                 case _:
                     self._logger.warning(f"Unhandled user event type: {event_type}")
-                    await self._mark_processed(event_id=event_id, event_type=event_type, result="skipped")
                     return
 
+            # DB save + idempotency mark stay here
             await self._save_notification(
                 user_id=user_id,
                 message=notification_message,

@@ -76,6 +76,8 @@ class Settings(BaseSettings):
     NOTIFICATION_SERVICE_REDIS_DB: int
     ORDER_SERVICE_REDIS_DB: int
 
+    NOTIFICATION_SERVICE_REDIS_BACKEND_RESULT_DB: int
+
     USER_SERVICE_REDIS_PREFIX: str
     PRODUCT_SERVICE_REDIS_PREFIX: str
     APIGATEWAY_SERVICE_REDIS_PREFIX: str
@@ -197,6 +199,10 @@ class Settings(BaseSettings):
     @property
     def FULL_NOTIFICATION_SERVICE_URL(self) -> str:
         return f"{self.NOTIFICATION_SERVICE_URL}{self.NOTIFICATION_SERVICE_URL_API_VERSION}"
+
+    @property
+    def NOTIFICATION_SERVICE_REDIS_RESULT_BACKEND_URL(self) -> str:
+        return f"redis://:{self.REDIS_PASSWORD}@{self.REDIS_HOST}:{self.REDIS_PORT}/{self.NOTIFICATION_SERVICE_REDIS_BACKEND_RESULT_DB}"
 
 
     #-------------NOTIFICATION-CONSUMER-SERVICE----------------

@@ -4,13 +4,13 @@ from faststream import FastStream
 from faststream.rabbit import RabbitQueue
 from orjson import loads
 
-from shared.shared_instances import broker, inventory_exchange
+from shared.shared_instances import rabbitmq_broker, inventory_exchange
 from events_consumer.order_event_consumer import order_event_consumer
 from shared.enums.event_enums import OrderSagaResponseQueue
 
 
 # Create the FastStream app
-app = FastStream(broker)
+app = FastStream(rabbitmq_broker)
 
 
 # inventory.reserve.* binds to inventory.reserve.succeeded and inventory.reserve.failed
@@ -26,7 +26,7 @@ order_saga_response_queue = RabbitQueue(
 
 
 # Register the subscriber function (FastStream requires this at module level)
-@broker.subscriber(queue=order_saga_response_queue, exchange=inventory_exchange)
+@rabbitmq_broker.subscriber(queue=order_saga_response_queue, exchange=inventory_exchange)
 async def handle_order_saga_responses(body: str):
     """
     FastStream subscriber function that delegates to the OrderEventConsumer class.

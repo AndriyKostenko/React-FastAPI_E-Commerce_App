@@ -3,7 +3,7 @@ from faststream.rabbit import RabbitQueue
 
 from shared.shared_instances import (
     logger,
-    broker,
+    rabbitmq_broker,
     notification_service_database_session_manager,
     user_exchange,
     order_exchange,
@@ -20,7 +20,7 @@ connects directly to RabbitMQ
 """
 
 
-app = FastStream(broker)
+app = FastStream(rabbitmq_broker)
 
 
 @app.on_startup
@@ -59,5 +59,5 @@ order_events_queue = RabbitQueue(
 )
 
 # Subscribers — exchange param wires up the queue binding on startup
-handle_user_events = broker.subscriber(queue=user_events_queue, exchange=user_exchange)(user_handler.handle)
-handle_order_events = broker.subscriber(queue=order_events_queue, exchange=order_exchange)(order_handler.handle)
+handle_user_events = rabbitmq_broker.subscriber(queue=user_events_queue, exchange=user_exchange)(user_handler.handle)
+handle_order_events = rabbitmq_broker.subscriber(queue=order_events_queue, exchange=order_exchange)(order_handler.handle)

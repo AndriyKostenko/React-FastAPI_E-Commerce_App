@@ -4,13 +4,13 @@ from faststream import FastStream
 from faststream.rabbit import RabbitQueue
 from orjson import loads
 
-from shared.shared_instances import broker, inventory_exchange
+from shared.shared_instances import rabbitmq_broker, inventory_exchange
 from shared.enums.event_enums import ProductInventoryEventsQueue
 from event_consumer.product_event_consumer import product_event_consumer
 
 
 # Create the FastStream app
-app = FastStream(broker)
+app = FastStream(rabbitmq_broker)
 
 # inventory.*.requested binds to inventory.reserve.requested and inventory.release.requested
 product_inventory_events_queue = RabbitQueue(
@@ -24,7 +24,7 @@ product_inventory_events_queue = RabbitQueue(
 )
 
 # Register the subscriber function (FastStream requires this at module level)
-@broker.subscriber(product_inventory_events_queue, exchange=inventory_exchange)
+@rabbitmq_broker.subscriber(queue=product_inventory_events_queue, exchange=inventory_exchange)
 async def handle_inventory_events(body: str):
     """
     FastStream subscriber function that delegates to the OrderEventConsumer class.

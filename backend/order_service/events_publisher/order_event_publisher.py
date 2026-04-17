@@ -1,9 +1,11 @@
 from typing import Any
 from logging import Logger
 
+from faststream.rabbit import RabbitExchange
+
 from shared.settings import Settings
 from shared.event_publisher import BaseEventPublisher
-from shared.shared_instances import settings, logger, broker, order_exchange, inventory_exchange
+from shared.shared_instances import settings, logger, rabbitmq_broker, order_exchange, inventory_exchange
 from shared.schemas.event_schemas import (
     OrderCreatedEvent,
     OrderCancelledEvent,
@@ -16,9 +18,9 @@ from shared.schemas.event_schemas import (
 class OrderEventPublisher(BaseEventPublisher):
     """Event publisher for Order Service using FastStream"""
     def __init__(self, logger: Logger, settings: Settings):
-        super().__init__(broker, logger, settings)
-        self.order_exchange = order_exchange
-        self.inventory_exchange = inventory_exchange
+        super().__init__(rabbitmq_broker, logger, settings)
+        self.order_exchange: RabbitExchange = order_exchange
+        self.inventory_exchange: RabbitExchange = inventory_exchange
 
     async def publish_order_created(self, event_data: dict[str, Any]):
         """Publish order created event (SAGA start)"""

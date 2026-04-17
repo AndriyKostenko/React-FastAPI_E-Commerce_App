@@ -4,7 +4,7 @@ from uuid import UUID
 from pydantic import EmailStr
 from faststream.rabbit import RabbitExchange
 
-from shared.shared_instances import logger, settings, broker, inventory_exchange
+from shared.shared_instances import logger, settings, rabbitmq_broker, inventory_exchange
 from shared.event_publisher import BaseEventPublisher
 from shared.settings import Settings
 from shared.schemas.event_schemas import (
@@ -18,7 +18,7 @@ class ProductEventPublisher(BaseEventPublisher):
     """Event publisher for Product Service using FastStream"""
 
     def __init__(self, logger: Logger, settings: Settings):
-        super().__init__(broker, logger, settings)
+        super().__init__(rabbitmq_broker, logger, settings)
         self.exchange: RabbitExchange = inventory_exchange
 
     async def publish_inventory_reserve_succeeded(self,

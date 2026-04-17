@@ -13,7 +13,7 @@ from shared.schemas.event_schemas import (
     EmailVerificationEvent
 )
 from shared.settings import Settings
-from shared.shared_instances import broker, logger, settings, user_exchange
+from shared.shared_instances import rabbitmq_broker, logger, settings, user_exchange
 
 
 class UserEventPublisher(BaseEventPublisher):
@@ -27,7 +27,7 @@ class UserEventPublisher(BaseEventPublisher):
     - user.email.verified
     """
     def __init__(self, logger: Logger, settings: Settings) -> None:
-        super().__init__(broker, logger, settings)
+        super().__init__(rabbitmq_broker, logger, settings)
         self.exchange: RabbitExchange = user_exchange
 
     async def publish_user_registered(self, email: EmailStr, token: str, user_id: UUID | None = None) -> None:
