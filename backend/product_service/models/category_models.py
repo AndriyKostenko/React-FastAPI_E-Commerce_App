@@ -6,13 +6,13 @@ from sqlalchemy import Index, inspect
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 
 from shared.models.models_base_class import Base
-from shared.models_mixins import TimestampMixin
+from shared.utils.models_mixins import TimestampMixin
 
 
 class ProductCategory(Base, TimestampMixin):
-    __tablename__ = 'product_categories'
+    __tablename__: str = 'product_categories'
 
-    __table_args__ = (
+    __table_args__: tuple[Index, ...] = (
         Index('idx_product_categories_name', 'name'),
         Index('idx_product_categories_date_created', 'date_created'),
         Index('idx_product_categories_image_url', 'image_url'),
@@ -22,7 +22,7 @@ class ProductCategory(Base, TimestampMixin):
     name: Mapped[str] = mapped_column(unique=True, nullable=False)
     image_url: Mapped[str] = mapped_column(nullable=True)
 
-    products: Mapped[list['Product']] = relationship('Product', back_populates='category', cascade='all, delete-orphan') #type: ignore
+    products: Mapped[list['Product']] = relationship('Product', back_populates='category', cascade='all, delete-orphan') # pyright: ignore[reportUndefinedVariable]
 
     @classmethod
     def get_search_fields(cls) -> list[str]:

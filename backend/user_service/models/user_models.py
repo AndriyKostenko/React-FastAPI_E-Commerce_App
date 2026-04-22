@@ -1,21 +1,21 @@
 from uuid import UUID, uuid4
-from typing import Any
+from typing import Any, override
 
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy import String, Index, inspect
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 
-from shared.models.models_base_class import Base # type: ignore
-from shared.models_mixins import TimestampMixin # type: ignore
+from shared.models.models_base_class import Base
+from shared.utils.models_mixins import TimestampMixin
 
 
 # User model representing a user in the system
 class User(Base, TimestampMixin):
-    __tablename__ = 'users'
+    __tablename__: str = 'users'
 
     # Creating indexes for the columns
     # to improve query performance, applied to often queried fields
-    __table_args__ = (
+    __table_args__: tuple[Index, ...] = (
         Index('idx_users_email', 'email'),
         Index('idx_users_role', 'role'),
         Index('idx_users_is_active', 'is_active'),
@@ -73,7 +73,10 @@ class User(Base, TimestampMixin):
         type_name = sql_type.__class__.__name__.upper()
         return type_mapping.get(type_name, 'string')
 
+    @override
     def __repr__(self) -> str:
         return f"User(id={self.id}, name={self.name}, email={self.email}, role={self.role}, is_active={self.is_active}, is_verified={self.is_verified}), date_created={self.date_created}, date_updated={self.date_updated})"
+
+    @override
     def __str__(self) -> str:
         return f"User(id={self.id}, name={self.name}, email={self.email}, role={self.role}, is_active={self.is_active}, is_verified={self.is_verified}), date_created={self.date_created}, date_updated={self.date_updated})"

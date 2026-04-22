@@ -11,7 +11,7 @@ from fastapi.exceptions import ResponseValidationError, RequestValidationError
 
 from service_layer.outbox_poller_service import OutboxPollerService
 from routes.orders_routes import order_routes
-from shared.base_exceptions import (BaseAPIException, RateLimitExceededError)
+from shared.exceptions.base_exceptions import (BaseAPIException, RateLimitExceededError)
 from shared.shared_instances import (order_event_idempotency_service, order_service_redis_manager,
                                     order_service_database_session_manager,
                                     logger,

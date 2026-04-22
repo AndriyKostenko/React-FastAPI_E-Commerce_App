@@ -6,7 +6,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 
 from shared.models.models_base_class import Base
-from shared.models_mixins import TimestampMixin
+from shared.utils.models_mixins import TimestampMixin
 
 
 class OrderAddress(Base, TimestampMixin):
@@ -23,7 +23,7 @@ class OrderAddress(Base, TimestampMixin):
     province: Mapped[str] = mapped_column(nullable=True)
     postal_code: Mapped[str] = mapped_column(nullable=True)
 
-    orders: Mapped[List['Order']] = relationship('Order', back_populates='address')
+    orders: Mapped[list['Order']] = relationship('Order', back_populates='address')
 
     @classmethod
     def get_search_fields(cls) -> list[str]:

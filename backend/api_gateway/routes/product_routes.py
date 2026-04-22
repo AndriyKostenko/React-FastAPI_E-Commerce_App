@@ -2,7 +2,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Request, Depends
 
-from apigateway import api_gateway_manager
+from gateway.apigateway import api_gateway_manager
 from dependencies.auth_dependencies import (get_current_user,
                                             require_admin,
                                             require_user_or_admin)

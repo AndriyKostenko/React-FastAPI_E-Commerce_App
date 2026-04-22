@@ -4,7 +4,7 @@ from logging import Logger
 from faststream.rabbit import RabbitExchange
 
 from shared.settings import Settings
-from shared.event_publisher import BaseEventPublisher
+from shared.events.event_publisher import BaseEventPublisher
 from shared.shared_instances import settings, logger, rabbitmq_broker, order_exchange, inventory_exchange
 from shared.schemas.event_schemas import (
     OrderCreatedEvent,

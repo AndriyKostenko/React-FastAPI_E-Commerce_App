@@ -7,14 +7,14 @@ from sqlalchemy import ForeignKey, Index, inspect
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 
 from shared.models.models_base_class import Base
-from shared.models_mixins import TimestampMixin
+from shared.utils.models_mixins import TimestampMixin
 
 
 class Product(Base, TimestampMixin):
     __tablename__: str = 'products'
 
     # Creating indexes for the Product table
-    __table_args__ = (
+    __table_args__: tuple[Index, ...] = (
         Index('idx_product_name', 'name'),
         Index('idx_product_category', 'category_id'),
         Index('idx_product_brand', 'brand'),
@@ -32,9 +32,9 @@ class Product(Base, TimestampMixin):
     price: Mapped[Decimal] = mapped_column(nullable=False)
     in_stock: Mapped[bool] = mapped_column(nullable=False)
 
-    reviews: Mapped[list['ProductReview']] = relationship('ProductReview', back_populates='product', cascade='all, delete-orphan') # type: ignore
-    images: Mapped[list['ProductImage']] = relationship('ProductImage', back_populates='product', cascade='all, delete-orphan') # type: ignore
-    category: Mapped['ProductCategory'] = relationship('ProductCategory', back_populates='products') # type: ignore
+    reviews: Mapped[list['ProductReview']] = relationship('ProductReview', back_populates='product', cascade='all, delete-orphan') # pyright: ignore[reportUndefinedVariable]
+    images: Mapped[list['ProductImage']] = relationship('ProductImage', back_populates='product', cascade='all, delete-orphan') # pyright: ignore[reportUndefinedVariable]
+    category: Mapped['ProductCategory'] = relationship('ProductCategory', back_populates='products') # pyright: ignore[reportUndefinedVariable]
 
     @classmethod
     def get_search_fields(cls) -> list[str]:

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Request, status
 
-from shared.customized_json_response import JSONResponse
+from shared.utils.customized_json_response import JSONResponse
 from shared.shared_instances import order_service_redis_manager
 from shared.schemas.order_schemas import CreateOrder, UpdateOrder, OrderSchema
 from dependencies.dependencies import order_service_dependency

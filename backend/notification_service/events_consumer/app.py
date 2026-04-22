@@ -10,6 +10,7 @@ from shared.shared_instances import (
 )
 from .event_handlers import user_handler, order_handler
 from shared.enums.event_enums import UserEventsQueue, OrderEventsQueue
+from tasks.broker import taskiq_broker
 
 
 """
@@ -26,11 +27,13 @@ app = FastStream(rabbitmq_broker)
 @app.on_startup
 async def startup():
     await notification_service_database_session_manager.init_db()
+    await taskiq_broker.startup()
     logger.info("Notification consumer: database initialized.")
 
 
 @app.on_shutdown
 async def shutdown():
+    await taskiq_broker.shutdown()
     await notification_service_database_session_manager.close()
     logger.info("Notification consumer: database connection closed.")
 

@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, Query, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import EmailStr
 
-from shared.customized_json_response import JSONResponse
+from shared.utils.customized_json_response import JSONResponse
 from shared.shared_instances import settings, user_service_redis_manager
 from dependencies.dependencies import user_service_dependency, current_user_dependency
 from models.user_models import User

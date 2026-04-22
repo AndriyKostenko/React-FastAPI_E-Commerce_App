@@ -2,10 +2,8 @@ from logging import Logger
 from typing import Any
 from uuid import UUID
 
-from orjson import loads
-
-from shared.idempotency_service import IdempotencyEventService
-from shared.database_setup import DatabaseSessionManager
+from shared.idempotency.idempotency_service import IdempotencyEventService
+from shared.managers.database_session_manager import DatabaseSessionManager
 from shared.shared_instances import (
     logger,
     notification_idempotency_service,
@@ -87,9 +85,9 @@ class BaseEventHandler:
 
 class UserEventHandler(BaseEventHandler):
 
-    async def handle(self, body: str) -> None:
+    async def handle(self, body: dict[str, Any]) -> None:
         """Handle user-related events with idempotency checking."""
-        message: dict[str, Any] = loads(body)
+        message: dict[str, Any] = body
         event_type: str = message["event_type"]
         event_id: str = message["event_id"]
 
@@ -140,9 +138,9 @@ class UserEventHandler(BaseEventHandler):
 
 class OrderEventHandler(BaseEventHandler):
 
-    async def handle(self, body: str) -> None:
+    async def handle(self, body: dict[str, Any]) -> None:
         """Handle order-related notification events with idempotency checking."""
-        message: dict[str, Any] = loads(body)
+        message: dict[str, Any] = body
         event_type: str = message["event_type"]
         event_id: str = message["event_id"]
 

@@ -1,3 +1,30 @@
+import sys
+import os
+import asyncio
+import argparse
+import random
+from decimal import Decimal
+from uuid import UUID
+
+from shared.managers.database_session_manager import DatabaseSessionManager
+from shared.shared_instances import logger
+from shared.settings import get_settings
+from models.category_models import ProductCategory
+from models.product_models import Product
+from models.product_image_models import ProductImage
+from models.review_models import ProductReview
+from database_layer.category_repository import CategoryRepository
+from database_layer.product_repository import ProductRepository
+from database_layer.product_image_repository import ProductImageRepository
+
+# ---------------------------------------------------------------------------
+# Ensure product_service/ is on sys.path so local imports (models.*, etc.) work
+# regardless of where the script is executed from.
+# ---------------------------------------------------------------------------
+_SERVICE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _SERVICE_DIR not in sys.path:
+    sys.path.insert(0, _SERVICE_DIR)
+
 """
 Seed Utility — load fake categories, products, and product images into the
 Product-Service database.
@@ -20,42 +47,11 @@ Usage (run from the product_service/ directory):
     python utils/seed_fake_products.py --products-per-category 8 --with-images --clear
 """
 
-import sys
-import os
-import asyncio
-import argparse
-import random
-from decimal import Decimal
-from uuid import UUID
-
-# ---------------------------------------------------------------------------
-# Ensure product_service/ is on sys.path so local imports (models.*, etc.) work
-# regardless of where the script is executed from.
-# ---------------------------------------------------------------------------
-_SERVICE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if _SERVICE_DIR not in sys.path:
-    sys.path.insert(0, _SERVICE_DIR)
-
-from shared.database_setup import DatabaseSessionManager  # type: ignore
-from shared.logger_config import setup_logger             # type: ignore
-from shared.settings import get_settings                  # type: ignore
-
-from models.category_models import ProductCategory        # type: ignore
-from models.product_models import Product                 # type: ignore
-from models.product_image_models import ProductImage      # type: ignore
-from models.review_models import ProductReview            # type: ignore  # noqa: F401 — not used directly, but must be imported so SQLAlchemy can resolve the 'ProductReview' forward-reference in Product.reviews
-
-from database_layer.category_repository import CategoryRepository      # type: ignore
-from database_layer.product_repository import ProductRepository        # type: ignore
-from database_layer.product_image_repository import ProductImageRepository  # type: ignore
-
-
-
 # ---------------------------------------------------------------------------
 # Static fake-data tables
 # ---------------------------------------------------------------------------
 
-FAKE_CATEGORIES: list[dict] = [
+FAKE_CATEGORIES: list[dict[str, str]] = [
     {"name": "Electronics",   "image_url": "https://placehold.co/400x300/0ea5e9/white?text=Electronics"},
     {"name": "Clothing",      "image_url": "https://placehold.co/400x300/8b5cf6/white?text=Clothing"},
     {"name": "Home & Garden", "image_url": "https://placehold.co/400x300/22c55e/white?text=Home+%26+Garden"},
@@ -369,7 +365,6 @@ async def seed_database(
             the seed runs.  Use with care in production!
     """
     settings = get_settings()
-    logger = setup_logger("seed_fake_products")
     db_manager = _make_db_manager(settings, logger)
 
     logger.info("=" * 60)

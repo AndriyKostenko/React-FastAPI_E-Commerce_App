@@ -4,7 +4,7 @@ from typing import Any
 from database_layer.order_address_repository import OrderAddressRepository
 from database_layer.order_item_repository import OrderItemRepository
 from database_layer.order_repository import OrderRepository
-from database_layer.outbox_repository import OutboxRepository
+from shared.database_layer.outbox_repository import OutboxRepository
 from events_publisher.order_event_publisher import order_event_publisher
 from service_layer.order_address_service import OrderAddressService
 from service_layer.order_item_service import OrderItemService
@@ -13,7 +13,7 @@ from shared.shared_instances import logger, order_service_database_session_manag
 from service_layer.order_service import OrderService, OrderStatus
 from service_layer.outbox_event_service import OutboxEventService
 from shared.shared_instances import order_event_idempotency_service
-from shared.idempotency_service import IdempotencyEventService
+from shared.idempotency.idempotency_service import IdempotencyEventService
 from shared.enums.event_enums import InventoryEvents
 
 """

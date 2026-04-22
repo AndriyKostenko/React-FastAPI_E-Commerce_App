@@ -1,7 +1,8 @@
+from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.user_models import User
-from shared.database_layer import BaseRepository # type: ignore
+from shared.database_layer.database_layer import BaseRepository
 
 
 class UserRepository(BaseRepository[User]):
@@ -12,12 +13,12 @@ class UserRepository(BaseRepository[User]):
 
     def __init__(self, session: AsyncSession):
         super().__init__(session, User)
-        self.search_fields = User.get_search_fields()
+        self.search_fields: list[str] = User.get_search_fields()
 
 
     # TODO: make this repository more specific to user and make BaseRepository simplier for basic CRUD operations
     async def search(self,
-                    filters: dict,
+                    filters: dict[str, Any],
                     search_term: str | None,
                     limit: int,
                     offset: int):

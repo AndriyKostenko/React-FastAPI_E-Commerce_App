@@ -1,5 +1,5 @@
 from decimal import Decimal, ROUND_HALF_UP
-from schemas.product_schemas import ProductBase
+from shared.schemas.product_schemas import ProductBase
 
 
 def calculate_total_amount(items: list[ProductBase]) -> int:

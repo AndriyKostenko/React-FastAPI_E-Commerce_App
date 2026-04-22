@@ -5,7 +5,7 @@ from fastapi import APIRouter, status, Request
 
 from shared.schemas.review_schemas import ReviewSchema, CreateReview, UpdateReview
 from dependencies.dependencies import review_service_dependency, product_service_dependency
-from shared.customized_json_response import JSONResponse
+from shared.utils.customized_json_response import JSONResponse
 from shared.shared_instances import product_service_redis_manager, settings
 from models.review_models import ProductReview
 

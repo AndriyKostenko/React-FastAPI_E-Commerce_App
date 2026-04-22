@@ -1,5 +1,5 @@
 from uuid import uuid4, UUID
-from typing import Any
+from typing import Any, override
 
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy import ForeignKey, Index
@@ -7,13 +7,13 @@ from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 from sqlalchemy.inspection import inspect
 
 from shared.models.models_base_class import Base
-from shared.models_mixins import TimestampMixin
+from shared.utils.models_mixins import TimestampMixin
 
 
 class ProductReview(Base, TimestampMixin):
-    __tablename__ = 'product_reviews'
+    __tablename__: str = 'product_reviews'
 
-    __table_args__ = (
+    __table_args__: tuple[Index, ...] = (
         Index('idx_product_review_user_id', 'user_id'),
         Index('idx_product_review_product_id', 'product_id'),
         Index('idx_product_review_date_created', 'date_created'),
@@ -26,7 +26,7 @@ class ProductReview(Base, TimestampMixin):
     rating: Mapped[float] = mapped_column(nullable=True)
 
 
-    product: Mapped['Product'] = relationship('Product', back_populates='reviews') # type: ignore
+    product: Mapped['Product'] = relationship('Product', back_populates='reviews') # pyright: ignore[reportUndefinedVariable]
 
 
     @classmethod
@@ -76,7 +76,10 @@ class ProductReview(Base, TimestampMixin):
         type_name = sql_type.__class__.__name__.upper()
         return type_mapping.get(type_name, 'string')
 
+    @override
     def __repr__(self) -> str:
         return f"<ProductReview(id={self.id}, user_id={self.user_id}, product_id={self.product_id}, comment={self.comment}, rating={self.rating})>"
+
+    @override
     def __str__(self) -> str:
         return f"ProductReview(id={self.id}, user_id={self.user_id}, product_id={self.product_id}, comment={self.comment}, rating={self.rating})"

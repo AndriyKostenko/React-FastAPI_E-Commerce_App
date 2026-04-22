@@ -1,15 +1,14 @@
 from uuid import UUID
 
-import orjson
+from orjson import loads
 from fastapi import APIRouter, Request, Response, Depends
 
-from apigateway import api_gateway_manager
+from gateway.apigateway import api_gateway_manager
 from dependencies.auth_dependencies import (get_current_user,
                                             require_admin,
                                             require_user_or_admin)
 from shared.schemas.user_schemas import CurrentUserInfo
-from shared.customized_json_response import JSONResponse
-from shared.shared_instances import settings
+from shared.utils.customized_json_response import JSONResponse
 from middleware.auth_middleware import auth_middleware
 from shared.enums.services_enums import Services
 from shared.enums.auth_enums import AuthCookies
@@ -67,7 +66,7 @@ async def refresh_token(request: Request, response: Response) -> JSONResponse:
         override_body={AuthCookies.REFRESH_COOKIE: refresh},
     )
     if upstream.status_code == 200:
-        body = orjson.loads(upstream.body)
+        body = loads(upstream.body)
         auth_middleware.set_auth_cookies(
             response,
             access_token=body.pop(AuthCookies.ACCESS_COOKIE),

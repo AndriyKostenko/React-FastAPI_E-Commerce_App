@@ -6,7 +6,7 @@ from fastapi import Depends
 
 from database_layer.order_address_repository import OrderAddressRepository
 from database_layer.order_item_repository import OrderItemRepository
-from database_layer.outbox_repository import OutboxRepository
+from shared.database_layer.outbox_repository import OutboxRepository
 from service_layer.order_service import OrderService
 from service_layer.order_item_service import OrderItemService
 from service_layer.order_address_service import OrderAddressService

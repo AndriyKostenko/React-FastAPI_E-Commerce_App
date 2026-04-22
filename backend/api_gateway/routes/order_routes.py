@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Request
 
-from apigateway import api_gateway_manager
+from gateway.apigateway import api_gateway_manager
 from dependencies.auth_dependencies import (get_current_user,
                                             require_admin,
                                             require_user_or_admin)
@@ -20,10 +20,18 @@ async def create_order(request: Request):
 
 
 @order_proxy.get("/orders", summary="Get all orders")
-async def get_all_products(request: Request):
-    """PUBLIC - Anyone can browse products"""
+async def get_all_orders(request: Request):
+    """PUBLIC - Anyone can browse orders"""
     return await api_gateway_manager.forward_request(
         service_name="order-service",
         request=request,
     )
-    
+
+# ==================== ADMINJS ENDPOINTS ====================
+
+@order_proxy.get("/admin/schema/orders")
+async def get_order_schema_for_admin_js(request: Request):
+    return await api_gateway_manager.forward_request(
+        service_name="order-service",
+        request=request
+    )

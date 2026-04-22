@@ -9,7 +9,7 @@ from service_layer.product_image_service import ProductImageService
 from shared.schemas.event_schemas import InventoryReserveRequested, InventoryReleaseRequested
 from shared.shared_instances import logger, product_service_database_session_manager, product_event_idempotency_service, product_service_redis_manager
 from event_publisher.event_publisher import product_event_publisher
-from shared.idempotency_service import IdempotencyEventService
+from shared.idempotency.idempotency_service import IdempotencyEventService
 from shared.enums.event_enums import InventoryEvents
 
 """
@@ -26,6 +26,7 @@ The FastStream app will be executed via `faststream run`, so no manual uvicorn s
 
 
 class ProductEventConsumer:
+    """Consumer for product-related SAGA events, primarily inventory reservation and release requests from Order Service."""
     def __init__(self, logger: Logger) -> None:
         self.logger: Logger = logger
         self.idempotency_service: IdempotencyEventService = product_event_idempotency_service

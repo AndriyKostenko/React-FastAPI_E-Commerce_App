@@ -1,7 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.order_address_models import OrderAddress
-from shared.database_layer import BaseRepository
+from shared.database_layer.database_layer import BaseRepository
 
 
 class OrderAddressRepository(BaseRepository[OrderAddress]):

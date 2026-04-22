@@ -1,4 +1,3 @@
-from difflib import HtmlDiff
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, HttpUrl

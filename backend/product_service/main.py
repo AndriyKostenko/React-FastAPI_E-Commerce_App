@@ -1,7 +1,7 @@
 from datetime import datetime
 from contextlib import asynccontextmanager
 
-import uvicorn
+from uvicorn import run
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi import FastAPI, Request, HTTPException
@@ -13,7 +13,7 @@ from routes.product_image_routes import product_images_routes
 from routes.product_routes import product_routes
 from routes.category_routes import category_routes
 from routes.review_routes import review_routes
-from shared.base_exceptions import (BaseAPIException,RateLimitExceededError)
+from shared.exceptions.base_exceptions import (BaseAPIException,RateLimitExceededError)
 from shared.shared_instances import (product_event_idempotency_service, product_service_redis_manager,
                                     product_service_database_session_manager,
                                     logger,
@@ -22,7 +22,7 @@ from shared.shared_instances import (product_event_idempotency_service, product_
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI): # pyright: ignore[reportUnusedParameter]
     """
     This is a context manager that will run the startup and shutdown
     events of a FastAPI application.
@@ -195,7 +195,7 @@ app.include_router(product_images_routes, prefix=settings.PRODUCT_SERVICE_URL_AP
 
 
 if __name__ == "__main__":
-    uvicorn.run("main:app",
-                host=settings.APP_HOST,
-                port=settings.PRODUCT_SERVICE_APP_PORT,
-                reload=True)
+    run("main:app",
+        host=settings.APP_HOST,
+        port=settings.PRODUCT_SERVICE_APP_PORT,
+        reload=True)

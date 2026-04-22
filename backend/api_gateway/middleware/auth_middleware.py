@@ -3,7 +3,7 @@ from fastapi import Request, HTTPException, Response
 from fastapi.responses import JSONResponse
 
 from shared.shared_instances import settings, logger, token_manager
-from shared.metaclasses import SingletonMetaClass
+from shared.utils.metaclasses import SingletonMetaClass
 from shared.settings import Settings
 from shared.enums.auth_enums import AuthCookies
 
@@ -115,8 +115,8 @@ class AuthMiddleware(metaclass=SingletonMetaClass):
         response.set_cookie(
             key=AuthCookies.ACCESS_COOKIE,
             value=access_token,
-            httponly=True,
-            secure=secure,
+            httponly=True, # Prevent JavaScript access to mitigate XSS risks
+            secure=secure, # Only send cookies over HTTPS in production
             samesite="lax", # CSRF protection
             max_age=self.settings.TOKEN_TIME_DELTA_MINUTES * 60, # Access token expires in minutes, convert to seconds for max_age
         )

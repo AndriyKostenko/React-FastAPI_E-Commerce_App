@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import update
 
 from models.notification_models import Notification
-from shared.database_layer import BaseRepository
+from shared.database_layer.database_layer import BaseRepository
 
 
 class NotificationRepository(BaseRepository[Notification]):

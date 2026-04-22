@@ -1,14 +1,19 @@
 from functools import lru_cache
 from pathlib import Path
-from typing import List
-
 
 from pydantic import SecretStr, DirectoryPath
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Resolve the single shared .env that lives one level above this file (backend/.env)
+_ROOT_ENV = Path(__file__).resolve().parents[1] / ".env"
 
 
 class Settings(BaseSettings):
-
+    model_config = SettingsConfigDict(
+        env_file=_ROOT_ENV,
+        env_file_encoding="utf-8",
+        extra="ignore",   # ignore vars in .env that aren't declared on this model
+    )
 
     # Application configuration
     APP_HOST: str
@@ -19,9 +24,10 @@ class Settings(BaseSettings):
     NOTIFICATION_SERVICE_APP_PORT: int
     NOTIFICATION_CONSUMER_SERVICE_APP_PORT: int
     ORDER_SERVICE_APP_PORT: int
+    PAYMENT_SERVICE_APP_PORT: int
 
     DEBUG_MODE: bool
-    SECURE_COOKIES: bool = False  # Set True in production (requires HTTPS)
+    SECURE_COOKIES: bool # Set True in production (requires HTTPS)
     ALLOWED_HOSTS: list[str]
 
     # Service URLs
@@ -31,6 +37,7 @@ class Settings(BaseSettings):
     NOTIFICATION_SERVICE_URL: str
     NOTIFICATION_CONSUMER_SERVICE_URL: str
     ORDER_SERVICE_URL: str
+    PAYMENT_SERVICE_URL: str
 
     API_GATEWAY_SERVICE_URL_API_VERSION: str
     USER_SERVICE_URL_API_VERSION: str
@@ -38,6 +45,7 @@ class Settings(BaseSettings):
     NOTIFICATION_SERVICE_URL_API_VERSION: str
     NOTIFICATION_CONSUMER_SERVICE_URL_API_VERSION: str
     ORDER_SERVICE_URL_API_VERSION: str
+    PAYMENT_SERVICE_URL_API_VERSION: str
 
     # Shared Database configuration
     POSTGRES_USER: str
@@ -49,11 +57,13 @@ class Settings(BaseSettings):
     PRODUCT_SERVICE_DB: str
     NOTIFICATION_SERVICE_DB: str
     ORDER_SERVICE_DB: str
+    PAYMENT_SERVICE_DB: str
 
     USER_SERVICE_TEST_DB: str
     PRODUCT_SERVICE_TEST_DB: str
     NOTIFICATION_SERVICE_TEST_DB: str
     ORDER_SERVICE_TEST_DB: str
+    PAYMENT_SERVICE_TEST_DB: str
 
     # pgAdmin
     PGADMIN_DEFAULT_EMAIL: str
@@ -75,6 +85,7 @@ class Settings(BaseSettings):
     PRODUCT_SERVICE_REDIS_DB: int
     NOTIFICATION_SERVICE_REDIS_DB: int
     ORDER_SERVICE_REDIS_DB: int
+    PAYMENT_SERVICE_REDIS_DB: int
 
     NOTIFICATION_SERVICE_REDIS_BACKEND_RESULT_DB: int
 
@@ -83,6 +94,7 @@ class Settings(BaseSettings):
     APIGATEWAY_SERVICE_REDIS_PREFIX: str
     NOTIFICATION_SERVICE_REDIS_PREFIX: str
     ORDER_SERVICE_REDIS_PREFIX: str
+    PAYMENT_SERVICE_REDIS_PREFIX: str
 
     IDEMPOTENCY_EVENT_SERVICE_HOURS: int
 
@@ -231,21 +243,23 @@ class Settings(BaseSettings):
         return f"{self.ORDER_SERVICE_URL}{self.ORDER_SERVICE_URL_API_VERSION}"
 
 
+    #---------------PAYMENT-SERVICE-------------------
 
-    @classmethod
-    def customise_sources(cls, settings_cls, init_settings, env_settings, file_secret_settings):
-        """
-        Customise sources to support shared and service-specific .env
-        """
-        root_env = Path(__file__).resolve().parents[1] / ".env"
-        local_env = Path(__file__).resolve().parent / ".env"
-        return (
-            init_settings,
-            env_settings,
-            cls.env_file_settings_source(root_env),   # shared # type: ignore
-            cls.env_file_settings_source(local_env),  # service-specific # type: ignore
-            file_secret_settings,
-        )
+    @property
+    def PAYMENT_SERVICE_DATABASE_URL(self) -> str:
+        return f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.PAYMENT_SERVICE_DB}"
+
+    @property
+    def PAYMENT_SERVICE_TEST_DATABASE_URL(self) -> str:
+        return f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.PAYMENT_SERVICE_TEST_DB}"
+
+    @property
+    def PAYMENT_SERVICE_REDIS_URL(self) -> str:
+        return f"redis://:{self.REDIS_PASSWORD}@{self.REDIS_HOST}:{self.REDIS_PORT}/{self.PAYMENT_SERVICE_REDIS_DB}"
+
+    @property
+    def FULL_PAYMENT_SERVICE_URL(self) -> str:
+        return f"{self.PAYMENT_SERVICE_URL}{self.PAYMENT_SERVICE_URL_API_VERSION}"
 
 
 @lru_cache()

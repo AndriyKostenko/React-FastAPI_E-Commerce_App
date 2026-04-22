@@ -1,4 +1,4 @@
-from shared.base_exceptions import BaseAPIException  # type: ignore
+from shared.exceptions.base_exceptions import BaseAPIException
 
 
 class ProductImageNotFoundError(BaseAPIException):

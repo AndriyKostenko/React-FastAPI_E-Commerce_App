@@ -286,6 +286,53 @@ services:
       - ./shared:/app/shared:ro
 
 
+  payment-service:
+    build:
+      context: ./payment_service
+      dockerfile: Dockerfile
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${PAYMENT_SERVICE_DB}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@${REDIS_HOST}:${REDIS_PORT}/${PAYMENT_SERVICE_REDIS_DB}
+      RABBITMQ_BROKER_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@${RABBITMQ_HOST}:${RABBITMQ_PORT}
+    volumes:
+      - ./shared:/app/shared:ro
+    ports:
+      - "8006:8006"
+    networks:
+      - usernet
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8006/health"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+
+  payment-consumer:
+    build:
+      context: ./payment_service
+      dockerfile: Dockerfile.consumer
+    restart: unless-stopped
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      payment-service:
+        condition: service_healthy
+    env_file:
+      - .env
+    networks:
+      - usernet
+    volumes:
+      - ./shared:/app/shared:ro
+
   admin-js-service:
     build:
       context: ./admin-js-service

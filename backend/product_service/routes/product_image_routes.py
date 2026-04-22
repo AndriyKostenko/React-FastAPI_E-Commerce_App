@@ -3,7 +3,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, File, Form, Request, UploadFile, status
 
-from shared.customized_json_response import JSONResponse
+from shared.utils.customized_json_response import JSONResponse
 from shared.shared_instances import product_service_redis_manager
 from dependencies.dependencies import product_image_service_dependency
 from models.product_image_models import ProductImage

@@ -4,7 +4,7 @@ from uuid import UUID
 from pydantic import EmailStr
 from faststream.rabbit import RabbitExchange
 
-from shared.event_publisher import BaseEventPublisher
+from shared.events.event_publisher import BaseEventPublisher
 from shared.schemas.event_schemas import (
     PasswordResetRequestedEvent,
     PasswordResetSuccessEvent,

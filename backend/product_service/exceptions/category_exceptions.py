@@ -1,4 +1,4 @@
-from shared.base_exceptions import BaseAPIException
+from shared.exceptions.base_exceptions import BaseAPIException
 
 #------Category Service Errors------
 class CategoryNotFoundError(BaseAPIException):

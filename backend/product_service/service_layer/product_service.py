@@ -2,7 +2,7 @@ from typing import Annotated, Any
 from uuid import UUID
 
 from fastapi import Query, UploadFile
-from shared.filter_parser import FilterParser
+from shared.utils.filter_parser import FilterParser
 from sqlalchemy.exc import IntegrityError
 
 from database_layer.product_repository import ProductRepository
@@ -180,10 +180,7 @@ class ProductService:
 
             if product.quantity < item.quantity:
                 failed_items.append(item)
-                reasons.add(
-                    f"Insufficient quantity for product: {product.name}, ID: {product.id}, "
-                    f"requested: {item.quantity}, available: {product.quantity}"
-                )
+                reasons.add(f"Insufficient quantity for product: {product.name}, ID: {product.id}, requested: {item.quantity}, available: {product.quantity}")
                 continue
 
             new_quantity = product.quantity - item.quantity
@@ -191,7 +188,7 @@ class ProductService:
                 quantity=new_quantity,
                 in_stock=new_quantity > 0,
             )
-            await self.update_product(product_id=product.id, product_data=update_data)
+            _ = await self.update_product(product_id=product.id, product_data=update_data)
             reserved_items.append(item)
 
         if failed_items:
@@ -217,6 +214,6 @@ class ProductService:
                     quantity=db_product.quantity + product.quantity,
                     in_stock=True,
                 )
-                await self.update_product(product_id=product.product_id, product_data=update_data)
+                _ = await self.update_product(product_id=product.product_id, product_data=update_data)
             except (ProductNotFoundError, ProductUpdateError, ProductCreationError) as error:
                 raise ProductReleaseError(f"Cannot release inventory for product: {product.product_id}, error: {error}")

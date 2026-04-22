@@ -3,12 +3,12 @@ from logging import Logger
 from asyncio import sleep
 
 from shared.settings import Settings
-from shared.database_setup import DatabaseSessionManager
+from shared.managers.database_session_manager import DatabaseSessionManager
 from shared.shared_instances import logger, settings, order_service_database_session_manager
 from exceptions.outbox_event_exceptions import OutboxEventNotFoundError
 from service_layer.outbox_event_service import OutboxEventService
 from events_publisher.order_event_publisher import order_event_publisher, OrderEventPublisher
-from database_layer.outbox_repository import OutboxRepository
+from shared.database_layer.outbox_repository import OutboxRepository
 from shared.enums.event_enums import OrderEvents, InventoryEvents
 
 
@@ -62,7 +62,7 @@ class OutboxPollerService:
                     self.logger.error(f"Failed to publish outbox event {event.id}: {error}")
 
     async def start_outbox_poller(self):
-        """Starting an outbox polling every 500ms"""
+        """Starting an outbox polling every N ms"""
         while True:
             try:
                  await self.poll_and_publish()

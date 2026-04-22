@@ -11,11 +11,11 @@ from fastapi.exceptions import ResponseValidationError, RequestValidationError
 from shared.shared_instances import (notification_service_redis_manager,
                                     notification_service_database_session_manager,
                                     logger,
-                                    settings,
-                                    taskiq_broker)
-from shared.base_exceptions import (BaseAPIException, RateLimitExceededError)
+                                    settings
+)
+from shared.exceptions.base_exceptions import (BaseAPIException, RateLimitExceededError)
 from routes.notification_routes import notification_routes
-
+from tasks.broker import taskiq_broker
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -86,7 +86,7 @@ async def health_check():
         content={
             "status": "ok",
             "timestamp": datetime.now().isoformat(),
-            "service": "user-service"
+            "service": "notification-service"
         },
         status_code=200,
         headers={"Cache-Control": "no-cache"}

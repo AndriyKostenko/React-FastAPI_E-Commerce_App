@@ -1,0 +1,58 @@
+# -------------------------
+# Build Stage
+# -------------------------
+FROM python:3.12-slim AS builder
+
+WORKDIR /app
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PATH="/root/.local/bin:${PATH}"
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        gcc \
+        python3-dev \
+        libpq-dev \
+        curl \
+    && curl -LsSf https://astral.sh/uv/install.sh | sh \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY pyproject.toml uv.lock ./
+
+RUN uv sync --frozen --no-dev
+
+# -------------------------
+# Final Runtime Stage
+# -------------------------
+FROM python:3.12-slim
+
+WORKDIR /app
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        libpq5 \
+        curl \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* \
+    && addgroup --system --gid 1008 paymentconsumergroup \
+    && adduser --system --uid 1008 --ingroup paymentconsumergroup paymentconsumeruser \
+    && mkdir -p /app/logs \
+    && chown -R paymentconsumeruser:paymentconsumergroup /app
+
+COPY --from=builder /app/.venv /app/.venv
+
+ENV PATH="/app/.venv/bin:$PATH"
+
+COPY --chown=paymentconsumeruser:paymentconsumergroup . .
+
+USER paymentconsumeruser
+
+HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
+    CMD ps aux | grep -v grep | grep "faststream run" || exit 1
+
+CMD ["faststream", "run", "events_consumer.app:app"]

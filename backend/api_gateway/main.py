@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 
 from fastapi.responses import JSONResponse
-import uvicorn
+from uvicorn import run
 from fastapi import FastAPI, Request, Response
 
 from exceptions import BaseAPIException
@@ -105,7 +105,7 @@ app.include_router(order_proxy, prefix=settings.API_GATEWAY_SERVICE_URL_API_VERS
 app.include_router(notification_proxy, prefix=settings.API_GATEWAY_SERVICE_URL_API_VERSION, tags=["Notification Service Proxy"])
 
 if __name__ == "__main__":
-    uvicorn.run("main:app",
-                host=settings.APP_HOST,
-                port=settings.API_GATEWAY_SERVICE_APP_PORT,
-                reload=True)
+    run("main:app",
+        host=settings.APP_HOST,
+        port=settings.API_GATEWAY_SERVICE_APP_PORT,
+        reload=True)

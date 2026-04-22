@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from shared.base_exceptions import BaseAPIException
+from shared.exceptions.base_exceptions import BaseAPIException
 
 class OutboxEventCreatioError(BaseAPIException):
     """Exception raised when an outbox event could not be created in database."""

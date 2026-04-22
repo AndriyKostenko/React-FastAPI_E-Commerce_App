@@ -45,7 +45,6 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
      └─ get_db_session()
          └─ async with DatabaseSessionManager.transaction()
              └─ async with AsyncSession()
-
     """
     async with product_service_database_session_manager.transaction() as session:
         yield session

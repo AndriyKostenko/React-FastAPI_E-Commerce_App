@@ -6,8 +6,8 @@ from fastapi.security import OAuth2PasswordBearer
 
 from service_layer.user_service import UserService
 from database_layer.user_repository import UserRepository
-from shared.token_manager import TokenManager
-from shared.password_manager import PasswordManager
+from shared.managers.token_manager import TokenManager
+from shared.managers.password_manager import PasswordManager
 from shared.shared_instances import user_service_database_session_manager, settings, user_service_redis_manager
 from shared.schemas.user_schemas import CurrentUserInfo
 
@@ -48,7 +48,6 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
      └─ get_db_session()
          └─ async with DatabaseSessionManager.transaction()
              └─ async with AsyncSession()
-
     """
     async with user_service_database_session_manager.transaction() as session:
         yield session

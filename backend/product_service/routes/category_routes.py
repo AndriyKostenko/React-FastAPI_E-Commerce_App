@@ -10,7 +10,7 @@ from fastapi import (
     UploadFile,
     status,
 )
-from shared.customized_json_response import JSONResponse
+from shared.utils.customized_json_response import JSONResponse
 from shared.shared_instances import product_service_redis_manager
 
 from dependencies.dependencies import category_service_dependency

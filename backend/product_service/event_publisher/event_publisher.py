@@ -5,7 +5,7 @@ from pydantic import EmailStr
 from faststream.rabbit import RabbitExchange
 
 from shared.shared_instances import logger, settings, rabbitmq_broker, inventory_exchange
-from shared.event_publisher import BaseEventPublisher
+from shared.events.event_publisher import BaseEventPublisher
 from shared.settings import Settings
 from shared.schemas.event_schemas import (
     InventoryReserveSucceeded,

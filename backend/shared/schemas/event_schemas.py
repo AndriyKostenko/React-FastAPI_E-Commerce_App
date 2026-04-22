@@ -5,7 +5,7 @@ from pydantic import BaseModel, EmailStr, PositiveFloat, Field
 
 from shared.schemas.order_schemas import OrderItemBase
 from shared.enums.services_enums import Services
-from shared.enums.event_enums import UserEvents, OrderEvents, InventoryEvents
+from shared.enums.event_enums import UserEvents, OrderEvents, InventoryEvents, PaymentEvents
 
 class BaseEvent(BaseModel):
     """Base class for all events"""
@@ -102,3 +102,25 @@ class InventoryReserveFailed(OrderBaseEvent):
     event_type: str = Field(default_factory=lambda: InventoryEvents.INVENTORY_RESERVE_FAILED)
     reasons: str
     failed_items: list[OrderItemBase]
+
+
+# ============== PAYMENT SAGA EVENTS ==============
+class PaymentBaseEvent(BaseEvent):
+    order_id: UUID
+    user_id: UUID
+    user_email: EmailStr
+    service: str = Field(default_factory=lambda: Services.PAYMENT_SERVICE)
+    payment_intent_id: str
+    amount: float
+    currency: str
+
+
+class PaymentSucceededEvent(PaymentBaseEvent):
+    """Event published when a Stripe payment intent succeeds"""
+    event_type: str = Field(default_factory=lambda: PaymentEvents.PAYMENT_SUCCEEDED)
+
+
+class PaymentFailedEvent(PaymentBaseEvent):
+    """Event published when a Stripe payment intent fails"""
+    event_type: str = Field(default_factory=lambda: PaymentEvents.PAYMENT_FAILED)
+    reason: str

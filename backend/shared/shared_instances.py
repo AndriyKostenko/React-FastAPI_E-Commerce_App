@@ -1,14 +1,14 @@
 from faststream.rabbit import RabbitBroker, RabbitExchange, ExchangeType
 
-from shared.email_service import UserRelatedNotifications, OrderRelatedNotifications
-from shared.logger_config import setup_logger
-from shared.redis_manager import RedisManager
+from shared.email_service.email_service import UserRelatedNotifications, OrderRelatedNotifications
+from shared.managers.logger_manager import setup_logger
+from shared.managers.redis_manager import RedisManager
 from shared.settings import get_settings
-from shared.database_setup import DatabaseSessionManager
-from shared.password_manager import PasswordManager
-from shared.token_manager import TokenManager
-from shared.event_publisher import BaseEventPublisher
-from shared.idempotency_service import IdempotencyEventService
+from shared.managers.database_session_manager import DatabaseSessionManager
+from shared.managers.password_manager import PasswordManager
+from shared.managers.token_manager import TokenManager
+from shared.events.event_publisher import BaseEventPublisher
+from shared.idempotency.idempotency_service import IdempotencyEventService
 
 
 # Initialize settings
@@ -35,6 +35,7 @@ base_event_publisher = BaseEventPublisher(rabbitmq_broker=rabbitmq_broker, logge
 user_exchange = RabbitExchange(name="user.events.exchange", durable=True, type=ExchangeType.TOPIC)
 order_exchange = RabbitExchange(name="order.events.exchange", durable=True, type=ExchangeType.TOPIC)
 inventory_exchange = RabbitExchange(name="inventory.events.exchange", durable=True, type=ExchangeType.TOPIC)
+payment_exchange = RabbitExchange(name="payment.events.exchange", durable=True, type=ExchangeType.TOPIC)
 
 
 
@@ -70,6 +71,10 @@ order_service_redis_manager = RedisManager(service_prefix="order-service",
                                           redis_url=settings.ORDER_SERVICE_REDIS_URL,
                                           logger=logger,
                                           service_api_version=settings.ORDER_SERVICE_URL_API_VERSION,)
+payment_service_redis_manager = RedisManager(service_prefix="payment-service",
+                                             redis_url=settings.PAYMENT_SERVICE_REDIS_URL,
+                                             logger=logger,
+                                             service_api_version=settings.PAYMENT_SERVICE_URL_API_VERSION,)
 
 # Redis idempotency managers
 product_event_idempotency_service = IdempotencyEventService(service_prefix="product-service",
@@ -80,6 +85,12 @@ order_event_idempotency_service = IdempotencyEventService(service_prefix="order-
                                                           logger=logger,
                                                           redis_url=settings.ORDER_SERVICE_REDIS_URL,
                                                           service_api_version=settings.ORDER_SERVICE_URL_API_VERSION)
+
+payment_event_idempotency_service = IdempotencyEventService(service_prefix="payment-service",
+                                                            logger=logger,
+                                                            redis_url=settings.PAYMENT_SERVICE_REDIS_URL,
+                                                            service_api_version=settings.PAYMENT_SERVICE_URL_API_VERSION,
+                                                            ttl_hours=settings.IDEMPOTENCY_EVENT_SERVICE_HOURS)
 
 #------------------------------------DB-Managers-----------------------------------------------
 
@@ -121,6 +132,16 @@ order_service_database_session_manager = DatabaseSessionManager(
                      "pool_pre_ping": True,  # If True, the connection pool will check for stale connections and refresh them.
                      "pool_size": 20, # The maximum number of database connections to pool
                      "max_overflow": 10, #The maximum number of connections to allow in the connection pool above pool_size. It's set to 0, meaning no overflow connections are allowed.
+                    },
+    logger=logger
+)
+
+payment_service_database_session_manager = DatabaseSessionManager(
+    database_url=settings.PAYMENT_SERVICE_DATABASE_URL,
+    engine_settings={"echo": True,
+                     "pool_pre_ping": True,
+                     "pool_size": 20,
+                     "max_overflow": 10,
                     },
     logger=logger
 )

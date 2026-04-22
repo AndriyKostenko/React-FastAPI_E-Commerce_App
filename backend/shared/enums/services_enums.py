@@ -6,3 +6,4 @@ class Services(StrEnum):
     PRODUCT_SERVICE = "product-service"
     ORDER_SERVICE = "order-service"
     NOTIFICATION_SERVICE = "notification-service"
+    PAYMENT_SERVICE = "payment-service"

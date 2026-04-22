@@ -28,5 +28,5 @@ taskiq_broker = AioPikaBroker(url=settings.RABBITMQ_BROKER_URL,
                                                 declare=True,
                                                 auto_delete=False)
 ).with_result_backend(RedisAsyncResultBackend(redis_url=settings.NOTIFICATION_SERVICE_REDIS_RESULT_BACKEND_URL,
-                                              prefix=settings.NOTIFICATION_SERVICE_REDIS_PREFIX)
+                                              prefix_str=settings.NOTIFICATION_SERVICE_REDIS_PREFIX)
 )

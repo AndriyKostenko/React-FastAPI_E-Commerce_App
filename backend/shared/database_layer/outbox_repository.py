@@ -1,0 +1,13 @@
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from shared.models.outbox_events import OutboxEvent
+from .database_layer import BaseRepository
+
+
+class OutboxRepository(BaseRepository[OutboxEvent]):
+    """
+    This class extends BaseRepository to provide specific methods
+    for managing outbox events in the database.
+    """
+    def __init__(self, session: AsyncSession):
+        super().__init__(session, OutboxEvent)

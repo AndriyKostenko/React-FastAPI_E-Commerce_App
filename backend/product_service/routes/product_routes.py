@@ -3,7 +3,7 @@ from typing import Annotated, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, File, Form, Query, Request, UploadFile, status
-from shared.customized_json_response import JSONResponse
+from shared.utils.customized_json_response import JSONResponse
 from shared.shared_instances import product_service_redis_manager
 
 from dependencies.dependencies import (

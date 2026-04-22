@@ -16,15 +16,15 @@ from shared.schemas.user_schemas import (
     UsersFilterParams,
 )
 from shared.shared_instances import settings
-from shared.redis_manager import RedisManager
+from shared.managers.redis_manager import RedisManager
 from exceptions.user_exceptions import (
     UserAlreadyExistsError,
     UserNotFoundError,
     UserUpdateError
 )
 from database_layer.user_repository import UserRepository
-from shared.password_manager import PasswordManager
-from shared.token_manager import TokenManager
+from shared.managers.password_manager import PasswordManager
+from shared.managers.token_manager import TokenManager
 
 
 class UserService:
