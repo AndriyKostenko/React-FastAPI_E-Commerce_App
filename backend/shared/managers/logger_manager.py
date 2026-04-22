@@ -11,7 +11,7 @@ LOG_DIR = PROJECT_ROOT / "logs"
 
 try:
     LOG_DIR.mkdir(exist_ok=True, mode=0o755)
-except PermissionError:
+except OSError:
     # Fallback to /app/logs for containerized environment
     LOG_DIR = Path("/app/logs")
     LOG_DIR.mkdir(exist_ok=True, mode=0o755)

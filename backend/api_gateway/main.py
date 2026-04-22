@@ -5,7 +5,7 @@ from fastapi.responses import JSONResponse
 from uvicorn import run
 from fastapi import FastAPI, Request, Response
 
-from exceptions import BaseAPIException
+from shared.exceptions.base_exceptions import BaseAPIException
 from routes.user_routes import user_proxy
 from routes.product_routes import product_proxy
 from routes.order_routes import order_proxy
