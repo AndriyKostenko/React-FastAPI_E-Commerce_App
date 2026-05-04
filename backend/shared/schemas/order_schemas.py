@@ -59,6 +59,10 @@ class UpdateOrder(BaseModel):
     status: str | None = None
     amount: float
 
+
+class CancelOrder(BaseModel):
+    reason: str
+
 class PaymentIntentRequest(BaseModel):
     items: list[OrderProductItem]
     payment_intent_id: str | None

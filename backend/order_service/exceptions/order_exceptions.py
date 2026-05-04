@@ -25,3 +25,12 @@ class DuplicatePaymentIntentError(BaseAPIException):
             status_code=409,
             detail=f"Order with payment_intent_id '{payment_intent_id}' already exists."
         )
+
+
+class OrderNotCancellableError(BaseAPIException):
+    """Exception raised when an order cannot be cancelled due to its current status."""
+    def __init__(self, order_id, current_status: str) -> None:
+        super().__init__(
+            status_code=409,
+            detail=f"Order {order_id} cannot be cancelled — current status: '{current_status}'."
+        )

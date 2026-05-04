@@ -122,7 +122,13 @@ class ApiGateway:
                     instances=[self.settings.FULL_ORDER_SERVICE_URL],
                     health_check_path="/health",
                     api_version=self.settings.ORDER_SERVICE_URL_API_VERSION
-                )
+                ),
+                "payment-service": ServiceConfig(
+                    name="payment-service",
+                    instances=[self.settings.FULL_PAYMENT_SERVICE_URL],
+                    health_check_path="/health",
+                    api_version=self.settings.PAYMENT_SERVICE_URL_API_VERSION
+                ),
 
             }
         )
@@ -202,8 +208,10 @@ class ApiGateway:
 
         return filtered_headers
 
-    # TODO: check the correct work of circuit breaker, looks like now its blocikng all the services if one going to break
-    #@circuit(failure_threshold=5, recovery_timeout=30)
+    # Circuit breaker is intentionally disabled: the per-service decorator caused
+    # all services to trip when a single downstream service failed.
+    # Re-enable once isolated per-service breakers are implemented.
+    # @circuit(failure_threshold=5, recovery_timeout=30)
     async def forward_request(self, request: Request, service_name: str, override_body: dict[str, Any] | None = None) -> JSONResponse:
         """
         Forward request to microservice.

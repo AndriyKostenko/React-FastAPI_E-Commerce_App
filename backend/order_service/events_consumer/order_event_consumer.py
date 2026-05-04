@@ -109,6 +109,9 @@ class OrderEventConsumer:
             )
             self.logger.info(f"Published OrderConfirmedEvent for order: {event.order_id}")
 
+            # notification_service and payment_service consume order.confirmed
+            # directly from the order.events.exchange — no further action required here.
+
             # marking an event as proccessed
             await self.idempotency_service.mark_event_as_processed(
                 event_id=event.event_id,
@@ -162,6 +165,9 @@ class OrderEventConsumer:
                 }
             )
             self.logger.info(f"Published OrderCancelledEvent for order {event.order_id}")
+
+            # notification_service consumes order.cancelled to send cancellation emails.
+            # payment_service consumes order.cancelled to issue refunds where applicable.
 
             await self.idempotency_service.mark_event_as_processed(
                 event_id=event.event_id,

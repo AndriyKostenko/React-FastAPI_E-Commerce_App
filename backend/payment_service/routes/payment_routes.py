@@ -1,4 +1,5 @@
 from uuid import UUID
+from typing import Any
 
 from fastapi import APIRouter, Request, status
 
@@ -16,10 +17,7 @@ payment_routes = APIRouter(tags=["payments"])
     response_description="Stripe client_secret and payment_intent_id returned to the frontend",
 )
 @payment_service_redis_manager.ratelimiter(times=20, seconds=60)
-async def create_payment_intent(
-    request: Request,
-    payment_service: payment_service_dependency,
-) -> JSONResponse:
+async def create_payment_intent(request: Request,payment_service: payment_service_dependency) -> JSONResponse:
     """
     Called by the frontend before order confirmation.
 
@@ -50,15 +48,8 @@ async def create_payment_intent(
     return JSONResponse(content=result, status_code=status.HTTP_201_CREATED)
 
 
-@payment_routes.post(
-    "/payments/webhook",
-    summary="Stripe webhook receiver",
-    response_description="Stripe event processed",
-)
-async def stripe_webhook(
-    request: Request,
-    payment_service: payment_service_dependency,
-) -> JSONResponse:
+@payment_routes.post("/payments/webhook",summary="Stripe webhook receiver",response_description="Stripe event processed")
+async def stripe_webhook(request: Request,payment_service: payment_service_dependency) -> JSONResponse:
     """
     Receives and verifies signed events from Stripe.
 
@@ -77,7 +68,7 @@ async def stripe_webhook(
     )
 
     event_type: str = stripe_event["type"]
-    event_data: dict = stripe_event["data"]
+    event_data: dict[str, Any] = stripe_event["data"]
 
     match event_type:
         case "payment_intent.succeeded":
@@ -94,10 +85,7 @@ async def stripe_webhook(
     )
 
 
-@payment_routes.get(
-    "/payments/{payment_id}",
-    summary="Get payment by ID",
-)
+@payment_routes.get("/payments/{payment_id}",summary="Get payment by ID",)
 @payment_service_redis_manager.ratelimiter(times=100, seconds=60)
 async def get_payment_by_id(
     request: Request,
@@ -106,3 +94,13 @@ async def get_payment_by_id(
 ) -> JSONResponse:
     payment = await payment_service.get_payment_by_id(payment_id)
     return JSONResponse(content=payment, status_code=status.HTTP_200_OK)
+
+
+@payment_routes.get("/payments", summary="List all payments (admin)")
+@payment_service_redis_manager.ratelimiter(times=50, seconds=60)
+async def get_payments(
+    request: Request,
+    payment_service: payment_service_dependency,
+) -> JSONResponse:
+    payments = await payment_service.get_payments()
+    return JSONResponse(content=payments, status_code=status.HTTP_200_OK)

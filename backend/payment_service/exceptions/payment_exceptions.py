@@ -4,7 +4,7 @@ from shared.exceptions.base_exceptions import BaseAPIException
 
 
 class PaymentNotFoundError(BaseAPIException):
-    def __init__(self, payment_id: UUID) -> None:
+    def __init__(self, payment_id: UUID | str) -> None:
         super().__init__(
             status_code=404,
             detail=f"Payment with ID: {payment_id} is not found."
@@ -36,4 +36,9 @@ class InvalidStripeWebhookSignature(BaseAPIException):
 
 class StripePaymentIntentCreationError(BaseAPIException):
     def __init__(self, detail: str = "Failed to create Stripe PaymentIntent.") -> None:
+        super().__init__(status_code=502, detail=detail)
+
+
+class PaymentRefundError(BaseAPIException):
+    def __init__(self, detail: str = "Failed to issue Stripe refund.") -> None:
         super().__init__(status_code=502, detail=detail)

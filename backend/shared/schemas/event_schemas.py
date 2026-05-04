@@ -124,3 +124,8 @@ class PaymentFailedEvent(PaymentBaseEvent):
     """Event published when a Stripe payment intent fails"""
     event_type: str = Field(default_factory=lambda: PaymentEvents.PAYMENT_FAILED)
     reason: str
+
+
+class PaymentRefundedEvent(PaymentBaseEvent):
+    """Event published when a payment is refunded after order cancellation"""
+    event_type: str = Field(default_factory=lambda: PaymentEvents.PAYMENT_REFUNDED)

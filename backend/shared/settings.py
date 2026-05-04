@@ -261,6 +261,10 @@ class Settings(BaseSettings):
     def FULL_PAYMENT_SERVICE_URL(self) -> str:
         return f"{self.PAYMENT_SERVICE_URL}{self.PAYMENT_SERVICE_URL_API_VERSION}"
 
+    @property
+    def FULL_STRIPE_WEBHOOK_ENDPOINT(self) -> str:
+        return f"https://{self.APP_HOST}{self.PAYMENT_SERVICE_URL_API_VERSION}/payments/webhook"
+
 
 @lru_cache()
 def get_settings():

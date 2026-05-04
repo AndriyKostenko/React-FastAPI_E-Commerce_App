@@ -21,3 +21,7 @@ class OrderItemService:
         ]
         new_db_order_items = await self.repository.create_many(new_order_items)
         return [OrderItemBase.model_validate(order_item) for order_item in new_db_order_items]
+
+    async def get_items_by_order_id(self, order_id: UUID) -> list[OrderItemBase]:
+        items = await self.repository.get_many_by_field(field_name="order_id", value=order_id)
+        return [OrderItemBase.model_validate(item) for item in (items or [])]
