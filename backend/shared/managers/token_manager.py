@@ -108,6 +108,8 @@ class TokenManager:
                 status_code=401,
                 detail=f"Token error: {str(jwt_error)}"
             )
+        except HTTPException:
+            raise  # let purpose-mismatch and other explicit HTTP errors pass through unchanged
         except Exception as e:
             raise HTTPException(
                 status_code=401,
