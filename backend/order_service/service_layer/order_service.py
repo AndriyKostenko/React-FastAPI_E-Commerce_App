@@ -65,7 +65,7 @@ class OrderService:
                 await self.outbox_event_service.add_outbox_event(
                     event_type=InventoryEvents.INVENTORY_RESERVE_REQUESTED,
                     payload=InventoryReserveRequested(
-                        service=Services.PRODUCT_SERVICE,
+                        service=Services.ORDER_SERVICE,
                         event_type=InventoryEvents.INVENTORY_RESERVE_REQUESTED,
                         order_id=new_db_order.id,
                         user_id=new_db_order.user_id,

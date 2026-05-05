@@ -1,13 +1,11 @@
 from uuid import UUID
-from typing import Annotated
 
-from fastapi import APIRouter, Request, Query, status
+from fastapi import APIRouter, Request, status
 
 from shared.utils.customized_json_response import JSONResponse
 from shared.shared_instances import order_service_redis_manager
 from shared.schemas.order_schemas import CreateOrder, UpdateOrder, OrderSchema, CancelOrder
 from dependencies.dependencies import order_service_dependency
-from events_publisher.order_event_publisher import order_event_publisher
 from models.order_models import Order
 
 order_routes = APIRouter(tags=["orders"])

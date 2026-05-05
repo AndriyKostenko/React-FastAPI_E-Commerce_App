@@ -172,7 +172,7 @@ class PaymentService:
                 ),
             )
 
-    async def refund_payment(self, order_id: UUID) -> Payment:
+    async def refund_payment(self, order_id: UUID) -> Payment | None:
         """
         Issue a Stripe refund for a previously succeeded payment tied to the given order.
 
@@ -184,7 +184,12 @@ class PaymentService:
         """
         payment = await self.repository.get_by_field(field_name="order_id", value=order_id)
         if not payment:
-            raise PaymentNotFoundError(payment_id=str(order_id))
+            # No payment record exists for this order (e.g. order cancelled before a
+            # payment intent was ever created). Nothing to refund — log and return.
+            self.logger.info(
+                f"No payment record found for order {order_id} during refund — skipping"
+            )
+            return None
 
         if payment.status != PaymentStatus.SUCCEEDED:
             # Nothing to refund — payment was never charged or already refunded/failed
