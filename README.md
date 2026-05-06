@@ -701,3 +701,12 @@ Redis Idempotency Flow:
 | **Shared** | `shared/idempotency_service.py` | Redis-based deduplication |
 | **Shared** | `shared/schemas/event_schemas.py` | Pydantic event models |
 | **Shared** | `shared/enums/event_enums.py` | Event type & queue enums |
+
+
+
+## Stripe
+
+1. Triggering events in Stripe CLI:
+  stripe trigger payment_intent.succeeded
+  stripe trigger payment_intent.payment_failed
+2. Webhook endpoint in API Gateway:

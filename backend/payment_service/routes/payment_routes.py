@@ -4,6 +4,7 @@ from typing import Any
 from fastapi import APIRouter, Request, status
 
 from shared.utils.customized_json_response import JSONResponse
+from shared.schemas.payment_schemas import PaymentSchema
 from shared.shared_instances import payment_service_redis_manager
 from dependencies.dependencies import payment_service_dependency
 
@@ -11,13 +12,13 @@ from dependencies.dependencies import payment_service_dependency
 payment_routes = APIRouter(tags=["payments"])
 
 
-@payment_routes.post(
-    "/payments/create-intent",
-    summary="Create a Stripe PaymentIntent",
-    response_description="Stripe client_secret and payment_intent_id returned to the frontend",
-)
+@payment_routes.post("/payments/create-intent",
+                    summary="Create a Stripe PaymentIntent",
+                    response_description="Stripe client_secret and payment_intent_id returned to the frontend",)
 @payment_service_redis_manager.ratelimiter(times=20, seconds=60)
-async def create_payment_intent(request: Request,payment_service: payment_service_dependency) -> JSONResponse:
+async def create_payment_intent(request: Request,
+                                payment_service: payment_service_dependency,
+                                payment_data: PaymentSchema) -> JSONResponse:
     """
     Called by the frontend before order confirmation.
 
@@ -37,13 +38,12 @@ async def create_payment_intent(request: Request,payment_service: payment_servic
             "payment_id": "<uuid>"
         }
     """
-    body = await request.json()
     result = await payment_service.create_payment_intent(
-        order_id=UUID(body["order_id"]),
-        user_id=UUID(body["user_id"]),
-        user_email=body["user_email"],
-        amount=int(body["amount"]),
-        currency=body.get("currency", "usd"),
+        order_id=payment_data.order_id,
+        user_id=payment_data.user_id,
+        user_email=payment_data.user_email,
+        amount=payment_data.amount,
+        currency=payment_data.currency,
     )
     return JSONResponse(content=result, status_code=status.HTTP_201_CREATED)
 

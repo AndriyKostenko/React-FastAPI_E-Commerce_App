@@ -15,9 +15,9 @@ app = FastStream(rabbitmq_broker)
 
 # inventory.reserve.* binds to inventory.reserve.succeeded and inventory.reserve.failed
 order_saga_response_queue = RabbitQueue(
-    OrderSagaResponseQueue.ORDER_SAGA_RESPONSE_QUEUE,
+    name=OrderSagaResponseQueue.ORDER_SAGA_RESPONSE_QUEUE,
     durable=True,
-    routing_key="inventory.reserve.*",
+    routing_key="inventory.reserve.*", # Listen to both success and failure of inventory reservation
     arguments={
         "x-dead-letter-exchange": "dlx",
         "x-dead-letter-routing-key": OrderSagaResponseQueue.ORDER_SAGA_RESPONSE_DEAD_LETTER_QUEUE
@@ -26,7 +26,7 @@ order_saga_response_queue = RabbitQueue(
 
 # Listens for payment.failed so the order can be cancelled when Stripe reports a failure
 order_payment_events_queue = RabbitQueue(
-    "order.payment.events.queue",
+    name="order.payment.events.queue",
     durable=True,
     routing_key=PaymentEvents.PAYMENT_FAILED,
     arguments={

@@ -1,7 +1,7 @@
 from uuid import UUID
 from typing import Any
 
-from stripe import StripeClient, StripeError, SignatureVerificationError
+from stripe import StripeClient, StripeError, SignatureVerificationError, Event as StripeEvent
 from sqlalchemy.exc import IntegrityError
 
 from database_layer.payment_repository import PaymentRepository
@@ -87,7 +87,7 @@ class PaymentService:
             "payment_id": str(payment.id),
         }
 
-    def construct_webhook_event(self, payload: bytes, stripe_signature: str) -> Any:
+    def construct_webhook_event(self, payload: bytes, stripe_signature: str) -> StripeEvent:
         """Verify and construct a Stripe webhook event. Raises InvalidStripeWebhookSignature on failure."""
         try:
             return self._stripe.construct_event(payload=payload,
@@ -114,7 +114,7 @@ class PaymentService:
             raise PaymentNotFoundError(payment_id=payment_intent_id)
 
         async with self.repository.session.begin_nested():
-            await self.repository.update_by_id(
+            _ = await self.repository.update_by_id(
                 item_id=payment.id,
                 data={"status": PaymentStatus.SUCCEEDED},
             )

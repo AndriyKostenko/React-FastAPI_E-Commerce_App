@@ -10,7 +10,8 @@ from service_layer.order_address_service import OrderAddressService
 from service_layer.order_item_service import OrderItemService
 from shared.schemas.event_schemas import InventoryReserveFailed, InventoryReserveSucceeded, PaymentFailedEvent
 from shared.shared_instances import logger, order_service_database_session_manager
-from service_layer.order_service import OrderService, OrderStatus
+from service_layer.order_service import OrderService
+from shared.enums.status_enums import OrderStatus
 from service_layer.outbox_event_service import OutboxEventService
 from shared.shared_instances import order_event_idempotency_service
 from shared.idempotency.idempotency_service import IdempotencyEventService
@@ -75,6 +76,7 @@ class OrderEventConsumer:
             case _:
                 self.logger.warning(f"Unhandled SAGA event type: {event_type}")
 
+   
     async def handle_payment_event(self, message: dict[str, Any]):
         """Route payment events to appropriate handlers based on event type."""
         event_type = message.get("event_type")
@@ -109,18 +111,15 @@ class OrderEventConsumer:
                 try:
                     current_order = await order_service.get_order_by_id(order_id=event.order_id)
                 except OrderNotFoundError:
-                    self.logger.warning(f"Order {event.order_id} not found — skipping inventory.reserve.succeeded")
+                    self.logger.warning(f"Order: {event.order_id} not found — skipping inventory.reserve.succeeded")
                     return
 
                 if current_order.status != OrderStatus.PENDING:
-                    self.logger.warning(
-                        f"Order {event.order_id} is '{current_order.status}' (expected PENDING) "
-                        f"— skipping CONFIRMED transition to avoid overwriting a cancelled order"
-                    )
+                    self.logger.warning(f"Order: {event.order_id} is '{current_order.status}' (expected PENDING) — skipping CONFIRMED transition to avoid overwriting a cancelled order")
                     return
 
                 # Update order status to CONFIRMED
-                await order_service.update_order_status(
+                _ = await order_service.update_order_status(
                     order_id=event.order_id,
                     order_status=OrderStatus.CONFIRMED
                 )
@@ -203,7 +202,7 @@ class OrderEventConsumer:
                 result='success'
             )
             # TODO: notification service/payment services events -> ...
-            
+
 
         except Exception as e:
             self.logger.error(f"Error handling inventory reserve failed for order {message.get('order_id')}: {str(e)}")
@@ -239,7 +238,7 @@ class OrderEventConsumer:
 
             async for order_service in self._get_order_service():
                 try:
-                    await order_service.cancel_order(
+                    _ = await order_service.cancel_order(
                         order_id=event.order_id,
                         reason=f"Payment failed: {event.reason}",
                     )
@@ -266,7 +265,5 @@ class OrderEventConsumer:
             self.logger.error(f"Error handling payment.failed for order {message.get('order_id')}: {e}")
             raise
 
-
-# Create consumer instance
 
 order_event_consumer = OrderEventConsumer(logger=logger)

@@ -1,6 +1,5 @@
 from typing import Any
 from logging import Logger
-from uuid import UUID
 
 from shared.shared_instances import logger, payment_service_database_session_manager
 from shared.idempotency.idempotency_service import IdempotencyEventService
@@ -58,20 +57,14 @@ class PaymentEventConsumer:
         try:
             event = OrderCancelledEvent(**message)
 
-            if await self.idempotency_service.is_event_processed(
-                event_id=event.event_id, event_type=event.event_type
-            ):
-                self.logger.info(
-                    f"Skipping duplicate order.cancelled event for order: {event.order_id}"
-                )
+            if await self.idempotency_service.is_event_processed(event_id=event.event_id, event_type=event.event_type):
+                self.logger.info(f"Skipping duplicate order.cancelled event for order: {event.order_id}")
                 return
 
-            self.logger.info(
-                f"Processing order.cancelled for potential refund — order: {event.order_id}"
-            )
+            self.logger.info(f"Processing order.cancelled for potential refund — order: {event.order_id}")
 
             async for payment_service in self._get_payment_service():
-                await payment_service.refund_payment(order_id=event.order_id)
+                _ = await payment_service.refund_payment(order_id=event.order_id)
 
             self.logger.info(f"Refund processed for order: {event.order_id}")
 
