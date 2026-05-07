@@ -7,6 +7,7 @@ from shared.utils.customized_json_response import JSONResponse
 from shared.schemas.payment_schemas import PaymentSchema
 from shared.shared_instances import payment_service_redis_manager
 from dependencies.dependencies import payment_service_dependency
+from shared.shared_instances import payment_event_idempotency_service as idempotency_service
 
 
 payment_routes = APIRouter(tags=["payments"])
@@ -49,7 +50,8 @@ async def create_payment_intent(request: Request,
 
 
 @payment_routes.post("/payments/webhook",summary="Stripe webhook receiver",response_description="Stripe event processed")
-async def stripe_webhook(request: Request,payment_service: payment_service_dependency) -> JSONResponse:
+async def stripe_webhook(request: Request,
+                         payment_service: payment_service_dependency) -> JSONResponse:
     """
     Receives and verifies signed events from Stripe.
 
@@ -60,24 +62,41 @@ async def stripe_webhook(request: Request,payment_service: payment_service_depen
     The Stripe-Signature header is verified against STRIPE_WEBHOOK_SECRET.
     Duplicate events (same Stripe event id) are silently ignored via Redis idempotency.
     """
-    payload: bytes = await request.body()
-    stripe_signature: str = request.headers.get("stripe-signature", "")
+    stripe_event = await payment_service.construct_webhook_event(request=request)
+    event_type: str = stripe_event["type"] 
+    event_data: dict[str ,Any] = stripe_event["data"] 
+    event_id: str = stripe_event["id"]
+    claimed = await idempotency_service.try_claim_event(event_id=event_id, event_type=event_type)
+    if not claimed:
+        # Event has already been processed by another instance, acknowledge without processing
+        return JSONResponse(
+            content={"received": True, "event_type": event_type, "idempotency": "duplicate"},
+            status_code=status.HTTP_200_OK,
+        )
+    try:
+        match event_type:
+            case "payment_intent.succeeded":
+                await payment_service.handle_payment_intent_succeeded(stripe_event_data=event_data)
+            case "payment_intent.payment_failed":
+                await payment_service.handle_payment_intent_failed(stripe_event_data=event_data)
+            case "payment_intent.canceled":
+                await payment_service.handle_payment_intent_cancelled(stripe_event_data=event_data)
+            case "charge.refund.updated":
+                await payment_service.handle_charge_refund_updated(stripe_event_data=event_data)
+            case _:
+                # Acknowledge unknown events so Stripe does not keep retrying
+                pass
 
-    stripe_event = payment_service.construct_webhook_event(
-        payload=payload, stripe_signature=stripe_signature
-    )
-
-    event_type: str = stripe_event["type"]
-    event_data: dict[str, Any] = stripe_event["data"]
-
-    match event_type:
-        case "payment_intent.succeeded":
-            await payment_service.handle_payment_intent_succeeded(stripe_event_data=event_data)
-        case "payment_intent.payment_failed":
-            await payment_service.handle_payment_intent_failed(stripe_event_data=event_data)
-        case _:
-            # Acknowledge unknown events so Stripe does not keep retrying
-            pass
+        await idempotency_service.mark_event_as_processed(
+            event_id=event_id,
+            event_type=event_type,
+            order_id=event_data.get("object", {}).get("metadata", {}).get("order_id"),
+            result="processed",
+        )
+    except Exception as e:
+        # On error, release the claim so the event can be retried immediately
+        await idempotency_service.release_claim(event_id=event_id, event_type=event_type)
+        raise e
 
     return JSONResponse(
         content={"received": True, "event_type": event_type},

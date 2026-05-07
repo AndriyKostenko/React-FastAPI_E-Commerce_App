@@ -29,6 +29,10 @@ class OutboxPollerService:
                 await self.payment_event_publisher.publish_payment_succeeded(event_data)
             case PaymentEvents.PAYMENT_FAILED:
                 await self.payment_event_publisher.publish_payment_failed(event_data)
+            case PaymentEvents.PAYMENT_REFUNDED:
+                await self.payment_event_publisher.publish_payment_refunded(event_data)
+            case PaymentEvents.PAYMENT_CANCELLED:
+                await self.payment_event_publisher.publish_payment_cancelled(event_data)
             case _:
                 self.logger.warning(f"Unhandled event type in OutboxPollerService: {event_type}")
 

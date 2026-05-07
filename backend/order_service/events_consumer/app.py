@@ -6,7 +6,7 @@ from orjson import loads
 
 from shared.shared_instances import rabbitmq_broker, inventory_exchange, payment_exchange
 from events_consumer.order_event_consumer import order_event_consumer
-from shared.enums.event_enums import OrderSagaResponseQueue, PaymentEvents
+from shared.enums.event_enums import OrderSagaResponseQueue
 
 
 # Create the FastStream app
@@ -24,11 +24,12 @@ order_saga_response_queue = RabbitQueue(
     }
 )
 
-# Listens for payment.failed so the order can be cancelled when Stripe reports a failure
+# Listens for payment.failed and payment.cancelled so the order can be cancelled
+# when Stripe reports a failure or cancels the PaymentIntent
 order_payment_events_queue = RabbitQueue(
     name="order.payment.events.queue",
     durable=True,
-    routing_key=PaymentEvents.PAYMENT_FAILED,
+    routing_key="payment.*",  # binds payment.failed and payment.cancelled
     arguments={
         "x-dead-letter-exchange": "dlx",
         "x-dead-letter-routing-key": "order.payment.events.dlq",

@@ -54,3 +54,4 @@ class PaymentEvents(StrEnum):
     PAYMENT_SUCCEEDED = "payment.succeeded"
     PAYMENT_FAILED = "payment.failed"
     PAYMENT_REFUNDED = "payment.refunded"
+    PAYMENT_CANCELLED = "payment.cancelled"

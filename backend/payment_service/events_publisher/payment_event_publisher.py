@@ -6,7 +6,7 @@ from faststream.rabbit import RabbitExchange
 from shared.settings import Settings
 from shared.events.event_publisher import BaseEventPublisher
 from shared.shared_instances import settings, logger, rabbitmq_broker, payment_exchange
-from shared.schemas.event_schemas import PaymentSucceededEvent, PaymentFailedEvent
+from shared.schemas.event_schemas import PaymentSucceededEvent, PaymentFailedEvent, PaymentRefundedEvent, PaymentCancelledEvent
 
 
 class PaymentEventPublisher(BaseEventPublisher):
@@ -35,6 +35,26 @@ class PaymentEventPublisher(BaseEventPublisher):
             routing_key=event.event_type,
         )
         self.logger.info(f"Published PaymentFailedEvent for order {event.order_id}: {event.reason}")
+
+    async def publish_payment_refunded(self, event_data: dict[str, Any]) -> None:
+        """Publish payment.refunded — consumed by order service and notification service."""
+        event = PaymentRefundedEvent(**event_data)
+        await self.publish_an_event(
+            event=event,
+            exchange=self.payment_exchange,
+            routing_key=event.event_type,
+        )
+        self.logger.info(f"Published PaymentRefundedEvent for order {event.order_id}")
+
+    async def publish_payment_cancelled(self, event_data: dict[str, Any]) -> None:
+        """Publish payment.cancelled — consumed by order service to cancel the order."""
+        event = PaymentCancelledEvent(**event_data)
+        await self.publish_an_event(
+            event=event,
+            exchange=self.payment_exchange,
+            routing_key=event.event_type,
+        )
+        self.logger.info(f"Published PaymentCancelledEvent for order {event.order_id}: {event.reason}")
 
 
 payment_event_publisher = PaymentEventPublisher(logger=logger, settings=settings)

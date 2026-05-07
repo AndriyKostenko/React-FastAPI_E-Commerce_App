@@ -8,7 +8,7 @@ from shared.database_layer.outbox_repository import OutboxRepository
 from events_publisher.order_event_publisher import order_event_publisher
 from service_layer.order_address_service import OrderAddressService
 from service_layer.order_item_service import OrderItemService
-from shared.schemas.event_schemas import InventoryReserveFailed, InventoryReserveSucceeded, PaymentFailedEvent
+from shared.schemas.event_schemas import InventoryReserveFailed, InventoryReserveSucceeded, PaymentFailedEvent, PaymentCancelledEvent
 from shared.shared_instances import logger, order_service_database_session_manager
 from service_layer.order_service import OrderService
 from shared.enums.status_enums import OrderStatus
@@ -83,6 +83,8 @@ class OrderEventConsumer:
         match event_type:
             case PaymentEvents.PAYMENT_FAILED:
                 await self.handle_payment_failed(message)
+            case PaymentEvents.PAYMENT_CANCELLED:
+                await self.handle_payment_cancelled(message)
             case _:
                 self.logger.warning(f"Unhandled payment event type in order consumer: {event_type}")
 
@@ -263,6 +265,55 @@ class OrderEventConsumer:
 
         except Exception as e:
             self.logger.error(f"Error handling payment.failed for order {message.get('order_id')}: {e}")
+            raise
+
+    async def handle_payment_cancelled(self, message: dict[str, Any]) -> None:
+        """
+        Handle payment.cancelled event (SAGA compensation).
+
+        When Stripe cancels a PaymentIntent (expired, manually cancelled, etc.)
+        the order must be cancelled so inventory is released and the customer
+        is notified. Mirrors handle_payment_failed logic.
+
+        OrderNotFoundError       → order was never persisted; skip silently.
+        OrderNotCancellableError → order is already CANCELLED; idempotent skip.
+        """
+        try:
+            event = PaymentCancelledEvent(**message)
+
+            if await self.idempotency_service.is_event_processed(event_id=event.event_id, event_type=event.event_type):
+                self.logger.info(f"Skipping duplicate payment.cancelled event for order: {event.order_id}")
+                return
+
+            self.logger.info(f"Processing payment.cancelled for order {event.order_id}: {event.reason}")
+
+            async for order_service in self._get_order_service():
+                try:
+                    _ = await order_service.cancel_order(
+                        order_id=event.order_id,
+                        reason=f"Payment cancelled: {event.reason}",
+                    )
+                    self.logger.info(f"Order {event.order_id} cancelled due to payment cancellation")
+                except OrderNotFoundError:
+                    self.logger.warning(
+                        f"Order {event.order_id} not found for payment.cancelled event — skipping"
+                    )
+                    return
+                except OrderNotCancellableError:
+                    self.logger.info(
+                        f"Order {event.order_id} already CANCELLED — skipping payment.cancelled"
+                    )
+                    return
+
+            await self.idempotency_service.mark_event_as_processed(
+                event_id=event.event_id,
+                event_type=event.event_type,
+                order_id=event.order_id,
+                result="cancelled_due_to_payment_cancellation",
+            )
+
+        except Exception as e:
+            self.logger.error(f"Error handling payment.cancelled for order {message.get('order_id')}: {e}")
             raise
 
 

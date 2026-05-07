@@ -11,6 +11,7 @@ from shared.database_layer.outbox_repository import OutboxRepository
 from service_layer.payment_service import PaymentService
 from service_layer.outbox_event_service import OutboxEventService
 from shared.shared_instances import settings
+from shared.settings import Settings
 
 
 class PaymentEventConsumer:
@@ -21,8 +22,9 @@ class PaymentEventConsumer:
     - order.cancelled: triggers a Stripe refund when a payment was already succeeded.
     """
 
-    def __init__(self, logger: Logger) -> None:
+    def __init__(self, logger: Logger, settings: Settings) -> None:
         self.logger: Logger = logger
+        self.settings: Settings = settings
         self.idempotency_service: IdempotencyEventService = payment_event_idempotency_service
 
     async def _get_payment_service(self):
@@ -32,7 +34,8 @@ class PaymentEventConsumer:
             payment_service = PaymentService(
                 repository=PaymentRepository(session=session),
                 outbox_event_service=outbox_service,
-                settings=settings,
+                settings=self.settings,
+                logger=self.logger,
             )
             yield payment_service
 
@@ -54,17 +57,21 @@ class PaymentEventConsumer:
         3. If payment status is 'succeeded', call PaymentService.refund_payment().
         4. Mark event as processed.
         """
-        try:
-            event = OrderCancelledEvent(**message)
+        event = OrderCancelledEvent(**message)
 
-            if await self.idempotency_service.is_event_processed(event_id=event.event_id, event_type=event.event_type):
-                self.logger.info(f"Skipping duplicate order.cancelled event for order: {event.order_id}")
+        try:
+            claimed = await self.idempotency_service.try_claim_event(
+                event_id=event.event_id,
+                event_type=event.event_type,
+            )
+            if not claimed:
+                self.logger.info(f"Duplicate order.cancelled event received and already processed — order: {event.order_id}")
                 return
 
             self.logger.info(f"Processing order.cancelled for potential refund — order: {event.order_id}")
 
             async for payment_service in self._get_payment_service():
-                _ = await payment_service.refund_payment(order_id=event.order_id)
+                _ = await payment_service.handle_payment_refund(order_id=event.order_id)
 
             self.logger.info(f"Refund processed for order: {event.order_id}")
 
@@ -76,10 +83,9 @@ class PaymentEventConsumer:
             )
 
         except Exception as e:
-            self.logger.error(
-                f"Error handling order.cancelled for order {message.get('order_id')}: {e}"
-            )
+            await self.idempotency_service.release_claim(event_id=event.event_id, event_type=event.event_type)
+            self.logger.error(f"Error handling order.cancelled for order {message.get('order_id')}: {e}")
             raise
 
 
-payment_event_consumer = PaymentEventConsumer(logger=logger)
+payment_event_consumer = PaymentEventConsumer(logger=logger, settings=settings)

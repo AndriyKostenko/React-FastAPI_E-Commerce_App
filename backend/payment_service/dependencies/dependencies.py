@@ -8,7 +8,7 @@ from database_layer.payment_repository import PaymentRepository
 from shared.database_layer.outbox_repository import OutboxRepository
 from service_layer.payment_service import PaymentService
 from service_layer.outbox_event_service import OutboxEventService
-from shared.shared_instances import payment_service_database_session_manager, settings
+from shared.shared_instances import logger, payment_service_database_session_manager, settings
 
 
 async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
@@ -22,15 +22,14 @@ def get_outbox_service(session: AsyncSession = Depends(get_db_session)) -> Outbo
     return OutboxEventService(repository=OutboxRepository(session=session))
 
 
-def get_payment_service(
-    session: AsyncSession = Depends(get_db_session),
-    outbox_event_service: OutboxEventService = Depends(get_outbox_service),
-) -> PaymentService:
+def get_payment_service(session: AsyncSession = Depends(get_db_session),
+                        outbox_event_service: OutboxEventService = Depends(get_outbox_service)) -> PaymentService:
     """Create an instance of PaymentService with the current database session and outbox event service."""
     return PaymentService(
         repository=PaymentRepository(session=session),
         outbox_event_service=outbox_event_service,
         settings=settings,
+        logger=logger
     )
 
 

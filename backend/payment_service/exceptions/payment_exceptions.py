@@ -34,6 +34,11 @@ class InvalidStripeWebhookSignature(BaseAPIException):
         super().__init__(status_code=400, detail="Invalid Stripe webhook signature.")
 
 
+class PaymentDataIsNotProvided(BaseAPIException):
+    def __init__(self) -> None:
+        super().__init__(status_code=404, detail="Payment data is not provided.")
+
+
 class StripePaymentIntentCreationError(BaseAPIException):
     def __init__(self, detail: str = "Failed to create Stripe PaymentIntent.") -> None:
         super().__init__(status_code=502, detail=detail)
