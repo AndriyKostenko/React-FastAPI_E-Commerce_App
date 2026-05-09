@@ -68,7 +68,7 @@ const ManagaeClientOrders:React.FC<ManageOrdersClientProps> = ({initialOrders, t
         id: order.id,
         amount: formatPrice(order.amount / 100),
 		status: order.status,
-		create_date: order.create_date,
+		date_created: order.date_created,
 		address_id: order.address_id,
 		user_id: order.user_id,
 		currency: order.currency,
@@ -118,7 +118,7 @@ const ManagaeClientOrders:React.FC<ManageOrdersClientProps> = ({initialOrders, t
                 </div>
             );
 	}},
-	{field: 'create_date', headerName: 'Date of creation', width: 200},
+	{field: 'date_created', headerName: 'Date of creation', width: 200},
 	{field: 'address_id', headerName: 'Address ID', width: 200},
 	{field: 'user_id', headerName: 'User ID', width: 200},
 	{field: 'currency', headerName: 'Currency', width: 200},

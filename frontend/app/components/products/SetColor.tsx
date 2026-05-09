@@ -1,6 +1,7 @@
 'use client';
 
-import { ProductProps, ImageProps } from "@/app/product/[productId]/ProductDetails";
+import { ProductProps } from "@/app/interfaces/product";
+import { ImageProps } from "@/app/interfaces/image";
 
 
 

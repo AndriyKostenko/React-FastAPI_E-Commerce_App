@@ -11,6 +11,11 @@ class OrderEventsQueue(StrEnum):
     ORDER_EVENTS_DEAD_LETTER_QUEUE = "order.events.dlq"
 
 
+class PaymentEventsQueue(StrEnum):
+    PAYMENT_EVENTS_QUEUE = "payment.events.queue"
+    PAYMENT_EVENTS_DEAD_LETTER_QUEUE = "payment.events.dlq"
+
+
 class OrderSagaResponseQueue(StrEnum):
     ORDER_SAGA_RESPONSE_QUEUE = "order.saga.response"
     ORDER_SAGA_RESPONSE_DEAD_LETTER_QUEUE = "order.saga.response.dlq"

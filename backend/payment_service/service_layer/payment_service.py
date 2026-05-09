@@ -99,6 +99,7 @@ class PaymentService:
             "client_secret": intent.client_secret,
             "stripe_payment_intent_id": intent.id,
             "payment_id": str(payment.id),
+            "order_id": str(order_id),
         }
 
     async def construct_webhook_event(self, request: Request) -> StripeEvent:

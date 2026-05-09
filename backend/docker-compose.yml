@@ -285,7 +285,6 @@ services:
     volumes:
       - ./shared:/app/shared:ro
 
-
   payment-service:
     build:
       context: ./payment_service
@@ -349,6 +348,8 @@ services:
     networks:
       - usernet
 
+  
+  
 
 networks:
   usernet:

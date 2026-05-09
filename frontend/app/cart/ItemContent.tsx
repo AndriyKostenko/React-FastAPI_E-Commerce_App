@@ -2,7 +2,7 @@
 
 
 
-import { ProductProps } from "../product/[productId]/ProductDetails";
+import { ProductProps } from "@/app/interfaces/product";
 import { formatPrice } from "@/utils/formatPrice";
 import Link from "next/link";
 import { truncateText } from "@/utils/truncateText";

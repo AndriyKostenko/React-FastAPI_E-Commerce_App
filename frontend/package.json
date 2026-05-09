@@ -10,16 +10,16 @@
   },
   "dependencies": {
     "@mui/x-data-grid": "^7.6.2",
-    "@stripe/react-stripe-js": "^2.7.1",
-    "@stripe/stripe-js": "^3.4.0",
+    "@stripe/react-stripe-js": "^6.3.0",
+    "@stripe/stripe-js": "^9.4.0",
     "chart.js": "^4.4.7",
     "moment": "^2.29.4",
-    "next": "^16.1.1",
+    "next": "^16.2.6",
     "next-auth": "^4.24.7",
     "query-string": "^9.1.1",
-    "react": "^18.3.1",
+    "react": "19.2.6",
     "react-chartjs-2": "^5.2.0",
-    "react-dom": "^18.3.1",
+    "react-dom": "19.2.6",
     "react-dropzone": "^14.2.3",
     "react-hook-form": "^7.51.3",
     "react-hot-toast": "^2.4.1",
@@ -28,18 +28,21 @@
     "stripe": "^15.5.0"
   },
   "devDependencies": {
-    "@emotion/react": "^11.11.4",
-    "@emotion/styled": "^11.11.5",
-    "@mui/material": "^5.15.19",
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "@mui/material": "^5.18.0",
     "@types/node": "^20",
-    "@types/react": "^18",
-    "@types/react-dom": "^18",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
     "autoprefixer": "^10.0.1",
-    "eslint": "^9.39.2",
-    "eslint-config-next": "^16.1.1",
-    "eslint-plugin-next": "^0.0.0",
+    "eslint": "^9.39.4",
+    "eslint-config-next": "^16.2.6",
     "postcss": "^8",
     "tailwindcss": "^3.3.0",
     "typescript": "^5"
+  },
+  "overrides": {
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3"
   }
 }

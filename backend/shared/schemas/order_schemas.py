@@ -38,6 +38,7 @@ class OrderProductItem(BaseModel):
 
 
 class CreateOrder(BaseModel):
+    id: UUID | None = None
     user_id: UUID
     user_email: EmailStr
     amount: PositiveFloat

@@ -2,7 +2,7 @@
 
 import { formatPrice } from "@/utils/formatPrice";
 import { useRouter } from "next/router";
-import { OrderProps } from "@/app/admin/manage-orders/ManageClientOrder";
+import { OrderProps } from "@/app/interfaces/order";
 import Heading from "@/app/components/Heading";
 import Status from "@/app/components/Status";
 import { MdAccessTimeFilled, MdDeliveryDining, MdDone } from "react-icons/md";
@@ -27,7 +27,7 @@ const OrderDetails:React.FC<OrderDetailProps> = ({order}) => {
 				Total Amount: <span className="font-bold">{formatPrice(order.amount / 100)}</span>
 			</div>
 			<div>
-				Date of Creation: <span className="font-bold">{formatDate(order.create_date)}</span>
+				Date of Creation: <span className="font-bold">{formatDate(order.date_created)}</span>
 			</div>
 
 			<div className="flex gap-2 items-center">
@@ -92,5 +92,4 @@ const OrderDetails:React.FC<OrderDetailProps> = ({order}) => {
 }
 
 export default OrderDetails;
-
 

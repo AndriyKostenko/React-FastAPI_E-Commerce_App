@@ -1,7 +1,13 @@
 import { ReviewProps } from "@/app/interfaces/review";
 
-const updateProductReview = async (review: ReviewProps, token: string) => {
-    const {product_id, rating, comment, user_id} = review;
+type ReviewUpsertPayload =
+    | Pick<ReviewProps, "product_id" | "rating" | "comment" | "user_id">
+    | { productId: string; rating: number; comment: string; userId: string };
+
+const updateProductReview = async (review: ReviewUpsertPayload, token: string) => {
+    const product_id = "product_id" in review ? review.product_id : review.productId;
+    const user_id = "user_id" in review ? review.user_id : review.userId;
+    const { rating, comment } = review;
 
     try {
         const response = await fetch(`http://127.0.0.1:8000/review/product/${product_id}`, {

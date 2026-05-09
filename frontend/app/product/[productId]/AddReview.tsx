@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ProductProps } from "./ProductDetails";
+import { ProductProps } from "@/app/interfaces/product";
 import { useRouter } from "next/navigation";
 import { FieldValues, SubmitHandler, useForm } from "react-hook-form";
 import Heading from "@/app/components/Heading";

@@ -2,96 +2,109 @@
 
 import { useCart } from "@/hooks/useCart";
 import { formatPrice } from "@/utils/formatPrice";
-import {useElements, useStripe, PaymentElement, AddressElement} from "@stripe/react-stripe-js";
-import { useEffect, useState } from "react";
+import { useElements, useStripe, PaymentElement, AddressElement } from "@stripe/react-stripe-js";
+import { useState } from "react";
 import toast from "react-hot-toast";
 import Heading from "../components/Heading";
 import Button from "../components/Button";
 
+type CheckoutAddress = {
+    line1: string;
+    city: string;
+    state: string;
+    postal_code: string;
+};
 
 interface CheckoutFormProps {
-    clientSecret: string,
-    handleSetPaymentSuccess: (value: boolean) => void
+    onCreateOrder: (address: CheckoutAddress) => Promise<boolean>;
+    onPaymentConfirmed: () => void;
 }
 
+const CheckoutForm: React.FC<CheckoutFormProps> = ({ onCreateOrder, onPaymentConfirmed }) => {
+    const { cartTotalAmount } = useCart();
+    const stripe = useStripe();
+    const elements = useElements();
+    const [isLoading, setIsLoading] = useState(false);
+    const formattedPrice = formatPrice(cartTotalAmount);
 
-const CheckoutForm: React.FC<CheckoutFormProps> = ({clientSecret, handleSetPaymentSuccess}) => {
-    const {cartTotalAmount, handleClearCart, handleSetPaymentIntent} = useCart()
-    const stripe = useStripe()
-    const elements = useElements()
-    const [isLoading, setIsLoading] = useState(false)
-    const formattedPrice = formatPrice(cartTotalAmount)
-
-    useEffect(() => {
-        if (!stripe || !clientSecret) {
-            return;
-        }
-
-        handleSetPaymentSuccess(false)
-    }, [stripe])
-
-    // working with form
     const handleSubmit = async (event: React.FormEvent) => {
         event.preventDefault();
 
         if (!stripe || !elements) {
             return;
         }
-        setIsLoading(true)
 
-        // stripe is getting data from below elements
-        stripe.confirmPayment({
-            elements, redirect: 'if_required'
-        }).then(result => {
-            if (!result.error) {
-                toast.success('Payment Successfull')
+        setIsLoading(true);
 
-                handleClearCart()
-                handleSetPaymentSuccess(true)
+        const addressElement = elements.getElement("address");
+        const addressValue = await addressElement?.getValue();
 
-                // resetting payment intent and then new will be created
-                handleSetPaymentIntent(null)
-            }
+        if (!addressValue?.complete) {
+            setIsLoading(false);
+            toast.error("Please provide a complete shipping address.");
+            return;
+        }
 
-            setIsLoading(false)
-        })
-    }
+        const { line1, city, state, postal_code } = addressValue.value.address;
 
-    return ( 
+        if (!line1 || !city || !state || !postal_code) {
+            setIsLoading(false);
+            toast.error("Shipping address is incomplete.");
+            return;
+        }
+
+        const orderCreated = await onCreateOrder({
+            line1,
+            city,
+            state,
+            postal_code,
+        });
+        if (!orderCreated) {
+            setIsLoading(false);
+            return;
+        }
+
+        const result = await stripe.confirmPayment({
+            elements,
+            redirect: "if_required",
+        });
+
+        if (result.error) {
+            setIsLoading(false);
+            toast.error(result.error.message || "Payment failed.");
+            return;
+        }
+
+        onPaymentConfirmed();
+
+        setIsLoading(false);
+    };
+
+    return (
         <form onSubmit={handleSubmit} id="payment-form">
             <div className="mb-6">
-                <Heading title="Enter your details to complete checkout"/>
+                <Heading title="Enter your details to complete checkout" />
             </div>
             <h2 className="font-semibold mb-2">
                 Address Information
             </h2>
             <AddressElement options={{
-                mode: 'shipping',
+                mode: "shipping",
                 allowedCountries: ["CA"],
-                defaultValues: {
-                    name: 'Jane Doe',
-                    address: {
-                    line1: '354 Oyster Point Blvd',
-                    city: 'South San Francisco',
-                    state: 'CA',
-                    postal_code: '94080',
-                    country: 'US',
-                    },
-                }
-                }}/>
+            }} />
             <h2 className="font-semibold mt-4 mb-2">
                 Payment Information
             </h2>
             <PaymentElement id="payment-element" options={{
-                layout: 'tabs'
-            }}/>
+                layout: "tabs",
+            }} />
             <div className="py-4 text-center text-slate-700 text-2xl font-bold">
                 Total: {formattedPrice}
             </div>
 
-            {/* submitting form by default after pressing the button */}
-            <Button label={isLoading ? 'Processing' : 'Pay now'} disabled={isLoading || !stripe || !elements} onClick={() => {}}/>
-        </form> );
-}
- 
+            <Button label={isLoading ? "Processing" : "Pay now"} disabled={isLoading || !stripe || !elements} onClick={() => {}} />
+        </form>
+    );
+};
+
 export default CheckoutForm;

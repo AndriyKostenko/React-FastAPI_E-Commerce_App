@@ -4,7 +4,8 @@ import Avatar from "@/app/components/Avatar";
 import Heading from "@/app/components/Heading";
 import { Rating } from "@mui/material";
 import moment from "moment";
-import { ProductProps, ReviewProps } from "./ProductDetails";
+import { ProductProps } from "@/app/interfaces/product";
+import { ReviewProps } from "@/app/interfaces/review";
 
 
 // to be fixed with exact props

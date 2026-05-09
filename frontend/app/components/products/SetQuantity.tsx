@@ -1,7 +1,7 @@
 // making as client comp
 'use client';
 
-import { ProductProps } from "@/app/product/[productId]/ProductDetails";
+import { ProductProps } from "@/app/interfaces/product";
 
 
 // we will use cartCounter twice and this flag will determine wether we are at our Product or our Cart

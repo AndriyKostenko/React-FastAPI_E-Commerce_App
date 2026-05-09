@@ -7,9 +7,10 @@ from shared.shared_instances import (
     notification_service_database_session_manager,
     user_exchange,
     order_exchange,
+    payment_exchange,
 )
-from .event_handlers import user_handler, order_handler
-from shared.enums.event_enums import UserEventsQueue, OrderEventsQueue
+from .event_handlers import user_handler, order_handler, payment_handler
+from shared.enums.event_enums import UserEventsQueue, OrderEventsQueue, PaymentEventsQueue
 from tasks.broker import taskiq_broker
 
 
@@ -61,6 +62,17 @@ order_events_queue = RabbitQueue(
     },
 )
 
+payment_events_queue = RabbitQueue(
+    PaymentEventsQueue.PAYMENT_EVENTS_QUEUE,
+    durable=True,
+    routing_key="payment.#",
+    arguments={
+        "x-dead-letter-exchange": "dlx",
+        "x-dead-letter-routing-key": PaymentEventsQueue.PAYMENT_EVENTS_DEAD_LETTER_QUEUE,
+    },
+)
+
 # Subscribers — exchange param wires up the queue binding on startup
 handle_user_events = rabbitmq_broker.subscriber(queue=user_events_queue, exchange=user_exchange)(user_handler.handle)
 handle_order_events = rabbitmq_broker.subscriber(queue=order_events_queue, exchange=order_exchange)(order_handler.handle)
+handle_payment_events = rabbitmq_broker.subscriber(queue=payment_events_queue, exchange=payment_exchange)(payment_handler.handle)

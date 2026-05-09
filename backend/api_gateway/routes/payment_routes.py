@@ -1,4 +1,5 @@
 from uuid import UUID
+from uuid import uuid4
 
 from fastapi import APIRouter, Request
 
@@ -20,9 +21,18 @@ async def create_payment_intent(
     request: Request,
     current_user: CurrentUserInfo = Depends(get_current_user),
 ) -> JSONResponse:
+    payload = await request.json()
+    override_body = {
+        "order_id": payload.get("order_id") or str(uuid4()),
+        "user_id": str(current_user.id),
+        "user_email": current_user.email,
+        "amount": payload.get("amount"),
+        "currency": payload.get("currency"),
+    }
     return await api_gateway_manager.forward_request(
         request=request,
         service_name=Services.PAYMENT_SERVICE,
+        override_body=override_body,
     )
 
 

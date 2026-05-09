@@ -32,17 +32,21 @@ class OrderService:
                 # 1. creating an order address
                 new_db_order_address: OrderAddressBase = await self.order_address_service.create_order_address(order_data)
                 # 2. creating order
+                order_fields = {
+                    "user_id": order_data.user_id,
+                    "user_email": order_data.user_email,
+                    "amount": order_data.amount,
+                    "currency": order_data.currency,
+                    "status": OrderStatus.PENDING,
+                    "delivery_status": OrderDeliveryStatus.PENDING,
+                    "payment_intent_id": order_data.payment_intent_id,
+                    "address_id": new_db_order_address.id,
+                }
+                if order_data.id:
+                    order_fields["id"] = order_data.id
+
                 new_db_order: Order = await self.repository.create(
-                    Order(
-                        user_id=order_data.user_id,
-                        user_email=order_data.user_email,
-                        amount=order_data.amount,
-                        currency=order_data.currency,
-                        status=OrderStatus.PENDING,
-                        delivery_status=OrderDeliveryStatus.PENDING,
-                        payment_intent_id=order_data.payment_intent_id,
-                        address_id=new_db_order_address.id
-                    )
+                    Order(**order_fields)
                 )
                 # 3. creating order items
                 new_db_order_items: list[OrderItemBase]  = await self.order_item_service.create_order_items(new_db_order.id, order_data)

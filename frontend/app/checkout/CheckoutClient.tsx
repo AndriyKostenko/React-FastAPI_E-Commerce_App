@@ -2,7 +2,7 @@
 
 import { useCart } from "@/hooks/useCart";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useCallback } from "react";
 import toast from "react-hot-toast";
 import React from "react";
 import { StripeElementsOptions, loadStripe } from "@stripe/stripe-js";
@@ -13,135 +13,175 @@ import Link from "next/link";
 import { MdArrowBack } from "react-icons/md";
 import { ProductProps } from "../interfaces/product";
 
-
-interface LoginFormProps{
-	currentUserJWT?: string | null | undefined,
+interface LoginFormProps {
+    currentUserJWT?: string | null | undefined;
 }
 
+type CheckoutAddress = {
+    line1: string;
+    city: string;
+    state: string;
+    postal_code: string;
+};
 
-const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY as string)
+const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY as string);
 
-
-const CheckoutClient:React.FC<LoginFormProps> = ({currentUserJWT}) => {
-    const {cartProducts, handleSetPaymentIntent, paymentIntent} = useCart();
+const CheckoutClient: React.FC<LoginFormProps> = ({ currentUserJWT }) => {
+    const { cartProducts, cartTotalAmount, handleSetPaymentIntent, paymentIntent, handleClearCart } = useCart();
     const [loading, setLoading] = useState(false);
-    const [error, setError] = useState(false)
-    const [clientSecret, setClientSecret] = useState<string | undefined>(undefined)
+    const [error, setError] = useState(false);
+    const [clientSecret, setClientSecret] = useState<string | undefined>(undefined);
+    const [draftOrderId, setDraftOrderId] = useState<string | null>(null);
+    const [createdOrderId, setCreatedOrderId] = useState<string | null>(null);
+    const [paymentSuccess, setPaymentSuccess] = useState(false);
     const router = useRouter();
-    const [paymentSuccess, setPaymentSuccess] = useState(false)
-    
-
-    console.log('TOKEN in CheckoutClient: ', currentUserJWT)
-    console.log('PaymentIntent: ', paymentIntent)
-    console.log('ClientSecret: ', clientSecret)
-    console.log('CartProducts>>>>>',cartProducts)
-
-    const renderCount = useRef(0);
-    renderCount.current++;
-
-    console.log('Component re-rendered:', renderCount.current);
-
-    function cleanCartItemsFromNull(cartProducts: ProductProps[] | null) {
-        for (const key in cartProducts) {
-            if (cartProducts[key] === null) {
-                cartProducts[key] = ""; // replacing null with empty string
-            } else if (typeof cartProducts[key] === 'object' && !Array.isArray(cartProducts[key])) {
-                cleanCartItemsFromNull(cartProducts[key]); // recursively cleaning nested objects
-            }
-        }
-        return cartProducts;
-    }
 
     useEffect(() => {
-        // creating paymentINtent
-        if (cartProducts && !paymentIntent) {
+        if (!cartProducts || cartProducts.length === 0 || !currentUserJWT || clientSecret) {
+            return;
+        }
 
-                setLoading(true)
-                setError(false)
-    
-                fetch('http://127.0.0.1:8000/create_payment_intent', {
-                    method: 'POST',
-                    headers: {'Content-Type' : 'application/json',
-                            'Authorization': `Bearer ${currentUserJWT}` // Including the JWT token here
+        const createIntent = async () => {
+            try {
+                setLoading(true);
+                setError(false);
+
+                const response = await fetch("http://127.0.0.1:8000/payments/create-intent", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${currentUserJWT}`,
                     },
                     body: JSON.stringify({
-                        items: cleanCartItemsFromNull(cartProducts),
-                        payment_intent_id: paymentIntent
-                    })
-                }).then((res) => {
-                    setLoading(false)
-                    if (res.status === 401) {
-                        return router.push('/login')
-                    }
-    
-                    return res.json()
-                }).then((data: any) => {
-                    setClientSecret(data.client_secret)
-                    handleSetPaymentIntent(data.payment_intent_id)
-                }).catch((error: any) => {
-                    console.log('Error: ', error)
-                    toast.error('Something went wrong')
-                })
-            // updating paymentIntent
-            } else if (cartProducts && paymentIntent) {
-                setLoading(true)
-                setError(false)
-    
-                fetch('http://127.0.0.1:8000/update_payment_intent', {
-                    method: 'POST',
-                    headers: {'Content-Type' : 'application/json',
-                            'Authorization': `Bearer ${currentUserJWT}` // Including the JWT token here
-                    },
-                    body: JSON.stringify({
-                        items: cartProducts,
-                        payment_intent_id: paymentIntent
-                    })
-                }).then((res) => {
-                    setLoading(false)
-                    if (res.status === 401) {
-                        return router.push('/login')
-                    }
-    
-                    return res.json()
-                }).then((data: any) => {
-                    setClientSecret(data.client_secret)
-                    handleSetPaymentIntent(data.payment_intent_id)
-                }).catch((error: any) => {
-                    console.log('Error: ', error)
-                    toast.error('Something went wrong')
-                })
+                        order_id: draftOrderId,
+                        amount: Math.round(cartTotalAmount * 100),
+                        currency: "usd",
+                    }),
+                });
+
+                if (response.status === 401) {
+                    router.push("/login");
+                    return;
+                }
+
+                if (!response.ok) {
+                    setError(true);
+                    throw new Error("Failed to create payment intent");
+                }
+
+                const data = await response.json();
+                setClientSecret(data.client_secret);
+                setDraftOrderId(data.order_id);
+                handleSetPaymentIntent(data.stripe_payment_intent_id);
+            } catch (fetchError) {
+                console.error("Create payment intent error:", fetchError);
+                toast.error("Failed to initialize checkout.");
+            } finally {
+                setLoading(false);
             }
-        
-        
-    }, [cartProducts])
+        };
 
-    const options:StripeElementsOptions = {
+        createIntent();
+    }, [cartProducts, currentUserJWT, clientSecret, draftOrderId, cartTotalAmount, handleSetPaymentIntent, router]);
+
+    const options: StripeElementsOptions = {
         clientSecret,
         appearance: {
-            theme: 'stripe',
-            labels: 'floating'
-        }
+            theme: "stripe",
+            labels: "floating",
+        },
     };
 
-    const handleSetPaymentSuccess = useCallback((value: boolean) => {
-        setPaymentSuccess(value);
-    }, [])
+    const createOrderBeforePayment = useCallback(async (address: CheckoutAddress): Promise<boolean> => {
+        if (createdOrderId) {
+            return true;
+        }
 
-    return ( 
+        if (!cartProducts || !currentUserJWT || !paymentIntent || !draftOrderId) {
+            toast.error("Missing checkout data.");
+            return false;
+        }
+
+        const products = cartProducts.map((product: ProductProps) => ({
+            id: product.id,
+            name: product.name,
+            price: product.price,
+            quantity: product.quantity,
+        }));
+
+        try {
+            setLoading(true);
+            setError(false);
+
+            const response = await fetch("http://127.0.0.1:8000/orders", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${currentUserJWT}`,
+                },
+                body: JSON.stringify({
+                    id: draftOrderId,
+                    amount: cartTotalAmount,
+                    currency: "usd",
+                    payment_intent_id: paymentIntent,
+                    products,
+                    address: {
+                        street: address.line1,
+                        city: address.city,
+                        province: address.state,
+                        postal_code: address.postal_code,
+                    },
+                }),
+            });
+
+            if (response.status === 401) {
+                router.push("/login");
+                return false;
+            }
+
+            if (!response.ok) {
+                setError(true);
+                throw new Error("Failed to create order before payment");
+            }
+
+            const order = await response.json();
+            setCreatedOrderId(order.id || draftOrderId);
+            return true;
+        } catch (orderError) {
+            console.error("Order creation error:", orderError);
+            toast.error("Failed to create order.");
+            return false;
+        } finally {
+            setLoading(false);
+        }
+    }, [createdOrderId, cartProducts, currentUserJWT, paymentIntent, draftOrderId, cartTotalAmount, router]);
+
+    const handleCheckoutSuccess = useCallback(() => {
+        handleClearCart();
+        handleSetPaymentIntent(null);
+        setDraftOrderId(null);
+        setCreatedOrderId(null);
+        setClientSecret(undefined);
+        setPaymentSuccess(true);
+        toast.success("Payment successful. Order created.");
+    }, [handleClearCart, handleSetPaymentIntent]);
+
+    return (
         <div className="w-full">
-            {!cartProducts && 
+            {(!cartProducts || cartProducts.length === 0) && (
                 <div>
                     <Link href={"/"} className="text-slate-500 flex items-center gap-1 mt-2">
-                            <MdArrowBack></MdArrowBack>
-                            <span>No items for checkout, continue shopping</span>
+                        <MdArrowBack />
+                        <span>No items for checkout, continue shopping</span>
                     </Link>
-                </div>}
-            {clientSecret && cartProducts && (
+                </div>
+            )}
+
+            {clientSecret && cartProducts && cartProducts.length > 0 && (
                 <Elements options={options} stripe={stripePromise}>
-                    <CheckoutForm clientSecret={clientSecret} handleSetPaymentSuccess={handleSetPaymentSuccess}/>
+                    <CheckoutForm onCreateOrder={createOrderBeforePayment} onPaymentConfirmed={handleCheckoutSuccess} />
                 </Elements>
-                )
-            }
+            )}
 
             {loading && <div className="text-center">Loading Checkout</div>}
             {error && <div className="text-center text-rose-500">Something went wrong...</div>}
@@ -149,13 +189,12 @@ const CheckoutClient:React.FC<LoginFormProps> = ({currentUserJWT}) => {
                 <div className="flex items-center flex-col gap-4">
                     <div className="text-yeal-500 text-center">Payment Success</div>
                     <div className="max-w-[220px] w-full">
-                        <Button label="View Your Orders" onClick={() => router.push(`/orders/`)}/>
+                        <Button label="View Your Orders" onClick={() => router.push("/orders/")} />
                     </div>
-                </div>)}
+                </div>
+            )}
         </div>
     );
-}
-
+};
 
 export default CheckoutClient;
- 

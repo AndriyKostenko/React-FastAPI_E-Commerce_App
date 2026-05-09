@@ -1,14 +1,12 @@
 "use client";
 
-import { Item, OrderProps } from "@/app/admin/manage-orders/ManageClientOrder";
+import { OrderItemProps as OrderLineItem } from "@/app/interfaces/order";
 import { formatPrice } from "@/utils/formatPrice";
 import { truncateText } from "@/utils/truncateText";
-import src from "@emotion/styled";
-import { log } from "console";
 import Image from "next/image";
 
 interface OrderItemProps {
-	item: Item;
+	item: OrderLineItem;
 }
 
 

@@ -20,9 +20,16 @@ async def create_order(
     request: Request,
     current_user: CurrentUserInfo = Depends(get_current_user),
 ):
+    payload = await request.json()
+    override_body = {
+        **payload,
+        "user_id": str(current_user.id),
+        "user_email": current_user.email,
+    }
     return await api_gateway_manager.forward_request(
         service_name="order-service",
         request=request,
+        override_body=override_body,
     )
 
 

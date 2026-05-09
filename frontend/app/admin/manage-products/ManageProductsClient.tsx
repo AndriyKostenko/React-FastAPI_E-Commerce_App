@@ -2,7 +2,7 @@
 
 import { formatPrice } from '@/utils/formatPrice';
 import { DataGrid, GridColDef} from '@mui/x-data-grid';
-import { ProductProps } from '@/app/product/[productId]/ProductDetails';
+import { ProductProps } from '@/app/interfaces/product';
 import Heading from '@/app/components/Heading';
 import Status from '@/app/components/Status';
 import { MdCached, MdClose, MdDone, MdRemoveRedEye, MdDelete, MdDisabledVisible} from 'react-icons/md';

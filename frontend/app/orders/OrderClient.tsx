@@ -65,7 +65,7 @@ const OrdersClient:React.FC<ManageOrdersClientProps> = ({userOrders, token, expi
         id: order.id,
         amount: formatPrice(order.amount / 100),
 		status: order.status,
-		create_date: order.create_date,
+		date_created: order.date_created,
 		address_id: order.address_id,
 		user_id: order.user_id,
 		currency: order.currency,
@@ -115,7 +115,7 @@ const OrdersClient:React.FC<ManageOrdersClientProps> = ({userOrders, token, expi
                 </div>
             );
 	}},
-	{field: 'create_date', headerName: 'Date of creation', width: 200},
+	{field: 'date_created', headerName: 'Date of creation', width: 200},
 	{field: 'address_id', headerName: 'Address ID', width: 200},
 	{field: 'currency', headerName: 'Currency', width: 200},
 	{field: 'delivery_status', headerName: 'Delivery Status', width: 200, renderCell: (params: any) => {
