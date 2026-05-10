@@ -15,6 +15,8 @@ interface ProductCardProps{
 
 
 const ProductCard:React.FC<ProductCardProps> = ({product}) => {
+    const firstImageUrl = product?.images?.[0]?.image_url || "/placeholder.png";
+    const reviews = Array.isArray(product?.reviews) ? product.reviews : [];
 
     // creating the router for products with diff ID
     // if onClick method is udes on the following product card -> the new page according to product id will be opened 
@@ -24,7 +26,7 @@ const ProductCard:React.FC<ProductCardProps> = ({product}) => {
    
 
     return ( 
-        <div onClick={() => router.push(`/product/${product.id}`)} 
+        <div onClick={() => router.push(`/products/${product.id}`)} 
              className="col-span-1
                         cursor-pointer
                         border-[1.2px]
@@ -48,7 +50,7 @@ const ProductCard:React.FC<ProductCardProps> = ({product}) => {
                                 relative
                                 w-full">
                     <Image
-                        src={`http://localhost:8000${product.images[0].image_url}`}
+                        src={firstImageUrl.startsWith("/") ? firstImageUrl : `http://localhost:8000${firstImageUrl}`}
                         alt={product.name}
                         fill
                         className="w-full
@@ -63,12 +65,12 @@ const ProductCard:React.FC<ProductCardProps> = ({product}) => {
 
                 {/* product rating*/}
                 <div>
-                    <Rating value={calculateAvarageRating(product.reviews)} readOnly precision={0.1}/>
+                    <Rating value={reviews.length > 0 ? calculateAvarageRating(reviews) : 0} readOnly precision={0.1}/>
                 </div>
 
                 {/* prod reviews */}
                 <div>
-                    {product.reviews.length} reviews
+                    {reviews.length} reviews
                 </div>
 
                 {/*prod price */}

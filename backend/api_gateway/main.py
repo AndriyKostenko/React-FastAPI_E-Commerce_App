@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 from datetime import datetime
 
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from uvicorn import run
 from fastapi import FastAPI, Request, Response
@@ -59,6 +60,18 @@ async def gateway_middleware(request: Request, call_next):
     await api_gateway_redis_manager.is_rate_limited(request, times=1000, seconds=60)
     # 2. Forward request to microservice
     return await call_next(request)
+
+
+# CORS must be added AFTER @app.middleware decorators — Starlette builds the stack
+# in LIFO order, so the last add_middleware call becomes the outermost layer.
+# This ensures CORS headers are present on ALL responses, including auth 401s.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.CORS_ALLOWED_ORIGINS,
+    allow_credentials=settings.CORS_ALLOW_CREDENTIALS,
+    allow_methods=settings.CORS_ALLOWED_METHODS,
+    allow_headers=settings.CORS_ALLOWED_HEADERS,
+)
 
 
 

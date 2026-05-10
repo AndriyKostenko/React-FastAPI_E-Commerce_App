@@ -1,4 +1,3 @@
-import { log } from "console";
 import { AuthOptions, User } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 
@@ -26,11 +25,11 @@ declare module "next-auth" {
 
 
 
-// so.....during loggin/registerring of user we will be redirected here to authorize() function 
+// so.....during loggin/registerring of user we will be redirected here to authorize() function
 // where i do endpoint with getting of user by email, however it is suppose to be logic like with login to check by email and password but im sending back hashed_password
 // so, its suppose to be refactored to got jwt token instead all of that and to compare it in authorize() function
 
-export const authOptions: AuthOptions = { 
+export const authOptions: AuthOptions = {
 // Configure one or more authentication providers
   providers: [
     CredentialsProvider( {
@@ -48,7 +47,7 @@ export const authOptions: AuthOptions = {
                 label: "Password",
                 type: "password"
             }
-     
+
         },
         // built in function authorize() where im checking with an existing user in db by email
         // by default its returning an User object with id, name, email, image...but we a including there jwt to, thats why gining an error
@@ -69,7 +68,7 @@ export const authOptions: AuthOptions = {
                 formData.append('username', credentials.email);
                 formData.append('password', credentials.password);
 
-                const response = await fetch(`http://127.0.0.1:8000/login` ,{
+                const response = await fetch(`http://127.0.0.1:8000/api/v1/login` ,{
                     method: "POST",
                     headers: { "Content-Type": "application/x-www-form-urlencoded" },
                     body: formData.toString()
@@ -80,13 +79,21 @@ export const authOptions: AuthOptions = {
                 }
 
                 const data = await response.json()
+
+                // access_token is returned in the body by the gateway (alongside the HttpOnly cookie).
+                // refresh_token is cookie-only and never exposed here.
                 const jwt = data['access_token']
                 const role = data['user_role']
                 const token_expiry = data['token_expiry']
                 const userId = data['user_id']
 
+                if (!jwt) {
+                    console.error('authorize(): no access_token in response body');
+                    return null;
+                }
+
                 // returning jwt token and credentials...by default its must to return only the User object or null but i do my implementetion with jwt token, role and tok_expiry and thats why we need to ovewrite the User object
-                return { 
+                return {
                     id: userId,
                     email: credentials.email,
                     jwt,
@@ -119,7 +126,7 @@ export const authOptions: AuthOptions = {
     },
 
 
-   
+
 
     // adding jwt, user role and token expriration time to the session
     session: async ({session, token}) => {
@@ -132,14 +139,9 @@ export const authOptions: AuthOptions = {
         return session
     }
   },
+  secret: process.env.NEXTAUTH_SECRET || process.env.SECRET_KEY,
   pages: {
     signIn: '/login',
   },
-  
+
 };
-
-
-
-
-
-

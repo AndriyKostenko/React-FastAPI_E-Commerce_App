@@ -13,7 +13,8 @@ interface OrderItemProps {
 const OrderItem:React.FC<OrderItemProps>= ({item}) => {
 	console.log('Item in OrderItem:', item); // Log the item to see its structure
 
-    const firstImage = item.product?.images?.[0]?.image_url || "/path/to/default_image.jpg"; // Fallback image URL
+    const firstImage = item.product?.images?.[0]?.image_url || "/placeholder.png";
+    const firstImageColor = item.product?.images?.[0]?.image_color || "n/a";
 	console.log('First Image>>>>', firstImage)
 
 	return (
@@ -28,7 +29,7 @@ const OrderItem:React.FC<OrderItemProps>= ({item}) => {
 				</div>
 				<div className="flex flex-col gap-1">
 					<div>{truncateText(item.product.name)}</div>
-					<div>{item.product.images[0].image_color}</div>
+					<div>{firstImageColor}</div>
 				</div>
 			</div>
 

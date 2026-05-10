@@ -39,6 +39,14 @@ const ProductDetails:React.FC<{product: ProductProps | null}> = ({product}) => {
             </div>
         );
     }
+    if (!product.images || product.images.length === 0) {
+        return (
+            <div className="p-8">
+                <h2 className="text-3xl font-medium text-slate-700">Product images are not available</h2>
+                <Button label="Go Back" onClick={() => router.back()} />
+            </div>
+        );
+    }
 
     //console.log('Product in ProductDetails:',product)
 

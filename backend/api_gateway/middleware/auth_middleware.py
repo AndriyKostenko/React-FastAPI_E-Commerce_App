@@ -26,7 +26,8 @@ class AuthMiddleware(metaclass=SingletonMetaClass):
             f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/forgot-password": ['POST'],
             f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/activate/": ['POST'],
             f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/password-reset/": ['POST'],
-            f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/products": ['GET'],
+            f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/products/": ['GET'],
+            f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/categories": ['GET'],
             f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/admin/schema/users": ['GET'],
             f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/admin/schema/products": ['GET'],
             f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/admin/schema/categories": ['GET'],
@@ -62,6 +63,10 @@ class AuthMiddleware(metaclass=SingletonMetaClass):
         path = request.url.path
         method = request.method
         self.logger.info(f"🔍 Auth middleware processing: {method} {path}")
+
+        # Always pass OPTIONS (CORS preflight) through — CORSMiddleware handles it
+        if method == "OPTIONS":
+            return await call_next(request)
 
         # 1. Skip authentication for public endpoints
         is_public = self.is_public_endpoint(path, method)

@@ -10,18 +10,19 @@ import { ReviewProps } from "@/app/interfaces/review";
 
 // to be fixed with exact props
 interface ListRstingProps {
-    product: ProductProps;
+    product: ProductProps | null;
 }
 
 const ListReview:React.FC<ListRstingProps> = ({product}) => {
-    if (product.reviews.length === 0) return null;
+    const reviews = product?.reviews ?? [];
+    if (reviews.length === 0) return null;
     
     return ( 
         <div>
             <Heading title="Product Review"/>
             <div className="text-sm mt-2">
                 {/* mapping if the reviews exist */}
-                {product.reviews && product.reviews.map((review: ReviewProps, index: number) => {
+                {reviews.map((review: ReviewProps, index: number) => {
                     // using indexes instead of product review.id coz can be missing.
                     return <div key={index} 
                                 className="max-w-[300px]">

@@ -1,10 +1,29 @@
 import sys
-import os
 import asyncio
 import argparse
 import random
 from decimal import Decimal
+from pathlib import Path
 from uuid import UUID
+
+# ---------------------------------------------------------------------------
+# Ensure import roots are available BEFORE importing service/shared modules.
+#
+# Works for both:
+# - local repo:   backend/product_service/utils/seed_database.py
+# - container:    /app/utils/seed_database.py  (with /app/shared mounted)
+# ---------------------------------------------------------------------------
+_THIS_FILE = Path(__file__).resolve()
+_SERVICE_DIR = _THIS_FILE.parents[1]     # .../product_service or /app
+_BACKEND_DIR = _SERVICE_DIR.parent       # .../backend (local) or / (container)
+_IMPORT_ROOTS = [_SERVICE_DIR]
+if (_BACKEND_DIR / "shared").exists():
+    _IMPORT_ROOTS.append(_BACKEND_DIR)
+
+for _path in _IMPORT_ROOTS:
+    _path_str = str(_path)
+    if _path_str not in sys.path:
+        sys.path.insert(0, _path_str)
 
 from shared.managers.database_session_manager import DatabaseSessionManager
 from shared.shared_instances import logger
@@ -16,14 +35,6 @@ from models.review_models import ProductReview
 from database_layer.category_repository import CategoryRepository
 from database_layer.product_repository import ProductRepository
 from database_layer.product_image_repository import ProductImageRepository
-
-# ---------------------------------------------------------------------------
-# Ensure product_service/ is on sys.path so local imports (models.*, etc.) work
-# regardless of where the script is executed from.
-# ---------------------------------------------------------------------------
-_SERVICE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if _SERVICE_DIR not in sys.path:
-    sys.path.insert(0, _SERVICE_DIR)
 
 """
 Seed Utility — load fake categories, products, and product images into the

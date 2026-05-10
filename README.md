@@ -228,6 +228,10 @@ Rebuild with updated code:
 Start it again (detached):
 `docker compose up -d user-service`
 
+Rebuild the specific container
+`docker compose up -d --build <container>`
+
+
 ## Recreating the database
 1. stop and remove containers and named volumes defined by the compose file
 docker compose down -v

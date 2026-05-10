@@ -2,7 +2,7 @@ const fetchProductById = async (productId: string): Promise<any> => {
     
     try {
         // adding cache: 'no-store' to prevent caching of the response
-        const response = await fetch(`http://127.0.0.1:8000/products/${productId}`, {
+        const response = await fetch(`http://127.0.0.1:8000/api/v1/products/${productId}/detailed`, {
             method: 'GET',
             cache: 'no-store',
         });
@@ -18,6 +18,7 @@ const fetchProductById = async (productId: string): Promise<any> => {
         
     } catch (error) {
         console.error(error)
+        return null;
     }
 
 };

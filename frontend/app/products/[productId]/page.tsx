@@ -14,9 +14,9 @@ interface IDParameters {
 
 
 // will be rendered on server so cosole.log will be shown in terminal
-const Product = async ({params} : {params: IDParameters}) => {
+const Product = async ({params} : {params: Promise<IDParameters>}) => {
 
-    const {productId} = params;
+    const {productId} = await params;
 
     const product = await fetchProductById(productId)
 
@@ -33,7 +33,7 @@ const Product = async ({params} : {params: IDParameters}) => {
                 <ProductDetails product={product}/>
                 <div className="flex flex-col mt-20 gap-4">
                      {/* Render AddReview only if the user is logged in */}
-                     {currentUser && <AddReview product={product} user={currentUser} isDelivered={isDelivered} token={currentUserToken} />}
+                     {currentUser && product && <AddReview product={product} user={currentUser} isDelivered={isDelivered} token={currentUserToken} />}
                     <ListReview product={product}/>
                 </div>
             </Container>

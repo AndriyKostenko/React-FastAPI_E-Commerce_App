@@ -52,7 +52,7 @@ const RegisterForm:React.FC<LoginFormProps> = ({currentUser}) => {
         setIsLoading(true)
       
         try {
-			const response = await fetch('http://127.0.0.1:8000/register', {
+			const response = await fetch('http://127.0.0.1:8000/api/v1/register', {
 					method: 'POST',
 					headers: {
 							'Content-Type': 'application/json',
@@ -61,26 +61,8 @@ const RegisterForm:React.FC<LoginFormProps> = ({currentUser}) => {
 			});
 
 			if (response.ok) {
-
-				// this function will send credentials to authorize() function in NextAuth class in pages/api/auth/...nextauth.js
-				// to do not compare hashed password with me response from /register api i'm passing to authorize() function just 
-				// entered password because its awaiting unhashed password
-				signIn('credentials', {email: data.email,
-										password: data.password, 
-										redirect: false})
-						.then((callback) => {
-						if (callback?.ok) {
-							router.push('/cart')
-							router.refresh()
-							setTimeout(() => {
-									toast.success(`You are logged in! `)
-							}, 2000)
-						}
-						if (callback?.error) {
-								console.log('Error in SignIn(): ',callback.error)
-								toast.error(callback.error)
-						}
-				})
+				toast.success('Registration successful! Please check your email to verify your account before logging in.')
+				router.push('/login')
 
                 } else {
                         // registratio faild, handle error

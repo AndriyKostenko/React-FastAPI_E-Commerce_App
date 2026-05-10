@@ -23,6 +23,7 @@ export const metadata: Metadata = {
 	title: 'My best E-commerce shop',
 	description: 'E-commerce app',
 };
+export const dynamic = "force-dynamic";
 
 
 

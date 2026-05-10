@@ -3,7 +3,7 @@ import { ProductProps } from "@/app/interfaces/product";
 const fetchProductsFromBackend = async (category?: string , searchTerm?: string): Promise<ProductProps[]> => {
     try {
         //const  searchTerm  = searchParams?.searchTerm as string | undefined; 
-        const url = new URL("http://127.0.0.1:8000/products");
+        const url = new URL("http://127.0.0.1:8000/api/v1/products/detailed");
 
         if (category !== undefined) {
             url.searchParams.append("category", category);

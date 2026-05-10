@@ -1,7 +1,7 @@
 from uuid import UUID
 
 from orjson import loads
-from fastapi import APIRouter, Request, Response, Depends
+from fastapi import APIRouter, Request, Response, Depends, status
 
 from gateway.apigateway import api_gateway_manager
 from dependencies.auth_dependencies import (get_current_user,
@@ -29,22 +29,30 @@ async def register_user(request: Request) -> JSONResponse:
 @user_proxy.post("/login", summary="User login")
 async def login_user(request: Request, response: Response) -> JSONResponse:
     """
-    Gateway forwards form data to user service → gets JSON with tokens
-    strips tokens from the body**, sets two HttpOnly cookie
-    Response body only contains `user_id`, `user_email`, `user_role
+    Gateway forwards form data to user service → gets JSON with tokens.
+    - `refresh_token` is stripped from the body and set as HttpOnly cookie only (long-lived, sensitive).
+    - `access_token` is kept in the body AND set as HttpOnly cookie:
+        * Cookie is used by the browser for subsequent API calls.
+        * Body value is needed by NextAuth's server-side `authorize()` which cannot read Set-Cookie headers.
     """
     upstream = await api_gateway_manager.forward_request(
         request=request,
         service_name=Services.USER_SERVICE,
     )
     if upstream.status_code == 200:
-        body: dict[str,  str] = orjson.loads(upstream.body)
-        auth_middleware.set_auth_cookies(
-            response,
-            access_token=body.pop(AuthCookies.ACCESS_COOKIE),
-            refresh_token=body.pop(AuthCookies.REFRESH_COOKIE)
+        body: dict[str, str] = loads(upstream.body)
+        refresh_token = body.pop(AuthCookies.REFRESH_COOKIE)
+        access_token = body[AuthCookies.ACCESS_COOKIE]
+        response = JSONResponse(
+            content=body,
+            status_code=status.HTTP_200_OK
         )
-        return JSONResponse(content=body, status_code=200)
+        auth_middleware.set_auth_cookies(
+            response=response,
+            access_token=access_token,
+            refresh_token=refresh_token
+        )
+        return response
     return upstream
 
 

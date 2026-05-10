@@ -7,6 +7,7 @@ import { sessionManagaer} from "@/actions/getCurrentUser";
 import Categories from "./Categories";
 import fetchCategoriesFromBackend from "@/actions/getCategories";
 import SearchBar from "./SearchBar";
+import { Suspense } from "react";
 
 // setting the font
 const redressed = Redressed({subsets: ['latin'],
@@ -41,7 +42,9 @@ const NavBar = async () => {
 
                         {/* making hiden for smaller screens */}
                         <div className="md:block">
-                            <SearchBar/>
+                            <Suspense fallback={null}>
+                                <SearchBar/>
+                            </Suspense>
                         </div>
 
                         <div className="flex 
@@ -57,11 +60,12 @@ const NavBar = async () => {
 
                 </Container>
             </div>
-            <Categories categories={categories}/>
+            <Suspense fallback={null}>
+                <Categories categories={categories}/>
+            </Suspense>
         </div>
     );
 }
 
 
 export default NavBar;
-

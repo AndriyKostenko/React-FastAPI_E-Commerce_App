@@ -2,7 +2,7 @@ import { CategoryProps } from "./../app/interfaces/category";
 
 const fetchCategoriesFromBackend = async (): Promise<CategoryProps[]> => {
     try {
-        const response = await fetch("http://127.0.0.1:8000/categories", {
+        const response = await fetch("http://127.0.0.1:8000/api/v1/categories", {
             method: 'GET',
             cache: 'no-store',
         });
