@@ -13,6 +13,7 @@ import { useRouter } from 'next/navigation';
 import fetchProductsFromBackend from '@/actions/getProducts';
 import Image from 'next/legacy/image';
 import { useCurrentUserTokenExpiryCheck } from "@/hooks/useCurrentUserToken";
+import { resolveImageUrl } from '@/utils/resolveImageUrl';
 
 interface ManageProductsClientProps{
   initialProducts: ProductProps[];
@@ -78,7 +79,7 @@ const ManageProductsClient:React.FC<ManageProductsClientProps> = ({initialProduc
 	{field: 'images', headerName: 'Images', width: 200, renderCell: (params) => {
 		return (<div className='flex gap-4'>
 			{params.row.images.map((image: string, index: number) => {
-				return (<Image width={100} height={100} key={index} src={`http://localhost:8000${image}`} alt={params.row.name} className='w-16 h-16 object-cover'/>)
+				return (<Image width={100} height={100} key={index} src={resolveImageUrl(image)} alt={params.row.name} className='w-16 h-16 object-cover'/>)
 			})}
 		</div>)}
 	},

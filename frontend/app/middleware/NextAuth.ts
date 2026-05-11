@@ -1,9 +1,6 @@
 import { AuthOptions, User } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 
-
-
-
 // adding jwt, user role and token expiry to the User object
 interface CustomUser extends User {
     id: string;
@@ -22,8 +19,6 @@ declare module "next-auth" {
         };
     }
 }
-
-
 
 // so.....during loggin/registerring of user we will be redirected here to authorize() function
 // where i do endpoint with getting of user by email, however it is suppose to be logic like with login to check by email and password but im sending back hashed_password
@@ -124,9 +119,6 @@ export const authOptions: AuthOptions = {
         }
         return token;
     },
-
-
-
 
     // adding jwt, user role and token expriration time to the session
     session: async ({session, token}) => {

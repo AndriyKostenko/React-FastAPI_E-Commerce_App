@@ -33,8 +33,26 @@ class SessionManager {
         }
     }
 
+    private isSessionExpired(): boolean {
+        const rawExpiry = this.session?.token_expiry;
+        if (!rawExpiry) {
+            return false;
+        }
+
+        const expiryUnixSeconds = Number(rawExpiry);
+        if (!Number.isFinite(expiryUnixSeconds)) {
+            return false;
+        }
+
+        return Date.now() >= expiryUnixSeconds * 1000;
+    }
+
     public async getCurrentUser() {
         await this.fetchSession();
+
+        if (this.isSessionExpired()) {
+            return null;
+        }
 
         if (!this.session?.user?.email) {
             return null;
@@ -45,6 +63,10 @@ class SessionManager {
     public async getCurrentUserId() {
         await this.fetchSession();
 
+        if (this.isSessionExpired()) {
+            return null;
+        }
+
         if (!this.session?.user?.id) {
             return null;
         }
@@ -53,6 +75,10 @@ class SessionManager {
 
     public async getCurrentUserJWT() {
         await this.fetchSession();
+
+        if (this.isSessionExpired()) {
+            return null;
+        }
 
         if (!this.session?.jwt) {
             return null;
@@ -63,6 +89,10 @@ class SessionManager {
     public async getCurrentUserRole() {
         await this.fetchSession();
 
+        if (this.isSessionExpired()) {
+            return null;
+        }
+
         if (!this.session?.role) {
             return null;
         }
@@ -72,6 +102,10 @@ class SessionManager {
     public async getCurrentUserTokenExpiry() {
         await this.fetchSession();
 
+        if (this.isSessionExpired()) {
+            return null;
+        }
+
         if (!this.session?.token_expiry) {
             return null;
         }
@@ -80,5 +114,4 @@ class SessionManager {
 }
 
 export const sessionManagaer = new SessionManager();
-
 

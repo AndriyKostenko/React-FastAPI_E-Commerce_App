@@ -17,7 +17,7 @@ type CheckoutAddress = {
 
 interface CheckoutFormProps {
     onCreateOrder: (address: CheckoutAddress) => Promise<boolean>;
-    onPaymentConfirmed: () => void;
+    onPaymentConfirmed: () => Promise<void>;
 }
 
 const CheckoutForm: React.FC<CheckoutFormProps> = ({ onCreateOrder, onPaymentConfirmed }) => {
@@ -75,7 +75,7 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({ onCreateOrder, onPaymentCon
             return;
         }
 
-        onPaymentConfirmed();
+        await onPaymentConfirmed();
 
         setIsLoading(false);
     };

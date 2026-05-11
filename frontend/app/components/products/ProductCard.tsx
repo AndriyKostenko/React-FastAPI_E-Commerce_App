@@ -7,6 +7,7 @@ import { truncateText } from "@/utils/truncateText";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import calculateAvarageRating from "../../../utils/productRating";
+import { resolveImageUrl } from "@/utils/resolveImageUrl";
 
 //setting types for prod. data
 interface ProductCardProps{
@@ -15,7 +16,7 @@ interface ProductCardProps{
 
 
 const ProductCard:React.FC<ProductCardProps> = ({product}) => {
-    const firstImageUrl = product?.images?.[0]?.image_url || "/placeholder.png";
+    const firstImageUrl = resolveImageUrl(product?.images?.[0]?.image_url);
     const reviews = Array.isArray(product?.reviews) ? product.reviews : [];
 
     // creating the router for products with diff ID
@@ -50,7 +51,7 @@ const ProductCard:React.FC<ProductCardProps> = ({product}) => {
                                 relative
                                 w-full">
                     <Image
-                        src={firstImageUrl.startsWith("/") ? firstImageUrl : `http://localhost:8000${firstImageUrl}`}
+                        src={firstImageUrl}
                         alt={product.name}
                         fill
                         className="w-full

@@ -15,6 +15,7 @@ import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
 import { useCurrentUserTokenExpiryCheck } from "@/hooks/useCurrentUserToken";
 import { CategoryProps } from "@/app/interfaces/category";
+import { resolveImageUrl } from "@/utils/resolveImageUrl";
 
 
 
@@ -236,7 +237,7 @@ const AddProductForm:React.FC<AddProductProps> = ({currentUserJWT, expiryToken, 
                             <CategoryInput onClick={(category_id) => setCustomValue('category_id', item.id)}
                                             selected={category_id === item.id}
                                             label={item.name}
-                                            src={`http://localhost:8000${item.image_url}`}
+                                            src={resolveImageUrl(item.image_url)}
                                             alt={item.name}
                                             />
                         </div>

@@ -4,7 +4,7 @@ from uuid import uuid4
 from fastapi import APIRouter, Request
 
 from gateway.apigateway import api_gateway_manager
-from dependencies.auth_dependencies import get_current_user, require_admin
+from dependencies.auth_dependencies import get_current_user, require_admin, require_user_or_admin
 from shared.utils.customized_json_response import JSONResponse
 from shared.enums.services_enums import Services
 from fastapi import Depends
@@ -21,7 +21,7 @@ async def create_payment_intent(
     request: Request,
     current_user: CurrentUserInfo = Depends(get_current_user),
 ) -> JSONResponse:
-    payload = await request.json()
+    payload: dict[str, str] = await request.json()
     override_body = {
         "order_id": payload.get("order_id") or str(uuid4()),
         "user_id": str(current_user.id),
@@ -53,9 +53,9 @@ async def stripe_webhook(request: Request) -> JSONResponse:
 @payment_proxy.get("/payments/{payment_id}", summary="Get payment by ID")
 async def get_payment_by_id(
     request: Request,
-    payment_id: UUID,
     current_user: CurrentUserInfo = Depends(get_current_user),
 ) -> JSONResponse:
+    require_user_or_admin(current_user=current_user)
     return await api_gateway_manager.forward_request(
         request=request,
         service_name=Services.PAYMENT_SERVICE,
@@ -69,6 +69,7 @@ async def get_payments(
     request: Request,
     current_user: CurrentUserInfo = Depends(require_admin),
 ) -> JSONResponse:
+    require_admin(current_user=current_user)
     return await api_gateway_manager.forward_request(
         request=request,
         service_name=Services.PAYMENT_SERVICE,

@@ -1,5 +1,7 @@
+from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
+from typing import Optional
 
 from pydantic import BaseModel, PositiveFloat, PositiveInt, ConfigDict, EmailStr
 
@@ -13,6 +15,9 @@ class OrderSchema(BaseModel):
     status: str
     delivery_status: str
     payment_intent_id: str
+    address_id: UUID
+    date_created: datetime
+    date_updated: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
 

@@ -64,7 +64,7 @@ async def stripe_webhook(request: Request,
     """
     stripe_event = await payment_service.construct_webhook_event(request=request)
     event_type: str = stripe_event["type"] 
-    event_data: dict[str ,Any] = stripe_event["data"] 
+    event_data: dict[str , str|int|float] = stripe_event["data"] 
     event_id: str = stripe_event["id"]
     claimed = await idempotency_service.try_claim_event(event_id=event_id, event_type=event_type)
     if not claimed:

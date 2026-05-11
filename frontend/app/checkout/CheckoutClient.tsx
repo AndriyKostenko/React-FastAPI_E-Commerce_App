@@ -24,7 +24,8 @@ type CheckoutAddress = {
     postal_code: string;
 };
 
-const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY as string);
+const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_TEST_PUBLISHABLE_KEY as string);
+const API_BASE_URL = "http://127.0.0.1:8000/api/v1";
 
 const CheckoutClient: React.FC<LoginFormProps> = ({ currentUserJWT }) => {
     const { cartProducts, cartTotalAmount, handleSetPaymentIntent, paymentIntent, handleClearCart } = useCart();
@@ -46,7 +47,7 @@ const CheckoutClient: React.FC<LoginFormProps> = ({ currentUserJWT }) => {
                 setLoading(true);
                 setError(false);
 
-                const response = await fetch("http://127.0.0.1:8000/payments/create-intent", {
+                const response = await fetch(`${API_BASE_URL}/payments/create-intent`, {
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json",
@@ -113,7 +114,7 @@ const CheckoutClient: React.FC<LoginFormProps> = ({ currentUserJWT }) => {
             setLoading(true);
             setError(false);
 
-            const response = await fetch("http://127.0.0.1:8000/orders", {
+            const response = await fetch(`${API_BASE_URL}/orders`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -122,7 +123,7 @@ const CheckoutClient: React.FC<LoginFormProps> = ({ currentUserJWT }) => {
                 body: JSON.stringify({
                     id: draftOrderId,
                     amount: cartTotalAmount,
-                    currency: "usd",
+                    currency: "cad",
                     payment_intent_id: paymentIntent,
                     products,
                     address: {
@@ -156,7 +157,30 @@ const CheckoutClient: React.FC<LoginFormProps> = ({ currentUserJWT }) => {
         }
     }, [createdOrderId, cartProducts, currentUserJWT, paymentIntent, draftOrderId, cartTotalAmount, router]);
 
-    const handleCheckoutSuccess = useCallback(() => {
+    const handleCheckoutSuccess = useCallback(async () => {
+        const orderIdToFinalize = createdOrderId || draftOrderId;
+        if (orderIdToFinalize && currentUserJWT) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/orders/${orderIdToFinalize}`, {
+                    method: "PATCH",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${currentUserJWT}`,
+                    },
+                    body: JSON.stringify({
+                        status: "confirmed",
+                        amount: cartTotalAmount,
+                    }),
+                });
+
+                if (!response.ok) {
+                    console.error("Failed to finalize paid order status:", response.status);
+                }
+            } catch (finalizeError) {
+                console.error("Error finalizing paid order status:", finalizeError);
+            }
+        }
+
         handleClearCart();
         handleSetPaymentIntent(null);
         setDraftOrderId(null);
@@ -164,7 +188,7 @@ const CheckoutClient: React.FC<LoginFormProps> = ({ currentUserJWT }) => {
         setClientSecret(undefined);
         setPaymentSuccess(true);
         toast.success("Payment successful. Order created.");
-    }, [handleClearCart, handleSetPaymentIntent]);
+    }, [createdOrderId, draftOrderId, currentUserJWT, cartTotalAmount, handleClearCart, handleSetPaymentIntent]);
 
     return (
         <div className="w-full">

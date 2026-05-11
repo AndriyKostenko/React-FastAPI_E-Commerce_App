@@ -1,27 +1,31 @@
 import fetchOrderByUserId from "./getOrdersByUserId";
 
-const checkIfOrderIsDelivered = async (userId: string, productId: string): Promise<boolean> => {
+type OrderItem = {
+    product_id?: string;
+    id?: string;
+};
+
+type UserOrder = {
+    id: string;
+    delivery_status: string;
+    items?: OrderItem[];
+};
+
+const checkIfOrderIsDelivered = async (userId: string, productId: string, token: string | null): Promise<boolean> => {
     try {
-        if (!userId || !productId) return false;
+        if (!userId || !productId || !token) return false;
         
-        const orders = await fetchOrderByUserId(userId);
+        const orders = await fetchOrderByUserId(userId, token);
 
-        if (!orders) return false;
-
-        console.log('Orders in fetchOrderByUserId>>>>>>', orders);
+        if (!Array.isArray(orders) || orders.length === 0) return false;
 
         // Use `find` to get the order containing the specific product
-        const orderWithProduct = orders.find((order: { items: { product_id: string }[]; id: string; delivery_status: string }) =>
-            order.items.some(item => item.product_id === productId)
+        const orderWithProduct = orders.find((order: UserOrder) =>
+            Array.isArray(order.items) &&
+            order.items.some((item: OrderItem) => item.product_id === productId || item.id === productId)
         );
 
-        if (orderWithProduct) {
-            console.log("Product found in order:", orderWithProduct.id);
-            console.log("Delivery status:", orderWithProduct.delivery_status);
-            return orderWithProduct.delivery_status === "delivered";
-        }
-
-        return false;
+        return orderWithProduct?.delivery_status === "delivered";
     } catch (error) {
         console.error(error);
         return false;

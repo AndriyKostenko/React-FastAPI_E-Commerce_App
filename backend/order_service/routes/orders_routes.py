@@ -49,7 +49,6 @@ async def get_order_by_id(
 @order_routes.get("/orders/user/{user_id}",
                   response_model=list[OrderSchema],
                   summary="Get orders by user ID")
-@order_service_redis_manager.cached(ttl=180)
 @order_service_redis_manager.ratelimiter(times=200, seconds=60)
 async def get_orders_by_user_id(
     request: Request,

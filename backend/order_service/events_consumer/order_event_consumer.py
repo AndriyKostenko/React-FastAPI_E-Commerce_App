@@ -8,7 +8,7 @@ from shared.database_layer.outbox_repository import OutboxRepository
 from events_publisher.order_event_publisher import order_event_publisher
 from service_layer.order_address_service import OrderAddressService
 from service_layer.order_item_service import OrderItemService
-from shared.schemas.event_schemas import InventoryReserveFailed, InventoryReserveSucceeded, PaymentFailedEvent, PaymentCancelledEvent
+from shared.schemas.event_schemas import InventoryReserveFailed, InventoryReserveSucceeded, PaymentSucceededEvent, PaymentFailedEvent, PaymentCancelledEvent
 from shared.shared_instances import logger, order_service_database_session_manager
 from service_layer.order_service import OrderService
 from shared.enums.status_enums import OrderStatus
@@ -81,12 +81,63 @@ class OrderEventConsumer:
         """Route payment events to appropriate handlers based on event type."""
         event_type = message.get("event_type")
         match event_type:
+            case PaymentEvents.PAYMENT_SUCCEEDED:
+                await self.handle_payment_succeeded(message)
             case PaymentEvents.PAYMENT_FAILED:
                 await self.handle_payment_failed(message)
             case PaymentEvents.PAYMENT_CANCELLED:
                 await self.handle_payment_cancelled(message)
             case _:
                 self.logger.warning(f"Unhandled payment event type in order consumer: {event_type}")
+
+    async def handle_payment_succeeded(self, message: dict[str, Any]) -> None:
+        """
+        Handle payment.succeeded event.
+
+        Ensures an order does not stay PENDING after Stripe confirms payment.
+        We move PENDING -> CONFIRMED idempotently, but avoid overwriting CANCELLED.
+        """
+        try:
+            event = PaymentSucceededEvent(**message)
+
+            if await self.idempotency_service.is_event_processed(event_id=event.event_id, event_type=event.event_type):
+                self.logger.info(f"Skipping duplicate payment.succeeded event for order: {event.order_id}")
+                return
+
+            async for order_service in self._get_order_service():
+                try:
+                    current_order = await order_service.get_order_by_id(order_id=event.order_id)
+                except OrderNotFoundError:
+                    self.logger.warning(
+                        f"Order {event.order_id} not found for payment.succeeded event — skipping"
+                    )
+                    return
+
+                if current_order.status == OrderStatus.CANCELLED:
+                    self.logger.info(
+                        f"Order {event.order_id} already CANCELLED — skipping payment.succeeded transition"
+                    )
+                    return
+
+                if current_order.status == OrderStatus.PENDING:
+                    _ = await order_service.update_order_status(
+                        order_id=event.order_id,
+                        order_status=OrderStatus.CONFIRMED,
+                    )
+                    self.logger.info(
+                        f"Order {event.order_id} moved to {OrderStatus.CONFIRMED} on payment.succeeded"
+                    )
+
+            await self.idempotency_service.mark_event_as_processed(
+                event_id=event.event_id,
+                event_type=event.event_type,
+                order_id=event.order_id,
+                result="payment_succeeded",
+            )
+
+        except Exception as e:
+            self.logger.error(f"Error handling payment.succeeded for order {message.get('order_id')}: {e}")
+            raise
 
     async def handle_inventory_reserve_succeeded(self, message: dict[str, Any]):
         """

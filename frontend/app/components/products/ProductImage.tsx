@@ -4,6 +4,7 @@
 import { ProductProps } from "@/app/interfaces/product";
 import { ImageProps } from "@/app/interfaces/image";
 import Image from "next/image";
+import { resolveImageUrl } from "@/utils/resolveImageUrl";
 
 
 
@@ -43,10 +44,11 @@ const ProductImage: React.FC<ProductImageProps> = ({cartProduct, product, handle
                                            rounded
                                            border-teal-300
                                            ${cartProduct.selected_image.image_color === image.image_color ? "border-[1.5px]" : "border-none"}`}>
-                                    <Image src={`http://localhost:8000${image.image_url}`}   
-                                        alt={image.image_color} 
-                                        fill 
-                                        className="object-contain"/>
+                                     <Image src={resolveImageUrl(image.image_url)}
+                                         alt={image.image_color} 
+                                         fill 
+                                         sizes="(max-width: 768px) 20vw, 8vw"
+                                         className="object-contain"/>
                     </div>
                 })}
             </div>
@@ -54,9 +56,11 @@ const ProductImage: React.FC<ProductImageProps> = ({cartProduct, product, handle
             <div className="col-span-5 
                             relative 
                             aspect-square">
-                <Image src={`http://localhost:8000${cartProduct.selected_image.image_url}`} 
+                <Image src={resolveImageUrl(cartProduct.selected_image.image_url)}
                        alt={cartProduct.name}
                        fill 
+                       priority
+                       sizes="(max-width: 768px) 100vw, 50vw"
                        className="w-full 
                             object-contain 
                             max-h-[500px]

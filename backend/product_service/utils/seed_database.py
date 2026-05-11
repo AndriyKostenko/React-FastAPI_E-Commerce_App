@@ -30,7 +30,6 @@ from shared.shared_instances import logger
 from shared.settings import get_settings
 from models.category_models import ProductCategory
 from models.product_models import Product
-from models.product_image_models import ProductImage
 from models.review_models import ProductReview
 from database_layer.category_repository import CategoryRepository
 from database_layer.product_repository import ProductRepository
@@ -62,15 +61,15 @@ Usage (run from the product_service/ directory):
 # Static fake-data tables
 # ---------------------------------------------------------------------------
 
-FAKE_CATEGORIES: list[dict[str, str]] = [
-    {"name": "Electronics",   "image_url": "https://placehold.co/400x300/0ea5e9/white?text=Electronics"},
-    {"name": "Clothing",      "image_url": "https://placehold.co/400x300/8b5cf6/white?text=Clothing"},
-    {"name": "Home & Garden", "image_url": "https://placehold.co/400x300/22c55e/white?text=Home+%26+Garden"},
-    {"name": "Sports",        "image_url": "https://placehold.co/400x300/f97316/white?text=Sports"},
-    {"name": "Books",         "image_url": "https://placehold.co/400x300/eab308/white?text=Books"},
-    {"name": "Beauty",        "image_url": "https://placehold.co/400x300/ec4899/white?text=Beauty"},
-    {"name": "Toys",          "image_url": "https://placehold.co/400x300/ef4444/white?text=Toys"},
-    {"name": "Furniture",     "image_url": "https://placehold.co/400x300/6366f1/white?text=Furniture"},
+FAKE_CATEGORIES: list[dict[str, str | None]] = [
+    {"name": "Electronics",   "image_url": None},
+    {"name": "Clothing",      "image_url": None},
+    {"name": "Home & Garden", "image_url": None},
+    {"name": "Sports",        "image_url": None},
+    {"name": "Books",         "image_url": None},
+    {"name": "Beauty",        "image_url": None},
+    {"name": "Toys",          "image_url": None},
+    {"name": "Furniture",     "image_url": None},
 ]
 
 # Products keyed by category name.  Each entry is a (name, brand, description) tuple.
@@ -315,36 +314,12 @@ async def _seed_products(
 # ---------------------------------------------------------------------------
 
 async def _seed_images(
-    image_repo: ProductImageRepository,
-    products: list[Product],
+    _image_repo: ProductImageRepository,
+    _products: list[Product],
     logger,
 ) -> None:
-    """Attach 2-3 placeholder images to every product that has none yet."""
-    for product in products:
-        existing = await image_repo.get_many_by_field("product_id", product.id)
-        if existing:
-            logger.info(f"    Images for '{product.name}' already exist — skipping.")
-            continue
-
-        num_images = random.randint(2, 3)
-        colours = random.sample(_COLOUR_MAP, min(num_images, len(_COLOUR_MAP)))
-
-        for colour_name, colour_code in colours:
-            hex_colour = colour_code.lstrip("#")
-            url = (
-                f"https://placehold.co/800x600/{hex_colour}/white"
-                f"?text={product.name.replace(' ', '+')}"
-            )
-            await image_repo.create(
-                ProductImage(
-                    product_id=product.id,
-                    image_url=url,
-                    image_color=colour_name,
-                    image_color_code=colour_code,
-                )
-            )
-
-        logger.info(f"    Added {num_images} image(s) to '{product.name}'")
+    """Disabled by default to avoid external seed-image URLs."""
+    logger.info("    Skipping seeded product images.")
 
 
 # ---------------------------------------------------------------------------
@@ -434,7 +409,7 @@ def _parse_args() -> argparse.Namespace:
         "--with-images",
         action="store_true",
         default=False,
-        help="Also create placeholder ProductImage rows for each product.",
+        help="Reserved flag. Seeded product images are disabled.",
     )
     parser.add_argument(
         "--clear",

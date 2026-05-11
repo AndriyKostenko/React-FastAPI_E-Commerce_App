@@ -45,7 +45,7 @@ class PaymentService:
         self.outbox_event_service: OutboxEventService = outbox_event_service
         self.webhook_endpoint : str= self.settings.FULL_STRIPE_WEBHOOK_ENDPOINT
         self._webhook_secret: str = self.settings.STRIPE_WEBHOOK_SECRET
-        self._stripe_api_key: str = self.settings.STRIPE_SECRET_KEY
+        self._stripe_api_key: str = self.settings.STRIPE_TEST_SECRET_KEY
         self._stripe: StripeClient = StripeClient(api_key=self._stripe_api_key)
 
     async def create_payment_intent(self,
@@ -70,7 +70,6 @@ class PaymentService:
                     "user_email": user_email,
                 },
                 "automatic_payment_methods": {"enabled": True},
-                "idempotency_key": f"{str(order_id)}-{str(user_id)}",  # Prevent duplicate intents for same order/user
             })
         except StripeError as exc:
             raise StripePaymentIntentCreationError(detail=str(exc))

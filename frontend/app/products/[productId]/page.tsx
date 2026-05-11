@@ -18,13 +18,13 @@ const Product = async ({params} : {params: Promise<IDParameters>}) => {
 
     const {productId} = await params;
 
-    const product = await fetchProductById(productId)
+  const product = await fetchProductById(productId)
 
     const currentUser = await sessionManagaer.getCurrentUser();
 
     const currentUserToken = await sessionManagaer.getCurrentUserJWT();
 
-    const isDelivered = currentUser ? await checkIfOrderIsDelivered(currentUser.id, productId) : false;
+    const isDelivered = currentUser ? await checkIfOrderIsDelivered(currentUser.id, productId, currentUserToken) : false;
 
 
     return ( 

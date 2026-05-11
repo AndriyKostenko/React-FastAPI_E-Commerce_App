@@ -42,11 +42,10 @@ async def get_all_orders(request: Request):
 
 
 @order_proxy.get("/orders/user/{user_id}", summary="Get orders by user ID")
-async def get_orders_by_user_id(
-    request: Request,
-    user_id: UUID,
-    current_user: CurrentUserInfo = Depends(require_user_or_admin),
-):
+async def get_orders_by_user_id(request: Request,
+                                user_id: UUID,
+                                current_user: CurrentUserInfo = Depends(get_current_user)):
+    require_user_or_admin(current_user, target_user_id=user_id)
     return await api_gateway_manager.forward_request(
         service_name="order-service",
         request=request,
@@ -71,7 +70,7 @@ async def get_order_by_id(
 async def cancel_order(
     request: Request,
     order_id: UUID,
-    current_user: CurrentUserInfo = Depends(require_user_or_admin),
+    current_user: CurrentUserInfo = Depends(get_current_user),
 ):
     return await api_gateway_manager.forward_request(
         service_name="order-service",
@@ -83,7 +82,7 @@ async def cancel_order(
 async def update_order(
     request: Request,
     order_id: UUID,
-    current_user: CurrentUserInfo = Depends(require_user_or_admin),
+    current_user: CurrentUserInfo = Depends(get_current_user),
 ):
     return await api_gateway_manager.forward_request(
         service_name="order-service",

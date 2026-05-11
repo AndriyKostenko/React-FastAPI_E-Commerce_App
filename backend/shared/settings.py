@@ -110,7 +110,7 @@ class Settings(BaseSettings):
     CRYPT_CONTEXT_SCHEME: str
 
     # Stripe
-    STRIPE_SECRET_KEY: str
+    STRIPE_TEST_SECRET_KEY: str
     STRIPE_WEBHOOK_SECRET: str
 
     # Email

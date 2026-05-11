@@ -1,6 +1,7 @@
 from uuid import UUID
+from collections.abc import Mapping
 from fastapi import HTTPException, status, Depends, Request
-from pydantic import EmailStr
+from pydantic import EmailStr, ValidationError
 from shared.shared_instances import settings, logger
 from shared.schemas.user_schemas import CurrentUserInfo
 
@@ -15,7 +16,28 @@ def get_current_user(request: Request) -> CurrentUserInfo:
             detail="Authentication required",
             headers={"WWW-Authenticate" : "Bearer"}
         )
-    return CurrentUserInfo(**current_user)
+
+    if isinstance(current_user, Mapping):
+        current_user_data = dict(current_user)
+    elif hasattr(current_user, "model_dump"):
+        current_user_data = current_user.model_dump()
+    else:
+        logger.warning(f"Unsupported current_user type in request state: {type(current_user)}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication payload",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    try:
+        return CurrentUserInfo(**current_user_data)
+    except ValidationError:
+        logger.warning(f"Invalid current_user payload in request state: {current_user_data}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication payload",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
 
 def require_admin(current_user: CurrentUserInfo = Depends(get_current_user)) -> CurrentUserInfo:

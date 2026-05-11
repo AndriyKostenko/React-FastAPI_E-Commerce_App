@@ -60,13 +60,14 @@ const OrdersClient:React.FC<ManageOrdersClientProps> = ({userOrders, token, expi
   if (orders) {
 
     rows = orders.map((order) => {
+      const normalizedPaymentStatus = order.status === 'confirmed' ? 'succeeded' : order.status;
 
       return {
         id: order.id,
-        amount: formatPrice(order.amount / 100),
-		status: order.status,
-		date_created: order.date_created,
-		address_id: order.address_id,
+        amount: formatPrice(order.amount),
+		status: normalizedPaymentStatus,
+		date_created: order.date_created ? new Date(order.date_created).toLocaleString() : 'N/A',
+		address_id: order.address_id || 'N/A',
 		user_id: order.user_id,
 		currency: order.currency,
 		delivery_status: order.delivery_status,
@@ -93,6 +94,11 @@ const OrdersClient:React.FC<ManageOrdersClientProps> = ({userOrders, token, expi
                     background = 'bg-yellow-200';
                     color = 'text-yellow-700';
                     icon = MdAccessTimeFilled; // Example icon
+                    break;
+                case 'succeeded':
+                    background = 'bg-green-200';
+                    color = 'text-green-700';
+                    icon = MdDone;
                     break;
                 case 'cancelled':
                     background = 'bg-red-200';

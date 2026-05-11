@@ -2,7 +2,6 @@ from typing import Any
 
 from faststream import FastStream
 from faststream.rabbit import RabbitQueue
-from orjson import loads
 
 from shared.shared_instances import rabbitmq_broker, inventory_exchange, payment_exchange
 from events_consumer.order_event_consumer import order_event_consumer
@@ -39,7 +38,7 @@ order_payment_events_queue = RabbitQueue(
 
 # Register the subscriber function (FastStream requires this at module level)
 @rabbitmq_broker.subscriber(queue=order_saga_response_queue, exchange=inventory_exchange)
-async def handle_order_saga_responses(body: str):
+async def handle_order_saga_responses(body: dict[str, Any]):
     """
     FastStream subscriber function that delegates to the OrderEventConsumer class.
     This pattern gives us:
@@ -47,16 +46,14 @@ async def handle_order_saga_responses(body: str):
     - Proper FastStream integration with decorators
     - Clean separation of concerns
     """
-    message: dict[str, Any] = loads(body)
-    await order_event_consumer.handle_order_saga_response(message)
+    await order_event_consumer.handle_order_saga_response(body)
 
 
 @rabbitmq_broker.subscriber(queue=order_payment_events_queue, exchange=payment_exchange)
-async def handle_order_payment_events(body: str) -> None:
+async def handle_order_payment_events(body: dict[str, Any]) -> None:
     """
     FastStream subscriber for payment events that affect order state.
     Routes payment.failed to handle_payment_failed so the order is cancelled
     and any reserved inventory is released.
     """
-    message: dict[str, Any] = loads(body)
-    await order_event_consumer.handle_payment_event(message)
+    await order_event_consumer.handle_payment_event(body)
