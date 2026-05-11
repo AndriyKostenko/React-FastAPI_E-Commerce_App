@@ -56,7 +56,7 @@ const CheckoutClient: React.FC<LoginFormProps> = ({ currentUserJWT }) => {
                     body: JSON.stringify({
                         order_id: draftOrderId,
                         amount: Math.round(cartTotalAmount * 100),
-                        currency: "usd",
+                        currency: "cad",
                     }),
                 });
 
@@ -83,7 +83,7 @@ const CheckoutClient: React.FC<LoginFormProps> = ({ currentUserJWT }) => {
         };
 
         createIntent();
-    }, [cartProducts, currentUserJWT, clientSecret, draftOrderId, cartTotalAmount, handleSetPaymentIntent, router]);
+    }, [cartProducts, currentUserJWT, clientSecret, cartTotalAmount, handleSetPaymentIntent, router]);
 
     const options: StripeElementsOptions = {
         clientSecret,
@@ -157,6 +157,28 @@ const CheckoutClient: React.FC<LoginFormProps> = ({ currentUserJWT }) => {
         }
     }, [createdOrderId, cartProducts, currentUserJWT, paymentIntent, draftOrderId, cartTotalAmount, router]);
 
+    const cancelOrderAfterFailure = useCallback(async (): Promise<void> => {
+        if (!draftOrderId || !currentUserJWT) return;
+        try {
+            await fetch(`${API_BASE_URL}/orders/${draftOrderId}/cancel`, {
+                method: "PATCH",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${currentUserJWT}`,
+                },
+                body: JSON.stringify({ reason: "Payment failed" }),
+            });
+        } catch (err) {
+            console.error("Failed to cancel order after payment failure:", err);
+        } finally {
+            // Reset so the useEffect re-runs and creates a fresh payment intent
+            setClientSecret(undefined);
+            setDraftOrderId(null);
+            setCreatedOrderId(null);
+            handleSetPaymentIntent(null);
+        }
+    }, [draftOrderId, currentUserJWT, handleSetPaymentIntent]);
+
     return (
         <div className="w-full">
             {(!cartProducts || cartProducts.length === 0) && (
@@ -172,6 +194,7 @@ const CheckoutClient: React.FC<LoginFormProps> = ({ currentUserJWT }) => {
                 <Elements options={options} stripe={stripePromise}>
                     <CheckoutForm
                         onCreateOrder={createOrderBeforePayment}
+                        onPaymentFailed={cancelOrderAfterFailure}
                         onPaymentConfirmed={async () => {
                             handleClearCart();
                             handleSetPaymentIntent(null);
@@ -189,7 +212,7 @@ const CheckoutClient: React.FC<LoginFormProps> = ({ currentUserJWT }) => {
             {error && <div className="text-center text-rose-500">Something went wrong...</div>}
             {paymentSuccess && (
                 <div className="flex items-center flex-col gap-4">
-                    <div className="text-yeal-500 text-center">Payment Success</div>
+                    <div className="text-teal-500 text-center">Payment Success</div>
                     <div className="max-w-[220px] w-full">
                         <Button label="View Your Orders" onClick={() => router.push("/orders/")} />
                     </div>

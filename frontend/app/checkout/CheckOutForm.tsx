@@ -18,9 +18,10 @@ type CheckoutAddress = {
 interface CheckoutFormProps {
     onCreateOrder: (address: CheckoutAddress) => Promise<boolean>;
     onPaymentConfirmed: () => Promise<void>;
+    onPaymentFailed: () => Promise<void>;
 }
 
-const CheckoutForm: React.FC<CheckoutFormProps> = ({ onCreateOrder, onPaymentConfirmed }) => {
+const CheckoutForm: React.FC<CheckoutFormProps> = ({ onCreateOrder, onPaymentConfirmed, onPaymentFailed }) => {
     const { cartTotalAmount } = useCart();
     const stripe = useStripe();
     const elements = useElements();
@@ -36,48 +37,40 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({ onCreateOrder, onPaymentCon
 
         setIsLoading(true);
 
-        const addressElement = elements.getElement("address");
-        const addressValue = await addressElement?.getValue();
+        try {
+            const addressElement = elements.getElement("address");
+            const addressValue = await addressElement?.getValue();
 
-        if (!addressValue?.complete) {
+            if (!addressValue?.complete) {
+                toast.error("Please provide a complete shipping address.");
+                return;
+            }
+
+            const { line1, city, state, postal_code } = addressValue.value.address;
+
+            const orderCreated = await onCreateOrder({ line1, city, state, postal_code });
+            if (!orderCreated) {
+                return;
+            }
+
+            const result = await stripe.confirmPayment({
+                elements,
+                redirect: "if_required",
+            });
+
+            if (result.error) {
+                toast.error(result.error.message || "Payment failed.");
+                await onPaymentFailed();
+                return;
+            }
+
+            await onPaymentConfirmed();
+        } catch (e) {
+            console.error("Checkout error:", e);
+            toast.error("An unexpected error occurred. Please try again.");
+        } finally {
             setIsLoading(false);
-            toast.error("Please provide a complete shipping address.");
-            return;
         }
-
-        const { line1, city, state, postal_code } = addressValue.value.address;
-
-        if (!line1 || !city || !state || !postal_code) {
-            setIsLoading(false);
-            toast.error("Shipping address is incomplete.");
-            return;
-        }
-
-        const orderCreated = await onCreateOrder({
-            line1,
-            city,
-            state,
-            postal_code,
-        });
-        if (!orderCreated) {
-            setIsLoading(false);
-            return;
-        }
-
-        const result = await stripe.confirmPayment({
-            elements,
-            redirect: "if_required",
-        });
-
-        if (result.error) {
-            setIsLoading(false);
-            toast.error(result.error.message || "Payment failed.");
-            return;
-        }
-
-        await onPaymentConfirmed();
-
-        setIsLoading(false);
     };
 
     return (
@@ -102,7 +95,7 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({ onCreateOrder, onPaymentCon
                 Total: {formattedPrice}
             </div>
 
-            <Button label={isLoading ? "Processing" : "Pay now"} disabled={isLoading || !stripe || !elements} onClick={() => {}} />
+            <Button label={isLoading ? "Processing" : "Pay now"} type="submit" disabled={isLoading || !stripe || !elements} onClick={() => {}} />
         </form>
     );
 };

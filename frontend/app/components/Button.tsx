@@ -10,6 +10,7 @@ interface ButtonProps{
     small?: boolean,
     custom?: string,
     icon?: IconType,
+    type?: "submit" | "button" | "reset",
     onClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
 }
 
@@ -22,6 +23,7 @@ const Button: React.FC<ButtonProps> = ({
                                         small,
                                         custom,
                                         icon: Icon,
+                                        type,
                                         onClick
                                     }) => {
     return ( 
@@ -41,6 +43,7 @@ const Button: React.FC<ButtonProps> = ({
                             ${small ? "text-sm font-light" : "text-md font-semibold"}
                             ${small ? "py-1 px-2 border-[1px]" : "py-3 px-4 border-2"}
                             ${custom ? custom : ""}`} 
+                type={type}
                 disabled={disabled}
                 onClick={onClick}>
             {Icon && <Icon size={24}/>}
