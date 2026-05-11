@@ -14,6 +14,7 @@ from exceptions.payment_exceptions import (
     PaymentsNotFoundError,
     DuplicatePaymentIntentError,
     PaymentCreationError,
+    PaymentAlreadyFinalizedError,
     InvalidStripeWebhookSignature,
     StripePaymentIntentCreationError,
     PaymentRefundError,
@@ -48,6 +49,31 @@ class PaymentService:
         self._stripe_api_key: str = self.settings.STRIPE_TEST_SECRET_KEY
         self._stripe: StripeClient = StripeClient(api_key=self._stripe_api_key)
 
+    def _create_intent_idempotency_key(self, order_id: UUID) -> str:
+        return f"payment_intent:create:{order_id}"
+
+    def _create_stripe_payment_intent(
+        self,
+        order_id: UUID,
+        user_id: UUID,
+        user_email: str,
+        amount: int,
+        currency: str,
+    ) -> Any:
+        return self._stripe.v1.payment_intents.create(
+            {
+                "amount": amount,
+                "currency": currency,
+                "metadata": {
+                    "order_id": str(order_id),
+                    "user_id": str(user_id),
+                    "user_email": user_email,
+                },
+                "automatic_payment_methods": {"enabled": True},
+            },
+            options={"idempotency_key": self._create_intent_idempotency_key(order_id)},
+        )
+
     async def create_payment_intent(self,
                                     order_id: UUID,
                                     user_id: UUID,
@@ -61,33 +87,57 @@ class PaymentService:
         frontend can confirm the payment via Stripe.js.
         """
         try:
-            intent = self._stripe.v1.payment_intents.create({
-                "amount": amount,
-                "currency": currency,
-                "metadata": {
+            existing_payment = await self.repository.get_by_field(field_name="order_id", value=order_id)
+
+            if existing_payment and existing_payment.status in {PaymentStatus.SUCCEEDED, PaymentStatus.REFUNDED}:
+                raise PaymentAlreadyFinalizedError(order_id=order_id)
+
+            if existing_payment and existing_payment.status == PaymentStatus.PENDING:
+                existing_intent = self._stripe.v1.payment_intents.retrieve(existing_payment.stripe_payment_intent_id)
+                return {
+                    "client_secret": existing_intent.client_secret,
+                    "stripe_payment_intent_id": existing_payment.stripe_payment_intent_id,
+                    "payment_id": str(existing_payment.id),
                     "order_id": str(order_id),
-                    "user_id": str(user_id),
-                    "user_email": user_email,
-                },
-                "automatic_payment_methods": {"enabled": True},
-            })
+                }
+
+            intent = self._create_stripe_payment_intent(
+                order_id=order_id,
+                user_id=user_id,
+                user_email=user_email,
+                amount=amount,
+                currency=currency,
+            )
         except StripeError as exc:
             raise StripePaymentIntentCreationError(detail=str(exc))
 
         try:
-            async with self.repository.session.begin_nested():
-                # creates a **savepoint** — a checkpoint *within* the outer transactio
-                payment = await self.repository.create(
-                    Payment(
-                        order_id=order_id,
-                        user_id=user_id,
-                        user_email=user_email,
-                        stripe_payment_intent_id=intent.id,
-                        amount=amount,
-                        currency=currency,
-                        status=PaymentStatus.PENDING,
+            if existing_payment and existing_payment.status in {PaymentStatus.FAILED, PaymentStatus.CANCELLED}:
+                async with self.repository.session.begin_nested():
+                    payment = await self.repository.update_by_id(
+                        item_id=existing_payment.id,
+                        data={
+                            "stripe_payment_intent_id": intent.id,
+                            "amount": amount,
+                            "currency": currency,
+                            "status": PaymentStatus.PENDING,
+                            "failure_reason": None,
+                            "user_email": user_email,
+                        },
                     )
-                )
+            else:
+                async with self.repository.session.begin_nested():
+                    payment = await self.repository.create(
+                        Payment(
+                            order_id=order_id,
+                            user_id=user_id,
+                            user_email=user_email,
+                            stripe_payment_intent_id=intent.id,
+                            amount=amount,
+                            currency=currency,
+                            status=PaymentStatus.PENDING,
+                        )
+                    )
         except IntegrityError:
             raise DuplicatePaymentIntentError(payment_intent_id=intent.id)
 

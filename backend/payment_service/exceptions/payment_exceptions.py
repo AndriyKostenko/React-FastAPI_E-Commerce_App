@@ -29,6 +29,14 @@ class PaymentCreationError(BaseAPIException):
         super().__init__(status_code=500, detail=detail)
 
 
+class PaymentAlreadyFinalizedError(BaseAPIException):
+    def __init__(self, order_id: UUID) -> None:
+        super().__init__(
+            status_code=409,
+            detail=f"Payment for order '{order_id}' is already finalized and cannot create a new PaymentIntent.",
+        )
+
+
 class InvalidStripeWebhookSignature(BaseAPIException):
     def __init__(self) -> None:
         super().__init__(status_code=400, detail="Invalid Stripe webhook signature.")

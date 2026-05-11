@@ -99,11 +99,12 @@ class OrderEventConsumer:
         """
         try:
             event = PaymentSucceededEvent(**message)
-
-            if await self.idempotency_service.is_event_processed(event_id=event.event_id, event_type=event.event_type):
+            claimed = await self.idempotency_service.try_claim_event(event_id=event.event_id, event_type=event.event_type)
+            if not claimed:
                 self.logger.info(f"Skipping duplicate payment.succeeded event for order: {event.order_id}")
                 return
 
+            result = "payment_succeeded_noop"
             async for order_service in self._get_order_service():
                 try:
                     current_order = await order_service.get_order_by_id(order_id=event.order_id)
@@ -111,13 +112,15 @@ class OrderEventConsumer:
                     self.logger.warning(
                         f"Order {event.order_id} not found for payment.succeeded event — skipping"
                     )
-                    return
+                    result = "order_not_found"
+                    break
 
                 if current_order.status == OrderStatus.CANCELLED:
                     self.logger.info(
                         f"Order {event.order_id} already CANCELLED — skipping payment.succeeded transition"
                     )
-                    return
+                    result = "order_already_cancelled"
+                    break
 
                 if current_order.status == OrderStatus.PENDING:
                     _ = await order_service.update_order_status(
@@ -135,15 +138,26 @@ class OrderEventConsumer:
                         }
                     )
                     self.logger.info(f"Published OrderConfirmedEvent for order: {event.order_id}")
+                    result = "payment_succeeded_confirmed"
+                else:
+                    result = f"no_transition_from_{current_order.status}"
 
             await self.idempotency_service.mark_event_as_processed(
                 event_id=event.event_id,
                 event_type=event.event_type,
                 order_id=event.order_id,
-                result="payment_succeeded",
+                result=result,
             )
 
         except Exception as e:
+            try:
+                if message.get("event_id") and message.get("event_type"):
+                    await self.idempotency_service.release_claim(
+                        event_id=message["event_id"],
+                        event_type=message["event_type"],
+                    )
+            except Exception:
+                pass
             self.logger.error(f"Error handling payment.succeeded for order {message.get('order_id')}: {e}")
             raise
 
@@ -161,10 +175,12 @@ class OrderEventConsumer:
         try:
             # Parse the event
             event = InventoryReserveSucceeded(**message)
-            if await self.idempotency_service.is_event_processed(event_id=event.event_id, event_type=event.event_type):
+            claimed = await self.idempotency_service.try_claim_event(event_id=event.event_id, event_type=event.event_type)
+            if not claimed:
                 self.logger.info(f"Skipping duplicate 'Inventory reservation succedded' event for order: {event.order_id}")
                 return # skipping coa already processed
             self.logger.info(f"Processing 'Inventory reservation succedded' for order {event.order_id}")
+            result = "inventory_succeeded_noop"
             # Get order service with database session
             async for order_service in self._get_order_service():
                 # Guard: only confirm if the order is still PENDING.
@@ -173,11 +189,13 @@ class OrderEventConsumer:
                     current_order = await order_service.get_order_by_id(order_id=event.order_id)
                 except OrderNotFoundError:
                     self.logger.warning(f"Order: {event.order_id} not found — skipping inventory.reserve.succeeded")
-                    return
+                    result = "order_not_found"
+                    break
 
                 if current_order.status != OrderStatus.PENDING:
                     self.logger.warning(f"Order: {event.order_id} is '{current_order.status}' (expected PENDING) — skipping CONFIRMED transition to avoid overwriting a cancelled order")
-                    return
+                    result = f"no_transition_from_{current_order.status}"
+                    break
 
                 # Update order status to CONFIRMED
                 _ = await order_service.update_order_status(
@@ -185,16 +203,18 @@ class OrderEventConsumer:
                     order_status=OrderStatus.CONFIRMED
                 )
                 self.logger.info(f"Updated status to: {OrderStatus.CONFIRMED} for order id: {event.order_id}")
+                result = "inventory_succeeded_confirmed"
 
-            # Publish OrderConfirmedEvent for downstream services (notification, etc.)
-            await order_event_publisher.publish_order_confirmed(
-                event_data={
-                    "order_id": str(event.order_id),
-                    "user_id": str(event.user_id),
-                    "user_email": event.user_email,
-                }
-            )
-            self.logger.info(f"Published OrderConfirmedEvent for order: {event.order_id}")
+            if result == "inventory_succeeded_confirmed":
+                # Publish OrderConfirmedEvent for downstream services (notification, etc.)
+                await order_event_publisher.publish_order_confirmed(
+                    event_data={
+                        "order_id": str(event.order_id),
+                        "user_id": str(event.user_id),
+                        "user_email": event.user_email,
+                    }
+                )
+                self.logger.info(f"Published OrderConfirmedEvent for order: {event.order_id}")
 
             # notification_service and payment_service consume order.confirmed
             # directly from the order.events.exchange — no further action required here.
@@ -204,12 +224,20 @@ class OrderEventConsumer:
                 event_id=event.event_id,
                 event_type=event.event_type,
                 order_id=event.order_id,
-                result='success'
+                result=result
             )
 
             # TODO: notification service/payment services events -> ...
 
         except Exception as e:
+            try:
+                if message.get("event_id") and message.get("event_type"):
+                    await self.idempotency_service.release_claim(
+                        event_id=message["event_id"],
+                        event_type=message["event_type"],
+                    )
+            except Exception:
+                pass
             self.logger.error(f"Error handling inventory reserve succeeded for order {message.get('order_id')}: {str(e)}")
             raise
 
@@ -226,32 +254,40 @@ class OrderEventConsumer:
         try:
             # Parse the event
             event = InventoryReserveFailed(**message)
-            if await self.idempotency_service.is_event_processed(event_id=event.event_id, event_type=event.event_type):
+            claimed = await self.idempotency_service.try_claim_event(event_id=event.event_id, event_type=event.event_type)
+            if not claimed:
                 self.logger.info(f"Skipping duplicate 'Inventory reservation failed' event for order: {event.order_id}")
                 return # skipping coa already processed
             self.logger.info(f"Inventory reservation failed for order {event.order_id}: {event.reasons}")
+            result = "inventory_failed_cancelled"
 
             # Get order service with database session
             async for order_service in self._get_order_service():
                 # Update order status to CANCELLED
-                _ = await order_service.update_order_status(
-                    order_id=event.order_id,
-                    order_status=OrderStatus.CANCELLED
-                )
-                self.logger.info(f"Updated status to {OrderStatus.CANCELLED} for order id: {event.order_id}")
+                try:
+                    _ = await order_service.update_order_status(
+                        order_id=event.order_id,
+                        order_status=OrderStatus.CANCELLED
+                    )
+                    self.logger.info(f"Updated status to {OrderStatus.CANCELLED} for order id: {event.order_id}")
+                except OrderNotFoundError:
+                    self.logger.warning(f"Order: {event.order_id} not found — skipping inventory.reserve.failed")
+                    result = "order_not_found"
+                    break
 
             # Publish OrderCancelledEvent for downstream services (notification, etc.)
-            await order_event_publisher.publish_order_cancelled(
-                event_data={
-                    "service": "order-service",
-                    "event_type": "order.cancelled",
-                    "order_id": str(event.order_id),
-                    "user_id": str(event.user_id),
-                    "user_email": event.user_email,
-                    "reason": event.reasons,  # InventoryReserveFailed uses "reasons" (plural)
-                }
-            )
-            self.logger.info(f"Published OrderCancelledEvent for order {event.order_id}")
+            if result == "inventory_failed_cancelled":
+                await order_event_publisher.publish_order_cancelled(
+                    event_data={
+                        "service": "order-service",
+                        "event_type": "order.cancelled",
+                        "order_id": str(event.order_id),
+                        "user_id": str(event.user_id),
+                        "user_email": event.user_email,
+                        "reason": event.reasons,  # InventoryReserveFailed uses "reasons" (plural)
+                    }
+                )
+                self.logger.info(f"Published OrderCancelledEvent for order {event.order_id}")
 
             # notification_service consumes order.cancelled to send cancellation emails.
             # payment_service consumes order.cancelled to issue refunds where applicable.
@@ -260,12 +296,20 @@ class OrderEventConsumer:
                 event_id=event.event_id,
                 event_type=event.event_type,
                 order_id=event.order_id,
-                result='success'
+                result=result
             )
             # TODO: notification service/payment services events -> ...
 
 
         except Exception as e:
+            try:
+                if message.get("event_id") and message.get("event_type"):
+                    await self.idempotency_service.release_claim(
+                        event_id=message["event_id"],
+                        event_type=message["event_type"],
+                    )
+            except Exception:
+                pass
             self.logger.error(f"Error handling inventory reserve failed for order {message.get('order_id')}: {str(e)}")
             raise
 
@@ -291,11 +335,13 @@ class OrderEventConsumer:
         try:
             event = PaymentFailedEvent(**message)
 
-            if await self.idempotency_service.is_event_processed(event_id=event.event_id, event_type=event.event_type):
+            claimed = await self.idempotency_service.try_claim_event(event_id=event.event_id, event_type=event.event_type)
+            if not claimed:
                 self.logger.info(f"Skipping duplicate payment.failed event for order: {event.order_id}")
                 return
 
             self.logger.info(f"Processing payment.failed for order {event.order_id}: {event.reason}")
+            result = "cancelled_due_to_payment_failure"
 
             async for order_service in self._get_order_service():
                 try:
@@ -308,21 +354,31 @@ class OrderEventConsumer:
                     self.logger.warning(
                         f"Order {event.order_id} not found for payment.failed event — skipping"
                     )
-                    return
+                    result = "order_not_found"
+                    break
                 except OrderNotCancellableError:
                     self.logger.info(
                         f"Order {event.order_id} already CANCELLED — skipping payment.failed"
                     )
-                    return
+                    result = "order_already_cancelled"
+                    break
 
             await self.idempotency_service.mark_event_as_processed(
                 event_id=event.event_id,
                 event_type=event.event_type,
                 order_id=event.order_id,
-                result="cancelled_due_to_payment_failure",
+                result=result,
             )
 
         except Exception as e:
+            try:
+                if message.get("event_id") and message.get("event_type"):
+                    await self.idempotency_service.release_claim(
+                        event_id=message["event_id"],
+                        event_type=message["event_type"],
+                    )
+            except Exception:
+                pass
             self.logger.error(f"Error handling payment.failed for order {message.get('order_id')}: {e}")
             raise
 
@@ -340,11 +396,13 @@ class OrderEventConsumer:
         try:
             event = PaymentCancelledEvent(**message)
 
-            if await self.idempotency_service.is_event_processed(event_id=event.event_id, event_type=event.event_type):
+            claimed = await self.idempotency_service.try_claim_event(event_id=event.event_id, event_type=event.event_type)
+            if not claimed:
                 self.logger.info(f"Skipping duplicate payment.cancelled event for order: {event.order_id}")
                 return
 
             self.logger.info(f"Processing payment.cancelled for order {event.order_id}: {event.reason}")
+            result = "cancelled_due_to_payment_cancellation"
 
             async for order_service in self._get_order_service():
                 try:
@@ -357,21 +415,31 @@ class OrderEventConsumer:
                     self.logger.warning(
                         f"Order {event.order_id} not found for payment.cancelled event — skipping"
                     )
-                    return
+                    result = "order_not_found"
+                    break
                 except OrderNotCancellableError:
                     self.logger.info(
                         f"Order {event.order_id} already CANCELLED — skipping payment.cancelled"
                     )
-                    return
+                    result = "order_already_cancelled"
+                    break
 
             await self.idempotency_service.mark_event_as_processed(
                 event_id=event.event_id,
                 event_type=event.event_type,
                 order_id=event.order_id,
-                result="cancelled_due_to_payment_cancellation",
+                result=result,
             )
 
         except Exception as e:
+            try:
+                if message.get("event_id") and message.get("event_type"):
+                    await self.idempotency_service.release_claim(
+                        event_id=message["event_id"],
+                        event_type=message["event_type"],
+                    )
+            except Exception:
+                pass
             self.logger.error(f"Error handling payment.cancelled for order {message.get('order_id')}: {e}")
             raise
 
