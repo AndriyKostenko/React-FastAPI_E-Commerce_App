@@ -9,7 +9,13 @@ from models.order_models import Order
 from service_layer.outbox_event_service import OutboxEventService
 from shared.schemas.order_schemas import CreateOrder, OrderItemBase, OrderSchema, OrderAddressBase, UpdateOrder
 from exceptions.order_exceptions import OrderNotFoundError, OrdersNotFoundError, DuplicatePaymentIntentError, OrderNotCancellableError
-from shared.schemas.event_schemas import OrderCreatedEvent, InventoryReserveRequested, OrderCancelledEvent, InventoryReleaseRequested
+from shared.schemas.event_schemas import (
+    OrderCreatedEvent,
+    InventoryReserveRequested,
+    OrderCancelledEvent,
+    InventoryReleaseRequested,
+    OrderConfirmedEvent,
+)
 from shared.enums.event_enums import InventoryEvents, OrderEvents
 from shared.enums.status_enums import OrderStatus, OrderDeliveryStatus
 from shared.enums.services_enums import Services
@@ -165,7 +171,29 @@ class OrderService:
 
     async def update_order(self, order_id: UUID, order_data: UpdateOrder) -> OrderSchema:
         update_fields = order_data.model_dump(exclude_unset=True)
-        updated_order = await self.repository.update_by_id(order_id, data=update_fields)
+        current_order = await self.repository.get_by_id(order_id)
+        if not current_order:
+            raise OrderNotFoundError(order_id)
+
+        async with self.repository.session.begin_nested():
+            updated_order = await self.repository.update_by_id(order_id, data=update_fields)
+
+            status_transitioned_to_confirmed = (
+                update_fields.get("status") == OrderStatus.CONFIRMED
+                and current_order.status != OrderStatus.CONFIRMED
+            )
+            if status_transitioned_to_confirmed:
+                await self.outbox_event_service.add_outbox_event(
+                    event_type=OrderEvents.ORDER_CONFIRMED,
+                    payload=OrderConfirmedEvent(
+                        service=Services.ORDER_SERVICE,
+                        event_type=OrderEvents.ORDER_CONFIRMED,
+                        order_id=updated_order.id,
+                        user_id=updated_order.user_id,
+                        user_email=updated_order.user_email,
+                    ),
+                )
+
         if not updated_order:
             raise OrderNotFoundError(order_id)
         return OrderSchema.model_validate(updated_order)

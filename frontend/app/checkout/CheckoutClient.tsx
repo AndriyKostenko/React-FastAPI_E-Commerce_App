@@ -157,39 +157,6 @@ const CheckoutClient: React.FC<LoginFormProps> = ({ currentUserJWT }) => {
         }
     }, [createdOrderId, cartProducts, currentUserJWT, paymentIntent, draftOrderId, cartTotalAmount, router]);
 
-    const handleCheckoutSuccess = useCallback(async () => {
-        const orderIdToFinalize = createdOrderId || draftOrderId;
-        if (orderIdToFinalize && currentUserJWT) {
-            try {
-                const response = await fetch(`${API_BASE_URL}/orders/${orderIdToFinalize}`, {
-                    method: "PATCH",
-                    headers: {
-                        "Content-Type": "application/json",
-                        "Authorization": `Bearer ${currentUserJWT}`,
-                    },
-                    body: JSON.stringify({
-                        status: "confirmed",
-                        amount: cartTotalAmount,
-                    }),
-                });
-
-                if (!response.ok) {
-                    console.error("Failed to finalize paid order status:", response.status);
-                }
-            } catch (finalizeError) {
-                console.error("Error finalizing paid order status:", finalizeError);
-            }
-        }
-
-        handleClearCart();
-        handleSetPaymentIntent(null);
-        setDraftOrderId(null);
-        setCreatedOrderId(null);
-        setClientSecret(undefined);
-        setPaymentSuccess(true);
-        toast.success("Payment successful. Order created.");
-    }, [createdOrderId, draftOrderId, currentUserJWT, cartTotalAmount, handleClearCart, handleSetPaymentIntent]);
-
     return (
         <div className="w-full">
             {(!cartProducts || cartProducts.length === 0) && (
@@ -203,7 +170,18 @@ const CheckoutClient: React.FC<LoginFormProps> = ({ currentUserJWT }) => {
 
             {clientSecret && cartProducts && cartProducts.length > 0 && (
                 <Elements options={options} stripe={stripePromise}>
-                    <CheckoutForm onCreateOrder={createOrderBeforePayment} onPaymentConfirmed={handleCheckoutSuccess} />
+                    <CheckoutForm
+                        onCreateOrder={createOrderBeforePayment}
+                        onPaymentConfirmed={async () => {
+                            handleClearCart();
+                            handleSetPaymentIntent(null);
+                            setDraftOrderId(null);
+                            setCreatedOrderId(null);
+                            setClientSecret(undefined);
+                            setPaymentSuccess(true);
+                            toast.success("Payment successful. Order created.");
+                        }}
+                    />
                 </Elements>
             )}
 

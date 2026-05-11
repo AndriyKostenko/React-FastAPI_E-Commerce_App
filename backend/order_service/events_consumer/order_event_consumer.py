@@ -127,6 +127,14 @@ class OrderEventConsumer:
                     self.logger.info(
                         f"Order {event.order_id} moved to {OrderStatus.CONFIRMED} on payment.succeeded"
                     )
+                    await order_event_publisher.publish_order_confirmed(
+                        event_data={
+                            "order_id": str(event.order_id),
+                            "user_id": str(event.user_id),
+                            "user_email": event.user_email,
+                        }
+                    )
+                    self.logger.info(f"Published OrderConfirmedEvent for order: {event.order_id}")
 
             await self.idempotency_service.mark_event_as_processed(
                 event_id=event.event_id,
