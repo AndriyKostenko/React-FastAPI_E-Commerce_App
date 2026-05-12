@@ -3,7 +3,6 @@ from uuid import UUID
 from fastapi.responses import JSONResponse
 from fastapi import APIRouter, status, Request, Query
 
-from shared.shared_instances import notification_service_redis_manager
 from shared.schemas.notifications_schemas import NotificationInfo, NotificationsFilterParams
 from dependencies.dependencies import notification_service_dependency
 
@@ -14,7 +13,6 @@ notification_routes = APIRouter(tags=["notification-service"])
 @notification_routes.get("/notifications/users/{user_id}",
                          summary="Get all notifications for a user",
                          response_model=list[NotificationInfo])
-@notification_service_redis_manager.ratelimiter(times=30, seconds=60)
 async def get_user_notifications(
     request: Request,
     user_id: UUID,
@@ -46,7 +44,6 @@ async def get_user_notifications(
 
 @notification_routes.get("/notifications/users/{user_id}/unread-count",
                          summary="Get unread notification count for a user")
-@notification_service_redis_manager.ratelimiter(times=30, seconds=60)
 async def get_unread_count(
     request: Request,
     user_id: UUID,

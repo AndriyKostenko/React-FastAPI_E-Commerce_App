@@ -4,7 +4,6 @@ from uuid import UUID
 
 from fastapi import APIRouter, File, Form, Query, Request, UploadFile, status
 from shared.utils.customized_json_response import JSONResponse
-from shared.shared_instances import product_service_redis_manager
 
 from dependencies.dependencies import (
     product_service_dependency,
@@ -27,7 +26,6 @@ product_routes = APIRouter(tags=["products"])
     summary="Create product (JSON)",
     response_description="New product created",
 )
-@product_service_redis_manager.ratelimiter(times=10, seconds=60)
 async def create_product_json(
     request: Request,
     product_service: product_service_dependency,
@@ -38,9 +36,6 @@ async def create_product_json(
     """
     created_product = await product_service.create_product_item(
         product_data=product_data
-    )
-    await product_service_redis_manager.clear_cache_namespace(
-        namespace="products", request=request
     )
     return JSONResponse(content=created_product, status_code=status.HTTP_201_CREATED)
 
@@ -68,7 +63,6 @@ async def create_product_with_images(
     Create a new product with optional image uploads.
     Used by frontend forms that need to upload files.
     """
-    # Validate and prepare product data
     product_data = CreateProduct(
         name=name,
         description=description,
@@ -84,17 +78,12 @@ async def create_product_with_images(
         image_colors=image_colors,
         image_color_codes=image_color_codes,
     )
-    await product_service_redis_manager.clear_cache_namespace(
-        namespace="products", request=request
-    )
     return JSONResponse(content=created_product, status_code=status.HTTP_201_CREATED)
 
 
 @product_routes.get(
     "/products", response_model=list[ProductBase], response_description="All products"
 )
-@product_service_redis_manager.cached(ttl=300)
-@product_service_redis_manager.ratelimiter(times=100, seconds=60)
 async def get_all_products(
     request: Request,
     product_service: product_service_dependency,
@@ -111,8 +100,6 @@ async def get_all_products(
     response_model=list[ProductSchema],
     response_description="All products with relations",
 )
-@product_service_redis_manager.cached(ttl=600)
-@product_service_redis_manager.ratelimiter(times=50, seconds=60)
 async def get_all_products_detailed(
     request: Request,
     product_service: product_service_dependency,
@@ -129,8 +116,6 @@ async def get_all_products_detailed(
     response_model=ProductBase,
     response_description="Product by ID",
 )
-@product_service_redis_manager.cached(ttl=180)
-@product_service_redis_manager.ratelimiter(times=200, seconds=60)
 async def get_product_by_id(
     request: Request, product_id: UUID, product_service: product_service_dependency
 ) -> JSONResponse:
@@ -145,8 +130,6 @@ async def get_product_by_id(
     response_model=ProductBase,
     response_description="Product by ID",
 )
-@product_service_redis_manager.cached(ttl=180)
-@product_service_redis_manager.ratelimiter(times=200, seconds=60)
 async def get_product_by_id_detailed(
     request: Request, product_id: UUID, product_service: product_service_dependency
 ) -> JSONResponse:
@@ -156,14 +139,12 @@ async def get_product_by_id_detailed(
     return JSONResponse(content=product, status_code=status.HTTP_200_OK)
 
 
-# JSON endpoint for updating product
 @product_routes.patch(
     "/products/{product_id}",
     response_model=ProductBase,
     summary="Update product (JSON)",
     response_description="Product updated",
 )
-@product_service_redis_manager.ratelimiter(times=30, seconds=60)
 async def update_product_json(
     request: Request,
     product_id: UUID,
@@ -177,9 +158,6 @@ async def update_product_json(
     product = await product_service.update_product(
         product_id=product_id, product_data=product_data
     )
-    await product_service_redis_manager.clear_cache_namespace(
-        namespace="products", request=request
-    )
     return JSONResponse(content=product, status_code=status.HTTP_200_OK)
 
 
@@ -188,26 +166,19 @@ async def update_product_json(
     response_description="Product deleted",
     status_code=status.HTTP_204_NO_CONTENT,
 )
-@product_service_redis_manager.ratelimiter(times=10, seconds=60)
 async def delete_product_by_id(
     request: Request, product_id: UUID, product_service: product_service_dependency
 ):
     await product_service.delete_product_by_id(product_id=product_id)
-    # Clear ALL product-related cache
-    await product_service_redis_manager.clear_cache_namespace(
-        namespace="products", request=request
-    )
     return
 
 
-# FormData endpoint for updating product with images
 @product_routes.patch(
     "/products/{product_id}/upload",
     response_model=ProductBase,
     summary="Update product with images (FormData)",
     response_description="Product updated with images",
 )
-@product_service_redis_manager.ratelimiter(times=30, seconds=60)
 async def update_product_with_images(
     request: Request,
     product_id: UUID,
@@ -237,9 +208,6 @@ async def update_product_with_images(
     product = await product_service.update_product(
         product_id=product_id,
         product_data=product_data,
-    )
-    await product_service_redis_manager.clear_cache_namespace(
-        namespace="products", request=request
     )
     return JSONResponse(content=product, status_code=status.HTTP_200_OK)
 

@@ -5,7 +5,6 @@ from fastapi import APIRouter, Request, status
 
 from shared.utils.customized_json_response import JSONResponse
 from shared.schemas.payment_schemas import PaymentSchema
-from shared.shared_instances import payment_service_redis_manager
 from dependencies.dependencies import payment_service_dependency
 from shared.shared_instances import payment_event_idempotency_service as idempotency_service
 
@@ -16,7 +15,6 @@ payment_routes = APIRouter(tags=["payments"])
 @payment_routes.post("/payments/create-intent",
                     summary="Create a Stripe PaymentIntent",
                     response_description="Stripe client_secret and payment_intent_id returned to the frontend",)
-@payment_service_redis_manager.ratelimiter(times=20, seconds=60)
 async def create_payment_intent(request: Request,
                                 payment_service: payment_service_dependency,
                                 payment_data: PaymentSchema) -> JSONResponse:
@@ -105,7 +103,6 @@ async def stripe_webhook(request: Request,
 
 
 @payment_routes.get("/payments/{payment_id}",summary="Get payment by ID",)
-@payment_service_redis_manager.ratelimiter(times=100, seconds=60)
 async def get_payment_by_id(
     request: Request,
     payment_id: UUID,
@@ -116,7 +113,6 @@ async def get_payment_by_id(
 
 
 @payment_routes.get("/payments", summary="List all payments (admin)")
-@payment_service_redis_manager.ratelimiter(times=50, seconds=60)
 async def get_payments(
     request: Request,
     payment_service: payment_service_dependency,

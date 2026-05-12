@@ -4,7 +4,6 @@ from uuid import UUID
 from fastapi import APIRouter, File, Form, Request, UploadFile, status
 
 from shared.utils.customized_json_response import JSONResponse
-from shared.shared_instances import product_service_redis_manager
 from dependencies.dependencies import product_image_service_dependency
 from models.product_image_models import ProductImage
 from shared.schemas.product_image_schema import ProductImageSchema
@@ -17,7 +16,6 @@ product_images_routes = APIRouter(tags=["product_images"])
     response_model=list[ProductImageSchema],
     response_description="Add images to product",
 )
-@product_service_redis_manager.ratelimiter(times=10, seconds=60)
 async def add_product_images(
     request: Request,
     image_service: product_image_service_dependency,
@@ -31,9 +29,6 @@ async def add_product_images(
         images=images,
         colors=colors,
         color_codes=color_codes,
-    )
-    await product_service_redis_manager.clear_cache_namespace(
-        request=request, namespace="product_images"
     )
     return JSONResponse(content=new_product_images, status_code=status.HTTP_201_CREATED)
 
@@ -51,8 +46,6 @@ async def get_all_images(
     response_model=List[ProductImageSchema],
     response_description="Get all images for a product",
 )
-@product_service_redis_manager.cached(ttl=300)
-@product_service_redis_manager.ratelimiter(times=100, seconds=60)
 async def get_product_images(
     request: Request, product_id: UUID, image_service: product_image_service_dependency
 ) -> JSONResponse:
@@ -65,8 +58,6 @@ async def get_product_images(
     response_model=ProductImageSchema,
     response_description="Get image by ID",
 )
-@product_service_redis_manager.cached(ttl=300)
-@product_service_redis_manager.ratelimiter(times=200, seconds=60)
 async def get_image_by_id(
     request: Request, image_id: UUID, image_service: product_image_service_dependency
 ) -> JSONResponse:
@@ -79,7 +70,6 @@ async def get_image_by_id(
     response_model=List[ProductImageSchema],
     response_description="Replace all product images",
 )
-@product_service_redis_manager.ratelimiter(times=5, seconds=60)
 async def replace_product_images(
     request: Request,
     image_service: product_image_service_dependency,
@@ -94,9 +84,6 @@ async def replace_product_images(
         image_colors=image_colors,
         color_codes=color_codes
     )
-    await product_service_redis_manager.clear_cache_namespace(
-        request=request, namespace="product_images"
-    )
     return JSONResponse(content=updated_images, status_code=status.HTTP_200_OK)
 
 
@@ -105,7 +92,6 @@ async def replace_product_images(
     response_model=ProductImageSchema,
     response_description="Update single image",
 )
-@product_service_redis_manager.ratelimiter(times=20, seconds=60)
 async def update_product_image(
     request: Request,
     image_id: UUID,
@@ -120,10 +106,6 @@ async def update_product_image(
         image_color=image_color,
         image_color_code=image_color_code,
     )
-    await product_service_redis_manager.clear_cache_namespace(
-        request=request,
-        namespace="product_images",
-    )
     return JSONResponse(content=updated_image, status_code=status.HTTP_200_OK)
 
 
@@ -132,14 +114,10 @@ async def update_product_image(
     response_description="Delete image by ID",
     status_code=status.HTTP_204_NO_CONTENT,
 )
-@product_service_redis_manager.ratelimiter(times=10, seconds=60)
 async def delete_product_image(
     request: Request, image_id: UUID, image_service: product_image_service_dependency
 ) -> None:
     await image_service.delete_product_image(image_id)
-    await product_service_redis_manager.clear_cache_namespace(
-        request=request, namespace="product_images"
-    )
     return
 
 

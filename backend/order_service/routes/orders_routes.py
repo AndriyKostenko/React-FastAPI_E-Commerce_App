@@ -3,7 +3,6 @@ from uuid import UUID
 from fastapi import APIRouter, Request, status
 
 from shared.utils.customized_json_response import JSONResponse
-from shared.shared_instances import order_service_redis_manager
 from shared.schemas.order_schemas import CreateOrder, UpdateOrder, OrderSchema, CancelOrder
 from dependencies.dependencies import order_service_dependency
 from models.order_models import Order
@@ -15,17 +14,13 @@ order_routes = APIRouter(tags=["orders"])
                     response_model=OrderSchema,
                     summary="Create order",
                     response_description="New order created")
-@order_service_redis_manager.ratelimiter(times=10, seconds=60)
 async def create_order(request: Request, order_service: order_service_dependency, order_data: CreateOrder,) -> JSONResponse:
     new_db_order = await order_service.create_order(order_data=order_data)
-    await order_service_redis_manager.clear_cache_namespace(namespace="orders", request=request)
     return JSONResponse(content=new_db_order, status_code=status.HTTP_201_CREATED)
 
 
 @order_routes.get("/orders",
                     response_model=list[OrderSchema])
-@order_service_redis_manager.cached(ttl=300)
-@order_service_redis_manager.ratelimiter(times=100, seconds=60)
 async def get_orders(request: Request,
                     order_service: order_service_dependency) -> JSONResponse:
     orders = await order_service.get_orders()
@@ -35,8 +30,6 @@ async def get_orders(request: Request,
 @order_routes.get("/orders/{order_id}",
                   response_model=OrderSchema,
                   summary="Get order by ID")
-@order_service_redis_manager.cached(ttl=180)
-@order_service_redis_manager.ratelimiter(times=200, seconds=60)
 async def get_order_by_id(
     request: Request,
     order_id: UUID,
@@ -49,7 +42,6 @@ async def get_order_by_id(
 @order_routes.get("/orders/user/{user_id}",
                   response_model=list[OrderSchema],
                   summary="Get orders by user ID")
-@order_service_redis_manager.ratelimiter(times=200, seconds=60)
 async def get_orders_by_user_id(
     request: Request,
     user_id: UUID,
@@ -62,7 +54,6 @@ async def get_orders_by_user_id(
 @order_routes.patch("/orders/{order_id}",
                     response_model=OrderSchema,
                     summary="Update order")
-@order_service_redis_manager.ratelimiter(times=30, seconds=60)
 async def update_order(
     request: Request,
     order_id: UUID,
@@ -70,14 +61,12 @@ async def update_order(
     order_data: UpdateOrder,
 ) -> JSONResponse:
     order = await order_service.update_order(order_id=order_id, order_data=order_data)
-    await order_service_redis_manager.clear_cache_namespace(namespace="orders", request=request)
     return JSONResponse(content=order, status_code=status.HTTP_200_OK)
 
 
 @order_routes.patch("/orders/{order_id}/cancel",
                     response_model=OrderSchema,
                     summary="Cancel an order")
-@order_service_redis_manager.ratelimiter(times=10, seconds=60)
 async def cancel_order(
     request: Request,
     order_id: UUID,
@@ -85,21 +74,18 @@ async def cancel_order(
     cancel_data: CancelOrder,
 ) -> JSONResponse:
     order = await order_service.cancel_order(order_id=order_id, reason=cancel_data.reason)
-    await order_service_redis_manager.clear_cache_namespace(namespace="orders", request=request)
     return JSONResponse(content=order, status_code=status.HTTP_200_OK)
 
 
 @order_routes.delete("/orders/{order_id}",
                      summary="Delete order",
                      status_code=status.HTTP_204_NO_CONTENT)
-@order_service_redis_manager.ratelimiter(times=10, seconds=60)
 async def delete_order_by_id(
     request: Request,
     order_id: UUID,
     order_service: order_service_dependency,
 ):
     await order_service.delete_order_by_id(order_id=order_id)
-    await order_service_redis_manager.clear_cache_namespace(namespace="orders", request=request)
     return
 
 

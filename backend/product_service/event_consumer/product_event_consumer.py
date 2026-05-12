@@ -7,7 +7,7 @@ from exceptions.product_exceptions import ProductReleaseError
 from service_layer.product_service import ProductService
 from service_layer.product_image_service import ProductImageService
 from shared.schemas.event_schemas import InventoryReserveRequested, InventoryReleaseRequested
-from shared.shared_instances import logger, product_service_database_session_manager, product_event_idempotency_service, product_service_redis_manager
+from shared.shared_instances import logger, product_service_database_session_manager, product_event_idempotency_service, product_service_redis_manager, api_gateway_redis_manager
 from event_publisher.event_publisher import product_event_publisher
 from shared.idempotency.idempotency_service import IdempotencyEventService
 from shared.enums.event_enums import InventoryEvents
@@ -115,7 +115,7 @@ class ProductEventConsumer:
                     result="succeeded"
                 )
                 self.logger.info(f"Successfully reserved inventory for order: {event.order_id}")
-                await product_service_redis_manager.invalidate_namespace(namespace="products")
+                await api_gateway_redis_manager.invalidate_namespace(namespace="products")
                 #5. publishing a success event to Order service
                 await product_event_publisher.publish_inventory_reserve_succeeded(
                     order_id=event.order_id,
@@ -164,7 +164,7 @@ class ProductEventConsumer:
             async for product_service in self._get_product_service():
                 # Release inventory (restore quantities)
                 await product_service.release_inventory(event.items)
-                await product_service_redis_manager.invalidate_namespace(namespace="products")
+                await api_gateway_redis_manager.invalidate_namespace(namespace="products")
                 # marking event as processed
                 await self.idempotency_service.mark_event_as_processed(event_id=event.event_id,
                                                                        event_type=event.event_type,

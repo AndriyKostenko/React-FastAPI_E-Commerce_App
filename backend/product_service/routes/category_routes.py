@@ -11,7 +11,6 @@ from fastapi import (
     status,
 )
 from shared.utils.customized_json_response import JSONResponse
-from shared.shared_instances import product_service_redis_manager
 
 from dependencies.dependencies import category_service_dependency
 from models.category_models import ProductCategory
@@ -29,7 +28,6 @@ category_routes = APIRouter(tags=["categories"])
 @category_routes.post(
     "/categories", response_model=CategorySchema, summary="Create category (JSON)"
 )
-@product_service_redis_manager.ratelimiter(times=10, seconds=60)
 async def create_category_json(
     request: Request,
     category_service: category_service_dependency,
@@ -40,9 +38,6 @@ async def create_category_json(
     Used by AdminJS and API clients.
     """
     new_category = await category_service.create_category(category_data=category_data)
-    await product_service_redis_manager.clear_cache_namespace(
-        request=request, namespace="categories"
-    )
     return JSONResponse(content=new_category, status_code=status.HTTP_201_CREATED)
 
 
@@ -52,7 +47,6 @@ async def create_category_json(
     response_model=CategorySchema,
     summary="Create category with image (FormData)",
 )
-@product_service_redis_manager.ratelimiter(times=10, seconds=60)
 async def create_category_with_image(
     request: Request,
     category_service: category_service_dependency,
@@ -67,15 +61,10 @@ async def create_category_with_image(
     new_category = await category_service.create_category(
         category_data=category_data, image=image
     )
-    await product_service_redis_manager.clear_cache_namespace(
-        request=request, namespace="categories"
-    )
     return JSONResponse(content=new_category, status_code=status.HTTP_201_CREATED)
 
 
 @category_routes.get("/categories", response_model=list[CategorySchema])
-@product_service_redis_manager.cached(ttl=300)
-@product_service_redis_manager.ratelimiter(times=100, seconds=60)
 async def get_all_categories(
     request: Request,
     category_service: category_service_dependency,
@@ -86,8 +75,6 @@ async def get_all_categories(
 
 
 @category_routes.get("/categories/{category_id}", response_model=CategorySchema)
-@product_service_redis_manager.cached(ttl=180)
-@product_service_redis_manager.ratelimiter(times=200, seconds=60)
 async def get_category_by_id(
     request: Request, category_id: UUID, category_service: category_service_dependency
 ) -> JSONResponse:
@@ -96,7 +83,6 @@ async def get_category_by_id(
 
 
 @category_routes.patch("/categories/{category_id}", response_model=CategorySchema)
-@product_service_redis_manager.ratelimiter(times=30, seconds=60)
 async def update_category_by_id(
     request: Request,
     category_id: UUID,
@@ -107,24 +93,16 @@ async def update_category_by_id(
     updated_category = await category_service.update_category(
         category_id=category_id, name=name, image=image
     )
-    await product_service_redis_manager.clear_cache_namespace(
-        request=request, namespace="categories"
-    )
     return JSONResponse(content=updated_category, status_code=status.HTTP_200_OK)
 
 
 @category_routes.delete(
     "/categories/{category_id}", status_code=status.HTTP_204_NO_CONTENT
 )
-@product_service_redis_manager.ratelimiter(times=5, seconds=60)
 async def delete_category_by_id(
     request: Request, category_id: UUID, category_service: category_service_dependency
 ) -> None:
     await category_service.delete_category(category_id=category_id)
-    # Clear ALL category-related cache
-    await product_service_redis_manager.clear_cache_namespace(
-        request=request, namespace="categories"
-    )
     return
 
 

@@ -5,7 +5,7 @@ from logging import Logger
 
 import orjson
 from fastapi import HTTPException, Request
-from httpx import AsyncClient, HTTPStatusError, RequestError
+from httpx import AsyncClient, HTTPStatusError, RequestError, Timeout, Limits
 from shared.utils.customized_json_response import JSONResponse
 
 from shared.settings import Settings
@@ -93,10 +93,21 @@ class UrlManager:
 class ApiGateway:
     """
     A class representing the API Gateway that forwards requests to microservices.
+    Uses a single shared AsyncClient with connection pooling for all upstream calls.
     """
+
+    # Shared HTTP client — created once at startup, reused across all requests.
+    _http_client: AsyncClient | None = None
+
+    # Upstream timeout configuration (seconds).
+    _TIMEOUT = Timeout(connect=5.0, read=30.0, write=10.0, pool=5.0)
+
+    # Connection pool limits.
+    _LIMITS = Limits(max_connections=100, max_keepalive_connections=20, keepalive_expiry=30)
+
     def __init__(self, settings: Settings, logger: Logger):
-        self.settings: Settings= settings
-        self.logger:Logger = logger
+        self.settings: Settings = settings
+        self.logger: Logger = logger
         self.config: GatewayConfig = GatewayConfig(
             services={
                 "user-service": ServiceConfig(
@@ -129,10 +140,30 @@ class ApiGateway:
                     health_check_path="/health",
                     api_version=self.settings.PAYMENT_SERVICE_URL_API_VERSION
                 ),
-
             }
         )
         self.url_manager = UrlManager(config=self.config, logger=self.logger)
+
+    async def startup(self) -> None:
+        """Create the shared HTTP client. Call once during application lifespan startup."""
+        ApiGateway._http_client = AsyncClient(
+            timeout=self._TIMEOUT,
+            limits=self._LIMITS,
+        )
+        self.logger.info("ApiGateway shared HTTP client initialised.")
+
+    async def shutdown(self) -> None:
+        """Close the shared HTTP client. Call once during application lifespan shutdown."""
+        if ApiGateway._http_client is not None:
+            await ApiGateway._http_client.aclose()
+            ApiGateway._http_client = None
+            self.logger.info("ApiGateway shared HTTP client closed.")
+
+    @property
+    def client(self) -> AsyncClient:
+        if ApiGateway._http_client is None:
+            raise RuntimeError("ApiGateway HTTP client is not initialised — call startup() first.")
+        return ApiGateway._http_client
 
     async def _detect_and_prepare_body(self, request: Request, path: str):
         """
@@ -214,7 +245,7 @@ class ApiGateway:
     # @circuit(failure_threshold=5, recovery_timeout=30)
     async def forward_request(self, request: Request, service_name: str, override_body: dict[str, Any] | None = None) -> JSONResponse:
         """
-        Forward request to microservice.
+        Forward request to microservice using the shared HTTP client.
         Now automatically extracts the correct path based on service mapping.
         If override_body is provided it replaces the request body (sent as JSON).
         """
@@ -244,73 +275,65 @@ class ApiGateway:
 
         self.logger.info(f"Forwarding request to: {url} with method: {request.method}, Service path: {service_path}, Body type: {type(prepared_body)}, Content-Type: {content_type}, Headers: {headers}")
 
-        # perform the request using httpx
-        async with AsyncClient() as client:
-            try:
-                if prepared_body is None:
-                    # No body
-                    response = await client.request(
-                        method=request.method,
-                        url=url,
-                        headers=headers
-                    )
-                elif content_type == "application/json":
-                    # JSON body
-                    response = await client.request(
-                        method=request.method,
-                        url=url,
-                        json=prepared_body,
-                        headers={k: v for k, v in headers.items() if k.lower() != "content-type"}  # httpx sets content-type for json
-                    )
-                elif content_type == "application/x-www-form-urlencoded":
-                    # Form data
-                    response = await client.request(
-                        method=request.method,
-                        url=url,
-                        data=prepared_body,
-                        headers={k: v for k, v in headers.items() if k.lower() != "content-type"}  # httpx sets content-type for data
-                    )
-                elif content_type == "multipart/form-data":
-                    # Multipart form data (files)
-                    response = await client.request(
-                        method=request.method,
-                        url=url,
-                        files=prepared_body,
-                        headers={k: v for k, v in headers.items() if k.lower() != "content-type"}  # httpx sets content-type for files
-                    )
-                else:
-                    # Raw content
-                    response = await client.request(
-                        method=request.method,
-                        url=url,
-                        content=prepared_body,
-                        headers=headers
-                    )
-
-                # Parse response
-                try:
-                    content = response.json()
-                except orjson.JSONEncodeError:
-                    # If response is not JSON, return text
-                    content = {"message": response.text, "status_code": response.status_code}
-
-                self.logger.debug(f"Response from {service_name}: status={response.status_code}")
-
-                return JSONResponse(
-                    content=content,
-                    status_code=response.status_code,
-                    headers=dict(response.headers)
+        try:
+            if prepared_body is None:
+                response = await self.client.request(
+                    method=request.method,
+                    url=url,
+                    headers=headers
+                )
+            elif content_type == "application/json":
+                response = await self.client.request(
+                    method=request.method,
+                    url=url,
+                    json=prepared_body,
+                    headers={k: v for k, v in headers.items() if k.lower() != "content-type"}
+                )
+            elif content_type == "application/x-www-form-urlencoded":
+                response = await self.client.request(
+                    method=request.method,
+                    url=url,
+                    data=prepared_body,
+                    headers={k: v for k, v in headers.items() if k.lower() != "content-type"}
+                )
+            elif content_type == "multipart/form-data":
+                response = await self.client.request(
+                    method=request.method,
+                    url=url,
+                    files=prepared_body,
+                    headers={k: v for k, v in headers.items() if k.lower() != "content-type"}
+                )
+            else:
+                response = await self.client.request(
+                    method=request.method,
+                    url=url,
+                    content=prepared_body,
+                    headers=headers
                 )
 
-            except HTTPStatusError as e:
-                self.logger.error(f"HTTP error occurred: {e}")
-                raise HTTPException(status_code=e.response.status_code, detail=str(e))
-            except RequestError as e:
-                self.logger.error(f"Request error occurred: {e}")
-                raise HTTPException(status_code=500, detail="Internal Server Error")
-            except Exception as e:
-                self.logger.error(f"Unexpected error: {e}")
-                raise HTTPException(status_code=500, detail="Internal Server Error")
+            # Parse response
+            try:
+                content = response.json()
+            except orjson.JSONEncodeError:
+                content = {"message": response.text, "status_code": response.status_code}
+
+            self.logger.debug(f"Response from {service_name}: status={response.status_code}")
+
+            return JSONResponse(
+                content=content,
+                status_code=response.status_code,
+                headers=dict(response.headers)
+            )
+
+        except HTTPStatusError as e:
+            self.logger.error(f"HTTP error occurred: {e}")
+            raise HTTPException(status_code=e.response.status_code, detail=str(e))
+        except RequestError as e:
+            self.logger.error(f"Request error occurred: {e}")
+            raise HTTPException(status_code=500, detail="Internal Server Error")
+        except Exception as e:
+            self.logger.error(f"Unexpected error: {e}")
+            raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
 api_gateway_manager = ApiGateway(settings=settings, logger=logger)

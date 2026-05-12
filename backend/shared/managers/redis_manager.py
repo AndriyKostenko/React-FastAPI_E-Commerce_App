@@ -11,9 +11,6 @@ from shared.exceptions.base_exceptions import BaseAPIException, RateLimitExceede
 from shared.utils.customized_json_response import JSONResponse
 
 
-
-
-
 class RedisManager:
     """
     Unified Redis manager for caching and rate limiting across microservices.
@@ -227,9 +224,15 @@ class RedisManager:
         """
         Check if a response for this request is cached and return it.
         For use in API Gateway middleware.
+        Only caches fully public requests (no Authorization header, no access_token cookie)
+        to avoid serving one user's data to another.
         """
-        if request.method != "GET" or "Authorization" in request.headers:
-            self.logger.info("Skipping getting the cached response coz of non GET or Authorization in headers...")
+        is_authenticated = (
+            "Authorization" in request.headers
+            or request.cookies.get("access_token") is not None
+        )
+        if request.method != "GET" or is_authenticated:
+            self.logger.info("Skipping cache lookup: non-GET or authenticated request.")
             return None
 
         cache_key = self._generate_cache_key(request=request)

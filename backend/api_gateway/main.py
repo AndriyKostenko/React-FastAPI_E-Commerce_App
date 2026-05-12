@@ -16,7 +16,52 @@ from shared.shared_instances import (api_gateway_redis_manager,
                                      logger,
                                      settings)
 from middleware.auth_middleware import auth_middleware
+from gateway.apigateway import api_gateway_manager
 
+
+# ---------------------------------------------------------------------------
+# Cache-invalidation helper
+# ---------------------------------------------------------------------------
+
+# Ordered from most-specific to least-specific so the first match wins.
+_INVALIDATION_NAMESPACE_MAP: list[tuple[str, str]] = [
+    ("products/detailed", "products"),
+    ("/products", "products"),
+    ("/categories", "categories"),
+    ("/images", "images"),
+    ("/reviews", "reviews"),
+    ("/orders", "orders"),
+    ("/users", "users"),
+    ("/notifications", "notifications"),
+]
+
+
+def _get_invalidation_namespace(path: str) -> str | None:
+    """Return the cache namespace that should be invalidated after a successful mutation on *path*."""
+    path_lower = path.lower()
+    for segment, namespace in _INVALIDATION_NAMESPACE_MAP:
+        if segment in path_lower:
+            return namespace
+    return None
+
+
+# Default cache TTL for gateway-level GET response caching (seconds).
+_CACHE_TTL_MAP: list[tuple[str, int]] = [
+    ("/products/detailed", 600),
+    ("/products", 300),
+    ("/categories", 300),
+    ("/images", 300),
+    ("/reviews", 300),
+]
+_DEFAULT_CACHE_TTL = 300
+
+
+def _get_cache_ttl(path: str) -> int:
+    path_lower = path.lower()
+    for segment, ttl in _CACHE_TTL_MAP:
+        if segment in path_lower:
+            return ttl
+    return _DEFAULT_CACHE_TTL
 
 
 @asynccontextmanager
@@ -27,11 +72,13 @@ async def lifespan(app: FastAPI):
     """
     logger.info(f"Server is starting up on {settings.APP_HOST}:{settings.API_GATEWAY_SERVICE_APP_PORT}...")
     await api_gateway_redis_manager.connect()
+    await api_gateway_manager.startup()
     logger.info('Server startup complete!')
 
     yield
 
     # Cleanup on shutdown
+    await api_gateway_manager.shutdown()
     await api_gateway_redis_manager.close()
     logger.warning("Cache connection closed on shutdown!")
     logger.warning(f"Server has shut down !")
@@ -53,13 +100,30 @@ async def authentication_middleware(request: Request, call_next):
 @app.middleware("http")
 async def gateway_middleware(request: Request, call_next):
     """
-    Middleware to handle rate limiting and caching for the API Gateway.
-    Before i got the caching but it was causing issues with auth so removed it for now.
+    Gateway middleware: global rate limiting, response caching, and cache invalidation.
     """
-    # 1. Global rate limit check (max 1000 requests per 1 minute)
+    # 1. Global rate limit (1 000 requests per minute per IP)
     await api_gateway_redis_manager.is_rate_limited(request, times=1000, seconds=60)
-    # 2. Forward request to microservice
-    return await call_next(request)
+
+    # 2. Serve from cache for public GET requests (no auth credentials present)
+    cached_response = await api_gateway_redis_manager.get_cached_response(request)
+    if cached_response:
+        return cached_response
+
+    # 3. Forward request to the downstream microservice
+    response = await call_next(request)
+
+    # 4. Cache successful GET responses; invalidate stale namespaces on mutations
+    if 200 <= response.status_code < 300:
+        if request.method == "GET":
+            ttl = _get_cache_ttl(request.url.path)
+            await api_gateway_redis_manager.cache_response(request, response, ttl=ttl)
+        elif request.method in ("POST", "PUT", "PATCH", "DELETE"):
+            namespace = _get_invalidation_namespace(request.url.path)
+            if namespace:
+                await api_gateway_redis_manager.invalidate_namespace(namespace)
+
+    return response
 
 
 # CORS must be added AFTER @app.middleware decorators — Starlette builds the stack
