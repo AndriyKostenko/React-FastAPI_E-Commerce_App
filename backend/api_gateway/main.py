@@ -17,51 +17,7 @@ from shared.shared_instances import (api_gateway_redis_manager,
                                      settings)
 from middleware.auth_middleware import auth_middleware
 from gateway.apigateway import api_gateway_manager
-
-
-# ---------------------------------------------------------------------------
-# Cache-invalidation helper
-# ---------------------------------------------------------------------------
-
-# Ordered from most-specific to least-specific so the first match wins.
-_INVALIDATION_NAMESPACE_MAP: list[tuple[str, str]] = [
-    ("products/detailed", "products"),
-    ("/products", "products"),
-    ("/categories", "categories"),
-    ("/images", "images"),
-    ("/reviews", "reviews"),
-    ("/orders", "orders"),
-    ("/users", "users"),
-    ("/notifications", "notifications"),
-]
-
-
-def _get_invalidation_namespace(path: str) -> str | None:
-    """Return the cache namespace that should be invalidated after a successful mutation on *path*."""
-    path_lower = path.lower()
-    for segment, namespace in _INVALIDATION_NAMESPACE_MAP:
-        if segment in path_lower:
-            return namespace
-    return None
-
-
-# Default cache TTL for gateway-level GET response caching (seconds).
-_CACHE_TTL_MAP: list[tuple[str, int]] = [
-    ("/products/detailed", 600),
-    ("/products", 300),
-    ("/categories", 300),
-    ("/images", 300),
-    ("/reviews", 300),
-]
-_DEFAULT_CACHE_TTL = 300
-
-
-def _get_cache_ttl(path: str) -> int:
-    path_lower = path.lower()
-    for segment, ttl in _CACHE_TTL_MAP:
-        if segment in path_lower:
-            return ttl
-    return _DEFAULT_CACHE_TTL
+from gateway.cache_policy import cache_policy
 
 
 @asynccontextmanager
@@ -130,7 +86,7 @@ async def gateway_middleware(request: Request, call_next):
         if should_cache_response:
             # Consume the streaming body — mandatory before the iterator is exhausted
             body = b"".join([chunk async for chunk in response.body_iterator])
-            ttl = _get_cache_ttl(request.url.path)
+            ttl = cache_policy.get_cache_ttl(request.url.path)
             await api_gateway_redis_manager.cache_response(request, body, response.status_code, ttl=ttl)
             # Reconstruct response since body_iterator is now consumed
             response = Response(
@@ -140,7 +96,7 @@ async def gateway_middleware(request: Request, call_next):
                 media_type=response.media_type,
             )
         elif request.method in ("POST", "PUT", "PATCH", "DELETE"):
-            namespace = _get_invalidation_namespace(request.url.path)
+            namespace = cache_policy.get_invalidation_namespace(request.url.path)
             if namespace:
                 await api_gateway_redis_manager.invalidate_namespace(namespace)
 
