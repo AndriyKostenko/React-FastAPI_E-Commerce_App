@@ -15,8 +15,8 @@ from shared.schemas.gateway_schemas import GatewayConfig, ServiceConfig
 
 class UrlManager:
     """Url Manager for handling service-specific URL manipulations."""
-    def __init__(self, config: ServiceConfig, logger: Logger):
-        self.config: ServiceConfig = config
+    def __init__(self, config: GatewayConfig, logger: Logger):
+        self.config: GatewayConfig = config
         self.logger: Logger = logger
 
     def extract_service_path(self, path: str, service_name: str) -> str:
@@ -89,7 +89,6 @@ class UrlManager:
         return final_url
 
 
-
 class ApiGateway:
     """
     A class representing the API Gateway that forwards requests to microservices.
@@ -142,7 +141,7 @@ class ApiGateway:
                 ),
             }
         )
-        self.url_manager = UrlManager(config=self.config, logger=self.logger)
+        self.url_manager: UrlManager = UrlManager(config=self.config, logger=self.logger)
 
     async def startup(self) -> None:
         """Create the shared HTTP client. Call once during application lifespan startup."""
