@@ -110,14 +110,29 @@ async def gateway_middleware(request: Request, call_next):
     if cached_response:
         return cached_response
 
+    # Determine auth state once — used to decide whether to cache the response
+    is_authenticated = (
+        "Authorization" in request.headers
+        or request.cookies.get("access_token") is not None
+    )
+
     # 3. Forward request to the downstream microservice
-    response = await call_next(request)
+    response: Response = await call_next(request)
 
     # 4. Cache successful GET responses; invalidate stale namespaces on mutations
     if 200 <= response.status_code < 300:
-        if request.method == "GET":
+        if request.method == "GET" and not is_authenticated:
+            # Consume the streaming body — mandatory before the iterator is exhausted
+            body = b"".join([chunk async for chunk in response.body_iterator])
             ttl = _get_cache_ttl(request.url.path)
-            await api_gateway_redis_manager.cache_response(request, response, ttl=ttl)
+            await api_gateway_redis_manager.cache_response(request, body, response.status_code, ttl=ttl)
+            # Reconstruct response since body_iterator is now consumed
+            response = Response(
+                content=body,
+                status_code=response.status_code,
+                headers=dict(response.headers),
+                media_type=response.media_type,
+            )
         elif request.method in ("POST", "PUT", "PATCH", "DELETE"):
             namespace = _get_invalidation_namespace(request.url.path)
             if namespace:

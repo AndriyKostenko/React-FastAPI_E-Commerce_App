@@ -148,28 +148,19 @@ class RedisManager:
         except Exception as e:
             self.logger.error(f"Error invalidating namespace '{namespace}': {str(e)}", exc_info=True)
 
-    def _should_skip_caching(self, request: Request, response: Response) -> bool:
+    async def cache_response(self, request: Request, body: bytes, status_code: int, ttl: int = 300):
         """
-        Determining if response should be cached
-        """
-        # Defining paths that should never be cached
-        not_monitoring_patterns = ["/health", "/metrics", "/status", "/ping", "/ready", "/live"]
-        is_not_monitoring_endpoint = any(request.url.path.startswith(pattern) for pattern in not_monitoring_patterns)
-
-        return (
-            request.method != "GET"
-            or not (200 <= response.status_code < 300)
-            or response.headers.get("Cache-Control") == "no-cache"
-            or is_not_monitoring_endpoint
-        )
-
-    async def cache_response(self, request: Request, response: Response, ttl: int = 300):
-        """
-        Cache a response for a given request.
-        Includes API version in cache keys.
+        Cache a response body for a given request.
+        Accepts pre-read body bytes (required because call_next() returns a streaming
+        response whose body_iterator must be consumed at the middleware level).
         Default TTL is 5 minutes.
         """
-        if self._should_skip_caching(request, response):
+        not_monitoring_patterns = ["/health", "/metrics", "/status", "/ping", "/ready", "/live"]
+        if (
+            request.method != "GET"
+            or not (200 <= status_code < 300)
+            or any(request.url.path.startswith(p) for p in not_monitoring_patterns)
+        ):
             self.logger.warning(
                 f"Skipping caching response for method: {request.method}, path: {request.url.path} "
                 "because of method, status code, or headers"
@@ -177,29 +168,18 @@ class RedisManager:
             return
 
         try:
-            # Generate cache key including API version
             cache_key = self._generate_cache_key(request=request)
             if not cache_key:
                 self.logger.error("Cannot generate cache key for caching response, skipping cache.")
                 return
 
-            status_code = response.status_code
             self.logger.debug(f"Caching response for key: {cache_key} with status code: {status_code} ...")
 
-            response_body = None
-
-            if hasattr(response, "body") and response.body:
-                response_body = response.body
-            else:
-                self.logger.warning(f"Cannot access response body for caching: {cache_key}")
-                return
-
-            if not response_body:
+            if not body:
                 self.logger.warning(f"Response body is empty, skipping cache for: {cache_key}")
                 return
 
-            if isinstance(response_body, bytes):
-                response_body = response_body.decode("utf-8")
+            response_body = body.decode("utf-8") if isinstance(body, bytes) else body
 
             try:
                 content = loads(response_body)
@@ -207,7 +187,6 @@ class RedisManager:
                 self.logger.warning(f"Response not JSON serializable, skipping cache for: {cache_key} - {str(e)}")
                 return
 
-            # Store in Redis with API version in key
             await self.set_response_for_caching(
                 key=cache_key,
                 seconds=ttl,
