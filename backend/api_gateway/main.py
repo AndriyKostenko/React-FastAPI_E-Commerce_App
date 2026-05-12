@@ -105,23 +105,29 @@ async def gateway_middleware(request: Request, call_next):
     # 1. Global rate limit (1 000 requests per minute per IP)
     await api_gateway_redis_manager.is_rate_limited(request, times=1000, seconds=60)
 
-    # 2. Serve from cache for public GET requests (no auth credentials present)
-    cached_response = await api_gateway_redis_manager.get_cached_response(request)
+    # Whether this path/method combination is a declared public endpoint.
+    # Public endpoints are cached regardless of auth headers (same data for all callers).
+    # Protected endpoints are only cached for unauthenticated requests (avoid cross-user leaks).
+    is_public = auth_middleware.is_public_endpoint(request.url.path, request.method)
+
+    # 2. Serve from cache (public endpoints always, protected endpoints only when unauthenticated)
+    cached_response = await api_gateway_redis_manager.get_cached_response(request, is_public=is_public)
     if cached_response:
         return cached_response
 
-    # Determine auth state once — used to decide whether to cache the response
+    # Determine auth state for the cache-write decision below
     is_authenticated = (
         "Authorization" in request.headers
         or request.cookies.get("access_token") is not None
     )
+    should_cache_response = request.method == "GET" and (is_public or not is_authenticated)
 
     # 3. Forward request to the downstream microservice
     response: Response = await call_next(request)
 
     # 4. Cache successful GET responses; invalidate stale namespaces on mutations
     if 200 <= response.status_code < 300:
-        if request.method == "GET" and not is_authenticated:
+        if should_cache_response:
             # Consume the streaming body — mandatory before the iterator is exhausted
             body = b"".join([chunk async for chunk in response.body_iterator])
             ttl = _get_cache_ttl(request.url.path)

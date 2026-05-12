@@ -199,20 +199,28 @@ class RedisManager:
             self.logger.error(f"Error caching response: {str(e)}")
             return
 
-    async def get_cached_response(self, request: Request) -> Optional[JSONResponse]:
+    async def get_cached_response(self, request: Request, is_public: bool = False) -> Optional[JSONResponse]:
         """
         Check if a response for this request is cached and return it.
         For use in API Gateway middleware.
-        Only caches fully public requests (no Authorization header, no access_token cookie)
-        to avoid serving one user's data to another.
+
+        For protected endpoints: skips cache when auth credentials are present
+        (Authorization header or access_token cookie) to avoid cross-user data leaks.
+        For public endpoints: serves from cache regardless of auth headers because
+        the response data is identical for all callers.
         """
-        is_authenticated = (
-            "Authorization" in request.headers
-            or request.cookies.get("access_token") is not None
-        )
-        if request.method != "GET" or is_authenticated:
-            self.logger.info("Skipping cache lookup: non-GET or authenticated request.")
+        if request.method != "GET":
+            self.logger.info("Skipping cache lookup: non-GET request.")
             return None
+
+        if not is_public:
+            is_authenticated = (
+                "Authorization" in request.headers
+                or request.cookies.get("access_token") is not None
+            )
+            if is_authenticated:
+                self.logger.info("Skipping cache lookup: authenticated request to protected endpoint.")
+                return None
 
         cache_key = self._generate_cache_key(request=request)
         if not cache_key:
