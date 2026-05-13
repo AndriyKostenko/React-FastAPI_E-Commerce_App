@@ -1,17 +1,20 @@
 """
-Shared pytest fixtures for user_service unit tests.
+Shared pytest fixtures for user_service unit and route tests.
 
 All fixtures use function scope (default) to ensure full isolation
 between tests.  Heavy external dependencies (DB, Redis, RabbitMQ)
 are replaced with mocks so the tests run without any live services.
 """
+from contextlib import asynccontextmanager
 from datetime import datetime
-from unittest.mock import AsyncMock, MagicMock, PropertyMock
+from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
 from uuid import UUID, uuid4
 
 import pytest
+from httpx import AsyncClient, ASGITransport
 
 from service_layer.user_service import UserService
+from shared.schemas.user_schemas import CurrentUserInfo, UserInfo
 
 
 # ---------------------------------------------------------------------------
@@ -107,7 +110,7 @@ def mock_redis_manager(mock_redis: AsyncMock) -> MagicMock:
 
 
 # ---------------------------------------------------------------------------
-# Service fixture
+# Service fixture (unit tests)
 # ---------------------------------------------------------------------------
 
 
@@ -125,3 +128,88 @@ def user_service(
         token_manager=mock_token_manager,
         redis_manager=mock_redis_manager,
     )
+
+
+# ---------------------------------------------------------------------------
+# Route-level fixtures
+# ---------------------------------------------------------------------------
+
+# A canonical UserInfo Pydantic object used as the service return value
+# in route tests (so JSONResponse can serialize it via jsonable_encoder).
+_USER_INFO = UserInfo(
+    id=TEST_USER_ID,
+    name=TEST_NAME,
+    email=TEST_EMAIL,
+    role="user",
+    phone_number=None,
+    image=None,
+    date_created=TEST_DATETIME,
+    date_updated=None,
+    is_verified=True,
+    is_active=True,
+)
+
+_CURRENT_USER = CurrentUserInfo(email=TEST_EMAIL, id=TEST_USER_ID, role="user")
+
+
+@pytest.fixture
+def mock_route_service() -> MagicMock:
+    """Full mock of UserService for use via app.dependency_overrides in route tests."""
+    svc = MagicMock()
+    svc.create_user = AsyncMock(return_value=(_USER_INFO, "verification_token_abc"))
+    svc.verify_email = AsyncMock(return_value=_USER_INFO)
+    svc.request_password_reset = AsyncMock(return_value=(_USER_INFO, "reset_token_abc"))
+    svc.reset_password_with_token = AsyncMock(return_value=_USER_INFO)
+    svc.login_user = AsyncMock(
+        return_value=(_CURRENT_USER, "access_tok", 9_999_999_999, "refresh_tok", 9_999_999_999)
+    )
+    svc.refresh_access_token = AsyncMock(return_value=("new_access_tok", 9_999_999_999))
+    svc.logout_user = AsyncMock(return_value=None)
+    svc.get_user_by_id = AsyncMock(return_value=_USER_INFO)
+    svc.get_all_users = AsyncMock(return_value=[_USER_INFO])
+    svc.update_user_basic_info = AsyncMock(return_value=_USER_INFO)
+    svc.delete_user_by_id = AsyncMock(return_value=None)
+    svc.get_current_user_from_token = AsyncMock(return_value=_CURRENT_USER)
+    return svc
+
+
+@asynccontextmanager
+async def _noop_lifespan(app):
+    """No-op lifespan replaces the real one in route tests to avoid DB/Redis/RabbitMQ connections."""
+    yield
+
+
+@pytest.fixture
+async def client(mock_route_service: MagicMock):
+    """
+    Async HTTP test client for route tests.
+
+    - Replaces the FastAPI lifespan with a no-op so startup/shutdown don't
+      attempt live connections to PostgreSQL, Redis, or RabbitMQ.
+    - Overrides the get_user_service and get_current_user FastAPI dependencies.
+    - Patches user_events_publisher so events are not published to RabbitMQ.
+    """
+    from main import app
+    from dependencies.dependencies import get_user_service, get_current_user
+
+    original_lifespan = app.router.lifespan_context
+    app.router.lifespan_context = _noop_lifespan
+
+    with patch("routes.user_routes.user_events_publisher") as mock_pub:
+        mock_pub.publish_user_registered = AsyncMock()
+        mock_pub.publish_email_verified = AsyncMock()
+        mock_pub.publish_password_reset_request = AsyncMock()
+        mock_pub.publish_password_reset_success = AsyncMock()
+        mock_pub.publish_user_logged_in = AsyncMock()
+
+        app.dependency_overrides[get_user_service] = lambda: mock_route_service
+        app.dependency_overrides[get_current_user] = lambda: _CURRENT_USER
+
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://testserver"
+        ) as c:
+            yield c
+
+        app.dependency_overrides.clear()
+
+    app.router.lifespan_context = original_lifespan
