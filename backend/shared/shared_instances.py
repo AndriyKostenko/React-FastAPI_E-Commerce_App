@@ -3,7 +3,7 @@ from faststream.rabbit import RabbitBroker, RabbitExchange, ExchangeType
 from shared.email_service.email_service import UserRelatedNotifications, OrderRelatedNotifications
 from shared.managers.logger_manager import setup_logger
 from shared.managers.redis_manager import RedisManager
-from shared.settings import get_settings
+from shared.settings import get_settings, get_test_settings
 from shared.managers.database_session_manager import DatabaseSessionManager
 from shared.managers.password_manager import PasswordManager
 from shared.managers.token_manager import TokenManager
@@ -13,6 +13,7 @@ from shared.idempotency.idempotency_service import IdempotencyEventService
 
 # Initialize settings
 settings = get_settings()
+test_settings = get_test_settings()
 
 # Logger setup
 logger = setup_logger(__name__)

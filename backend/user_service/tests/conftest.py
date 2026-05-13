@@ -6,26 +6,14 @@ between tests.  Heavy external dependencies (DB, Redis, RabbitMQ)
 are replaced with mocks so the tests run without any live services.
 """
 from contextlib import asynccontextmanager
-from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
-from uuid import UUID, uuid4
 
 import pytest
 from httpx import AsyncClient, ASGITransport
 
 from service_layer.user_service import UserService
 from shared.schemas.user_schemas import CurrentUserInfo, UserInfo
-
-
-# ---------------------------------------------------------------------------
-# Shared test constants
-# ---------------------------------------------------------------------------
-
-TEST_USER_ID: UUID = uuid4()
-TEST_EMAIL: str = "test@example.com"
-TEST_NAME: str = "Test User"
-TEST_HASHED_PW: str = "$2b$12$fakehashfortesting000000000000000000"
-TEST_DATETIME: datetime = datetime(2024, 1, 1, 12, 0, 0)
+from shared.shared_instances import test_settings
 
 
 # ---------------------------------------------------------------------------
@@ -37,16 +25,16 @@ TEST_DATETIME: datetime = datetime(2024, 1, 1, 12, 0, 0)
 def mock_user_orm() -> MagicMock:
     """Fake SQLAlchemy User ORM object with all UserInfo-required attributes."""
     user = MagicMock()
-    user.id = TEST_USER_ID
-    user.name = TEST_NAME
-    user.email = TEST_EMAIL
-    user.hashed_password = TEST_HASHED_PW
-    user.role = "user"
+    user.id = test_settings.TEST_USER_ID
+    user.name = test_settings.TEST_NAME
+    user.email = test_settings.TEST_EMAIL
+    user.hashed_password = test_settings.TEST_HASHED_PW
+    user.role = test_settings.USER_ROLE
     user.phone_number = None
     user.image = None
     user.is_active = True
     user.is_verified = True
-    user.date_created = TEST_DATETIME
+    user.date_created = test_settings.TEST_DATETIME
     user.date_updated = None
     return user
 
@@ -206,9 +194,10 @@ async def client(mock_route_service: MagicMock):
         app.dependency_overrides[get_current_user] = lambda: _CURRENT_USER
 
         async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://testserver"
-        ) as c:
-            yield c
+            transport=ASGITransport(app=app),
+            base_url="http://testserver"
+        ) as async_client:
+            yield async_client
 
         app.dependency_overrides.clear()
 

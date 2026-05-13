@@ -373,6 +373,9 @@ class TestAdminSchemaEndpoint:
         body = response.json()
         assert "fields" in body
         assert isinstance(body["fields"], list)
+
+
+        
 # pytestmark = pytest.mark.asyncio(scope="package")
 
 

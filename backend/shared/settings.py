@@ -1,5 +1,7 @@
 from functools import lru_cache
 from pathlib import Path
+from uuid import UUID, uuid4
+from datetime import datetime
 
 from pydantic import SecretStr, DirectoryPath
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -266,6 +268,21 @@ class Settings(BaseSettings):
         return f"https://{self.APP_HOST}{self.PAYMENT_SERVICE_URL_API_VERSION}/payments/webhook"
 
 
+class TestSettings(BaseSettings):
+    TEST_USER_ID: UUID = uuid4()
+    TEST_EMAIL: str = "test@example.com"
+    TEST_NAME: str = "Test User"
+    TEST_HASHED_PW: str = "$2b$12$fakehashfortesting000000000000000000"
+    TEST_DATETIME: datetime = datetime(2024, 1, 1, 12, 0, 0)
+    USER_ROLE: str = "user"
+    
+
+
+
 @lru_cache()
 def get_settings():
     return Settings()
+    
+@lru_cache
+def get_test_settings():
+    return TestSettings()
