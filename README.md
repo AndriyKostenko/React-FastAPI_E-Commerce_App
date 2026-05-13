@@ -714,3 +714,8 @@ Redis Idempotency Flow:
   stripe trigger payment_intent.succeeded
   stripe trigger payment_intent.payment_failed
 2. Webhook endpoint in API Gateway:
+
+
+## Pytest
+ 1. uv run pytest
+ 2. uv run pytest tests/test_user_service
