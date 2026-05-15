@@ -719,3 +719,4 @@ Redis Idempotency Flow:
 ## Pytest
  1. uv run pytest
  2. uv run pytest tests/test_user_service
+ 3. docker compose --profile test run --rm user-service-test

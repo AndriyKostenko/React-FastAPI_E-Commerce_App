@@ -24,7 +24,7 @@ class DatabaseSessionManager:
     - Uses SQLAlchemy's async engine and sessionmaker for asynchronous operations.
     - Uses a logger for logging database operations and errors.
     """
-    def __init__(self, database_url: str, engine_settings: dict[str, str|int], logger: Logger) -> None:
+    def __init__(self, database_url: str, engine_settings: dict[str, str | int], logger: Logger) -> None:
         self.async_engine: AsyncEngine | None = None
         self.async_session: async_sessionmaker[AsyncSession] | None = None
         self.database_url: str = database_url

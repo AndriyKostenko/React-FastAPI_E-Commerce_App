@@ -1,5 +1,7 @@
 from faststream.rabbit import RabbitBroker, RabbitExchange, ExchangeType
+from sqlalchemy.pool import NullPool
 
+from shared.managers.test_database_session_manager import TestDatabaseSessionManager
 from shared.email_service.email_service import UserRelatedNotifications, OrderRelatedNotifications
 from shared.managers.logger_manager import setup_logger
 from shared.managers.redis_manager import RedisManager
@@ -143,6 +145,15 @@ payment_service_database_session_manager = DatabaseSessionManager(
                      "pool_pre_ping": True,
                      "pool_size": 20,
                      "max_overflow": 10,
+                    },
+    logger=logger
+)
+
+test_user_service_database_session_manager = TestDatabaseSessionManager(
+    database_url=settings.USER_SERVICE_TEST_DATABASE_URL,
+    engine_settings={"echo": False,
+                     "pool_pre_ping": True,
+                     "poolclass": NullPool,
                     },
     logger=logger
 )

@@ -5,18 +5,24 @@ All fixtures use function scope (default) to ensure full isolation
 between tests.  Heavy external dependencies (DB, Redis, RabbitMQ)
 are replaced with mocks so the tests run without any live services.
 """
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
+from typing import Any
 
 import pytest
+from fastapi import Depends
 from httpx import AsyncClient, ASGITransport
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from main import app
-from dependencies.dependencies import get_user_service, get_current_user
+from database_layer.user_repository import UserRepository
+from dependencies.dependencies import get_user_service, get_current_user, get_db_session
 from service_layer.user_service import UserService
-from shared.shared_instances import test_settings
+from shared.shared_instances import test_settings, settings, test_user_service_database_session_manager
 from shared.managers.token_manager import TokenManager
 from shared.managers.password_manager import PasswordManager
+
 
 # ---------------------------------------------------------------------------
 # ORM / DB fixtures
@@ -115,13 +121,20 @@ def user_service(
         token_manager=mock_token_manager,
         redis_manager=mock_redis_manager)
 
+#---------------------------------------------------------------------------
+# Helpers
+# -------------------------------------------------------------------------
+@pytest.fixture
+def admin_user() -> dict[str, str|int]:
+    return {'email': 'a.kostenkouk@gmail.com', 'id': 1, 'user_role': settings.SECRET_ROLE}
+
+@pytest.fixture
+def normal_user() -> dict[str, str|int]:
+    return {'email': 'a.kostenkouk@gmail.com', 'id': 1, 'user_role': 'user'}
+
 # ---------------------------------------------------------------------------
 # Route-level fixtures
 # ---------------------------------------------------------------------------
-
-# A canonical UserInfo Pydantic object used as the service return value
-# in route tests (so JSONResponse can serialize it via jsonable_encoder).
-
 
 @pytest.fixture
 def mock_route_service() -> MagicMock:
@@ -157,7 +170,7 @@ async def _noop_lifespan(app):
 
 
 @pytest.fixture
-async def client(mock_route_service: MagicMock):
+async def client_for_unit_testing(mock_route_service: MagicMock) -> AsyncGenerator[AsyncClient, Any]:
     """
     Async HTTP test client for route tests.
 
@@ -186,3 +199,87 @@ async def client(mock_route_service: MagicMock):
         app.dependency_overrides.clear()
 
     app.router.lifespan_context = original_lifespan
+
+# ---------------------------------------------------------------------------
+# Integration-test fixtures  (real DB + real service + mock Redis/events)
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+async def mock_user_events_publisher():
+    """Patches the RabbitMQ event publisher used by user routes.
+
+    Yielded mock allows tests to inspect published events, e.g. to extract
+    the verification token from publish_user_registered.call_args.
+    """
+    with patch("routes.user_routes.user_events_publisher") as mock_pub:
+        mock_pub.publish_user_registered        = AsyncMock()
+        mock_pub.publish_email_verified         = AsyncMock()
+        mock_pub.publish_password_reset_request = AsyncMock()
+        mock_pub.publish_password_reset_success = AsyncMock()
+        mock_pub.publish_user_logged_in         = AsyncMock()
+        yield mock_pub
+
+
+@pytest.fixture
+async def integration_client(mock_user_events_publisher) -> AsyncGenerator[AsyncClient, Any]:
+    """
+    Async HTTP client for integration tests.
+
+    What is real:
+      - PostgreSQL (user_service TEST database)
+      - UserService, UserRepository
+      - PasswordManager, TokenManager
+
+    What is mocked:
+      - Redis  (no live Redis needed in CI)
+      - RabbitMQ event publisher (via mock_user_events_publisher fixture)
+      - FastAPI lifespan (tables are managed by this fixture directly)
+
+    Isolation strategy:
+      - Before yield : create all tables (idempotent) so the schema is fresh.
+      - After  yield : TRUNCATE every table so the next test starts clean.
+    """
+    # ── 1. Ensure the test schema exists ────────────────────────────────────
+    await test_user_service_database_session_manager.init_db()
+
+    # ── 2. Build real managers ───────────────────────────────────────────────
+    real_password_manager = PasswordManager(settings)
+    real_token_manager    = TokenManager(settings)
+
+    # ── 3. Mock Redis (no live Redis needed) ────────────────────────────────
+    _mock_redis = AsyncMock()
+    _mock_redis.setex  = AsyncMock(return_value=True)
+    _mock_redis.get    = AsyncMock(return_value=None)   # no cached tokens → always "valid"
+    _mock_redis.delete = AsyncMock(return_value=1)
+
+    _mock_redis_manager = MagicMock()
+    type(_mock_redis_manager).redis = PropertyMock(return_value=_mock_redis)
+
+    # ── 4. Dependency overrides ──────────────────────────────────────────────
+    async def _override_get_db_session() -> AsyncGenerator[AsyncSession, None]:
+        async with test_user_service_database_session_manager.transaction() as session:
+            yield session
+
+    async def _override_get_user_service(session: AsyncSession = Depends(_override_get_db_session)) -> UserService:
+        return UserService(
+            repository=UserRepository(session=session),
+            password_manager=real_password_manager,
+            token_manager=real_token_manager,
+            redis_manager=_mock_redis_manager,
+        )
+
+    # ── 5. Replace the app lifespan so no live infra connections are made ───
+    original_lifespan = app.router.lifespan_context
+    app.router.lifespan_context = _noop_lifespan
+
+    app.dependency_overrides[get_db_session]   = _override_get_db_session
+    app.dependency_overrides[get_user_service] = _override_get_user_service
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as async_client:
+        yield async_client
+
+    app.dependency_overrides.clear()
+    app.router.lifespan_context = original_lifespan
+
+    # ── 6. Wipe all rows so the next test starts with an empty database ─────
+    await test_user_service_database_session_manager.truncate_all_tables()

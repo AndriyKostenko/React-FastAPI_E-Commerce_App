@@ -123,6 +123,24 @@ services:
       timeout: 10s
       retries: 3
 
+  user-service-test:
+    build:
+      context: ./user_service
+      dockerfile: Dockerfile
+      target: test                  # uses the test stage (includes dev deps)
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env
+    volumes:
+      - ./shared:/app/shared:ro
+    networks:
+      - usernet
+    profiles:
+      - test                        # only starts with: docker compose --profile test run user-service-test
+    command: ["python", "-m", "pytest", "tests/", "-v"]
+
   product-service:
     build:
       context: ./product_service
