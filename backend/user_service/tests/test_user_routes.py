@@ -2,7 +2,7 @@
 Route-level tests for user_service endpoints.
 
 Uses httpx.AsyncClient + ASGITransport to send real HTTP requests through
-the FastAPI application without any live infrastructure:
+the Fasttest_settings.API application without any live infrastructure:
   - App lifespan is replaced with a no-op (no DB/Redis/RabbitMQ connections).
   - UserService dependency is overridden via app.dependency_overrides.
   - user_events_publisher is patched so no events reach RabbitMQ.
@@ -13,28 +13,12 @@ to raise the appropriate exception via .side_effect.
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
-import pytest
-
 from exceptions.user_exceptions import (
     UserAlreadyExistsError,
     UserAuthenticationError,
     UserNotFoundError,
 )
-from tests.conftest import TEST_USER_ID
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-API = "/api/v1"
-
-REGISTER_PAYLOAD = {"name": "Test User", "email": "test@example.com", "password": "secret123"}
-LOGIN_DATA = {"username": "test@example.com", "password": "secret123"}  # OAuth2 form fields
-
-
-# ===========================================================================
-# Health
-# ===========================================================================
+from shared.shared_instances import test_settings
 
 
 class TestHealthEndpoint:
@@ -47,14 +31,9 @@ class TestHealthEndpoint:
         assert body["service"] == "user-service"
 
 
-# ===========================================================================
-# POST /register
-# ===========================================================================
-
-
 class TestRegisterEndpoint:
     async def test_register_success(self, client):
-        response = await client.post(f"{API}/register", json=REGISTER_PAYLOAD)
+        response = await client.post(f"{test_settings.API}/register", json=test_settings.REGISTER_PAYLOAD)
 
         assert response.status_code == 201
         body = response.json()
@@ -65,12 +44,12 @@ class TestRegisterEndpoint:
             side_effect=UserAlreadyExistsError("Email already registered")
         )
 
-        response = await client.post(f"{API}/register", json=REGISTER_PAYLOAD)
+        response = await client.post(f"{test_settings.API}/register", json=test_settings.REGISTER_PAYLOAD)
 
         assert response.status_code == 409
 
     async def test_register_invalid_payload_returns_422(self, client):
-        response = await client.post(f"{API}/register", json={"name": "x"})
+        response = await client.post(f"{test_settings.API}/register", json={"name": "x"})
 
         assert response.status_code == 422
 
@@ -82,7 +61,7 @@ class TestRegisterEndpoint:
 
 class TestVerifyEmailEndpoint:
     async def test_verify_email_success(self, client):
-        response = await client.post(f"{API}/activate/valid-token")
+        response = await client.post(f"{test_settings.API}/activate/valid-token")
 
         assert response.status_code == 200
         body = response.json()
@@ -94,7 +73,7 @@ class TestVerifyEmailEndpoint:
             side_effect=UserNotFoundError("Token invalid or expired")
         )
 
-        response = await client.post(f"{API}/activate/bad-token")
+        response = await client.post(f"{test_settings.API}/activate/bad-token")
 
         assert response.status_code == 404
 
@@ -107,7 +86,7 @@ class TestVerifyEmailEndpoint:
 class TestForgotPasswordEndpoint:
     async def test_forgot_password_success(self, client):
         response = await client.post(
-            f"{API}/forgot-password", params={"email": "test@example.com"}
+            f"{test_settings.API}/forgot-password", params={"email": "test@example.com"}
         )
 
         assert response.status_code == 200
@@ -120,7 +99,7 @@ class TestForgotPasswordEndpoint:
         )
 
         response = await client.post(
-            f"{API}/forgot-password", params={"email": "nobody@example.com"}
+            f"{test_settings.API}/forgot-password", params={"email": "nobody@example.com"}
         )
 
         assert response.status_code == 404
@@ -134,7 +113,7 @@ class TestForgotPasswordEndpoint:
 class TestResetPasswordEndpoint:
     async def test_reset_password_success(self, client):
         response = await client.post(
-            f"{API}/password-reset/valid-token",
+            f"{test_settings.API}/password-reset/valid-token",
             json={"email": "test@example.com", "new_password": "newpassword1"},
         )
 
@@ -148,7 +127,7 @@ class TestResetPasswordEndpoint:
         )
 
         response = await client.post(
-            f"{API}/password-reset/bad-token",
+            f"{test_settings.API}/password-reset/bad-token",
             json={"email": "test@example.com", "new_password": "newpassword1"},
         )
 
@@ -162,7 +141,7 @@ class TestResetPasswordEndpoint:
 
 class TestLoginEndpoint:
     async def test_login_success(self, client):
-        response = await client.post(f"{API}/login", data=LOGIN_DATA)
+        response = await client.post(f"{test_settings.API}/login", data=test_settings.LOGIN_DATA)
 
         assert response.status_code == 200
         body = response.json()
@@ -175,12 +154,12 @@ class TestLoginEndpoint:
             side_effect=UserAuthenticationError("Invalid credentials")
         )
 
-        response = await client.post(f"{API}/login", data=LOGIN_DATA)
+        response = await client.post(f"{test_settings.API}/login", data=test_settings.LOGIN_DATA)
 
         assert response.status_code == 401
 
     async def test_login_missing_fields_returns_422(self, client):
-        response = await client.post(f"{API}/login", data={"username": "only-username"})
+        response = await client.post(f"{test_settings.API}/login", data={"username": "only-username"})
 
         assert response.status_code == 422
 
@@ -193,7 +172,7 @@ class TestLoginEndpoint:
 class TestRefreshTokenEndpoint:
     async def test_refresh_token_success(self, client):
         response = await client.post(
-            f"{API}/refresh", json={"refresh_token": "valid-refresh-token"}
+            f"{test_settings.API}/refresh", json={"refresh_token": "valid-refresh-token"}
         )
 
         assert response.status_code == 200
@@ -207,7 +186,7 @@ class TestRefreshTokenEndpoint:
         )
 
         response = await client.post(
-            f"{API}/refresh", json={"refresh_token": "expired-token"}
+            f"{test_settings.API}/refresh", json={"refresh_token": "expired-token"}
         )
 
         assert response.status_code == 401
@@ -221,7 +200,7 @@ class TestRefreshTokenEndpoint:
 class TestLogoutEndpoint:
     async def test_logout_success(self, client):
         response = await client.post(
-            f"{API}/logout", json={"refresh_token": "some-refresh-token"}
+            f"{test_settings.API}/logout", json={"refresh_token": "some-refresh-token"}
         )
 
         assert response.status_code == 200
@@ -237,7 +216,7 @@ class TestGetMeEndpoint:
     async def test_get_me_returns_current_user(self, client):
         # get_current_user is overridden in the client fixture to return _CURRENT_USER
         response = await client.get(
-            f"{API}/me", headers={"Authorization": "Bearer fake-token"}
+            f"{test_settings.API}/me", headers={"Authorization": "Bearer fake-token"}
         )
 
         assert response.status_code == 200
@@ -253,7 +232,7 @@ class TestGetMeEndpoint:
 
 class TestGetUserByIdEndpoint:
     async def test_get_user_by_id_success(self, client):
-        response = await client.get(f"{API}/users/{TEST_USER_ID}")
+        response = await client.get(f"{test_settings.API}/users/{test_settings.TEST_USER_ID}")
 
         assert response.status_code == 200
         body = response.json()
@@ -264,12 +243,12 @@ class TestGetUserByIdEndpoint:
             side_effect=UserNotFoundError("User not found")
         )
 
-        response = await client.get(f"{API}/users/{uuid4()}")
+        response = await client.get(f"{test_settings.API}/users/{uuid4()}")
 
         assert response.status_code == 404
 
     async def test_get_user_by_id_invalid_uuid_returns_422(self, client):
-        response = await client.get(f"{API}/users/not-a-uuid")
+        response = await client.get(f"{test_settings.API}/users/not-a-uuid")
 
         assert response.status_code == 422
 
@@ -281,7 +260,7 @@ class TestGetUserByIdEndpoint:
 
 class TestGetAllUsersEndpoint:
     async def test_get_all_users_success(self, client):
-        response = await client.get(f"{API}/users")
+        response = await client.get(f"{test_settings.API}/users")
 
         assert response.status_code == 200
         body = response.json()
@@ -293,18 +272,18 @@ class TestGetAllUsersEndpoint:
             side_effect=UserNotFoundError("No users found")
         )
 
-        response = await client.get(f"{API}/users")
+        response = await client.get(f"{test_settings.API}/users")
 
         assert response.status_code == 404
 
     async def test_get_all_users_pagination_params(self, client):
-        response = await client.get(f"{API}/users", params={"offset": 0, "limit": 5})
+        response = await client.get(f"{test_settings.API}/users", params={"offset": 0, "limit": 5})
 
         assert response.status_code == 200
 
     async def test_get_all_users_invalid_limit_returns_422(self, client):
         # limit must be > 0 and <= 100
-        response = await client.get(f"{API}/users", params={"limit": 0})
+        response = await client.get(f"{test_settings.API}/users", params={"limit": 0})
 
         assert response.status_code == 422
 
@@ -317,7 +296,7 @@ class TestGetAllUsersEndpoint:
 class TestUpdateUserEndpoint:
     async def test_update_user_success(self, client):
         response = await client.patch(
-            f"{API}/users/{TEST_USER_ID}",
+            f"{test_settings.API}/users/{test_settings.TEST_USER_ID}",
             json={"name": "Updated Name"},
         )
 
@@ -331,7 +310,7 @@ class TestUpdateUserEndpoint:
         )
 
         response = await client.patch(
-            f"{API}/users/{uuid4()}",
+            f"{test_settings.API}/users/{uuid4()}",
             json={"name": "Updated Name"},
         )
 
@@ -345,7 +324,7 @@ class TestUpdateUserEndpoint:
 
 class TestDeleteUserEndpoint:
     async def test_delete_user_success(self, client):
-        response = await client.delete(f"{API}/users/{TEST_USER_ID}")
+        response = await client.delete(f"{test_settings.API}/users/{test_settings.TEST_USER_ID}")
 
         assert response.status_code == 200
         assert response.json()["detail"] == "User deleted successfully"
@@ -355,7 +334,7 @@ class TestDeleteUserEndpoint:
             side_effect=UserNotFoundError("User not found")
         )
 
-        response = await client.delete(f"{API}/users/{uuid4()}")
+        response = await client.delete(f"{test_settings.API}/users/{uuid4()}")
 
         assert response.status_code == 404
 
@@ -367,7 +346,7 @@ class TestDeleteUserEndpoint:
 
 class TestAdminSchemaEndpoint:
     async def test_admin_schema_returns_fields(self, client):
-        response = await client.get(f"{API}/admin/schema/users")
+        response = await client.get(f"{test_settings.API}/admin/schema/users")
 
         assert response.status_code == 200
         body = response.json()
@@ -375,7 +354,7 @@ class TestAdminSchemaEndpoint:
         assert isinstance(body["fields"], list)
 
 
-        
+
 # pytestmark = pytest.mark.asyncio(scope="package")
 
 

@@ -6,7 +6,7 @@ from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
-from alembic import context # type: ignore
+from alembic import context 
 
 from shared.models.models_base_class import Base
 from models.user_models import User

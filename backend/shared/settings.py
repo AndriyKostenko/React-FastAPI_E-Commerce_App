@@ -3,8 +3,11 @@ from pathlib import Path
 from uuid import UUID, uuid4
 from datetime import datetime
 
+from sqlalchemy.engine import URL
 from pydantic import SecretStr, DirectoryPath
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from shared.schemas.user_schemas import UserInfo, CurrentUserInfo
 
 # Resolve the single shared .env that lives one level above this file (backend/.env)
 _ROOT_ENV = Path(__file__).resolve().parents[1] / ".env"
@@ -162,19 +165,19 @@ class Settings(BaseSettings):
     #--------------USER-SERVICE---------------------
 
     @property
-    def USER_SERVICE_DATABASE_URL(self) -> str:
+    def USER_SERVICE_DATABASE_URL(self) -> str | URL:
         return f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.USER_SERVICE_DB}"
 
     @property
-    def USER_SERVICE_TEST_DATABASE_URL(self) -> str:
+    def USER_SERVICE_TEST_DATABASE_URL(self) -> str | URL:
         return f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.USER_SERVICE_TEST_DB}"
 
     @property
-    def FULL_USER_SERVICE_URL(self) -> str:
+    def FULL_USER_SERVICE_URL(self) -> str | URL:
         return f"{self.USER_SERVICE_URL}{self.USER_SERVICE_URL_API_VERSION}"
 
     @property
-    def USER_SERVICE_REDIS_URL(self) -> str:
+    def USER_SERVICE_REDIS_URL(self) -> str | URL:
         return f"redis://:{self.REDIS_PASSWORD}@{self.REDIS_HOST}:{self.REDIS_PORT}/{self.USER_SERVICE_REDIS_DB}"
 
     #---------------PRODUCT-SERVICE-------------------
@@ -274,15 +277,47 @@ class TestSettings(BaseSettings):
     TEST_NAME: str = "Test User"
     TEST_HASHED_PW: str = "$2b$12$fakehashfortesting000000000000000000"
     TEST_DATETIME: datetime = datetime(2024, 1, 1, 12, 0, 0)
-    USER_ROLE: str = "user"
-    
+    TEST_USER_ROLE: str = "user"
+    TEST_PHONE_NUMBER: str = "4372998642"
+
+    USER_INFO: UserInfo = UserInfo(
+        id=TEST_USER_ID,
+        name=TEST_NAME,
+        email=TEST_EMAIL,
+        role=TEST_USER_ROLE,
+        phone_number=TEST_PHONE_NUMBER,
+        image=None,
+        date_created=TEST_DATETIME,
+        date_updated=TEST_DATETIME,
+        is_verified=True,
+        is_active=True,
+    )
+
+    CURRENT_USER: CurrentUserInfo = CurrentUserInfo(
+        email=TEST_EMAIL,
+        id=TEST_USER_ID,
+        role=TEST_USER_ROLE
+    )
+
+    CRYPT_CONTEXT_SCHEME: str = "bcrypt"
+    SECRET_KEY: str = "test-secret-key-not-for-production"
+    ALGORITHM: str = "HS256"
+    REFRESH_TOKEN_TIME_DELTA_DAYS: int = 7
+
+    API: str = "/api/v1"
+
+    REGISTER_PAYLOAD: dict[str, str] = {"name": "Test User", "email": "test@example.com", "password": "secret123"}
+    LOGIN_DATA: dict[str, str] = {"username": "test@example.com", "password": "secret123"}  # OAuth2 form fields
+
+
+
 
 
 
 @lru_cache()
 def get_settings():
     return Settings()
-    
+
 @lru_cache
 def get_test_settings():
     return TestSettings()

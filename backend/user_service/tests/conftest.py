@@ -11,15 +11,16 @@ from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
 import pytest
 from httpx import AsyncClient, ASGITransport
 
+from main import app
+from dependencies.dependencies import get_user_service, get_current_user
 from service_layer.user_service import UserService
-from shared.schemas.user_schemas import CurrentUserInfo, UserInfo
 from shared.shared_instances import test_settings
-
+from shared.managers.token_manager import TokenManager
+from shared.managers.password_manager import PasswordManager
 
 # ---------------------------------------------------------------------------
 # ORM / DB fixtures
 # ---------------------------------------------------------------------------
-
 
 @pytest.fixture
 def mock_user_orm() -> MagicMock:
@@ -29,15 +30,14 @@ def mock_user_orm() -> MagicMock:
     user.name = test_settings.TEST_NAME
     user.email = test_settings.TEST_EMAIL
     user.hashed_password = test_settings.TEST_HASHED_PW
-    user.role = test_settings.USER_ROLE
+    user.role = test_settings.TEST_USER_ROLE
     user.phone_number = None
     user.image = None
     user.is_active = True
     user.is_verified = True
     user.date_created = test_settings.TEST_DATETIME
-    user.date_updated = None
+    user.date_updated = test_settings.TEST_DATETIME
     return user
-
 
 @pytest.fixture
 def mock_repository() -> MagicMock:
@@ -54,11 +54,9 @@ def mock_repository() -> MagicMock:
     repo.get_users_by_role = AsyncMock()
     return repo
 
-
 # ---------------------------------------------------------------------------
-# Manager fixtures
+# Managers fixtures
 # ---------------------------------------------------------------------------
-
 
 @pytest.fixture
 def mock_password_manager() -> MagicMock:
@@ -67,7 +65,6 @@ def mock_password_manager() -> MagicMock:
     mgr.hash_password = MagicMock(return_value="$2b$12$mocked_hashed_password")
     mgr.verify_password = MagicMock(return_value=True)
     return mgr
-
 
 @pytest.fixture
 def mock_token_manager() -> MagicMock:
@@ -78,7 +75,6 @@ def mock_token_manager() -> MagicMock:
     mgr.decode_token = MagicMock()
     return mgr
 
-
 @pytest.fixture
 def mock_redis() -> AsyncMock:
     """Mock aioredis client returned by RedisManager.redis property."""
@@ -88,7 +84,6 @@ def mock_redis() -> AsyncMock:
     redis.delete = AsyncMock(return_value=1)
     return redis
 
-
 @pytest.fixture
 def mock_redis_manager(mock_redis: AsyncMock) -> MagicMock:
     """Mock RedisManager whose .redis property returns mock_redis."""
@@ -96,27 +91,29 @@ def mock_redis_manager(mock_redis: AsyncMock) -> MagicMock:
     type(mgr).redis = PropertyMock(return_value=mock_redis)
     return mgr
 
+@pytest.fixture
+def token_manager() -> TokenManager:
+    return TokenManager(settings=test_settings)
+
+@pytest.fixture
+def password_manager() -> PasswordManager:
+    return PasswordManager(settings=test_settings)
 
 # ---------------------------------------------------------------------------
 # Service fixture (unit tests)
 # ---------------------------------------------------------------------------
-
-
 @pytest.fixture
 def user_service(
     mock_repository: MagicMock,
     mock_password_manager: MagicMock,
     mock_token_manager: MagicMock,
-    mock_redis_manager: MagicMock,
-) -> UserService:
+    mock_redis_manager: MagicMock) -> UserService:
     """UserService instance wired with all mocked dependencies."""
     return UserService(
         repository=mock_repository,
         password_manager=mock_password_manager,
         token_manager=mock_token_manager,
-        redis_manager=mock_redis_manager,
-    )
-
+        redis_manager=mock_redis_manager)
 
 # ---------------------------------------------------------------------------
 # Route-level fixtures
@@ -124,40 +121,32 @@ def user_service(
 
 # A canonical UserInfo Pydantic object used as the service return value
 # in route tests (so JSONResponse can serialize it via jsonable_encoder).
-_USER_INFO = UserInfo(
-    id=TEST_USER_ID,
-    name=TEST_NAME,
-    email=TEST_EMAIL,
-    role="user",
-    phone_number=None,
-    image=None,
-    date_created=TEST_DATETIME,
-    date_updated=None,
-    is_verified=True,
-    is_active=True,
-)
-
-_CURRENT_USER = CurrentUserInfo(email=TEST_EMAIL, id=TEST_USER_ID, role="user")
 
 
 @pytest.fixture
 def mock_route_service() -> MagicMock:
     """Full mock of UserService for use via app.dependency_overrides in route tests."""
     svc = MagicMock()
-    svc.create_user = AsyncMock(return_value=(_USER_INFO, "verification_token_abc"))
-    svc.verify_email = AsyncMock(return_value=_USER_INFO)
-    svc.request_password_reset = AsyncMock(return_value=(_USER_INFO, "reset_token_abc"))
-    svc.reset_password_with_token = AsyncMock(return_value=_USER_INFO)
+    svc.create_user = AsyncMock(return_value=(test_settings.USER_INFO, "verification_token_abc"))
+    svc.verify_email = AsyncMock(return_value=test_settings.USER_INFO)
+    svc.request_password_reset = AsyncMock(return_value=(test_settings.USER_INFO, "reset_token_abc"))
+    svc.reset_password_with_token = AsyncMock(return_value=test_settings.USER_INFO)
     svc.login_user = AsyncMock(
-        return_value=(_CURRENT_USER, "access_tok", 9_999_999_999, "refresh_tok", 9_999_999_999)
+        return_value=(
+            test_settings.CURRENT_USER,
+            "access_tok",
+            9_999_999_999,
+            "refresh_tok",
+            9_999_999_999,
+        )
     )
     svc.refresh_access_token = AsyncMock(return_value=("new_access_tok", 9_999_999_999))
     svc.logout_user = AsyncMock(return_value=None)
-    svc.get_user_by_id = AsyncMock(return_value=_USER_INFO)
-    svc.get_all_users = AsyncMock(return_value=[_USER_INFO])
-    svc.update_user_basic_info = AsyncMock(return_value=_USER_INFO)
+    svc.get_user_by_id = AsyncMock(return_value=test_settings.USER_INFO)
+    svc.get_all_users = AsyncMock(return_value=[test_settings.USER_INFO])
+    svc.update_user_basic_info = AsyncMock(return_value=test_settings.USER_INFO)
     svc.delete_user_by_id = AsyncMock(return_value=None)
-    svc.get_current_user_from_token = AsyncMock(return_value=_CURRENT_USER)
+    svc.get_current_user_from_token = AsyncMock(return_value=test_settings.CURRENT_USER)
     return svc
 
 
@@ -177,8 +166,6 @@ async def client(mock_route_service: MagicMock):
     - Overrides the get_user_service and get_current_user FastAPI dependencies.
     - Patches user_events_publisher so events are not published to RabbitMQ.
     """
-    from main import app
-    from dependencies.dependencies import get_user_service, get_current_user
 
     original_lifespan = app.router.lifespan_context
     app.router.lifespan_context = _noop_lifespan
@@ -191,12 +178,9 @@ async def client(mock_route_service: MagicMock):
         mock_pub.publish_user_logged_in = AsyncMock()
 
         app.dependency_overrides[get_user_service] = lambda: mock_route_service
-        app.dependency_overrides[get_current_user] = lambda: _CURRENT_USER
+        app.dependency_overrides[get_current_user] = lambda: test_settings.CURRENT_USER
 
-        async with AsyncClient(
-            transport=ASGITransport(app=app),
-            base_url="http://testserver"
-        ) as async_client:
+        async with AsyncClient(transport=ASGITransport(app=app),base_url="http://testserver") as async_client:
             yield async_client
 
         app.dependency_overrides.clear()
