@@ -1,3 +1,4 @@
+import os
 from datetime import datetime
 from contextlib import asynccontextmanager
 
@@ -185,7 +186,8 @@ app.add_middleware(
 )
 
 # Static files configuration
-app.mount("/media", StaticFiles(directory="/media"), name="media")
+_media_dir = os.environ.get("MEDIA_ROOT", "/media")
+app.mount("/media", StaticFiles(directory=_media_dir), name="media")
 
 # including all the routers to the app
 app.include_router(product_routes, prefix=settings.PRODUCT_SERVICE_URL_API_VERSION)

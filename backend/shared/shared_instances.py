@@ -157,3 +157,12 @@ test_user_service_database_session_manager = TestDatabaseSessionManager(
                     },
     logger=logger
 )
+
+test_product_service_database_session_manager = TestDatabaseSessionManager(
+    database_url=settings.PRODUCT_SERVICE_TEST_DATABASE_URL,
+    engine_settings={"echo": False,
+                     "pool_pre_ping": True,
+                     "poolclass": NullPool,
+                    },
+    logger=logger
+)
