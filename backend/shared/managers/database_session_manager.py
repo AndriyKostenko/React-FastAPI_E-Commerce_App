@@ -1,8 +1,9 @@
 from contextlib import asynccontextmanager
 from logging import Logger
 from collections.abc import AsyncGenerator
-from typing import Any
 
+from sqlalchemy.pool import NullPool
+from sqlalchemy import URL
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker, AsyncEngine
 
 from shared.models.models_base_class import Base
@@ -24,11 +25,11 @@ class DatabaseSessionManager:
     - Uses SQLAlchemy's async engine and sessionmaker for asynchronous operations.
     - Uses a logger for logging database operations and errors.
     """
-    def __init__(self, database_url: str, engine_settings: dict[str, str | int], logger: Logger) -> None:
+    def __init__(self, database_url: str | URL, engine_settings: dict[str, str | int | type[NullPool]] , logger: Logger) -> None:
         self.async_engine: AsyncEngine | None = None
         self.async_session: async_sessionmaker[AsyncSession] | None = None
-        self.database_url: str = database_url
-        self.engine_settings: dict[str, str|int] = engine_settings
+        self.database_url: str | URL = database_url
+        self.engine_settings: dict[str, str|int|type[NullPool]] = engine_settings
         self.logger: Logger = logger
 
         # Initializing the database engine and session maker

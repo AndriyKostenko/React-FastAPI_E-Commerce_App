@@ -246,11 +246,25 @@ async def integration_client(mock_user_events_publisher) -> AsyncGenerator[Async
     real_password_manager = PasswordManager(settings)
     real_token_manager    = TokenManager(settings)
 
-    # ── 3. Mock Redis (no live Redis needed) ────────────────────────────────
+    # ── 3. Mock Redis — dict-backed so setex/get/delete behave like real Redis ─
+    _redis_store: dict[str, Any] = {}
+
+    async def _redis_setex(key, ttl, value):
+        _redis_store[key] = value
+        return True
+
+    async def _redis_get(key):
+        return _redis_store.get(key)
+
+    async def _redis_delete(*keys):
+        for k in keys:
+            _redis_store.pop(k, None)
+        return len(keys)
+
     _mock_redis = AsyncMock()
-    _mock_redis.setex  = AsyncMock(return_value=True)
-    _mock_redis.get    = AsyncMock(return_value=None)   # no cached tokens → always "valid"
-    _mock_redis.delete = AsyncMock(return_value=1)
+    _mock_redis.setex  = _redis_setex
+    _mock_redis.get    = _redis_get
+    _mock_redis.delete = _redis_delete
 
     _mock_redis_manager = MagicMock()
     type(_mock_redis_manager).redis = PropertyMock(return_value=_mock_redis)

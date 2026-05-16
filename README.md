@@ -719,4 +719,18 @@ Redis Idempotency Flow:
 ## Pytest
  1. uv run pytest
  2. uv run pytest tests/test_user_service
- 3. docker compose --profile test run --rm user-service-test
+ 3. # Run all tests (unit + integration)
+ docker compose --profile test run --rm user-service-test
+ 
+ # Run only integration tests
+ docker compose --profile test run --rm user-service-test \
+   python -m pytest tests/ -v -k integration
+ 
+ # Run only unit tests (no DB needed, but works here too)
+ docker compose --profile test run --rm user-service-test \
+   python -m pytest tests/ -v -k "not integration"
+
+4. docker compose \
+  -f docker-compose.yml \
+  -f docker-compose.test.yml \
+  run --rm --build user-service-test - for runnig the tests into a separate container

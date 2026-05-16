@@ -1,8 +1,10 @@
 from logging import Logger
 from collections.abc import AsyncGenerator
+from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import text
+from sqlalchemy import URL, text
+from sqlalchemy.pool import NullPool
 
 from shared.models.models_base_class import Base
 from .database_session_manager import DatabaseSessionManager
@@ -15,7 +17,7 @@ class TestDatabaseSessionManager(DatabaseSessionManager):
     all rows are deleted in reverse dependency order so FK constraints
     are never violated, and sequences are reset to 1.
     """
-    def __init__(self, database_url: str, engine_settings: dict[str, str | int], logger: Logger) -> None:
+    def __init__(self, database_url: str | URL, engine_settings: dict[str, str | int | type[NullPool]], logger: Logger) -> None:
         super().__init__(database_url, engine_settings, logger)
 
     async def truncate_all_tables(self) -> None:

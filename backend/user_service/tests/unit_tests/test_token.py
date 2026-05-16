@@ -5,7 +5,6 @@ Uses a minimal in-memory Settings substitute so the tests run
 without a live environment or .env file.
 """
 from datetime import timedelta
-from uuid import UUID
 from time import time
 
 import pytest

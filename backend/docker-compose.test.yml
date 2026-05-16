@@ -1,0 +1,18 @@
+services:
+  user-service-test:
+    build:
+      context: ./user_service
+      dockerfile: Dockerfile
+      target: test
+    volumes:
+      - ./shared:/app/shared:ro
+    networks:
+      - usernet
+    profiles:
+      - test
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env
+    restart: "no"

@@ -279,7 +279,8 @@ class TestSettings(BaseSettings):
     TEST_DATETIME: datetime = datetime(2024, 1, 1, 12, 0, 0)
     TEST_USER_ROLE: str = "user"
     TEST_PHONE_NUMBER: str = "4372998642"
-
+    TEST_PASSWORD: str  = "Password123!"
+ 
     USER_INFO: UserInfo = UserInfo(
         id=TEST_USER_ID,
         name=TEST_NAME,
