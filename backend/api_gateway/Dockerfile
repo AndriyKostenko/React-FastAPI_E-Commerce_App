@@ -28,6 +28,44 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev
 
 # -------------------------
+# Test Builder Stage
+# -------------------------
+FROM builder AS test-builder
+
+RUN uv sync --frozen
+
+# -------------------------
+# Test Runtime Stage
+# -------------------------
+FROM python:3.12-slim AS test
+
+WORKDIR /app
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        libpq5 \
+        curl \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* \
+    && addgroup --system --gid 1010 apigatewaygroup-test \
+    && adduser --system --uid 1010 --ingroup apigatewaygroup-test apigatewayuser-test \
+    && mkdir -p /app/logs \
+    && chown -R apigatewayuser-test:apigatewaygroup-test /app
+
+COPY --from=test-builder /app/.venv /app/.venv
+
+ENV PATH="/app/.venv/bin:$PATH"
+
+COPY --chown=apigatewayuser-test:apigatewaygroup-test . .
+
+USER apigatewayuser-test
+
+CMD ["python", "-m", "pytest", "tests/", "-v", "--tb=short"]
+
+# -------------------------
 # Final Runtime Stage
 # -------------------------
 FROM python:3.12-slim

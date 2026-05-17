@@ -88,3 +88,18 @@ services:
     env_file:
       - .env
     restart: "no"
+
+  api-gateway-test:
+    build:
+      context: ./api_gateway
+      dockerfile: Dockerfile
+      target: test
+    volumes:
+      - ./shared:/app/shared:ro
+    networks:
+      - usernet
+    profiles:
+      - test
+    env_file:
+      - .env
+    restart: "no"

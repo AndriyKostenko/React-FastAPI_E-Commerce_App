@@ -30,9 +30,9 @@
 !/backend/payment_service/tests
 !/backend/order_service/tests
 !/backend/notification_service/tests
+!/backend/api_gateway/tests
 /backend/notification_consumer/tests
 /backend/shared/tests
-/backend/api_gateway/tests
 
 /frontend/node_modules
 /frontend/.pnp
