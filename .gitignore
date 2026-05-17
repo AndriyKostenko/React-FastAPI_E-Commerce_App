@@ -27,8 +27,7 @@
 
 # tests
 !/backend/user_service/tests
-!/backend/product_service/tests
-/backend/order_service/tests
+/backend/notification_service/tests
 /backend/notification_service/tests
 /backend/notification_consumer/tests
 /backend/shared/tests
