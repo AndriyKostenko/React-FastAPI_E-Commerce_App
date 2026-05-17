@@ -36,7 +36,7 @@ docker compose $COMPOSE_FILES --profile test up -d $BUILD_FLAG \
 echo ">>> Waiting for services to become healthy..."
 sleep 5
 
-declare -A EXIT_CODES
+FAILED_SERVICES=""
 OVERALL=0
 
 for SERVICE in "${TEST_SERVICES[@]}"; do
@@ -50,8 +50,10 @@ for SERVICE in "${TEST_SERVICES[@]}"; do
   CODE=$?
   set -e
 
-  EXIT_CODES[$SERVICE]=$CODE
-  [[ $CODE -ne 0 ]] && OVERALL=$CODE
+  if [[ $CODE -ne 0 ]]; then
+    FAILED_SERVICES="$FAILED_SERVICES $SERVICE"
+    OVERALL=$CODE
+  fi
 done
 
 echo ""
@@ -59,11 +61,10 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo ">>> Test Results Summary"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 for SERVICE in "${TEST_SERVICES[@]}"; do
-  CODE=${EXIT_CODES[$SERVICE]}
-  if [[ $CODE -eq 0 ]]; then
-    echo "  ✅  $SERVICE"
+  if echo "$FAILED_SERVICES" | grep -qw "$SERVICE"; then
+    echo "  ❌  $SERVICE"
   else
-    echo "  ❌  $SERVICE (exit code $CODE)"
+    echo "  ✅  $SERVICE"
   fi
 done
 echo ""
