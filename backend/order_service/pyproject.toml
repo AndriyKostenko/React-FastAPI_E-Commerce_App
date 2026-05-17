@@ -18,7 +18,6 @@ dependencies = [
     "passlib>=1.7.4",
     "psycopg2-binary>=2.9.10",
     "pydantic-settings>=2.10.1",
-    "pytest>=9.0.2",
     "python-dotenv>=1.1.1",
     "python-jose>=3.5.0",
     "python-multipart>=0.0.20",
@@ -30,6 +29,20 @@ dependencies = [
 
 [tool.uv.sources]
 shared = { path = "../shared", editable = true }
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "session"
+testpaths = ["tests"]
+pythonpath = [".", ".."]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+    "pytest>=8.3.5",
+    "pytest-asyncio>=0.26.0",
+    "pytest-mock>=3.14.0",
+]
 
 [tool.basedpyright]
 # Use tool.basedpyright instead of tool.pyright for better compatibility
