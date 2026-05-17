@@ -29,7 +29,7 @@ class Order(Base, TimestampMixin):
     address_id: Mapped[UUID] = mapped_column(ForeignKey('order_addresses.id'), nullable=False)
 
     address: Mapped['OrderAddress'] = relationship('OrderAddress', back_populates='orders')
-    items: Mapped[list['OrderItem']] = relationship('OrderItem', back_populates='order')
+    items: Mapped[list['OrderItem']] = relationship('OrderItem', back_populates='order', cascade="all, delete-orphan")
 
     @classmethod
     def get_search_fields(cls) -> list[str]:
