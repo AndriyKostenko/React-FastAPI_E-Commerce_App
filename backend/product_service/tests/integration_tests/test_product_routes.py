@@ -52,9 +52,10 @@ async def _setup_product(
     category_id: str,
     *,
     name: str = "test laptop",
+    **kwargs,
 ) -> dict:
     """Create product and return response JSON, asserting 201."""
-    r = await _create_product(client, category_id, name=name)
+    r = await _create_product(client, category_id, name=name, **kwargs)
     assert r.status_code == status.HTTP_201_CREATED, r.text
     return r.json()
 
