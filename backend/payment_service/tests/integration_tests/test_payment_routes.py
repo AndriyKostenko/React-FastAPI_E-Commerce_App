@@ -65,7 +65,7 @@ class TestCreatePaymentIntent:
         data = await _create_payment(integration_client)
         assert "client_secret" in data
         assert "stripe_payment_intent_id" in data
-        assert data["stripe_payment_intent_id"] == TEST_STRIPE_INTENT_ID
+        assert data["stripe_payment_intent_id"].startswith("pi_test_")
         assert "payment_id" in data
         assert "order_id" in data
 

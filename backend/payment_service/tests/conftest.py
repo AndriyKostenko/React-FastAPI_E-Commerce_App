@@ -122,11 +122,18 @@ def mock_settings() -> MagicMock:
 def mock_stripe_client() -> MagicMock:
     """Mock StripeClient — synchronous methods (Stripe SDK is sync)."""
     stripe = MagicMock()
+
+    def _make_intent(*args, **kwargs) -> MagicMock:
+        m = MagicMock()
+        m.id = f"pi_test_{uuid4().hex[:12]}"
+        m.client_secret = TEST_CLIENT_SECRET
+        return m
+
     # payment intents
     intent_mock = MagicMock()
     intent_mock.id = TEST_STRIPE_INTENT_ID
     intent_mock.client_secret = TEST_CLIENT_SECRET
-    stripe.v1.payment_intents.create.return_value = intent_mock
+    stripe.v1.payment_intents.create.side_effect = _make_intent
     stripe.v1.payment_intents.retrieve.return_value = intent_mock
     # refunds
     refund_mock = MagicMock()
@@ -261,11 +268,17 @@ async def integration_client() -> AsyncGenerator[AsyncClient, Any]:
             logger=logger,
         )
         # Patch the Stripe client so no real Stripe API calls are made
+        def _make_intent(*args, **kwargs) -> MagicMock:
+            m = MagicMock()
+            m.id = f"pi_test_{uuid4().hex[:12]}"
+            m.client_secret = TEST_CLIENT_SECRET
+            return m
+
         stripe_mock = MagicMock()
         intent_mock = MagicMock()
         intent_mock.id = TEST_STRIPE_INTENT_ID
         intent_mock.client_secret = TEST_CLIENT_SECRET
-        stripe_mock.v1.payment_intents.create.return_value = intent_mock
+        stripe_mock.v1.payment_intents.create.side_effect = _make_intent
         stripe_mock.v1.payment_intents.retrieve.return_value = intent_mock
         refund_mock = MagicMock()
         refund_mock.id = "re_test_refund123"
