@@ -1,23 +1,14 @@
-"""Shared test constants for notification_service tests."""
-from uuid import UUID, uuid4
-from datetime import datetime
+"""Test constants for notification_service — sourced from shared TestSettings."""
+from shared.shared_instances import test_settings
 
-TEST_NOTIFICATION_ID: UUID = uuid4()
-TEST_USER_ID: UUID = uuid4()
-TEST_NOTIFICATION_TYPE: str = "user.registered"
-TEST_MESSAGE: str = "Welcome! Please verify your email address."
-TEST_DATETIME: datetime = datetime(2024, 6, 1, 10, 0, 0)
-TEST_EMAIL: str = "testnotif@example.com"
-TEST_ORDER_ID: UUID = uuid4()
-TEST_EVENT_ID: str = str(uuid4())
-TEST_API: str = "/api/v1"
+TEST_NOTIFICATION_ID = test_settings.TEST_NOTIFICATION_ID
+TEST_USER_ID        = test_settings.TEST_USER_ID
+TEST_NOTIFICATION_TYPE = test_settings.TEST_NOTIFICATION_TYPE
+TEST_MESSAGE        = test_settings.TEST_MESSAGE
+TEST_DATETIME       = test_settings.TEST_DATETIME
+TEST_EMAIL          = test_settings.TEST_EMAIL
+TEST_ORDER_ID       = test_settings.TEST_ORDER_ID
+TEST_EVENT_ID       = test_settings.TEST_EVENT_ID
+TEST_API            = test_settings.API
 
-MOCK_NOTIFICATION_RESULT = {
-    "id": str(TEST_NOTIFICATION_ID),
-    "user_id": str(TEST_USER_ID),
-    "message": TEST_MESSAGE,
-    "notification_type": TEST_NOTIFICATION_TYPE,
-    "is_read": False,
-    "date_created": TEST_DATETIME.isoformat(),
-    "date_updated": None,
-}
+MOCK_NOTIFICATION_RESULT = test_settings.MOCK_NOTIFICATION_RESULT

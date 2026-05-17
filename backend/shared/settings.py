@@ -1,3 +1,4 @@
+from decimal import Decimal
 from functools import lru_cache
 from pathlib import Path
 from uuid import UUID, uuid4
@@ -8,6 +9,11 @@ from pydantic import SecretStr, DirectoryPath
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from shared.schemas.user_schemas import UserInfo, CurrentUserInfo
+from shared.schemas.category_schema import CategorySchema
+from shared.schemas.product_schemas import ProductBase, ProductSchema
+from shared.schemas.review_schemas import ReviewSchema
+from shared.schemas.notifications_schemas import NotificationInfo
+from shared.enums.status_enums import OrderStatus, OrderDeliveryStatus
 
 # Resolve the single shared .env that lives one level above this file (backend/.env)
 _ROOT_ENV = Path(__file__).resolve().parents[1] / ".env"
@@ -272,15 +278,55 @@ class Settings(BaseSettings):
 
 
 class TestSettings(BaseSettings):
-    TEST_USER_ID: UUID = uuid4()
-    TEST_EMAIL: str = "test@example.com"
-    TEST_NAME: str = "Test User"
-    TEST_HASHED_PW: str = "$2b$12$fakehashfortesting000000000000000000"
+    # ── Common ──────────────────────────────────────────────────────────────
     TEST_DATETIME: datetime = datetime(2024, 1, 1, 12, 0, 0)
+    API: str = "/api/v1"
+
+    # ── Auth / Token settings ────────────────────────────────────────────────
+    CRYPT_CONTEXT_SCHEME: str = "bcrypt"
+    SECRET_KEY: str = "test-secret-key-not-for-production"
+    ALGORITHM: str = "HS256"
+    REFRESH_TOKEN_TIME_DELTA_DAYS: int = 7
+
+    # ── User ────────────────────────────────────────────────────────────────
+    TEST_USER_ID: UUID = uuid4()
+    TEST_ADMIN_ID: UUID = uuid4()
     TEST_USER_ROLE: str = "user"
+    TEST_ADMIN_ROLE: str = "shiba_inu"
+    TEST_NAME: str = "Test User"
+    TEST_EMAIL: str = "test@example.com"
+    TEST_ADMIN_EMAIL: str = "admin@example.com"
     TEST_PHONE_NUMBER: str = "4372998642"
-    TEST_PASSWORD: str  = "Password123!"
- 
+    TEST_PASSWORD: str = "Password123!"
+    TEST_HASHED_PW: str = "$2b$12$fakehashfortesting000000000000000000"
+
+    # ── Product ─────────────────────────────────────────────────────────────
+    TEST_PRODUCT_ID: UUID = uuid4()
+    TEST_CATEGORY_ID: UUID = uuid4()
+    TEST_REVIEW_ID: UUID = uuid4()
+    TEST_IMAGE_ID: UUID = uuid4()
+
+    # ── Order ────────────────────────────────────────────────────────────────
+    TEST_ORDER_ID: UUID = uuid4()
+    TEST_ORDER_ITEM_ID: UUID = uuid4()
+    TEST_ORDER_ADDRESS_ID: UUID = uuid4()
+    TEST_PAYMENT_INTENT_ID: str = "pi_test_order_abc123"
+    TEST_AMOUNT: float = 99.99
+    TEST_CURRENCY: str = "usd"
+
+    # ── Payment ──────────────────────────────────────────────────────────────
+    TEST_PAYMENT_ID: UUID = uuid4()
+    TEST_STRIPE_INTENT_ID: str = "pi_test_abc123"
+    TEST_CLIENT_SECRET: str = "pi_test_abc123_secret_xyz"
+    TEST_AMOUNT_CENTS: int = 9999  # payment amount in cents
+
+    # ── Notification ─────────────────────────────────────────────────────────
+    TEST_NOTIFICATION_ID: UUID = uuid4()
+    TEST_NOTIFICATION_TYPE: str = "user.registered"
+    TEST_MESSAGE: str = "Welcome! Please verify your email address."
+    TEST_EVENT_ID: str = str(uuid4())
+
+    # ── User schema objects ──────────────────────────────────────────────────
     USER_INFO: UserInfo = UserInfo(
         id=TEST_USER_ID,
         name=TEST_NAME,
@@ -297,18 +343,111 @@ class TestSettings(BaseSettings):
     CURRENT_USER: CurrentUserInfo = CurrentUserInfo(
         email=TEST_EMAIL,
         id=TEST_USER_ID,
-        role=TEST_USER_ROLE
+        role=TEST_USER_ROLE,
     )
 
-    CRYPT_CONTEXT_SCHEME: str = "bcrypt"
-    SECRET_KEY: str = "test-secret-key-not-for-production"
-    ALGORITHM: str = "HS256"
-    REFRESH_TOKEN_TIME_DELTA_DAYS: int = 7
+    ADMIN_USER: CurrentUserInfo = CurrentUserInfo(
+        email=TEST_ADMIN_EMAIL,
+        id=TEST_ADMIN_ID,
+        role=TEST_ADMIN_ROLE,
+    )
 
-    API: str = "/api/v1"
+    # ── Product schema objects ───────────────────────────────────────────────
+    MOCK_CATEGORY_SCHEMA: CategorySchema = CategorySchema(
+        id=TEST_CATEGORY_ID,
+        name="electronics",
+        image_url=None,
+        date_created=TEST_DATETIME,
+        date_updated=None,
+    )
 
-    REGISTER_PAYLOAD: dict[str, str] = {"name": "Test User", "email": "test@example.com", "password": "secret123"}
-    LOGIN_DATA: dict[str, str] = {"username": "test@example.com", "password": "secret123"}  # OAuth2 form fields
+    MOCK_PRODUCT_BASE: ProductBase = ProductBase(
+        id=TEST_PRODUCT_ID,
+        name="test laptop",
+        description="A high-quality test laptop for testing purposes",
+        category_id=TEST_CATEGORY_ID,
+        brand="testbrand",
+        quantity=10,
+        price=Decimal("999.99"),
+        in_stock=True,
+        date_created=TEST_DATETIME,
+        date_updated=None,
+    )
+
+    MOCK_PRODUCT_SCHEMA: ProductSchema = ProductSchema(
+        id=TEST_PRODUCT_ID,
+        name="test laptop",
+        description="A high-quality test laptop for testing purposes",
+        category_id=TEST_CATEGORY_ID,
+        brand="testbrand",
+        quantity=10,
+        price=Decimal("999.99"),
+        in_stock=True,
+        date_created=TEST_DATETIME,
+        date_updated=None,
+        reviews=[],
+        category=MOCK_CATEGORY_SCHEMA,
+        images=[],
+    )
+
+    MOCK_REVIEW_SCHEMA: ReviewSchema = ReviewSchema(
+        id=TEST_REVIEW_ID,
+        product_id=TEST_PRODUCT_ID,
+        user_id=TEST_USER_ID,
+        comment="Great product!",
+        rating=4.5,
+        date_created=TEST_DATETIME,
+        date_updated=None,
+    )
+
+    # ── Notification schema objects ──────────────────────────────────────────
+    MOCK_NOTIFICATION_INFO: NotificationInfo = NotificationInfo(
+        id=TEST_NOTIFICATION_ID,
+        user_id=TEST_USER_ID,
+        message=TEST_MESSAGE,
+        notification_type=TEST_NOTIFICATION_TYPE,
+        is_read=False,
+        date_created=TEST_DATETIME,
+        date_updated=None,
+    )
+
+    # ── Mock result dicts (for JSON response assertions) ─────────────────────
+    MOCK_NOTIFICATION_RESULT: dict = {
+        "id": str(TEST_NOTIFICATION_ID),
+        "user_id": str(TEST_USER_ID),
+        "message": TEST_MESSAGE,
+        "notification_type": TEST_NOTIFICATION_TYPE,
+        "is_read": False,
+        "date_created": TEST_DATETIME.isoformat(),
+        "date_updated": None,
+    }
+
+    MOCK_ORDER_RESULT: dict = {
+        "id": str(TEST_ORDER_ID),
+        "user_id": str(TEST_USER_ID),
+        "user_email": TEST_EMAIL,
+        "amount": TEST_AMOUNT,
+        "currency": TEST_CURRENCY,
+        "status": OrderStatus.PENDING,
+        "delivery_status": OrderDeliveryStatus.PENDING,
+        "payment_intent_id": TEST_PAYMENT_INTENT_ID,
+        "address_id": str(TEST_ORDER_ADDRESS_ID),
+        "date_created": TEST_DATETIME.isoformat(),
+        "date_updated": None,
+    }
+
+    MOCK_PAYMENT_INTENT_RESULT: dict = {
+        "client_secret": TEST_CLIENT_SECRET,
+        "stripe_payment_intent_id": TEST_STRIPE_INTENT_ID,
+        "payment_id": str(TEST_PAYMENT_ID),
+        "order_id": str(TEST_ORDER_ID),
+    }
+
+    MOCK_UPSTREAM_RESPONSE_BODY: dict = {"status": "ok", "data": "upstream_result"}
+
+    # ── Auth request payload helpers ─────────────────────────────────────────
+    REGISTER_PAYLOAD: dict = {"name": "Test User", "email": "test@example.com", "password": "secret123"}
+    LOGIN_DATA: dict = {"username": "test@example.com", "password": "secret123"}
 
 
 

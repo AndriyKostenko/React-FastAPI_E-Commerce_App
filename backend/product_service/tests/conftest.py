@@ -26,11 +26,9 @@ except OSError:
 
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from decimal import Decimal
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
-from uuid import UUID, uuid4
-from datetime import datetime
+from uuid import UUID
 
 import pytest
 from fastapi import Depends
@@ -53,7 +51,7 @@ from service_layer.category_service import CategoryService
 from service_layer.product_service import ProductService
 from service_layer.review_service import ReviewService
 from service_layer.product_image_service import ProductImageService
-from shared.shared_instances import test_product_service_database_session_manager
+from shared.shared_instances import test_product_service_database_session_manager, test_settings
 from shared.schemas.product_schemas import ProductBase, ProductSchema
 from shared.schemas.category_schema import CategorySchema
 from shared.schemas.review_schemas import ReviewSchema
@@ -61,62 +59,20 @@ from shared.schemas.product_image_schema import ImageType
 
 
 # ---------------------------------------------------------------------------
-# Shared test-data constants
+# Shared test-data constants — sourced from shared TestSettings
 # ---------------------------------------------------------------------------
 
-TEST_PRODUCT_ID: UUID = uuid4()
-TEST_CATEGORY_ID: UUID = uuid4()
-TEST_REVIEW_ID: UUID = uuid4()
-TEST_USER_ID: UUID = uuid4()
-TEST_DATETIME: datetime = datetime(2024, 1, 1, 12, 0, 0)
-TEST_API: str = "/api/v1"
+TEST_PRODUCT_ID  = test_settings.TEST_PRODUCT_ID
+TEST_CATEGORY_ID = test_settings.TEST_CATEGORY_ID
+TEST_REVIEW_ID   = test_settings.TEST_REVIEW_ID
+TEST_USER_ID     = test_settings.TEST_USER_ID
+TEST_DATETIME    = test_settings.TEST_DATETIME
+TEST_API         = test_settings.API
 
-MOCK_CATEGORY_SCHEMA = CategorySchema(
-    id=TEST_CATEGORY_ID,
-    name="electronics",
-    image_url=None,
-    date_created=TEST_DATETIME,
-    date_updated=None,
-)
-
-MOCK_PRODUCT_BASE = ProductBase(
-    id=TEST_PRODUCT_ID,
-    name="test laptop",
-    description="A high-quality test laptop for testing purposes",
-    category_id=TEST_CATEGORY_ID,
-    brand="testbrand",
-    quantity=10,
-    price=Decimal("999.99"),
-    in_stock=True,
-    date_created=TEST_DATETIME,
-    date_updated=None,
-)
-
-MOCK_PRODUCT_SCHEMA = ProductSchema(
-    id=TEST_PRODUCT_ID,
-    name="test laptop",
-    description="A high-quality test laptop for testing purposes",
-    category_id=TEST_CATEGORY_ID,
-    brand="testbrand",
-    quantity=10,
-    price=Decimal("999.99"),
-    in_stock=True,
-    date_created=TEST_DATETIME,
-    date_updated=None,
-    reviews=[],
-    category=MOCK_CATEGORY_SCHEMA,
-    images=[],
-)
-
-MOCK_REVIEW_SCHEMA = ReviewSchema(
-    id=TEST_REVIEW_ID,
-    product_id=TEST_PRODUCT_ID,
-    user_id=TEST_USER_ID,
-    comment="Great product!",
-    rating=4.5,
-    date_created=TEST_DATETIME,
-    date_updated=None,
-)
+MOCK_CATEGORY_SCHEMA = test_settings.MOCK_CATEGORY_SCHEMA
+MOCK_PRODUCT_BASE    = test_settings.MOCK_PRODUCT_BASE
+MOCK_PRODUCT_SCHEMA  = test_settings.MOCK_PRODUCT_SCHEMA
+MOCK_REVIEW_SCHEMA   = test_settings.MOCK_REVIEW_SCHEMA
 
 
 # ---------------------------------------------------------------------------

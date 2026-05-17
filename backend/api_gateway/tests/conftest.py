@@ -21,7 +21,7 @@ from httpx import AsyncClient, ASGITransport
 from main import app
 from middleware.auth_middleware import auth_middleware
 from gateway.apigateway import api_gateway_manager
-from shared.shared_instances import api_gateway_redis_manager
+from shared.shared_instances import api_gateway_redis_manager, test_settings
 from shared.schemas.user_schemas import CurrentUserInfo
 from tests.constants import (
     TEST_USER_ID,
@@ -35,20 +35,11 @@ from tests.constants import (
 
 
 # ---------------------------------------------------------------------------
-# Mock users
+# Mock users — sourced directly from shared TestSettings
 # ---------------------------------------------------------------------------
 
-TEST_REGULAR_USER = CurrentUserInfo(
-    id=TEST_USER_ID,
-    email=TEST_USER_EMAIL,
-    role=TEST_USER_ROLE,
-)
-
-TEST_ADMIN_USER = CurrentUserInfo(
-    id=TEST_ADMIN_ID,
-    email=TEST_ADMIN_EMAIL,
-    role=TEST_ADMIN_ROLE,
-)
+TEST_REGULAR_USER = test_settings.CURRENT_USER
+TEST_ADMIN_USER   = test_settings.ADMIN_USER
 
 
 # ---------------------------------------------------------------------------

@@ -1,23 +1,15 @@
-"""Shared test constants for payment_service tests."""
-from uuid import UUID, uuid4
-from datetime import datetime
+"""Test constants for payment_service — sourced from shared TestSettings."""
+from shared.shared_instances import test_settings
 
-from shared.enums.status_enums import PaymentStatus
+TEST_PAYMENT_ID       = test_settings.TEST_PAYMENT_ID
+TEST_ORDER_ID         = test_settings.TEST_ORDER_ID
+TEST_USER_ID          = test_settings.TEST_USER_ID
+TEST_STRIPE_INTENT_ID = test_settings.TEST_STRIPE_INTENT_ID
+TEST_CLIENT_SECRET    = test_settings.TEST_CLIENT_SECRET
+TEST_DATETIME         = test_settings.TEST_DATETIME
+TEST_EMAIL            = test_settings.TEST_EMAIL
+TEST_AMOUNT           = test_settings.TEST_AMOUNT_CENTS  # payment amounts are in cents
+TEST_CURRENCY         = test_settings.TEST_CURRENCY
+TEST_API              = test_settings.API
 
-TEST_PAYMENT_ID: UUID = uuid4()
-TEST_ORDER_ID: UUID = uuid4()
-TEST_USER_ID: UUID = uuid4()
-TEST_STRIPE_INTENT_ID: str = "pi_test_abc123"
-TEST_CLIENT_SECRET: str = "pi_test_abc123_secret_xyz"
-TEST_DATETIME: datetime = datetime(2024, 1, 1, 12, 0, 0)
-TEST_EMAIL: str = "testuser@example.com"
-TEST_AMOUNT: int = 9999  # cents
-TEST_CURRENCY: str = "usd"
-TEST_API: str = "/api/v1"
-
-MOCK_PAYMENT_INTENT_RESULT = {
-    "client_secret": TEST_CLIENT_SECRET,
-    "stripe_payment_intent_id": TEST_STRIPE_INTENT_ID,
-    "payment_id": str(TEST_PAYMENT_ID),
-    "order_id": str(TEST_ORDER_ID),
-}
+MOCK_PAYMENT_INTENT_RESULT = test_settings.MOCK_PAYMENT_INTENT_RESULT
