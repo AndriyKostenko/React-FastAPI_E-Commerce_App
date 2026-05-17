@@ -184,3 +184,12 @@ test_order_service_database_session_manager = TestDatabaseSessionManager(
                     },
     logger=logger
 )
+
+test_notification_service_database_session_manager = TestDatabaseSessionManager(
+    database_url=settings.NOTIFICATION_SERVICE_TEST_DATABASE_URL,
+    engine_settings={"echo": False,
+                     "pool_pre_ping": True,
+                     "poolclass": NullPool,
+                    },
+    logger=logger
+)

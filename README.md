@@ -734,3 +734,9 @@ Redis Idempotency Flow:
   -f docker-compose.yml \
   -f docker-compose.test.yml \
   run --rm --build user-service-test - for runnig the tests into a separate container
+
+5. docker compose -f docker-compose.yml -f docker-compose.test.yml --profile test up --build --abort-on-container-exit
+
+6. cd backend
+./run_tests.sh --build   # first time (builds images)
+./run_tests.sh           # subsequent runs (faster, no rebuild)
