@@ -47,7 +47,7 @@ RUN uv sync --frozen
 # -------------------------
 # Final Runtime Stage
 # -------------------------
-FROM python:3.12-slim
+FROM python:3.12-slim AS runtime
 
 WORKDIR /app
 

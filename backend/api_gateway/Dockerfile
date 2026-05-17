@@ -68,7 +68,7 @@ CMD ["python", "-m", "pytest", "tests/", "-v", "--tb=short"]
 # -------------------------
 # Final Runtime Stage
 # -------------------------
-FROM python:3.12-slim
+FROM python:3.12-slim AS runtime
 
 WORKDIR /app
 

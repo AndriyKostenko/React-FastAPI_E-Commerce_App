@@ -70,6 +70,7 @@ services:
     build:
       context: ./api_gateway
       dockerfile: Dockerfile
+      target: runtime
     restart: always
     depends_on:
       user-service:
@@ -128,6 +129,7 @@ services:
     build:
       context: ./product_service
       dockerfile: Dockerfile
+      target: runtime
     restart: always
     depends_on:
       db:
@@ -174,6 +176,7 @@ services:
     build:
       context: ./notification_service
       dockerfile: Dockerfile
+      target: runtime
     restart: always
     depends_on:
       db:
@@ -243,6 +246,7 @@ services:
     build:
       context: ./order_service
       dockerfile: Dockerfile
+      target: runtime
     restart: always
     depends_on:
       db:
@@ -290,6 +294,7 @@ services:
     build:
       context: ./payment_service
       dockerfile: Dockerfile
+      target: runtime
     restart: always
     depends_on:
       db:

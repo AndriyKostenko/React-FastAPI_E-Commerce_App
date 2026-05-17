@@ -11,7 +11,6 @@ htmlcov/
 .pytest_cache/
 .venv/
 venv/
-tests/
 docs/
 *.md
 *.log

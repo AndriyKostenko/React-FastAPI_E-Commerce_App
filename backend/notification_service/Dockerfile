@@ -31,9 +31,17 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev 
 
 # -------------------------
+# Test Build Stage
+# (same as builder but includes dev dependencies: pytest, httpx, etc.)
+# -------------------------
+FROM builder AS test-builder
+
+RUN uv sync --frozen
+
+# -------------------------
 # Final Runtime Stage
 # -------------------------
-FROM python:3.12-slim
+FROM python:3.12-slim AS runtime
 
 WORKDIR /app
 
@@ -83,3 +91,35 @@ HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
 CMD ["gunicorn", "-k", "uvicorn.workers.UvicornWorker", "main:app", "--bind", "0.0.0.0:8003", "--workers", "1", "--timeout", "60", "--access-logfile", "-"]
 
 #CMD ["uv", "run", "gunicorn", "-k", "uvicorn.workers.UvicornWorker", "main:app", "--bind", "0.0.0.0:8003", "--workers", "1", "--timeout", "60", "--access-logfile", "-"]
+
+# -------------------------
+# Test Runtime Stage
+# -------------------------
+FROM python:3.12-slim AS test
+
+WORKDIR /app
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        libpq5 \
+        curl \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* \
+    && addgroup --system --gid 1009 notificationgroup \
+    && adduser --system --uid 1009 --ingroup notificationgroup notificationuser \
+    && mkdir -p /app/logs \
+    && chown -R notificationuser:notificationgroup /app
+
+# Copy venv with dev deps (pytest, httpx, etc.) from test-builder
+COPY --from=test-builder /app/.venv /app/.venv
+
+ENV PATH="/app/.venv/bin:$PATH"
+
+COPY --chown=notificationuser:notificationgroup . .
+
+USER notificationuser
+
+CMD ["python", "-m", "pytest", "tests/", "-v"]
