@@ -7,6 +7,7 @@ from dependencies.auth_dependencies import (get_current_user,
                                             require_admin,
                                             require_user_or_admin)
 from shared.schemas.user_schemas import CurrentUserInfo
+from shared.shared_instances import api_gateway_redis_manager
 
 
 
@@ -17,6 +18,7 @@ product_proxy = APIRouter(tags=["Product Service Proxy"])
 
 # Products
 @product_proxy.get("/products", summary="Get all products")
+@api_gateway_redis_manager.cached(ttl=36000)
 async def get_all_products(request: Request):
     """PUBLIC - Anyone can browse products"""
     return await api_gateway_manager.forward_request(

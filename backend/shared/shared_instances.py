@@ -100,52 +100,67 @@ payment_event_idempotency_service = IdempotencyEventService(service_prefix="paym
 # Database session managers for each service
 user_service_database_session_manager = DatabaseSessionManager(
     database_url=settings.USER_SERVICE_DATABASE_URL,
-    engine_settings={"echo": True,  # Set to True in develpment for logging SQL queries
-                     "pool_pre_ping": True,  # If True, the connection pool will check for stale connections and refresh them.
-                     "pool_size": 20, # The maximum number of database connections to pool
-                     "max_overflow": 10, #The maximum number of connections to allow in the connection pool above pool_size. It's set to 0, meaning no overflow connections are allowed.
-                    },
+    engine_settings={
+        "echo": settings.DEBUG_MODE,   # SQL logging disabled in production; enable only via DEBUG_MODE
+        "pool_pre_ping": True,         # Discard stale connections before checkout
+        "pool_size": 40,               # Raised from 20 — covers high-concurrency load tests
+        "max_overflow": 20,            # Raised from 10 — burst headroom (total cap: 120)
+        "pool_timeout": 5,            # Fail fast (was default 30 s) → surface back-pressure quickly
+        "pool_recycle": 1800,          # Recycle connections every 30 min to prevent staleness
+    },
     logger=logger
 )
 
 product_service_database_session_manager = DatabaseSessionManager(
     database_url=settings.PRODUCT_SERVICE_DATABASE_URL,
-    engine_settings={"echo": True,  # Set to True in develpment for logging SQL queries
-                     "pool_pre_ping": True,  # If True, the connection pool will check for stale connections and refresh them.
-                     "pool_size": 20, # The maximum number of database connections to pool
-                     "max_overflow": 10, #The maximum number of connections to allow in the connection pool above pool_size. It's set to 0, meaning no overflow connections are allowed.
-                    },
+    engine_settings={
+        "echo": settings.DEBUG_MODE,
+        "pool_pre_ping": True,
+        "pool_size": 20,
+        "max_overflow": 10,
+        "pool_timeout": 10,
+        "pool_recycle": 1800,
+    },
     logger=logger
 )
 
 notification_service_database_session_manager = DatabaseSessionManager(
     database_url=settings.NOTIFICATION_SERVICE_DATABASE_URL,
-    engine_settings={"echo": True,  # Set to True in develpment for logging SQL queries
-                     "pool_pre_ping": True,  # If True, the connection pool will check for stale connections and refresh them.
-                     "pool_size": 20, # The maximum number of database connections to pool
-                     "max_overflow": 10, #The maximum number of connections to allow in the connection pool above pool_size. It's set to 0, meaning no overflow connections are allowed.
-                    },
+    engine_settings={
+        "echo": settings.DEBUG_MODE,
+        "pool_pre_ping": True,
+        "pool_size": 20,
+        "max_overflow": 10,
+        "pool_timeout": 10,
+        "pool_recycle": 1800,
+    },
     logger=logger
 )
 
 
 order_service_database_session_manager = DatabaseSessionManager(
     database_url=settings.ORDER_SERVICE_DATABASE_URL,
-    engine_settings={"echo": True,  # Set to True in develpment for logging SQL queries
-                     "pool_pre_ping": True,  # If True, the connection pool will check for stale connections and refresh them.
-                     "pool_size": 20, # The maximum number of database connections to pool
-                     "max_overflow": 10, #The maximum number of connections to allow in the connection pool above pool_size. It's set to 0, meaning no overflow connections are allowed.
-                    },
+    engine_settings={
+        "echo": settings.DEBUG_MODE,
+        "pool_pre_ping": True,
+        "pool_size": 20,
+        "max_overflow": 10,
+        "pool_timeout": 10,
+        "pool_recycle": 1800,
+    },
     logger=logger
 )
 
 payment_service_database_session_manager = DatabaseSessionManager(
     database_url=settings.PAYMENT_SERVICE_DATABASE_URL,
-    engine_settings={"echo": True,
-                     "pool_pre_ping": True,
-                     "pool_size": 20,
-                     "max_overflow": 10,
-                    },
+    engine_settings={
+        "echo": settings.DEBUG_MODE,
+        "pool_pre_ping": True,
+        "pool_size": 20,
+        "max_overflow": 10,
+        "pool_timeout": 10,
+        "pool_recycle": 1800,
+    },
     logger=logger
 )
 

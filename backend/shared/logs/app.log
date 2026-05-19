@@ -661,3 +661,75 @@
 2026-05-17 16:59:09,447 - shared.shared_instances - INFO - Database engine initialized
 2026-05-17 16:59:09,447 - shared.shared_instances - INFO - Database engine initialized
 2026-05-17 16:59:09,447 - shared.shared_instances - INFO - Database engine initialized
+2026-05-19 00:23:36,357 - shared.shared_instances - INFO - Database engine initialized
+2026-05-19 00:23:36,357 - shared.shared_instances - INFO - Database engine initialized
+2026-05-19 00:23:36,357 - shared.shared_instances - INFO - Database engine initialized
+2026-05-19 00:23:36,357 - shared.shared_instances - INFO - Database engine initialized
+2026-05-19 00:23:36,357 - shared.shared_instances - INFO - Database engine initialized
+2026-05-19 00:23:36,358 - shared.shared_instances - INFO - Database engine initialized
+2026-05-19 00:23:36,358 - shared.shared_instances - INFO - Database engine initialized
+2026-05-19 00:23:36,358 - shared.shared_instances - INFO - Database engine initialized
+2026-05-19 00:23:36,358 - shared.shared_instances - INFO - Database engine initialized
+2026-05-19 00:23:36,358 - shared.shared_instances - INFO - Database engine initialized
+2026-05-19 00:23:36,403 - shared.shared_instances - ERROR - Unexpected error during database initialization: the greenlet library is required to use this function. No module named 'greenlet'
+2026-05-19 00:23:36,468 - shared.shared_instances - ERROR - Unexpected error during database initialization: the greenlet library is required to use this function. No module named 'greenlet'
+2026-05-19 00:23:36,517 - shared.shared_instances - ERROR - Unexpected error during database initialization: the greenlet library is required to use this function. No module named 'greenlet'
+2026-05-19 00:23:36,547 - shared.shared_instances - ERROR - Unexpected error during database initialization: the greenlet library is required to use this function. No module named 'greenlet'
+2026-05-19 00:23:36,576 - shared.shared_instances - ERROR - Unexpected error during database initialization: the greenlet library is required to use this function. No module named 'greenlet'
+2026-05-19 00:23:36,605 - shared.shared_instances - ERROR - Unexpected error during database initialization: the greenlet library is required to use this function. No module named 'greenlet'
+2026-05-19 00:23:36,633 - shared.shared_instances - ERROR - Unexpected error during database initialization: the greenlet library is required to use this function. No module named 'greenlet'
+2026-05-19 00:23:36,662 - shared.shared_instances - ERROR - Unexpected error during database initialization: the greenlet library is required to use this function. No module named 'greenlet'
+2026-05-19 00:23:36,690 - shared.shared_instances - ERROR - Unexpected error during database initialization: the greenlet library is required to use this function. No module named 'greenlet'
+2026-05-19 00:23:36,719 - shared.shared_instances - ERROR - Unexpected error during database initialization: the greenlet library is required to use this function. No module named 'greenlet'
+2026-05-19 00:23:36,748 - shared.shared_instances - ERROR - Unexpected error during database initialization: the greenlet library is required to use this function. No module named 'greenlet'
+2026-05-19 00:23:36,777 - shared.shared_instances - ERROR - Unexpected error during database initialization: the greenlet library is required to use this function. No module named 'greenlet'
+2026-05-19 00:23:36,803 - shared.shared_instances - ERROR - Unexpected error during database initialization: the greenlet library is required to use this function. No module named 'greenlet'
+2026-05-19 00:23:36,831 - shared.shared_instances - ERROR - Unexpected error during database initialization: the greenlet library is required to use this function. No module named 'greenlet'
+2026-05-19 00:23:36,863 - shared.shared_instances - ERROR - Unexpected error during database initialization: the greenlet library is required to use this function. No module named 'greenlet'
+2026-05-19 00:23:36,917 - shared.shared_instances - ERROR - Unexpected error during database initialization: the greenlet library is required to use this function. No module named 'greenlet'
+2026-05-19 00:23:36,948 - shared.shared_instances - ERROR - Unexpected error during database initialization: the greenlet library is required to use this function. No module named 'greenlet'
+2026-05-19 00:23:36,976 - shared.shared_instances - ERROR - Unexpected error during database initialization: the greenlet library is required to use this function. No module named 'greenlet'
+2026-05-19 00:23:37,004 - shared.shared_instances - ERROR - Unexpected error during database initialization: the greenlet library is required to use this function. No module named 'greenlet'
+2026-05-19 00:23:37,032 - shared.shared_instances - ERROR - Unexpected error during database initialization: the greenlet library is required to use this function. No module named 'greenlet'
+2026-05-19 00:23:37,064 - shared.shared_instances - ERROR - Unexpected error during database initialization: the greenlet library is required to use this function. No module named 'greenlet'
+2026-05-19 00:23:37,097 - shared.shared_instances - ERROR - Unexpected error during database initialization: the greenlet library is required to use this function. No module named 'greenlet'
+2026-05-19 00:23:37,128 - shared.shared_instances - ERROR - Unexpected error during database initialization: the greenlet library is required to use this function. No module named 'greenlet'
+2026-05-19 00:23:37,162 - shared.shared_instances - ERROR - Unexpected error during database initialization: the greenlet library is required to use this function. No module named 'greenlet'
+2026-05-19 00:23:37,194 - shared.shared_instances - ERROR - Unexpected error during database initialization: the greenlet library is required to use this function. No module named 'greenlet'
+2026-05-19 00:23:37,224 - shared.shared_instances - ERROR - Unexpected error during database initialization: the greenlet library is required to use this function. No module named 'greenlet'
+2026-05-19 00:23:37,253 - shared.shared_instances - ERROR - Unexpected error during database initialization: the greenlet library is required to use this function. No module named 'greenlet'
+2026-05-19 00:23:37,285 - shared.shared_instances - ERROR - Unexpected error during database initialization: the greenlet library is required to use this function. No module named 'greenlet'
+2026-05-19 00:23:37,337 - shared.shared_instances - ERROR - Unexpected error during database initialization: the greenlet library is required to use this function. No module named 'greenlet'
+2026-05-19 00:23:37,365 - shared.shared_instances - ERROR - Unexpected error during database initialization: the greenlet library is required to use this function. No module named 'greenlet'
+2026-05-19 00:23:37,393 - shared.shared_instances - ERROR - Unexpected error during database initialization: the greenlet library is required to use this function. No module named 'greenlet'
+2026-05-19 00:23:37,421 - shared.shared_instances - ERROR - Unexpected error during database initialization: the greenlet library is required to use this function. No module named 'greenlet'
+2026-05-19 00:23:37,450 - shared.shared_instances - ERROR - Unexpected error during database initialization: the greenlet library is required to use this function. No module named 'greenlet'
+2026-05-19 00:23:37,480 - shared.shared_instances - ERROR - Unexpected error during database initialization: the greenlet library is required to use this function. No module named 'greenlet'
+2026-05-19 00:23:37,510 - shared.shared_instances - ERROR - Unexpected error during database initialization: the greenlet library is required to use this function. No module named 'greenlet'
+2026-05-19 00:23:37,538 - shared.shared_instances - ERROR - Unexpected error during database initialization: the greenlet library is required to use this function. No module named 'greenlet'
+2026-05-19 00:23:37,567 - shared.shared_instances - ERROR - Unexpected error during database initialization: the greenlet library is required to use this function. No module named 'greenlet'
+2026-05-19 00:23:37,596 - shared.shared_instances - ERROR - Unexpected error during database initialization: the greenlet library is required to use this function. No module named 'greenlet'
+2026-05-19 00:23:37,626 - shared.shared_instances - ERROR - Unexpected error during database initialization: the greenlet library is required to use this function. No module named 'greenlet'
+2026-05-19 00:23:37,656 - shared.shared_instances - ERROR - Unexpected error during database initialization: the greenlet library is required to use this function. No module named 'greenlet'
+2026-05-19 00:23:37,687 - shared.shared_instances - ERROR - Unexpected error during database initialization: the greenlet library is required to use this function. No module named 'greenlet'
+2026-05-19 00:23:37,715 - shared.shared_instances - ERROR - Unexpected error during database initialization: the greenlet library is required to use this function. No module named 'greenlet'
+2026-05-19 00:23:47,794 - shared.shared_instances - INFO - Database engine initialized
+2026-05-19 00:23:47,795 - shared.shared_instances - INFO - Database engine initialized
+2026-05-19 00:23:47,795 - shared.shared_instances - INFO - Database engine initialized
+2026-05-19 00:23:47,795 - shared.shared_instances - INFO - Database engine initialized
+2026-05-19 00:23:47,795 - shared.shared_instances - INFO - Database engine initialized
+2026-05-19 00:23:47,795 - shared.shared_instances - INFO - Database engine initialized
+2026-05-19 00:23:47,795 - shared.shared_instances - INFO - Database engine initialized
+2026-05-19 00:23:47,795 - shared.shared_instances - INFO - Database engine initialized
+2026-05-19 00:23:47,795 - shared.shared_instances - INFO - Database engine initialized
+2026-05-19 00:23:47,795 - shared.shared_instances - INFO - Database engine initialized
+2026-05-19 00:24:04,521 - shared.shared_instances - INFO - Database engine initialized
+2026-05-19 00:24:04,521 - shared.shared_instances - INFO - Database engine initialized
+2026-05-19 00:24:04,522 - shared.shared_instances - INFO - Database engine initialized
+2026-05-19 00:24:04,522 - shared.shared_instances - INFO - Database engine initialized
+2026-05-19 00:24:04,522 - shared.shared_instances - INFO - Database engine initialized
+2026-05-19 00:24:04,522 - shared.shared_instances - INFO - Database engine initialized
+2026-05-19 00:24:04,522 - shared.shared_instances - INFO - Database engine initialized
+2026-05-19 00:24:04,522 - shared.shared_instances - INFO - Database engine initialized
+2026-05-19 00:24:04,522 - shared.shared_instances - INFO - Database engine initialized
+2026-05-19 00:24:04,522 - shared.shared_instances - INFO - Database engine initialized

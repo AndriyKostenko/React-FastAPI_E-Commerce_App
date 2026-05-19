@@ -740,3 +740,28 @@ Redis Idempotency Flow:
 6. cd backend
 ./run_tests.sh --build   # first time (builds images)
 ./run_tests.sh           # subsequent runs (faster, no rebuild)
+
+
+## k6 - load testing
+1. k6 run k6/script.js
+
+# quick sanity
+TEST_TYPE=smoke k6 run k6/script.js
+
+# normal load test
+TEST_TYPE=load k6 run k6/script.js
+
+# push toward limits
+TEST_TYPE=stress k6 run k6/script.js
+
+# long stability run
+TEST_TYPE=soak k6 run k6/script.js
+
+# max throughput test
+k6 run -e TEST_TYPE=max_throughput k6/script.js
+
+
+--- 2 CPU + 8 GIG RAM ---
+1. user-service (1 worker & no chaching) -> = 443 rps
+2. user-service (2 workers & no chaching)-> second test with  = 810 rps
+3. api-gateway  (1 worker , no caching, 50 products) -> user-service (2 workers, no caching) ->  =

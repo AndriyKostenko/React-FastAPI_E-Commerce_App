@@ -59,20 +59,40 @@ app = FastAPI(
 )
 
 
+_INTERNAL_PATHS = frozenset({"/metrics", "/health"})
+
+# RFC-1918 private ranges used by Docker bridge/overlay networks.
+# Any caller whose IP falls in these ranges is inside the Docker network
+# and is a trusted internal service — skip Host-header validation for them.
+_PRIVATE_PREFIXES = ("10.", "172.", "192.168.")
+
+
+def _is_internal_client(request) -> bool:
+    client_host = request.client.host if request.client else ""
+    return (
+        request.url.path in _INTERNAL_PATHS
+        or any(client_host.startswith(p) for p in _PRIVATE_PREFIXES)
+    )
+
+
 @app.middleware("http")
 async def host_validation_middleware(request: Request, call_next):
     """
-    - Validates the HTTP Host header against the allowed origins.
-    - If the request is from a valid host, it proceeds to the next middleware or endpoint.
-    - If the request is from an invalid host, it raises a 400 Bad Request error.
-    - This middleware is useful for preventing Host header attacks and ensuring that the service only responds to requests from trusted origins.
-    - Acts as a first line of defencse against DNS rebinding attacks
-    - Works at the HTTP request level before any route handling occurs.
+    Validates the HTTP Host header against ALLOWED_HOSTS to prevent DNS-rebinding
+    attacks.
+
+    Bypassed for:
+    - /metrics and /health  — scraped by Prometheus/cAdvisor via Docker DNS
+    - Any RFC-1918 client IP — internal service-to-service calls (e.g. admin-js
+      calling /api/v1/admin/schema/* on product-service) where the Host header
+      is the Docker service name, not a public hostname
     """
+    if settings.DEBUG_MODE or _is_internal_client(request):
+        return await call_next(request)
+
     host = request.headers.get("host", "").split(":")[0]
-    if settings.DEBUG_MODE or host in settings.ALLOWED_HOSTS:
-        response = await call_next(request)
-        return response
+    if host in settings.ALLOWED_HOSTS:
+        return await call_next(request)
 
     logger.warning(f"Invalid Host header: {host} from {request.client}")
     raise HTTPException(
