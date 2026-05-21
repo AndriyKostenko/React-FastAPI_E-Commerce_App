@@ -1,0 +1,40 @@
+global:
+  resolve_timeout: 5m
+
+templates:
+  - '/etc/alertmanager/templates/*.tmpl'
+
+route:
+  group_by: ['alertname', 'job']
+  group_wait: 30s          # wait 30s to batch alerts from same group
+  group_interval: 5m       # wait 5m before sending new alerts for same group
+  repeat_interval: 4h      # re-notify after 4h if still firing
+  receiver: 'telegram'
+
+  routes:
+    - matchers:
+        - severity = "critical"
+      receiver: 'telegram'
+      repeat_interval: 30m   # critical: re-notify every 30m
+
+    - matchers:
+        - severity = "warning"
+      receiver: 'telegram'
+      repeat_interval: 4h
+
+receivers:
+  - name: 'telegram'
+    telegram_configs:
+      - bot_token: '${TELEGRAM_BOT_TOKEN}'
+        chat_id: ${TELEGRAM_CHAT_ID}
+        parse_mode: 'HTML'
+        message: '{{ template "telegram.message" . }}'
+        send_resolved: true
+
+inhibit_rules:
+  # Suppress warning if critical alert for same service is already firing
+  - source_matchers:
+      - severity = "critical"
+    target_matchers:
+      - severity = "warning"
+    equal: ['job']

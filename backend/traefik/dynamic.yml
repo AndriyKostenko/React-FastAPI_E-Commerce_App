@@ -1,0 +1,85 @@
+# Traefik v3 — dynamic configuration
+# Hot-reloaded by Traefik — no restart needed.
+# Defines shared middlewares referenced by name in docker-compose labels.
+
+http:
+  middlewares:
+
+    # --- Security headers -------------------------------------------------
+    # Applied globally to all websecure traffic via entryPoints in traefik.yml.
+    # Individual routers can stack additional middlewares on top.
+    secure-headers:
+      headers:
+        # HSTS: tell browsers to always use HTTPS for 1 year, including subdomains.
+        stsSeconds: 31536000
+        stsIncludeSubdomains: true
+        stsPreload: true
+        forceSTSHeader: true
+        # Prevent MIME-type sniffing.
+        contentTypeNosniff: true
+        # Legacy XSS protection header (still useful for older browsers).
+        browserXssFilter: true
+        # Referrer policy: send origin only on same-origin, nothing cross-origin.
+        referrerPolicy: "strict-origin-when-cross-origin"
+        # Deny embedding in iframes from other origins.
+        frameDeny: true
+        # Strip server identification headers.
+        customResponseHeaders:
+          X-Powered-By: ""
+          Server: ""
+
+    # --- Compression -------------------------------------------------------
+    # Compress JSON/text responses. Applied to api-gateway router.
+    compress:
+      compress:
+        includedContentTypes:
+          - "application/json"
+          - "application/json; charset=utf-8"
+          - "text/plain"
+          - "text/html"
+          - "text/html; charset=utf-8"
+
+    # --- Edge rate limiting ------------------------------------------------
+    # Coarse-grained defence before requests reach api-gateway.
+    # api-gateway has its own finer-grained rate limiting per user/session.
+    # 300 req/min average with a burst of 100 covers normal human traffic;
+    # scanners and brute-force attempts will hit this first.
+    rate-limit-api:
+      rateLimit:
+        average: 3000
+        burst: 100
+        period: 1m
+
+    # --- Admin IP allowlist -----------------------------------------------
+    # Restricts access to internal tools (Grafana, AdminJS, Traefik dashboard)
+    # to RFC-1918 private ranges and localhost.
+    # ADD YOUR OWN PUBLIC IP HERE when accessing from outside the Docker host.
+    admin-ip-allowlist:
+      ipAllowList:
+        sourceRange:
+          - "127.0.0.1/32"
+          - "10.0.0.0/8"
+          - "172.16.0.0/12"
+          - "192.168.0.0/16"
+
+    # --- www → apex redirect -----------------------------------------------
+    # Redirects www.yourdomain.com → yourdomain.com permanently.
+    www-to-apex:
+      redirectRegex:
+        regex: "^https://www\\.(.+)"
+        replacement: "https://${1}"
+        permanent: true
+
+# TLS options — enforce TLS 1.2+ and strong cipher suites.
+tls:
+  options:
+    default:
+      minVersion: VersionTLS12
+      cipherSuites:
+        - TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256
+        - TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+        - TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384
+        - TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+        - TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256
+        - TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256
+      sniStrict: true

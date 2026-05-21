@@ -759,9 +759,53 @@ TEST_TYPE=soak k6 run k6/script.js
 
 # max throughput test
 k6 run -e TEST_TYPE=max_throughput k6/script.js
+k6 run -e TEST_TYPE=stress -e BASE_URL=http://127.0.0.1:8001 k6/script.js
+
 
 
 --- 2 CPU + 8 GIG RAM ---
 1. user-service (1 worker & no chaching) -> = 443 rps
 2. user-service (2 workers & no chaching)-> second test with  = 810 rps
 3. api-gateway  (1 worker , no caching, 50 products) -> user-service (2 workers, no caching) ->  =
+
+
+
+## TRAEFIK
+
+http://localhost:8090/dashboard
+
+Key Features
+- Dynamic Service Discovery: Instantly recognizes newly deployed containers and routes traffic automatically, eliminating the need to manually update configuration files.
+ - Automated SSL/TLS: Integrates seamlessly with Let's Encrypt to automatically generate and renew SSL certificates.
+ - Extensive Ecosystem: Offers built-in middleware for rate limiting, basic authentication, header modification, and request redirection.
+ - Observability: Supports distributed tracing (OpenTelemetry) and provides metrics directly to Prometheus, Datadog, or InfluxDB. 
+
+ Middleware              | Purpose |
+ |-----------------------|----------------------------------------------------|
+ | `secure-headers`      | HSTS, XSS, no-sniff, `Server:` header stripped     |
+ | `compress`            | Gzip JSON/HTML responses                           |
+ | `rate-limit-api`      | 3000 req/min avg, burst 100 (before api-gateway)   |
+ | `admin-ip-allowlist`  | RFC-1918 only for admin tools                      |
+ | `www-to-apex`         | `www.domain.com` → `domain.com` permanent redirect |
+ 
+
+ 
+ | Service            | URL                      | Middlewares                                 |
+ |--------------------|--------------------------|---------------------------------------------|
+ | `api-gateway`      | `yourdomain.com`         | `www-to-apex`, `rate-limit-api`, `compress` |
+ | `admin-js-service` | `admin.yourdomain.com`   | `admin-ip-allowlist`                        |
+ | `grafana`          | `grafana.yourdomain.com` | `admin-ip-allowlist`                        |
+ | `traefik`          | `traefik.yourdomain.com` | `admin-ip-allowlist`       (dashboard)      |
+
+
+Router | Entry | Rule |
+|--------|-------|------|
+| `api-gateway` | `web` | `yourdomain.com` |
+| `grafana` | `web` | `grafana.yourdomain.com` |
+| `admin-js` | `web` | `admin.yourdomain.com` |
+| `traefik-dashboard` | `web` | `traefik.yourdomain.com
+
+
+
+## Prometheus AlertManager
+Alertmanager UI is at **http://localhost:9093

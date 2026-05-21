@@ -1,61 +1,56 @@
 import logging
 import sys
-from pathlib import Path
-from typing import Dict
+from datetime import datetime, timezone
+from typing import Any, override
 
-# Get the project root directory
-PROJECT_ROOT = Path(__file__).parent.parent
+from pythonjsonlogger.json import JsonFormatter
 
-# Create logs directory relative to the project root
-LOG_DIR = PROJECT_ROOT / "logs"
+from shared.middleware.logging_middleware import REQUEST_ID_CTX_VAR, SERVICE_NAME_CTX_VAR
 
-try:
-    LOG_DIR.mkdir(exist_ok=True, mode=0o755)
-except OSError:
-    LOG_DIR = Path("/tmp/logs")
-    try:
-        LOG_DIR.mkdir(exist_ok=True, mode=0o755)
-    except OSError:
-        LOG_DIR = None
+# Store configured loggers to avoid duplicate handler registration.
+_loggers: dict[str, logging.Logger] = {}
 
-# Store configured loggers
-_loggers: Dict[str, logging.Logger] = {}
+
+class _ContextFilter(logging.Filter):
+    """Injects request_id and service from active contextvars into every record."""
+
+    @override
+    def filter(self, record: logging.LogRecord) -> bool:
+        record.request_id = REQUEST_ID_CTX_VAR.get()
+        record.service = SERVICE_NAME_CTX_VAR.get()
+        return True
+
+
+class _JsonFormatter(JsonFormatter):
+    """Produces clean, consistently-keyed JSON log lines."""
+
+    @override
+    def add_fields(self, log_data: dict[str, Any], record: logging.LogRecord, message_dict: dict[str, Any]) -> None:
+        super().add_fields(log_data, record, message_dict)
+        log_data["timestamp"] = datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+        log_data["level"] = record.levelname.lower()
+        log_data["logger"] = record.name
+        # Remove redundant stdlib fields that are already re-mapped above.
+        for key in ("levelname", "asctime", "name"):
+            log_data.pop(key, None)
+
 
 def setup_logger(name: str) -> logging.Logger:
-    """Configure logger with file and console handlers"""
+    """Return a JSON-structured logger.  Drop-in replacement for the previous setup_logger."""
     if name in _loggers:
         return _loggers[name]
-    
+
     logger = logging.getLogger(name)
-    
+
     if not logger.handlers:
         logger.setLevel(logging.DEBUG)
         logger.propagate = False
-        
-        # File handler — skipped silently when the filesystem is read-only
-        # (e.g. Docker containers that mount /app/shared as :ro).
-        # Stdout is always available and is the correct sink in containers.
-        if LOG_DIR is not None:
-            try:
-                file_handler = logging.FileHandler(
-                    LOG_DIR / "app.log",
-                    mode='a'
-                )
-                file_handler.setLevel(logging.DEBUG)
-                file_handler.setFormatter(logging.Formatter(
-                    '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-                ))
-                logger.addHandler(file_handler)
-            except OSError:
-                pass  # read-only fs or no permission — stdout only
-        
-        # Console handler (always present)
-        console_handler = logging.StreamHandler(sys.stdout)
-        console_handler.setLevel(logging.DEBUG)
-        console_handler.setFormatter(logging.Formatter(
-            '%(levelname)s: %(message)s'
-        ))
-        logger.addHandler(console_handler)
-    
+
+        handler = logging.StreamHandler(sys.stdout)
+        handler.setLevel(logging.DEBUG)
+        handler.setFormatter(_JsonFormatter(fmt="%(message)s %(levelname)s %(name)s"))
+        handler.addFilter(_ContextFilter())
+        logger.addHandler(handler)
+
     _loggers[name] = logger
     return logger

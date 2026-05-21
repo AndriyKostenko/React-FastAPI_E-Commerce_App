@@ -1,0 +1,24 @@
+{{ define "telegram.message" }}
+{{- if eq .Status "firing" -}}
+🔥 <b>ALERT FIRING</b> [{{ .Alerts.Firing | len }}]
+{{- else -}}
+✅ <b>ALERT RESOLVED</b> [{{ .Alerts.Resolved | len }}]
+{{- end }}
+
+{{- range .Alerts }}
+━━━━━━━━━━━━━━━━━━━━
+{{- if eq .Labels.severity "critical" }}🚨{{ else }}⚠️{{ end }} <b>{{ .Labels.alertname }}</b>
+📦 <b>Service:</b> <code>{{- if .Labels.job }}{{ .Labels.job }}{{- else if .Labels.name }}{{ .Labels.name }}{{- else }}unknown{{- end }}</code>
+{{- if .Labels.name }}
+🐳 <b>Container:</b> <code>{{ .Labels.name }}</code>
+{{- end }}
+🔖 <b>Severity:</b> {{ .Labels.severity }}
+📋 <b>Info:</b> {{ .Annotations.description }}
+{{- if gt (len .GeneratorURL) 0 }}
+🔗 <a href="{{ .GeneratorURL }}">View in Prometheus</a>
+{{- end }}
+{{- if .StartsAt }}
+🕐 <b>Since:</b> {{ .StartsAt.Format "2006-01-02 15:04 UTC" }}
+{{- end }}
+{{- end }}
+{{ end }}

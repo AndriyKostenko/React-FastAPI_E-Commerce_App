@@ -16,6 +16,7 @@ class AuthMiddleware(metaclass=SingletonMetaClass):
         self.logger: Logger = logger
         self.PUBLIC_ENDPOINTS: dict[str, list[str] | None] = {
             "/health": None,
+            "/metrics": None,
             "/docs": None,
             "/redoc": None,
             "/openapi.json": None,

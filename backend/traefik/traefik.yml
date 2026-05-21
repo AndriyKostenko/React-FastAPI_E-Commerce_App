@@ -1,0 +1,111 @@
+# Traefik v3 — static configuration
+# Loaded once at startup. Changes require a Traefik restart.
+# All reusable middlewares live in dynamic.yml (hot-reloaded).
+
+global:
+  checkNewVersion: false
+  sendAnonymousUsage: false
+
+# Structured JSON logs so Promtail/Loki can parse them.
+log:
+  level: INFO
+  format: json
+
+# Access log: only errors (4xx/5xx) to keep volume low.
+# Authorization and Cookie headers are redacted for privacy.
+accessLog:
+  format: json
+  filters:
+    statusCodes:
+      - "400-599"
+  fields:
+    defaultMode: keep
+    headers:
+      defaultMode: drop
+      names:
+        Authorization: redact
+        Cookie: redact
+        Set-Cookie: redact
+
+entryPoints:
+  # HTTP — only used for ACME HTTP-01 challenge and immediate redirect to HTTPS.
+  web:
+    address: ":80"
+    http:
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
+          permanent: true
+
+  # HTTPS — all production traffic.
+  websecure:
+    address: ":443"
+    http:
+      tls:
+        certResolver: letsencrypt
+      # Apply security headers globally so every HTTPS response gets them,
+      # even if a router forgets to declare the middleware.
+      middlewares:
+        - secure-headers@file
+
+  # Internal-only entrypoint for Prometheus metrics scraping.
+  # Not exposed via docker-compose ports — reachable within the Docker network only.
+  metrics:
+    address: ":8082"
+
+  # Local dev dashboard — exposes api@internal on :8090 with no TLS or auth.
+  # Port 8090 IS exposed in docker-compose for local access.
+  # Access: http://localhost:8090/dashboard/
+  # NOTE: must be named exactly "traefik" for api.insecure to bind here.
+  traefik:
+    address: ":8090"
+
+# Let's Encrypt via HTTP-01 challenge.
+# Requires port 80 to be reachable from the internet for the initial cert issuance.
+certificatesResolvers:
+  letsencrypt:
+    acme:
+      email: "${ACME_EMAIL}"
+      storage: /acme/acme.json
+      httpChallenge:
+        entryPoint: web
+
+providers:
+  # Docker provider: discovers services via container labels.
+  # Uses a local nginx proxy (socket-proxy:2375) that rewrites Traefik's
+  # hardcoded API v1.24 to v1.41 — required for OrbStack compatibility.
+  docker:
+    endpoint: "tcp://socket-proxy:2375"
+    exposedByDefault: false   # security: opt-in only
+    network: usernet
+    watch: true
+
+  # File provider: dynamic config (middlewares, TLS options).
+  # Hot-reloaded — no restart needed when dynamic.yml changes.
+  file:
+    filename: /etc/traefik/dynamic.yml
+    watch: true
+
+# Traefik dashboard — served via the api@internal service.
+# Production: exposed via the traefik-dashboard router (requires admin-ip-allowlist).
+# Local dev: also exposed insecurely on :8090 via the traefik-local entrypoint.
+api:
+  dashboard: true
+  insecure: true   # safe because :8090 is local dev only; production uses the subdomain router
+
+# Expose Traefik's own metrics to Prometheus (scraped via prometheus.yml).
+metrics:
+  prometheus:
+    entryPoint: metrics
+    addEntryPointsLabels: true
+    addServicesLabels: true
+    addRoutersLabels: true
+    buckets:
+      - 0.05
+      - 0.1
+      - 0.25
+      - 0.5
+      - 1.0
+      - 2.5
+      - 5.0

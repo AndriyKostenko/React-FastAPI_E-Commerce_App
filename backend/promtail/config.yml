@@ -1,0 +1,59 @@
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  - job_name: docker-containers
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 5s
+        filters:
+          - name: status
+            values: ["running"]
+
+    relabel_configs:
+      # Use the Docker container name as the "container" label.
+      - source_labels: [__meta_docker_container_name]
+        regex: /(.*)
+        target_label: container
+
+      # Use the compose service name (label com.docker.compose.service) when present.
+      - source_labels: [__meta_docker_container_label_com_docker_compose_service]
+        target_label: service
+
+      # Keep the compose project name for multi-project environments.
+      - source_labels: [__meta_docker_container_label_com_docker_compose_project]
+        target_label: compose_project
+
+    pipeline_stages:
+      # Attempt to parse the log line as JSON first.
+      - json:
+          expressions:
+            level:      level
+            service:    service
+            request_id: request_id
+            log_ts:     timestamp
+
+      # Promote parsed fields to Loki stream labels so they can be filtered.
+      - labels:
+          level:
+          service:
+
+      # Use the application-emitted timestamp as the Loki entry timestamp when
+      # present, so log ordering is consistent even if Docker ships lines late.
+      - timestamp:
+          source: log_ts
+          format: "2006-01-02T15:04:05.000Z"
+          fallback_formats:
+            - "2006-01-02T15:04:05Z"
+            - RFC3339Nano
+
+      # Drop noisy /health and /metrics poll lines to keep storage lean.
+      - drop:
+          expression: '.*"http_path":"\/(health|metrics)".*'

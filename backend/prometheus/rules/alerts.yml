@@ -1,0 +1,130 @@
+groups:
+  # ─────────────────────────────────────────────────────────────────
+  # Service Health
+  # ─────────────────────────────────────────────────────────────────
+  - name: service_health
+    interval: 30s
+    rules:
+
+      # Any Prometheus scrape target is down
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Service {{ $labels.job }} is unreachable"
+          description: "Prometheus cannot scrape {{ $labels.job }}. The service has been down for more than 1 minute."
+
+      # 5xx error rate > 5% of total requests over 5 minutes
+      - alert: HighErrorRate
+        expr: |
+          (
+            sum by(job) (rate(http_requests_total{status="5xx"}[5m]))
+            /
+            (sum by(job) (rate(http_requests_total[5m])) > 0)
+          ) * 100 > 5
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High 5xx error rate on {{ $labels.job }}"
+          description: "{{ $labels.job }} has a 5xx error rate of {{ printf \"%.1f\" $value }}% (threshold: 5%)."
+
+      # p95 request latency > 2 seconds over 5 minutes
+      - alert: HighLatency
+        expr: |
+          histogram_quantile(0.95,
+            sum by(job, le) (rate(http_request_duration_seconds_bucket[5m]))
+          ) > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High p95 latency on {{ $labels.job }}"
+          description: "{{ $labels.job }} p95 latency is {{ printf \"%.2f\" $value }}s (threshold: 2s)."
+
+      # p95 latency > 5s — critical degradation
+      - alert: CriticalLatency
+        expr: |
+          histogram_quantile(0.95,
+            sum by(job, le) (rate(http_request_duration_seconds_bucket[5m]))
+          ) > 5
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Critical latency on {{ $labels.job }}"
+          description: "{{ $labels.job }} p95 latency is {{ printf \"%.2f\" $value }}s — service is critically slow."
+
+  # ─────────────────────────────────────────────────────────────────
+  # Container Resources (cAdvisor)
+  # ─────────────────────────────────────────────────────────────────
+  - name: container_resources
+    interval: 60s
+    rules:
+
+      # Container memory > 85% of its configured limit
+      - alert: HighContainerMemory
+        expr: |
+          (
+            container_memory_usage_bytes{name=~"backend-.+"}
+            /
+            container_spec_memory_limit_bytes{name=~"backend-.+"}
+          ) * 100 > 85
+          and container_spec_memory_limit_bytes{name=~"backend-.+"} > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage in {{ $labels.name }}"
+          description: "Container {{ $labels.name }} is using {{ printf \"%.1f\" $value }}% of its memory limit."
+
+      # Container CPU > 80% sustained (relative to number of CPUs)
+      - alert: HighContainerCPU
+        expr: |
+          rate(container_cpu_usage_seconds_total{name=~"backend-.+"}[5m]) * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage in {{ $labels.name }}"
+          description: "Container {{ $labels.name }} CPU usage is {{ printf \"%.1f\" $value }}% (threshold: 80%)."
+
+      # Container has restarted — indicates crash loop or OOM kill
+      - alert: ContainerRestarted
+        expr: |
+          delta(container_last_seen{name=~"backend-.+"}[5m]) < 0
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Container {{ $labels.name }} restarted"
+          description: "Container {{ $labels.name }} was restarted in the last 5 minutes. Check logs for crash or OOM."
+
+  # ─────────────────────────────────────────────────────────────────
+  # Prometheus Self-Monitoring
+  # ─────────────────────────────────────────────────────────────────
+  - name: prometheus_health
+    interval: 60s
+    rules:
+
+      # Prometheus config reload failed
+      - alert: PrometheusConfigReloadFailed
+        expr: prometheus_config_last_reload_successful == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Prometheus config reload failed"
+          description: "Prometheus failed to reload its configuration. Check the config file for errors."
+
+      # Prometheus TSDB has too many WAL corruptions
+      - alert: PrometheusStorageIssue
+        expr: prometheus_tsdb_wal_corruptions_total > 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Prometheus TSDB WAL corruption detected"
+          description: "Prometheus detected {{ $value }} WAL corruption(s). Storage integrity may be compromised."

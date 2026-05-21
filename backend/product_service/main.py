@@ -15,6 +15,8 @@ from routes.product_routes import product_routes
 from routes.category_routes import category_routes
 from routes.review_routes import review_routes
 from shared.exceptions.base_exceptions import (BaseAPIException,RateLimitExceededError)
+from shared.middleware.logging_middleware import add_logging_middleware
+from prometheus_fastapi_instrumentator import Instrumentator
 from shared.shared_instances import (product_event_idempotency_service, product_service_redis_manager,
                                     product_service_database_session_manager,
                                     logger,
@@ -57,6 +59,8 @@ app = FastAPI(
     version="0.0.1",
     lifespan=lifespan
 )
+
+Instrumentator().instrument(app).expose(app, endpoint="/metrics")
 
 
 _INTERNAL_PATHS = frozenset({"/metrics", "/health"})
@@ -204,6 +208,7 @@ app.add_middleware(
     allow_methods=settings.CORS_ALLOWED_METHODS,
     allow_headers=settings.CORS_ALLOWED_HEADERS,
 )
+add_logging_middleware(app, service_name="product-service")
 
 # Static files configuration
 _media_dir = os.environ.get("MEDIA_ROOT", "/media")

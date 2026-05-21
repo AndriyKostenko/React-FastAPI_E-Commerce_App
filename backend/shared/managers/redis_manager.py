@@ -156,14 +156,15 @@ class RedisManager:
         Default TTL is 5 minutes.
         """
         not_monitoring_patterns = ["/health", "/metrics", "/status", "/ping", "/ready", "/live"]
-        if (
-            request.method != "GET"
-            or not (200 <= status_code < 300)
-            or any(request.url.path.startswith(p) for p in not_monitoring_patterns)
-        ):
-            self.logger.warning(
-                f"Skipping caching response for method: {request.method}, path: {request.url.path} "
-                "because of method, status code, or headers"
+        is_monitoring = any(request.url.path.startswith(p) for p in not_monitoring_patterns)
+
+        if is_monitoring:
+            # Silently skip — these paths are intentionally not cached.
+            return
+
+        if request.method != "GET" or not (200 <= status_code < 300):
+            self.logger.debug(
+                f"Skipping caching: method={request.method}, status={status_code}, path={request.url.path}"
             )
             return
 

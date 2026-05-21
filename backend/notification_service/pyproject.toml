@@ -5,6 +5,7 @@ description = "Notification service for E-commerce application"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115.0",
+    "python-json-logger>=3.2.0",
     "uvicorn>=0.35.0",
     "pydantic>=2.10.0",
     "pydantic-settings>=2.6.0",
@@ -21,6 +22,7 @@ dependencies = [
     "python-jose>=3.5.0",
     "alembic>=1.17.1",
     "faststream[cli,rabbit]>=0.6.5",
+    "prometheus-fastapi-instrumentator>=7.1.0",
     "taskiq>=0.12.1",
     "taskiq-fastapi>=0.4.0",
     "taskiq-redis>=1.1.2",

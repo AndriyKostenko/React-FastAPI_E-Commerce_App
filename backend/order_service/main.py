@@ -12,6 +12,8 @@ from fastapi.exceptions import ResponseValidationError, RequestValidationError
 from service_layer.outbox_poller_service import OutboxPollerService
 from routes.orders_routes import order_routes
 from shared.exceptions.base_exceptions import (BaseAPIException, RateLimitExceededError)
+from shared.middleware.logging_middleware import add_logging_middleware
+from prometheus_fastapi_instrumentator import Instrumentator
 from shared.shared_instances import (order_event_idempotency_service, order_service_redis_manager,
                                     order_service_database_session_manager,
                                     logger,
@@ -55,6 +57,8 @@ app = FastAPI(
     version="0.0.1",
     lifespan=lifespan
 )
+
+Instrumentator().instrument(app).expose(app, endpoint="/metrics")
 
 
 _INTERNAL_PATHS = frozenset({"/metrics", "/health"})
@@ -202,6 +206,7 @@ app.add_middleware(
     allow_methods=settings.CORS_ALLOWED_METHODS,
     allow_headers=settings.CORS_ALLOWED_HEADERS,
 )
+add_logging_middleware(app, service_name="order-service")
 
 # including all the routers to the app
 app.include_router(order_routes, prefix=settings.ORDER_SERVICE_URL_API_VERSION)

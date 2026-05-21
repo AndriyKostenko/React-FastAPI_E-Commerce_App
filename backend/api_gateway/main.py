@@ -7,6 +7,8 @@ from uvicorn import run
 from fastapi import FastAPI, Request, Response
 
 from shared.exceptions.base_exceptions import BaseAPIException
+from shared.middleware.logging_middleware import add_logging_middleware
+from prometheus_fastapi_instrumentator import Instrumentator
 from routes.user_routes import user_proxy
 from routes.product_routes import product_proxy
 from routes.order_routes import order_proxy
@@ -41,6 +43,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="API Gateway", lifespan=lifespan)
+
+Instrumentator().instrument(app).expose(app, endpoint="/metrics")
 
 # Auth middleware runs before gateway middleware and checks JWT tokens
 @app.middleware("http")
@@ -113,6 +117,7 @@ app.add_middleware(
     allow_methods=settings.CORS_ALLOWED_METHODS,
     allow_headers=settings.CORS_ALLOWED_HEADERS,
 )
+add_logging_middleware(app, service_name="api-gateway")
 
 
 

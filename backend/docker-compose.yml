@@ -104,6 +104,17 @@ services:
       interval: 60s
       timeout: 10s
       retries: 3
+    labels:
+      - "traefik.enable=true"
+      # Main app router: handles all traffic for the apex domain and www (www redirects to apex).
+      - "traefik.http.routers.api-gateway.rule=Host(`${DOMAIN}`) || Host(`www.${DOMAIN}`)"
+      - "traefik.http.routers.api-gateway.entrypoints=${TRAEFIK_ENTRYPOINT:-web}"
+      - "traefik.http.routers.api-gateway.tls.certresolver=${CERT_RESOLVER:-}"
+      - "traefik.http.routers.api-gateway.middlewares=www-to-apex@file,rate-limit-api@file,compress@file"
+      - "traefik.http.services.api-gateway.loadbalancer.server.port=8000"
+      - "traefik.http.services.api-gateway.loadbalancer.healthcheck.path=/health"
+      - "traefik.http.services.api-gateway.loadbalancer.healthcheck.interval=30s"
+      - "traefik.http.services.api-gateway.loadbalancer.passHostHeader=true"
 
   user-service:
     build:
@@ -363,20 +374,47 @@ services:
         condition: service_healthy
     networks:
       - usernet
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.admin-js.rule=Host(`admin.${DOMAIN}`)"
+      - "traefik.http.routers.admin-js.entrypoints=${TRAEFIK_ENTRYPOINT:-web}"
+      - "traefik.http.routers.admin-js.tls.certresolver=${CERT_RESOLVER:-}"
+      - "traefik.http.routers.admin-js.middlewares=admin-ip-allowlist@file"
+      - "traefik.http.services.admin-js.loadbalancer.server.port=3000"
 
   prometheus:
     image: prom/prometheus:latest
     ports: ["9090:9090"]
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./prometheus/rules:/etc/prometheus/rules
       - prom_data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
       - '--web.console.libraries=/usr/share/prometheus/console_libraries'
       - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    depends_on:
+      - alertmanager
     networks:
       - usernet
+
+  alertmanager:
+    image: prom/alertmanager:latest
+    ports: ["9093:9093"]
+    volumes:
+      - ./alertmanager/alertmanager.yml.tmpl:/etc/alertmanager/alertmanager.yml.tmpl:ro
+      - ./alertmanager/templates:/etc/alertmanager/templates:ro
+      - ./alertmanager/docker-entrypoint.sh:/docker-entrypoint.sh:ro
+      - alertmanager_data:/alertmanager
+    entrypoint: ["/bin/sh", "/docker-entrypoint.sh"]
+    environment:
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
+    networks:
+      - usernet
+    restart: unless-stopped
 
   grafana:
     image: grafana/grafana:latest
@@ -387,24 +425,109 @@ services:
       - grafana_data:/var/lib/grafana
     depends_on:
       - prometheus
+      - loki
+    networks:
+      - usernet
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.grafana.rule=Host(`grafana.${DOMAIN}`)"
+      - "traefik.http.routers.grafana.entrypoints=${TRAEFIK_ENTRYPOINT:-web}"
+      - "traefik.http.routers.grafana.tls.certresolver=${CERT_RESOLVER:-}"
+      - "traefik.http.routers.grafana.middlewares=admin-ip-allowlist@file"
+      - "traefik.http.services.grafana.loadbalancer.server.port=3000"
+
+  loki:
+    image: grafana/loki:2.9.0
+    ports: ["3100:3100"]
+    command: -config.file=/etc/loki/local-config.yaml
     networks:
       - usernet
 
-  # CPU / RAM/ net/ disk metrics
+  promtail:
+    image: grafana/promtail:2.9.0
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./promtail/config.yml:/etc/promtail/config.yml:ro
+    command: -config.file=/etc/promtail/config.yml
+    depends_on:
+      - loki
+    networks:
+      - usernet
+
+  # CPU / RAM / net / disk metrics per container
   cadvisor:
-    image: gcr.io/cadvisor/cadvisor:latest
+    image: gcr.io/cadvisor/cadvisor:v0.47.2
+    privileged: true          # required on modern kernels for full cgroup access
     ports: ["8080:8080"]
+    devices:
+      - /dev/kmsg             # kernel message ring buffer access
     volumes:
       - /:/rootfs:ro
+      - ${DOCKER_SOCK:-/var/run/docker.sock}:/var/run/docker.sock:ro   # name-label resolution
       - /var/run:/var/run:ro
       - /sys:/sys:ro
       - /var/lib/docker/:/var/lib/docker:ro
+    command:
+      - --docker_only=true                      # skip non-Docker cgroups (system, init, etc.)
+      - --store_container_labels=false          # suppress Docker label bloat on every metric
+      - --housekeeping_interval=30s             # scrape every 30 s (matches Prometheus)
+      - --max_housekeeping_interval=35s
+      - --disable_metrics=advtcp,cpuset,hugetlb,referenced_memory,resctrl,tcp,udp
     networks:
       - usernet
+
+  # Edge proxy: TLS termination, HTTP→HTTPS redirect, security headers,
+  # edge rate limiting, and routing to api-gateway / admin tools.
+  # Requires DOMAIN and ACME_EMAIL in .env.
+  # On first deploy: touch traefik/acme.json && chmod 600 traefik/acme.json
+  # Docker socket proxy: rewrites Traefik's hardcoded API v1.24 → v1.41 so it
+  # works with OrbStack (which rejects anything below 1.40). Only Traefik
+  # connects to this proxy; it should never be exposed to other services.
+  socket-proxy:
+    image: nginx:alpine
+    restart: always
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik/socket-proxy.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - usernet
+
+  traefik:
+    image: traefik:v3.3
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+      # Local dev: Traefik dashboard at http://localhost:8090/dashboard/
+      - "8090:8090"
+    volumes:
+      # No docker.sock mount here — traffic goes through socket-proxy instead.
+      - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro
+      - ./traefik/acme.json:/acme/acme.json
+    networks:
+      - usernet
+    depends_on:
+      socket-proxy:
+        condition: service_started
+      api-gateway:
+        condition: service_healthy
+    labels:
+      # OrbStack: forward *.orb.local traffic to port 8090 (plain HTTP, no TLS clash).
+      # This allows https://traefik.backend.orb.local to reach the dashboard locally.
+      - "dev.orbstack.http-port=8090"
+      - "traefik.enable=true"
+      # Traefik dashboard — restricted to private IPs only (see admin-ip-allowlist in dynamic.yml).
+      - "traefik.http.routers.traefik-dashboard.rule=Host(`traefik.${DOMAIN}`)"
+      - "traefik.http.routers.traefik-dashboard.entrypoints=${TRAEFIK_ENTRYPOINT:-web}"
+      - "traefik.http.routers.traefik-dashboard.tls.certresolver=${CERT_RESOLVER:-}"
+      - "traefik.http.routers.traefik-dashboard.service=api@internal"
+      - "traefik.http.routers.traefik-dashboard.middlewares=admin-ip-allowlist@file"
 
 
 networks:
   usernet:
+    name: usernet
 
 
 volumes:
@@ -414,163 +537,7 @@ volumes:
   rabbitmq_data:
   prom_data:
   grafana_data:
-
-
-  # traefik:
-  #   image: traefik:v2.10
-  #   command:
-  #     - "--api.insecure=false"
-  #     - "--providers.docker=true"
-  #     - "--providers.docker.exposedbydefault=false"
-  #     - "--entrypoints.web.address=:80"
-  #     - "--entrypoints.websecure.address=:443"
-  #   ports:
-  #     - "80:80"
-  #     - "443:443"
-  #   volumes:
-  #     - /var/run/docker.sock:/var/run/docker.sock:ro
-  #     - ./traefik.yml:/etc/traefik/traefik.yml:ro
-  #     - ./acme.json:/acme.json
-
-
-    # labels:
-    #   - "traefik.enable=true"
-    #   - "traefik.http.routers.service1.rule=PathPrefix(`/api/service1`)"
-    #   - "traefik.http.services.service1.loadbalancer.server.port=8000"
-    #   - "traefik.http.middlewares.secure-headers.headers.sslredirect=true"
-    #   - "traefik.http.middlewares.secure-headers.headers.stsincludesubdomains=true"
-    #   - "traefik.http.middlewares.secure-headers.headers.stspreload=true"
-    #   - "traefik.http.middlewares.secure-headers.headers.stsseconds=31536000"
-    #   - "traefik.http.middlewares.ratelimit.ratelimit.average=100"
-    #   - "traefik.http.middlewares.ratelimit.ratelimit.burst=50"
-
-  # prometheus:
-  #   image: prom/prometheus
-  #   volumes:
-  #     - ./prometheus:/etc/prometheus
-  #     - prometheus_data:/prometheus
-  #   command:
-  #     - '--config.file=/etc/prometheus/prometheus.yml'
-  #   labels:
-  #     - "traefik.enable=true"
-  #     - "traefik.http.routers.prometheus.rule=Host(`prometheus.yourdomain.com`)"
-
-  # grafana:
-  #   image: grafana/grafana
-  #   volumes:
-  #     - grafana_data:/var/lib/grafana
-  #   labels:
-  #     - "traefik.enable=true"
-  #     - "traefik.http.routers.grafana.rule=Host(`grafana.yourdomain.com`)"
-
-# volumes:
-#   prometheus_data:
-#   grafana_data:
+  alertmanager_data:
 
 
 
-# Infrastructure
-# db:
-#   deploy:
-#     resources:
-#       limits: { cpus: "1.0", memory: 1536M }
-#       reservations: { memory: 512M }
-
-# redis:
-#   deploy:
-#     resources:
-#       limits: { cpus: "0.25", memory: 256M }
-#       reservations: { memory: 64M }
-
-# rabbitmq:
-#   deploy:
-#     resources:
-#       limits: { cpus: "0.5", memory: 512M }
-#       reservations: { memory: 128M }
-
-# # App services (1 gunicorn worker each)
-# api-gateway:
-#   deploy:
-#     resources:
-#       limits: { cpus: "0.5", memory: 256M }
-#       reservations: { memory: 128M }
-
-# user-service:
-#   deploy:
-#     resources:
-#       limits: { cpus: "0.5", memory: 256M }
-#       reservations: { memory: 128M }
-
-# product-service:
-#   deploy:
-#     resources:
-#       limits: { cpus: "0.5", memory: 256M }
-#       reservations: { memory: 128M }
-
-# order-service:
-#   deploy:
-#     resources:
-#       limits: { cpus: "0.5", memory: 256M }
-#       reservations: { memory: 128M }
-
-# payment-service:
-#   deploy:
-#     resources:
-#       limits: { cpus: "0.5", memory: 256M }
-#       reservations: { memory: 128M }
-
-# notification-service:
-#   deploy:
-#     resources:
-#       limits: { cpus: "0.25", memory: 256M }
-#       reservations: { memory: 128M }
-
-# # Consumers / workers (lightweight async, no HTTP)
-# product-consumer:
-#   deploy:
-#     resources:
-#       limits: { cpus: "0.25", memory: 128M }
-
-# notification-consumer:
-#   deploy:
-#     resources:
-#       limits: { cpus: "0.25", memory: 128M }
-
-# notification-taskiq-worker:
-#   deploy:
-#     resources:
-#       limits: { cpus: "0.25", memory: 192M }
-
-# order-consumer:
-#   deploy:
-#     resources:
-#       limits: { cpus: "0.25", memory: 128M }
-
-# payment-consumer:
-#   deploy:
-#     resources:
-#       limits: { cpus: "0.25", memory: 128M }
-
-# # Admin / Monitoring
-# admin-js-service:
-#   deploy:
-#     resources:
-#       limits: { cpus: "0.25", memory: 256M }
-
-# prometheus:
-#   deploy:
-#     resources:
-#       limits: { cpus: "0.25", memory: 256M }
-
-# grafana:
-#   deploy:
-#     resources:
-#       limits: { cpus: "0.25", memory: 256M }
-
-# cadvisor:
-#   deploy:
-#     resources:
-#       limits: { cpus: "0.15", memory: 128M }
-
-# # DROP in production ↓
-# pgadmin:  # ~300 MB RAM — remove from prod docker-compose

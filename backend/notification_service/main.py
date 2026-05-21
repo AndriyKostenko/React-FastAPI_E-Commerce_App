@@ -14,6 +14,8 @@ from shared.shared_instances import (notification_service_redis_manager,
                                     settings
 )
 from shared.exceptions.base_exceptions import (BaseAPIException, RateLimitExceededError)
+from shared.middleware.logging_middleware import add_logging_middleware
+from prometheus_fastapi_instrumentator import Instrumentator
 from routes.notification_routes import notification_routes
 from tasks.broker import taskiq_broker
 
@@ -52,6 +54,8 @@ app = FastAPI(
     version="0.0.1",
     lifespan=lifespan
 )
+
+Instrumentator().instrument(app).expose(app, endpoint="/metrics")
 
 
 _INTERNAL_PATHS = frozenset({"/metrics", "/health"})
@@ -200,6 +204,7 @@ app.add_middleware(
     allow_methods=settings.CORS_ALLOWED_METHODS,
     allow_headers=settings.CORS_ALLOWED_HEADERS,
 )
+add_logging_middleware(app, service_name="notification-service")
 
 # including all the routers to the app
 app.include_router(notification_routes, prefix=settings.NOTIFICATION_SERVICE_URL_API_VERSION)

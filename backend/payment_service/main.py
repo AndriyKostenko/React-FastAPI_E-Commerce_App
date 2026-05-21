@@ -12,6 +12,8 @@ from fastapi.exceptions import ResponseValidationError, RequestValidationError
 from service_layer.outbox_poller_service import OutboxPollerService
 from routes.payment_routes import payment_routes
 from shared.exceptions.base_exceptions import BaseAPIException, RateLimitExceededError
+from shared.middleware.logging_middleware import add_logging_middleware
+from prometheus_fastapi_instrumentator import Instrumentator
 from shared.shared_instances import (
     payment_event_idempotency_service,
     payment_service_redis_manager,
@@ -53,6 +55,8 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+
+Instrumentator().instrument(app).expose(app, endpoint="/metrics")
 
 
 _INTERNAL_PATHS = frozenset({"/metrics", "/health"})
@@ -189,6 +193,7 @@ app.add_middleware(
     allow_methods=settings.CORS_ALLOWED_METHODS,
     allow_headers=settings.CORS_ALLOWED_HEADERS,
 )
+add_logging_middleware(app, service_name="payment-service")
 
 app.include_router(payment_routes, prefix=settings.PAYMENT_SERVICE_URL_API_VERSION)
 
