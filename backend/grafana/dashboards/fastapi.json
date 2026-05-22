@@ -838,7 +838,6 @@
           "color": {
             "mode": "palette-classic"
           },
-          "unit": "short",
           "min": 0,
           "custom": {
             "lineInterpolation": "linear",
@@ -924,7 +923,7 @@
       "targets": [
         {
           "expr": "sum(rate(container_network_receive_bytes_total{name=~\".+\"}[2m])) by (name)",
-          "legendFormat": "rx: {{name}}",
+          "legendFormat": "{{name}}",
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -932,7 +931,7 @@
         },
         {
           "expr": "sum(rate(container_network_transmit_bytes_total{name=~\".+\"}[2m])) by (name)",
-          "legendFormat": "tx: {{name}}",
+          "legendFormat": "{{name}}",
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -1064,5 +1063,5 @@
   },
   "title": "FastAPI Metrics",
   "uid": "fastapi-all-services",
-  "version": 8
+  "version": 10
 }

@@ -16,6 +16,7 @@ from routes.category_routes import category_routes
 from routes.review_routes import review_routes
 from shared.exceptions.base_exceptions import (BaseAPIException,RateLimitExceededError)
 from shared.middleware.logging_middleware import add_logging_middleware
+from shared.telemetry import setup_tracing
 from prometheus_fastapi_instrumentator import Instrumentator
 from shared.shared_instances import (product_event_idempotency_service, product_service_redis_manager,
                                     product_service_database_session_manager,
@@ -59,6 +60,8 @@ app = FastAPI(
     version="0.0.1",
     lifespan=lifespan
 )
+
+setup_tracing(app, service_name="product-service")
 
 Instrumentator().instrument(app).expose(app, endpoint="/metrics")
 

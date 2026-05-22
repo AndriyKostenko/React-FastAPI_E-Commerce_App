@@ -13,6 +13,7 @@ from service_layer.outbox_poller_service import OutboxPollerService
 from routes.payment_routes import payment_routes
 from shared.exceptions.base_exceptions import BaseAPIException, RateLimitExceededError
 from shared.middleware.logging_middleware import add_logging_middleware
+from shared.telemetry import setup_tracing
 from prometheus_fastapi_instrumentator import Instrumentator
 from shared.shared_instances import (
     payment_event_idempotency_service,
@@ -55,6 +56,8 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+
+setup_tracing(app, service_name="payment-service")
 
 Instrumentator().instrument(app).expose(app, endpoint="/metrics")
 

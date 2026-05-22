@@ -13,6 +13,7 @@ from service_layer.outbox_poller_service import OutboxPollerService
 from routes.orders_routes import order_routes
 from shared.exceptions.base_exceptions import (BaseAPIException, RateLimitExceededError)
 from shared.middleware.logging_middleware import add_logging_middleware
+from shared.telemetry import setup_tracing
 from prometheus_fastapi_instrumentator import Instrumentator
 from shared.shared_instances import (order_event_idempotency_service, order_service_redis_manager,
                                     order_service_database_session_manager,
@@ -57,6 +58,8 @@ app = FastAPI(
     version="0.0.1",
     lifespan=lifespan
 )
+
+setup_tracing(app, service_name="order-service")
 
 Instrumentator().instrument(app).expose(app, endpoint="/metrics")
 

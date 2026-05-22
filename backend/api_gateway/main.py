@@ -8,6 +8,7 @@ from fastapi import FastAPI, Request, Response
 
 from shared.exceptions.base_exceptions import BaseAPIException
 from shared.middleware.logging_middleware import add_logging_middleware
+from shared.telemetry import setup_tracing
 from prometheus_fastapi_instrumentator import Instrumentator
 from routes.user_routes import user_proxy
 from routes.product_routes import product_proxy
@@ -43,6 +44,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="API Gateway", lifespan=lifespan)
+
+setup_tracing(app, service_name="api-gateway", instrument_sqlalchemy=False)
 
 Instrumentator().instrument(app).expose(app, endpoint="/metrics")
 

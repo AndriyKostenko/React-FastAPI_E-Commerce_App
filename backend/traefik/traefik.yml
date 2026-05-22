@@ -73,6 +73,7 @@ certificatesResolvers:
 
 providers:
   # Docker provider: discovers services via container labels.
+  # Connects directly to the Docker socket (Docker Desktop on macOS/Windows
   # Uses a local nginx proxy (socket-proxy:2375) that rewrites Traefik's
   # hardcoded API v1.24 to v1.41 — required for OrbStack compatibility.
   docker:

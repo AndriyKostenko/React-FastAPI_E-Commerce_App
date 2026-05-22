@@ -15,6 +15,7 @@ from shared.shared_instances import (notification_service_redis_manager,
 )
 from shared.exceptions.base_exceptions import (BaseAPIException, RateLimitExceededError)
 from shared.middleware.logging_middleware import add_logging_middleware
+from shared.telemetry import setup_tracing
 from prometheus_fastapi_instrumentator import Instrumentator
 from routes.notification_routes import notification_routes
 from tasks.broker import taskiq_broker
@@ -54,6 +55,8 @@ app = FastAPI(
     version="0.0.1",
     lifespan=lifespan
 )
+
+setup_tracing(app, service_name="notification-service", instrument_sqlalchemy=False)
 
 Instrumentator().instrument(app).expose(app, endpoint="/metrics")
 

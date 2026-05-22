@@ -780,6 +780,130 @@ Key Features
  - Extensive Ecosystem: Offers built-in middleware for rate limiting, basic authentication, header modification, and request redirection.
  - Observability: Supports distributed tracing (OpenTelemetry) and provides metrics directly to Prometheus, Datadog, or InfluxDB. 
 
+ How Traefik works — conceptually
+ 
+ Traefik is a **reverse proxy + edge router**. Its job: receive all incoming HTTP/HTTPS traffic on one or a few ports, and decide which backend service should handle each request.
+ 
+ The key mental model is a 3-layer pipeline:
+ 
+ ```
+ Internet / Browser
+        │
+        ▼
+   EntryPoint        ← "which port did the request arrive on?"
+        │
+        ▼
+     Router           ← "which rule matches this request?" (Host, Path, etc.)
+        │
+        ▼
+   Middleware(s)      ← transform the request (rate limit, headers, redirect…)
+        │
+        ▼
+    Service           ← "which backend container(s) handle this?"
+        │
+        ▼
+   Your container
+
+```
+
+In local dev (`TRAEFIK_ENTRYPOINT=web`) all routers bind to port 80. In production must switch to `websecure` and Traefik auto-requests TLS certs from Let's Encrypt.
+
+Traefik watches Docker via the **socket-proxy** (not directly — that's the fix we made for OrbStack). When a container starts, Traefik reads its labels:
+
+```
+docker compose up api-gateway
+         │
+         ▼
+  Traefik sees container via socket-proxy
+         │
+         ▼
+  Reads labels:
+    traefik.enable=true
+    traefik.http.routers.api-gateway.rule=Host(`yourdomain.com`)
+    traefik.http.services.api-gateway.loadbalancer.server.port=8000
+         │
+         ▼
+  Dynamically creates: Router + Service
+  No restart needed
+```
+
+`exposedByDefault: false` in `traefik.yml` means **only containers with `traefik.enable=true`** are routed. Everything else is invisible to Traefik.
+
+---
+
+### Your 4 routers
+
+| Router | Rule | Backend | Middlewares |
+|---|---|---|---|
+| `api-gateway` | `yourdomain.com` or `www.yourdomain.com` | `api-gateway:8000` | rate-limit, compress, www→apex redirect |
+| `admin-js` | `admin.yourdomain.com` | `admin-js-service:3000` | IP allowlist (private only) |
+| `grafana` | `grafana.yourdomain.com` | `grafana:3000` | IP allowlist |
+| `traefik-dashboard` | `traefik.yourdomain.com` | `api@internal` | IP allowlist |
+
+---
+
+### Load balancing
+
+Right now each service runs **1 container**, so load balancing is trivial (1 backend). But if you scale:
+
+```bash
+docker compose up -d --scale api-gateway=3
+```
+
+Traefik **automatically** detects all 3 containers and round-robins between them — no config changes. The health check you have configured:
+
+```yaml
+loadbalancer.healthcheck.path=/health
+loadbalancer.healthcheck.interval=30s
+```
+
+...means Traefik pings `/health` every 30s and **removes unhealthy containers from the pool** without taking down the others.
+
+---
+
+### Middleware pipeline for a typical API request
+
+```
+Browser → yourdomain.com/api/v1/products
+    │
+    ▼ port 80 (web entrypoint)
+    │
+    ▼ Router: api-gateway matches Host(`yourdomain.com`)
+    │
+    ▼ Middleware: rate-limit-api   (300 req/min, burst 100)
+    ▼ Middleware: www-to-apex      (only fires for www. requests)
+    ▼ Middleware: compress         (gzip JSON responses)
+    │
+    ▼ Service: api-gateway loadbalancer → container:8000
+    │
+    ▼ api-gateway forwards to the right microservice internally
+```
+
+The internal microservices (user-service, product-service, etc.) **don't go through Traefik at all** — they talk directly over the `usernet` Docker network. Traefik only handles the **public edge**.
+
+---
+
+### The socket-proxy (your OrbStack workaround)
+
+```
+Traefik → tcp://socket-proxy:2375
+              │
+              ▼
+        nginx rewrites /v1.24/ → /v1.41/
+              │
+              ▼
+        /var/run/docker.sock (OrbStack's socket)
+```
+
+Traefik v3 hardcodes Docker API v1.24 in its source code. OrbStack's Docker requires v1.40+. The nginx proxy transparently upgrades the version number in the URL path.
+
+EntryPoint | Port | Purpose |
+|---|---|---|
+| `web` | `:80` | HTTP — redirects to HTTPS in prod; used directly in local dev |
+| `websecure` | `:443` | HTTPS with Let's Encrypt (prod) |
+| `metrics` | `:8082` | Prometheus scrapes Traefik's own metrics here |
+| `traefik` | `:8090` | Dashboard UI (local dev only)
+
  Middleware              | Purpose |
  |-----------------------|----------------------------------------------------|
  | `secure-headers`      | HSTS, XSS, no-sniff, `Server:` header stripped     |
@@ -809,3 +933,85 @@ Router | Entry | Rule |
 
 ## Prometheus AlertManager
 Alertmanager UI is at **http://localhost:9093
+Test:  curl -X POST http://localhost:9093/api/v2/alerts \
+  -H "Content-Type: application/json" \
+  -d '[{"labels":{"alertname":"TestAlert","severity":"warning","job":"test"},"annotations":{"description":"This is a test from Alertmanager"}}]'
+
+
+
+
+## Scaling of the APP
+
+Uvicorn workers — vertical scaling (inside one container)
+
+```
+Container (1x)
+└── uvicorn --workers 4
+    ├── worker process 1  (own memory, own GIL)
+    ├── worker process 2
+    ├── worker process 3
+    └── worker process 4
+```
+
+- Multiple **OS processes** inside a **single container**
+- Each worker has its own Python GIL → true CPU parallelism
+- All share the same CPU/RAM limits of that one container
+- If the container dies → **all 4 workers die together**
+- Rule of thumb: `workers = (2 × CPU cores) + 1`
+
+---
+
+## `docker compose up -d --scale api-gateway=3` — horizontal scaling (multiple containers)
+
+```
+Traefik loadbalancer
+├── Container 1 → uvicorn (1 worker)
+├── Container 2 → uvicorn (1 worker)
+└── Container 3 → uvicorn (1 worker)
+```
+
+- Multiple **independent containers** each running their own process
+- Traefik distributes traffic between them (round-robin)
+- If one container crashes → the other 2 keep serving traffic
+- Each container can be on a different machine (in Swarm/K8s)
+
+---
+
+## The real difference — fault isolation
+
+| | Uvicorn workers | Docker scale |
+|---|---|---|
+| A worker crashes | Other workers survive | Other **containers** survive |
+| Memory leak | All workers in same container affected | Isolated per container |
+| Deploy update | Restart whole container | Rolling update possible |
+| State sharing | Easy (same process group) | Hard (need Redis/DB) |
+
+---
+
+## What you should actually do
+
+**Combine both** — this is the production best practice:
+
+```
+Traefik
+├── Container 1 → uvicorn --workers 2
+├── Container 2 → uvicorn --workers 2
+└── Container 3 → uvicorn --workers 2
+                           = 6 real parallel workers
+                           + fault isolation between containers
+```
+
+**FastAPI services specifically:**
+
+For async workloads, **1 worker per container is often enough** because a single async worker can handle hundreds of concurrent requests without blocking. Workers only matter for CPU-bound work.
+
+So the practical setup:
+- **Local dev**: 1 container, 1 worker — simple, easy logs
+- **Production**: `--scale 2-3`, 1-2 workers each — balance between resilience and resource use
+
+
+## OpenTelemetry
+1. Make some requests to your API (any endpoint through api-gateway)
+2. Open Grafana → **Explore** → select **Tempo** datasource
+3. Click **Search** → you'll see traces from all your services with full waterfall view
+4. From a Loki log line you can also click **"View in Traces"** to jump directly to the trace

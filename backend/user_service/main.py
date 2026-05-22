@@ -12,6 +12,7 @@ from prometheus_fastapi_instrumentator import Instrumentator
 from routes.user_routes import user_routes
 from shared.exceptions.base_exceptions import (BaseAPIException, RateLimitExceededError)
 from shared.middleware.logging_middleware import add_logging_middleware
+from shared.telemetry import setup_tracing
 from shared.shared_instances import (base_event_publisher, user_service_redis_manager,
                                     user_service_database_session_manager,
                                     logger,
@@ -54,6 +55,8 @@ app = FastAPI(
     version="0.0.1",
     lifespan=lifespan
 )
+
+setup_tracing(app, service_name="user-service")
 
 # Connecting the prometheus
 Instrumentator().instrument(app).expose(app, endpoint="/metrics")
