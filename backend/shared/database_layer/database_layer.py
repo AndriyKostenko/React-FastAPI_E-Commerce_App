@@ -3,7 +3,7 @@ from uuid import UUID
 from typing import Generic, Optional, TypeVar, Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import func, select, asc, desc, or_
+from sqlalchemy import func, select, update, asc, desc, or_
 from sqlalchemy.orm import selectinload
 
 from shared.exceptions.base_exceptions import NoFieldInTheModelError
@@ -60,6 +60,21 @@ class BaseRepository(Generic[ModelType]):
                 if hasattr(self.model, relation):
                     query = query.options(selectinload(getattr(self.model, relation)))
         query = query.where(self.model.id == item_id)
+        result = await self.session.execute(query)
+        return result.scalar_one_or_none()
+
+    async def get_by_id_with_lock(self, item_id: UUID) -> ModelType | None:
+        """Get a record by ID with a row-level exclusive lock (SELECT FOR UPDATE).
+
+        Use inside an open transaction when you need to read-then-write without
+        another concurrent transaction being able to modify the row in between.
+        Prefer atomic_update_by_id for simple numeric adjustments.
+        """
+        query = (
+            select(self.model)
+            .where(self.model.id == item_id)
+            .with_for_update()
+        )
         result = await self.session.execute(query)
         return result.scalar_one_or_none()
 
@@ -177,6 +192,33 @@ class BaseRepository(Generic[ModelType]):
         )
         return list(result.scalars().all())
 
+    async def get_many_by_field_with_lock(
+        self,
+        field_name: str,
+        value: str | UUID | bool,
+        limit: int = 50,
+    ) -> list[ModelType]:
+        """Get multiple records by field value with a row-level exclusive lock.
+
+        Uses ``SELECT … FOR UPDATE SKIP LOCKED`` so that concurrent callers
+        (e.g. multiple outbox poller workers) each receive a *disjoint* set of
+        rows.  Rows already locked by another transaction are silently skipped
+        rather than causing the query to block or fail.
+
+        Must be called inside an open transaction — the lock is held until the
+        transaction commits or rolls back.
+        """
+        if not hasattr(self.model, field_name):
+            raise NoFieldInTheModelError(field_name=field_name, model_name=self.model.__name__)
+        query = (
+            select(self.model)
+            .where(getattr(self.model, field_name) == value)
+            .limit(limit)
+            .with_for_update(skip_locked=True)
+        )
+        result = await self.session.execute(query)
+        return list(result.scalars().all())
+
     async def filter_by(self, **kwargs) -> list[ModelType]:
         """Filter records by multiply fields"""
         query = select(self.model)  # Always initialize query
@@ -204,6 +246,60 @@ class BaseRepository(Generic[ModelType]):
         await self.session.flush()
         await self.session.refresh(obj)
         return obj
+
+    async def atomic_decrement_quantity(self, item_id: UUID, requested: int) -> ModelType | None:
+        """Atomically decrement `quantity` by *requested* only if sufficient stock exists.
+
+        Issues a single ``UPDATE … WHERE quantity >= requested AND in_stock = TRUE``
+        statement so the check and the decrement happen in one atomic DB operation.
+        No separate SELECT is needed, which eliminates the TOCTOU race condition
+        that arises from the classic read-check-write pattern.
+
+        Returns the updated model instance on success, or ``None`` when the row
+        was not found or did not have enough stock (0 rows affected).
+        """
+        if not hasattr(self.model, "quantity") or not hasattr(self.model, "in_stock"):
+            raise AttributeError(f"Model {self.model.__name__} does not have 'quantity'/'in_stock' fields")
+
+        stmt = (
+            update(self.model)
+            .where(
+                self.model.id == item_id,
+                self.model.quantity >= requested,
+                self.model.in_stock == True,  
+            )
+            .values(
+                quantity=self.model.quantity - requested,
+                in_stock=self.model.quantity - requested > 0,
+            )
+            .returning(self.model)
+        )
+        result = await self.session.execute(stmt)
+        row = result.scalar_one_or_none()
+        return row
+
+    async def atomic_increment_quantity(self, item_id: UUID, amount: int) -> Optional[ModelType]:
+        """Atomically increment ``quantity`` by *amount* and mark the product in-stock.
+
+        Used for inventory release (SAGA compensation). Single UPDATE statement
+        avoids the read-then-write race that ``release_inventory`` previously had.
+
+        Returns the updated model instance, or ``None`` if the row was not found.
+        """
+        if not hasattr(self.model, "quantity") or not hasattr(self.model, "in_stock"):
+            raise AttributeError(f"Model {self.model.__name__} does not have 'quantity'/'in_stock' fields")
+
+        stmt = (
+            update(self.model)
+            .where(self.model.id == item_id)
+            .values(
+                quantity=self.model.quantity + amount,
+                in_stock=True,
+            )
+            .returning(self.model)
+        )
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
 
     async def update_by_field(self, field_name: str, value: str, **kwargs) -> ModelType | None:
         """Update a record by field value with new values"""

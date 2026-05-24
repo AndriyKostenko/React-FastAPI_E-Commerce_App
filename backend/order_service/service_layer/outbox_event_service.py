@@ -29,7 +29,9 @@ class OutboxEventService:
         return outbox_db_events
 
     async def get_unprocessed_events(self, limit: int = 50) -> list[OutboxEvent]:
-        unprocessed_db_events: list[OutboxEvent] | None = await self.repository.get_many_by_field(field_name="processed", value=False, limit=limit)
+        unprocessed_db_events: list[OutboxEvent] = await self.repository.get_many_by_field_with_lock(
+            field_name="processed", value=False, limit=limit
+        )
         if not unprocessed_db_events:
             raise OutboxEventNotFoundError()
         return unprocessed_db_events

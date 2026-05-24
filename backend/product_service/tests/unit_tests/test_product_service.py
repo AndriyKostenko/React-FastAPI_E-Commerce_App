@@ -262,20 +262,24 @@ class TestReserveInventory:
     ) -> None:
         mock_product_orm.quantity = 10
         mock_product_orm.in_stock = True
-        mock_product_repository.get_by_id.return_value = mock_product_orm
-        mock_product_repository.update_by_id.return_value = mock_product_orm
+        mock_product_repository.atomic_decrement_quantity.return_value = mock_product_orm
 
         item = OrderItemBase(order_id=uuid4(), product_id=mock_product_orm.id, quantity=3, price=9.99)
         result = await product_service_unit.reserve_inventory([item])
 
         assert result["success"] is True
         assert len(result["products"]) == 1
+        mock_product_repository.atomic_decrement_quantity.assert_awaited_once_with(
+            item_id=mock_product_orm.id, requested=3
+        )
 
     async def test_reserve_fails_when_product_not_found(
         self,
         product_service_unit,
         mock_product_repository: MagicMock,
     ) -> None:
+        # atomic_decrement returns None → service reads row for a better error message
+        mock_product_repository.atomic_decrement_quantity.return_value = None
         mock_product_repository.get_by_id.return_value = None
 
         item = OrderItemBase(order_id=uuid4(), product_id=uuid4(), quantity=1, price=9.99)
@@ -292,6 +296,8 @@ class TestReserveInventory:
     ) -> None:
         mock_product_orm.quantity = 5
         mock_product_orm.in_stock = False
+        # atomic_decrement returns None because in_stock = FALSE
+        mock_product_repository.atomic_decrement_quantity.return_value = None
         mock_product_repository.get_by_id.return_value = mock_product_orm
 
         item = OrderItemBase(order_id=uuid4(), product_id=mock_product_orm.id, quantity=1, price=9.99)
@@ -308,6 +314,8 @@ class TestReserveInventory:
     ) -> None:
         mock_product_orm.quantity = 2
         mock_product_orm.in_stock = True
+        # atomic_decrement returns None because quantity < requested
+        mock_product_repository.atomic_decrement_quantity.return_value = None
         mock_product_repository.get_by_id.return_value = mock_product_orm
 
         item = OrderItemBase(order_id=uuid4(), product_id=mock_product_orm.id, quantity=10, price=9.99)
@@ -328,23 +336,23 @@ class TestReleaseInventory:
         mock_product_repository: MagicMock,
         mock_product_orm: MagicMock,
     ) -> None:
-        mock_product_orm.quantity = 7
+        mock_product_orm.quantity = 10
         mock_product_orm.in_stock = True
-        mock_product_repository.get_by_id.return_value = mock_product_orm
-        mock_product_repository.update_by_id.return_value = mock_product_orm
+        mock_product_repository.atomic_increment_quantity.return_value = mock_product_orm
 
         item = OrderItemBase(order_id=uuid4(), product_id=mock_product_orm.id, quantity=3, price=9.99)
         await product_service_unit.release_inventory([item])
 
-        call_data = mock_product_repository.update_by_id.call_args[1]["data"]
-        assert call_data["quantity"] == 10  # 7 + 3
+        mock_product_repository.atomic_increment_quantity.assert_awaited_once_with(
+            item_id=mock_product_orm.id, amount=3
+        )
 
     async def test_release_raises_when_product_not_found(
         self,
         product_service_unit,
         mock_product_repository: MagicMock,
     ) -> None:
-        mock_product_repository.get_by_id.return_value = None
+        mock_product_repository.atomic_increment_quantity.return_value = None
 
         from exceptions.product_exceptions import ProductReleaseError
         item = OrderItemBase(order_id=uuid4(), product_id=uuid4(), quantity=1, price=9.99)

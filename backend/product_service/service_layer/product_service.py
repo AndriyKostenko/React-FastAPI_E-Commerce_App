@@ -157,38 +157,39 @@ class ProductService:
 
     async def reserve_inventory(self, items: list[OrderItemBase]) -> dict[str, Any]:
         """
-        Reserve inventory by decrementing the product quantities.
-        Validates and deducts in a single pass to avoid stale reads between
-        the validation and update steps.
+        Reserve inventory via atomic per-row decrements.
+
+        Each item is decremented with a single ``UPDATE … WHERE quantity >= requested``
+        statement, eliminating the TOCTOU race condition that would arise from the
+        classic read-check-write pattern.  Two concurrent reservation requests for
+        the same product cannot both succeed unless there is genuinely enough stock
+        for both — the database enforces this atomically.
         """
         failed_items: list[OrderItemBase] = []
         reasons: set[str] = set()
         reserved_items: list[OrderItemBase] = []
 
         for item in items:
-            try:
-                product = await self.get_product_by_id_without_relations(item.product_id)
-            except ProductNotFoundError:
-                failed_items.append(item)
-                reasons.add(f"Product with ID: {item.product_id} not found")
-                continue
-
-            if not product.in_stock:
-                failed_items.append(item)
-                reasons.add(f"Product: {product.name}, ID: {product.id} is out of stock")
-                continue
-
-            if product.quantity < item.quantity:
-                failed_items.append(item)
-                reasons.add(f"Insufficient quantity for product: {product.name}, ID: {product.id}, requested: {item.quantity}, available: {product.quantity}")
-                continue
-
-            new_quantity = product.quantity - item.quantity
-            update_data = UpdateProduct(
-                quantity=new_quantity,
-                in_stock=new_quantity > 0,
+            updated = await self.repository.atomic_decrement_quantity(
+                item_id=item.product_id,
+                requested=item.quantity,
             )
-            _ = await self.update_product(product_id=product.id, product_data=update_data)
+
+            if updated is None:
+                # Row not found OR insufficient stock / out of stock — distinguish for UX
+                product = await self.repository.get_by_id(item.product_id)
+                if product is None:
+                    reasons.add(f"Product with ID: {item.product_id} not found")
+                elif not product.in_stock:
+                    reasons.add(f"Product: {product.name}, ID: {product.id} is out of stock")
+                else:
+                    reasons.add(
+                        f"Insufficient quantity for product: {product.name}, ID: {product.id}, "
+                        f"requested: {item.quantity}, available: {product.quantity}"
+                    )
+                failed_items.append(item)
+                continue
+
             reserved_items.append(item)
 
         if failed_items:
@@ -204,16 +205,17 @@ class ProductService:
 
     async def release_inventory(self, products: list[OrderItemBase]):
         """
-        Release inventory by incrementing product quantities back.
-        This is a compensation action (SAGA rollback).
+        Release inventory via atomic per-row increments (SAGA compensation).
+
+        Each item is incremented with a single ``UPDATE … SET quantity = quantity + amount``
+        statement so concurrent release events cannot double-add stock.
         """
-        for product in products:
-            try:
-                db_product = await self.get_product_by_id_without_relations(product.product_id)
-                update_data = UpdateProduct(
-                    quantity=db_product.quantity + product.quantity,
-                    in_stock=True,
+        for item in products:
+            updated = await self.repository.atomic_increment_quantity(
+                item_id=item.product_id,
+                amount=item.quantity,
+            )
+            if updated is None:
+                raise ProductReleaseError(
+                    f"Cannot release inventory for product: {item.product_id} — product not found"
                 )
-                _ = await self.update_product(product_id=product.product_id, product_data=update_data)
-            except (ProductNotFoundError, ProductUpdateError, ProductCreationError) as error:
-                raise ProductReleaseError(f"Cannot release inventory for product: {product.product_id}, error: {error}")

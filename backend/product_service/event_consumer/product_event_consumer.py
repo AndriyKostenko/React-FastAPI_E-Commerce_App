@@ -125,6 +125,9 @@ class ProductEventConsumer:
                 )
 
         except Exception as error:
+            # Release the idempotency claim so RabbitMQ retries are not blocked
+            # by a stale "processing" marker left from this failed attempt.
+            await self.idempotency_service.release_claim(event.event_id, event.event_type)
             # Critical error - log and publish failure event
             self.logger.error(f"Error handling inventory reserve request for order {event.order_id}: {str(error)}")
             await product_event_publisher.publish_inventory_reserve_failed(
@@ -174,8 +177,10 @@ class ProductEventConsumer:
 
         except ProductReleaseError as error:
             self.logger.error(f"Error handling inventory release request for order: {event.order_id}: {str(error)}")
-            # Note: We don't re-raise here because inventory release is a compensation
-            # action and should be idempotent. We log the error but don't fail the message.
+            # Release the claim so RabbitMQ retries are not blocked.
+            # Note: We don't re-raise because inventory release is a compensation action;
+            # logging and releasing the claim is sufficient to allow retry.
+            await self.idempotency_service.release_claim(event.event_id, event.event_type)
 
 
 product_event_consumer = ProductEventConsumer(logger=logger)

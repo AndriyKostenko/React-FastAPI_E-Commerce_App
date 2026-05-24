@@ -27,7 +27,7 @@ class OutboxEventService:
             raise OutboxEventCreatioError()
 
     async def get_unprocessed_events(self, limit: int = 50) -> list[OutboxEvent]:
-        unprocessed: list[OutboxEvent] | None = await self.repository.get_many_by_field(
+        unprocessed: list[OutboxEvent] = await self.repository.get_many_by_field_with_lock(
             field_name="processed", value=False, limit=limit
         )
         if not unprocessed:

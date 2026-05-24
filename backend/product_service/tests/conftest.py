@@ -142,6 +142,8 @@ def mock_product_repository() -> MagicMock:
     repo.update_by_id = AsyncMock()
     repo.delete_by_id = AsyncMock()
     repo.get_many_by_field = AsyncMock()
+    repo.atomic_decrement_quantity = AsyncMock()
+    repo.atomic_increment_quantity = AsyncMock()
     return repo
 
 
