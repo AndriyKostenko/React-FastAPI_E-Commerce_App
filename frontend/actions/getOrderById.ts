@@ -1,7 +1,9 @@
+import { settings } from "@/settings";
+
 const fetchOrderById = async (id: string): Promise<any> => {
 	try {
 		// adding cache: 'no-store' to prevent caching of the response
-		const response = await fetch(`http://127.0.0.1:8000/orders/${id}`, {
+		const response = await fetch(settings.api.backendEndpoints.orderById(id), {
 			method: 'GET',
 			cache: 'no-store',
 

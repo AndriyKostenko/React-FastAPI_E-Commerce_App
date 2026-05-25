@@ -21,20 +21,20 @@ const Input: React.FC<InputProps> = ({id, label, type, disabled, required, regis
     
     return ( 
         <div className='w-full relative'>
-            <input className={`peer 
+             <input className={`peer 
                                 w-full 
                                 p-4 
                                 pt-6 
                                 outline-none 
-                                bg-white 
+                                bg-surface-container-low 
                                 font-light 
-                                border-2 
-                                rounded-md 
+                                border 
+                                rounded-lg 
                                 transition 
                                 disabled:opacity-70 
                                 disabled:cursor-not-allowed
-                                ${errors[id] ? 'border-rose-400' : 'border-slate-300'}
-                                ${errors[id] ? 'focus:border-rose-400' : 'focus:border-slate-300'}`}
+                                ${errors[id] ? 'border-rose-400' : 'border-outline-variant'}
+                                ${errors[id] ? 'focus:border-rose-400' : 'focus:border-primary'}`}
                                 autoComplete='off'
                                 id={id}
                                 disabled={disabled}
@@ -56,7 +56,7 @@ const Input: React.FC<InputProps> = ({id, label, type, disabled, required, regis
                                                 peer-placeholder-shown:translate-y-0
                                                 peer-focus:scale-75
                                                 peer-focus:-translate-y-4
-                                                ${errors[id] ? 'text:border-rose-500' : 'text:border-slate-300'}`}>
+                                                ${errors[id] ? 'text-rose-500' : 'text-secondary'}`}>
                     {label}
                 </label>
         </div>

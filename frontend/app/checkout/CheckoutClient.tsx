@@ -12,6 +12,7 @@ import Button from "../components/Button";
 import Link from "next/link";
 import { MdArrowBack } from "react-icons/md";
 import { ProductProps } from "../interfaces/product";
+import { settings } from "@/settings";
 
 interface LoginFormProps {
     currentUserJWT?: string | null | undefined;
@@ -24,8 +25,7 @@ type CheckoutAddress = {
     postal_code: string;
 };
 
-const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_TEST_PUBLISHABLE_KEY as string);
-const API_BASE_URL = "http://127.0.0.1:8000/api/v1";
+const stripePromise = loadStripe(settings.stripe.publishableKey);
 
 const CheckoutClient: React.FC<LoginFormProps> = ({ currentUserJWT }) => {
     const { cartProducts, cartTotalAmount, handleSetPaymentIntent, paymentIntent, handleClearCart } = useCart();
@@ -47,7 +47,7 @@ const CheckoutClient: React.FC<LoginFormProps> = ({ currentUserJWT }) => {
                 setLoading(true);
                 setError(false);
 
-                const response = await fetch(`${API_BASE_URL}/payments/create-intent`, {
+                const response = await fetch(settings.api.endpoints.paymentsCreateIntent, {
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json",
@@ -114,7 +114,7 @@ const CheckoutClient: React.FC<LoginFormProps> = ({ currentUserJWT }) => {
             setLoading(true);
             setError(false);
 
-            const response = await fetch(`${API_BASE_URL}/orders`, {
+            const response = await fetch(settings.api.endpoints.orders, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -160,7 +160,7 @@ const CheckoutClient: React.FC<LoginFormProps> = ({ currentUserJWT }) => {
     const cancelOrderAfterFailure = useCallback(async (): Promise<void> => {
         if (!draftOrderId || !currentUserJWT) return;
         try {
-            await fetch(`${API_BASE_URL}/orders/${draftOrderId}/cancel`, {
+            await fetch(settings.api.endpoints.cancelOrder(draftOrderId), {
                 method: "PATCH",
                 headers: {
                     "Content-Type": "application/json",

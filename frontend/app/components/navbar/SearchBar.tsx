@@ -39,18 +39,22 @@ const SearchBar = () => {
     
     
     return (
-        <div className="flex items-center">
+        <div className="flex items-center gap-3">
             <input 
                 {...register('searchTerm')}
-                className="p-2 border border-gray-300 rounded-1-md focus:outline-none focus:border-[0.5px] focus:border-slate-500 w-80"
-                placeholder="Explore E-Shop"
+                className="bg-transparent border-none focus:ring-0 text-sm font-body-md w-48 text-primary placeholder:text-secondary outline-none"
+                placeholder="Search designs..."
                 autoComplete="off"
                 type="text"
-                >
-            </input>
-
-            <button onClick={handleSubmit(onSubmit)} className="bg-slate-700 hover:opacity-80 text-white p-2 rounded-md">
-                Search
+            />
+            <button
+                onClick={handleSubmit(onSubmit)}
+                className="bg-black text-white p-1.5 rounded-full flex items-center justify-center hover:bg-neutral-800 transition-all"
+                aria-label="Search"
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35m0 0A7 7 0 104.65 4.65a7 7 0 0012 12z" />
+                </svg>
             </button>
         </div>
     );

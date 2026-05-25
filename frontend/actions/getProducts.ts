@@ -1,9 +1,10 @@
 import { ProductProps } from "@/app/interfaces/product";
+import { settings } from "@/settings";
 
 const fetchProductsFromBackend = async (category?: string , searchTerm?: string): Promise<ProductProps[]> => {
     try {
         //const  searchTerm  = searchParams?.searchTerm as string | undefined; 
-        const url = new URL("http://127.0.0.1:8000/api/v1/products/detailed");
+        const url = new URL(settings.api.endpoints.productsDetailed);
 
         if (category !== undefined) {
             url.searchParams.append("category", category);

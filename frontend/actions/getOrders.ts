@@ -1,9 +1,10 @@
 import { OrderProps } from "@/app/interfaces/order";
+import { settings } from "@/settings";
 
 const fetchOrdersFromBackend = async (token: string, startDate?: string, endDate?: string): Promise<OrderProps[]> => {
 
     try {
-        let url = "http://127.0.0.1:8000/orders";
+        let url = settings.api.backendEndpoints.orders;
 
         const params = new URLSearchParams();
         

@@ -28,16 +28,16 @@ const Categories: React.FC<CategoriesProps> = ({ categories }) => {
     }
 
     return (
-        <div className="bg-white">
+        <div className="mt-4 border-t border-white/20">
             <Container>
-                <div className="pt-4 flex flex-row items-center justify-between overflow-x-auto">
+                <div className="py-3 flex flex-row items-center justify-between overflow-x-auto no-scrollbar">
                     {categories.map((item) => (
-                                <Category key={item.id}
-                                id={item.id}
-                                name={item.name} 
-                                image_url={resolveImageUrl(item.image_url)} 
-                                selected={category === item.name  || (category === null && item.name === 'All') }
-                                />
+                        <Category key={item.id}
+                            id={item.id}
+                            name={item.name}
+                            image_url={resolveImageUrl(item.image_url)}
+                            selected={category === item.name || (category === null && item.name === 'All')}
+                        />
                     ))}
                 </div>
             </Container>

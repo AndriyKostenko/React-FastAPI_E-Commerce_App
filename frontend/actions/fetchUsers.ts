@@ -1,8 +1,9 @@
 import { UserProps } from '../app/interfaces/user';
+import { settings } from "@/settings";
 
 export default async function fetchUsersFromBackend(token: string): Promise<UserProps[]> {
     try {
-        const response = await fetch('http://127.0.0.1:8000/admin/users', {
+        const response = await fetch(settings.api.backendEndpoints.users, {
             method: 'GET',
             headers: {
                 'Content-Type': 'application/json',

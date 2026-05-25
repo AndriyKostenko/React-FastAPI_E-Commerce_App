@@ -13,6 +13,7 @@ import fetchOrdersFromBackend from '@/actions/getOrders';
 import { sessionManagaer } from "@/actions/getCurrentUser";
 import { useCurrentUserTokenExpiryCheck } from "@/hooks/useCurrentUserToken";
 import { OrderProps } from '../../interfaces/order';
+import { settings } from "@/settings";
 
 
 interface ManageOrdersClientProps{
@@ -180,7 +181,7 @@ const ManagaeClientOrders:React.FC<ManageOrdersClientProps> = ({initialOrders, t
       return;
     }
     
-    fetch(`http://127.0.0.1:8000/orders/${id}`, {
+    fetch(settings.api.backendEndpoints.updateOrder(id), {
         method: 'PUT',
         headers: {
             'Authorization': `Bearer ${token}`,
@@ -208,7 +209,7 @@ const handleDeliver = useCallback((id: string) => {
       return;
     }
     
-    fetch(`http://127.0.0.1:8000/orders/${id}`, {
+    fetch(settings.api.backendEndpoints.updateOrder(id), {
         method: 'PUT',
         headers: {
             'Authorization': `Bearer ${token}`,

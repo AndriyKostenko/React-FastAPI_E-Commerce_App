@@ -11,14 +11,10 @@ const CartCount  = () => {
 
     return ( 
         <div className="relative cursor-pointer" onClick={() => router.push('/cart')}>
-            <div className="text-3xl">
-                <CiShoppingCart/>
-            </div>
-            <div>
-                <span className="absolute top-[-10px] right-[-10px] bg-slate-700 text-white h-6 w-6 rounded-full flex items-center justify-center text-sm">
-                    {cartTotalQty}
-                </span>
-            </div>
+            <CiShoppingCart className="text-2xl text-primary"/>
+            <span className="absolute -top-2 -right-2 bg-primary text-on-primary h-5 w-5 rounded-full flex items-center justify-center text-[11px] font-bold">
+                {cartTotalQty}
+            </span>
         </div>
      );
 }

@@ -16,6 +16,7 @@ import { useRouter } from "next/navigation";
 import { useCurrentUserTokenExpiryCheck } from "@/hooks/useCurrentUserToken";
 import { CategoryProps } from "@/app/interfaces/category";
 import { resolveImageUrl } from "@/utils/resolveImageUrl";
+import { settings } from "@/settings";
 
 
 
@@ -116,7 +117,7 @@ const AddProductForm:React.FC<AddProductProps> = ({currentUserJWT, expiryToken, 
         });
 
         try {
-            const response = await fetch('http://127.0.0.1:8000/products', {
+            const response = await fetch(settings.api.backendEndpoints.products, {
                 method: 'POST',
                 body: formData,
                 headers: {

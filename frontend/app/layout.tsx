@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { Poppins } from 'next/font/google';
+import { Hanken_Grotesk, Inter } from 'next/font/google';
 
 import NavBar from './components/navbar/NavBar';
 import Footer from './components/footer/Footer';
@@ -13,15 +13,22 @@ import { Toaster } from 'react-hot-toast';
 
 //root ot the application
 
-//setting google fonts (already integrated in next.js)
-const poppins = Poppins({ subsets: ['latin'],
-						  weight:['400', '700'] });
+//setting google fonts
+const hankenGrotesk = Hanken_Grotesk({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700', '800'],
+  variable: '--font-hanken-grotesk',
+});
 
-
+const inter = Inter({
+  subsets: ['latin'],
+  weight: ['400', '500'],
+  variable: '--font-inter',
+});
 						  
 export const metadata: Metadata = {
-	title: 'My best E-commerce shop',
-	description: 'E-commerce app',
+	title: 'AIGEN | Generative Luxury Streetwear',
+	description: 'Pioneering the intersection of artificial intelligence and premium streetwear.',
 };
 export const dynamic = "force-dynamic";
 
@@ -32,7 +39,7 @@ export const dynamic = "force-dynamic";
 export default async function RootLayout({children}: {children: React.ReactNode}) {
 	return (
 		<html lang="en" suppressHydrationWarning>
-			<body className={`${poppins.className} text-slate-700`}>
+			<body className={`${hankenGrotesk.variable} ${inter.variable} font-body-md text-on-surface overflow-x-hidden gradient-bg p-4 md:p-8`}>
 				<Toaster toastOptions={{
 							style: {
 								background: 'rgb(51 65 85)', 
@@ -41,20 +48,18 @@ export default async function RootLayout({children}: {children: React.ReactNode}
 						}}>
 				</Toaster>
 
-				{/* wrapping all components into CartProvider for letting all other components acces the current 'value' defined in CartContextProvier  */}
-				{/* all of them now will be passes as 'children' to CartProvider component*/}
 				<CartProvider>
+					<div className="max-w-[1600px] mx-auto space-y-8">
+						<div className="glass-card shadow-2xl overflow-hidden min-h-screen border-none flex flex-col">
+							<NavBar/>
 
-					<div className='flex flex-col min-h-screen'>
-						<NavBar/>
-
-							<main className='flex-grow'>
+							<main className="flex-grow p-4 md:p-8 space-y-8">
 								{children}
 							</main>
 
-						<Footer/>
+							<Footer/>
+						</div>
 					</div>
-
 				</CartProvider>
 
 				

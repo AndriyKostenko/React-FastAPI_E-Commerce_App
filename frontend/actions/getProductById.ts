@@ -1,8 +1,10 @@
+import { settings } from "@/settings";
+
 const fetchProductById = async (productId: string): Promise<any> => {
     
     try {
         // adding cache: 'no-store' to prevent caching of the response
-        const response = await fetch(`http://127.0.0.1:8000/api/v1/products/${productId}/detailed`, {
+        const response = await fetch(settings.api.endpoints.productDetailed(productId), {
             method: 'GET',
             cache: 'no-store',
         });

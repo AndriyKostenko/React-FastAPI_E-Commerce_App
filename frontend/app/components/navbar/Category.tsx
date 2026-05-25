@@ -55,8 +55,8 @@ const Category: React.FC<CategoryProps> = ({ id, name, image_url, selected }) =>
     return (
         <div
             onClick={handleClick}
-            className={`flex items-center justify-center text-center gap-1 p-2 border-b-2 hover:text-slate-800 transition cursor-pointer ${
-                selected ? "border-b-slate-800 text-slate-800" : "border-transparent text-slate-500"
+            className={`flex items-center justify-center text-center gap-1 p-2 border-b-2 hover:text-primary transition cursor-pointer ${
+                selected ? "border-b-primary text-primary font-semibold" : "border-transparent text-secondary"
             }`}
         >
             <Image src={image_url} width={50} height={50} alt={name} />

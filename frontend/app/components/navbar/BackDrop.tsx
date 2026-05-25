@@ -6,8 +6,8 @@ interface BackDropProps{
 
 const BackDrop:React.FC<BackDropProps> = ({onClick}) => {
     return ( <div onClick={onClick} className="z-20 
-                                            bg-slate-200 
-                                            opacity-50 
+                                            bg-neutral-900/10 
+                                            backdrop-blur-[2px] 
                                             w-screen 
                                             h-screen 
                                             fixed 

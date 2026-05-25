@@ -14,9 +14,11 @@ const FormWrap = ({children}: {children: React.ReactNode}) => {
                             flex-col
                             gap-6
                             items-center
-                            shadow-xl
-                            shadow-slate-200
-                            rounded-md
+                            luxury-shadow
+                            bg-surface-container-lowest
+                            border
+                            border-outline-variant/20
+                            rounded-xl
                             p-4
                             md:p-8">
                 {children}

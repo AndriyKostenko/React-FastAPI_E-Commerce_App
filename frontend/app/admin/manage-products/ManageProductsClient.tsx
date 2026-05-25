@@ -14,6 +14,7 @@ import fetchProductsFromBackend from '@/actions/getProducts';
 import Image from 'next/legacy/image';
 import { useCurrentUserTokenExpiryCheck } from "@/hooks/useCurrentUserToken";
 import { resolveImageUrl } from '@/utils/resolveImageUrl';
+import { settings } from "@/settings";
 
 interface ManageProductsClientProps{
   initialProducts: ProductProps[];
@@ -101,7 +102,7 @@ const ManageProductsClient:React.FC<ManageProductsClientProps> = ({initialProduc
 
   // Function to toggle stock availability
   const handleToggleStock = useCallback((id: string, in_stock: boolean) => {
-	fetch(`http://127.0.0.1:8000/update_product_availability/${id}?in_stock=${!in_stock}`, {
+	fetch(settings.api.backendEndpoints.updateProductAvailability(id, !in_stock), {
 		method: 'PUT',
 	}).then(response => {
 		if (response.ok) {
@@ -117,7 +118,7 @@ const ManageProductsClient:React.FC<ManageProductsClientProps> = ({initialProduc
   // Function to delete a product
   const handleDeleteProduct = useCallback((id: string) => {
 	toast('Deleting product...', {icon: '🗑️'});
-	fetch(`http://127.0.0.1:8000/delete_product/${id}`, {
+	fetch(settings.api.backendEndpoints.deleteProduct(id), {
 		method: 'DELETE',
 	}).then(response => {
 		if (response.ok) {

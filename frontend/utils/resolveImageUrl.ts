@@ -1,4 +1,5 @@
-const API_ORIGIN = "http://localhost:8000";
+import { settings } from "@/settings";
+
 const DEFAULT_PLACEHOLDER_IMAGE = "https://placehold.co/800x600.png?text=No+Image";
 
 export const resolveImageUrl = (imageUrl?: string | null): string => {
@@ -31,8 +32,8 @@ export const resolveImageUrl = (imageUrl?: string | null): string => {
     }
 
     if (fixedMalformedAbsolute.startsWith("/")) {
-        return `${API_ORIGIN}${fixedMalformedAbsolute}`;
+        return `${settings.api.origin}${fixedMalformedAbsolute}`;
     }
 
-    return `${API_ORIGIN}/${fixedMalformedAbsolute}`;
+    return `${settings.api.origin}/${fixedMalformedAbsolute}`;
 };

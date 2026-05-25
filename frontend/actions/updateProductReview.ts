@@ -1,4 +1,5 @@
 import { ReviewProps } from "@/app/interfaces/review";
+import { settings } from "@/settings";
 
 type ReviewUpsertPayload =
     | Pick<ReviewProps, "product_id" | "rating" | "comment" | "user_id">
@@ -10,7 +11,7 @@ const updateProductReview = async (review: ReviewUpsertPayload, token: string) =
     const { rating, comment } = review;
 
     try {
-        const response = await fetch(`http://127.0.0.1:8000/review/product/${product_id}`, {
+        const response = await fetch(settings.api.backendEndpoints.reviewProduct(product_id), {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${token}`,

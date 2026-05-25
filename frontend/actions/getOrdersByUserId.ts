@@ -1,10 +1,12 @@
+import { settings } from "@/settings";
+
 const fetchOrderByUserId = async (userId: string, token: string | null): Promise<any[]> => {
 	try {
 		if (!token) {
 			return [];
 		}
 		// adding cache: 'no-store' to prevent caching of the response
-		const response = await fetch(`http://127.0.0.1:8000/api/v1/orders/user/${userId}`, {
+		const response = await fetch(settings.api.endpoints.ordersByUserId(userId), {
 			method: 'GET',
 			cache: 'no-store',
 			headers: {

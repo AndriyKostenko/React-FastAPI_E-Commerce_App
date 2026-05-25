@@ -1,5 +1,6 @@
 import { AuthOptions, User } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
+import { settings } from "@/settings";
 
 // adding jwt, user role and token expiry to the User object
 interface CustomUser extends User {
@@ -63,7 +64,7 @@ export const authOptions: AuthOptions = {
                 formData.append('username', credentials.email);
                 formData.append('password', credentials.password);
 
-                const response = await fetch(`http://127.0.0.1:8000/api/v1/login` ,{
+                const response = await fetch(settings.api.endpoints.authLogin ,{
                     method: "POST",
                     headers: { "Content-Type": "application/x-www-form-urlencoded" },
                     body: formData.toString()
