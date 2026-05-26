@@ -1,7 +1,7 @@
 "use client";
 
+import { AddReviewProps } from "@/app/interfaces/review";
 import { useState } from "react";
-import { ProductProps } from "@/app/interfaces/product";
 import { useRouter } from "next/navigation";
 import { FieldValues, SubmitHandler, useForm } from "react-hook-form";
 import Heading from "@/app/components/Heading";
@@ -11,34 +11,10 @@ import Button from "@/app/components/Button";
 import toast from "react-hot-toast";
 import updateProductReview from "@/actions/updateProductReview";
 
-
-interface User {
-    id: string;
-    name: string;
-    email: string;
-    role: string;
-    image: string;
-    createdAt: string;
-}
-
-
-interface AddReviewProps {
-    product: ProductProps;
-    user: User;
-    isDelivered: boolean;
-    token: string;
-}
-
-
 const AddReview:React.FC<AddReviewProps> = ({product, user, isDelivered, token}) => {
-
-    // check if user is logged in and product is available and delivered then show the review form
     if (!user || !product) return null;
 
     if (isDelivered === false) return null;
-
-
-    
 
     const [isLoading, setIsLoading] = useState(false);
     const router = useRouter();
@@ -57,7 +33,7 @@ const AddReview:React.FC<AddReviewProps> = ({product, user, isDelivered, token})
                             shouldDirty: true,
                             shouldTouch: true});
     }
-    
+
     const onSubmit:SubmitHandler<FieldValues> = async (data: FieldValues) => {
         setIsLoading(true);
 
@@ -84,7 +60,6 @@ const AddReview:React.FC<AddReviewProps> = ({product, user, isDelivered, token})
         setIsLoading(false);
     }
 
-
     return (
         <div className="flex flex-col gap-2 max-w-[500px]">
             <Heading title='Rate this product'/>
@@ -105,6 +80,5 @@ const AddReview:React.FC<AddReviewProps> = ({product, user, isDelivered, token})
         </div>
     );
 };
-
 
 export default AddReview;

@@ -1,5 +1,6 @@
-'use client';
+'use client'
 
+import { AddProductProps, ImageType } from "@/app/interfaces/admin";
 import Heading from "@/app/components/Heading";
 import Input from "@/app/components/inputs/Input";
 import CustomCheckBox from "@/app/components/inputs/CustomCheckbox";
@@ -14,37 +15,10 @@ import Button from "@/app/components/Button";
 import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
 import { useCurrentUserTokenExpiryCheck } from "@/hooks/useCurrentUserToken";
-import { CategoryProps } from "@/app/interfaces/category";
 import { resolveImageUrl } from "@/utils/resolveImageUrl";
 import { settings } from "@/settings";
 
-
-
-export type ImageType = {
-    color: string;
-    colorCode: string;
-    image: File | null
-}
-
-export type UploadedImageType = {
-    color: string;
-    color_code: string;
-    image: string;
-}
-
-
-
-
-interface AddProductProps {
-    currentUserJWT: string | null | undefined;
-    expiryToken: number | null;
-    categories: CategoryProps[];
-    
-}
-
-
 const AddProductForm:React.FC<AddProductProps> = ({currentUserJWT, expiryToken, categories}) => {
-    
     const [isLoading, setIsLoading] = useState(false)
     const [images, setImages] = useState<ImageType[] | null>()
     const [isProductCreated, setIsProductCreated] = useState(false)
@@ -62,9 +36,7 @@ const AddProductForm:React.FC<AddProductProps> = ({currentUserJWT, expiryToken, 
     })
     const router = useRouter()
 
-    // redirecting back if token is expired
     useCurrentUserTokenExpiryCheck(expiryToken)
-
 
     useEffect(() => {
         setCustomValue('images', images)
@@ -79,7 +51,6 @@ const AddProductForm:React.FC<AddProductProps> = ({currentUserJWT, expiryToken, 
     }, [isProductCreated])
 
     const onSubmit: SubmitHandler<FieldValues> = async (data) => {
-
         if (!data.category_id) {
             setIsLoading(false)
             return toast.error('Category is notselected!')
@@ -100,7 +71,6 @@ const AddProductForm:React.FC<AddProductProps> = ({currentUserJWT, expiryToken, 
         formData.append('quantity', data.quantity);
         formData.append('price', data.price);
         formData.append('in_stock', data.in_stock);
-     
 
         data.images.forEach((item: ImageType) => {
             formData.append(`images_color`, item.color);
@@ -108,10 +78,8 @@ const AddProductForm:React.FC<AddProductProps> = ({currentUserJWT, expiryToken, 
             if (item.image) {
                 formData.append(`images`, item.image);
             }
-            
         })
 
-            // Log the form data entries
         formData.forEach((value, key) => {
             console.log(`${key}: ${value}`);
         });
@@ -125,8 +93,6 @@ const AddProductForm:React.FC<AddProductProps> = ({currentUserJWT, expiryToken, 
                 }
             });
 
-            
-            
             if (response.ok) {
                 toast.success('Product created successfully!');
                 setIsProductCreated(true);
@@ -140,8 +106,7 @@ const AddProductForm:React.FC<AddProductProps> = ({currentUserJWT, expiryToken, 
         } finally {
             setIsLoading(false)
         }
-    }  
-        
+    }
 
     const category_id = watch('category_id');
 
@@ -172,12 +137,10 @@ const AddProductForm:React.FC<AddProductProps> = ({currentUserJWT, expiryToken, 
         })
     }, [])
 
-
-    // each input id should match default value
-    return ( 
+    return (
         <>
             <Heading title="Add a Product" center/>
-            
+
             <Input id="name"
                     label="Name"
                     disabled={isLoading}
@@ -233,9 +196,8 @@ const AddProductForm:React.FC<AddProductProps> = ({currentUserJWT, expiryToken, 
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-3 max-h[50vh] overflow-y-auto gap-3">
                     {categories.map((item) => {
-
                         return <div key={item.id} className="cal-span">
-                            <CategoryInput onClick={(category_id) => setCustomValue('category_id', item.id)}
+                            <CategoryInput onClick={() => setCustomValue('category_id', item.id)}
                                             selected={category_id === item.id}
                                             label={item.name}
                                             src={resolveImageUrl(item.image_url)}
@@ -256,9 +218,9 @@ const AddProductForm:React.FC<AddProductProps> = ({currentUserJWT, expiryToken, 
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                     {colors.map((item, index) => {
-                        return (<SelectColor key={index} 
-                                            item={item} 
-                                            addImageToState={addImageToState} 
+                        return (<SelectColor key={index}
+                                            item={item}
+                                            addImageToState={addImageToState}
                                             removeImageFromState={removeImageFromState}
                                             isProductCreated={isProductCreated}
                                 />

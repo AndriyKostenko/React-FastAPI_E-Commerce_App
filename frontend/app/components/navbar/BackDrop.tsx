@@ -1,17 +1,13 @@
-interface BackDropProps{
-    onClick: () => void
-}
-
-
+import { BackDropProps } from "@/app/interfaces/navbar";
 
 const BackDrop:React.FC<BackDropProps> = ({onClick}) => {
-    return ( <div onClick={onClick} className="z-20 
-                                            bg-neutral-900/10 
-                                            backdrop-blur-[2px] 
-                                            w-screen 
-                                            h-screen 
-                                            fixed 
-                                            top-0 
+    return ( <div onClick={onClick} className="z-20
+                                            bg-neutral-900/10
+                                            backdrop-blur-[2px]
+                                            w-screen
+                                            h-screen
+                                            fixed
+                                            top-0
                                             left-0">
 
     </div> );

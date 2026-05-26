@@ -1,5 +1,6 @@
 'use client'
 
+import { UserMenuProps } from "@/app/interfaces/navbar";
 import { Avatar } from "@mui/material";
 import { useCallback, useState } from "react";
 import MenuItem from "./MenuItem";
@@ -7,20 +8,7 @@ import Link from "next/link";
 import BackDrop from "./BackDrop";
 import { signOut } from "next-auth/react";
 
-
-interface UserMenuProps {
-    currentUser?: {
-        name?: string | null | undefined,
-        email?: string | null | undefined,
-        image?: string | null | undefined
-    } | null;
-    currentUserRole?: string | null | undefined;
-}
-
-
-
 const UserMenu:React.FC<UserMenuProps> = ({currentUser, currentUserRole}) => {
-
     const [isOpen, setIsOpen] = useState(false);
 
     const toggleOpen = useCallback(() => {

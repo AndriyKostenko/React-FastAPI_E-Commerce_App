@@ -1,33 +1,23 @@
 'use client';
 
-import {UseFormRegister, FieldValues, FieldErrors} from 'react-hook-form';
-
-interface TextAreaProps {
-    id: string;
-    label: string;
-    disabled?: boolean;
-    required?: boolean;
-    register: UseFormRegister<FieldValues>;
-    errors: FieldErrors;
-
-}
+import { TextAreaProps } from "@/app/interfaces/inputs";
 
 const TextArea: React.FC<TextAreaProps> = ({id, label, disabled, required, register, errors}) => {
-    return ( 
+    return (
         <div className='w-full relative'>
-            <textarea className={`peer 
-                                w-full 
-                                p-4 
+            <textarea className={`peer
+                                w-full
+                                p-4
                                 pt-6
                                 max-h-[150px]
-                                min-h-[150px] 
-                                outline-none 
-                                bg-surface-container-low 
-                                font-light 
-                                border 
-                                rounded-lg 
-                                transition 
-                                disabled:opacity-70 
+                                min-h-[150px]
+                                outline-none
+                                bg-surface-container-low
+                                font-light
+                                border
+                                rounded-lg
+                                transition
+                                disabled:opacity-70
                                 disabled:cursor-not-allowed
                                 ${errors[id] ? 'border-rose-400' : 'border-outline-variant'}
                                 ${errors[id] ? 'focus:border-rose-400' : 'focus:border-primary'}`}
@@ -36,16 +26,16 @@ const TextArea: React.FC<TextAreaProps> = ({id, label, disabled, required, regis
                                 {...register(id, {required})}
                                 placeholder=''
                                 />
-                <label htmlFor={id} className={`absolute 
-                                                 cursor-text 
-                                                 text-md 
-                                                 duration-150 
-                                                 transform 
-                                                 -translate-y-3 
-                                                 top-5 
-                                                 z-10 
-                                                 origin-[0] 
-                                                 left-4 
+                <label htmlFor={id} className={`absolute
+                                                 cursor-text
+                                                 text-md
+                                                 duration-150
+                                                 transform
+                                                 -translate-y-3
+                                                 top-5
+                                                 z-10
+                                                 origin-[0]
+                                                 left-4
                                                  peer-placeholder-shown:scale-100
                                                  peer-placeholder-shown:translate-y-0
                                                  peer-focus:scale-75

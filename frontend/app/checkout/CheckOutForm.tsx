@@ -1,5 +1,6 @@
 'use client';
 
+import { CheckoutFormProps } from "@/app/interfaces/cart";
 import { useCart } from "@/hooks/useCart";
 import { formatPrice } from "@/utils/formatPrice";
 import { useElements, useStripe, PaymentElement, AddressElement } from "@stripe/react-stripe-js";
@@ -7,19 +8,6 @@ import { useState } from "react";
 import toast from "react-hot-toast";
 import Heading from "../components/Heading";
 import Button from "../components/Button";
-
-type CheckoutAddress = {
-    line1: string;
-    city: string;
-    state: string;
-    postal_code: string;
-};
-
-interface CheckoutFormProps {
-    onCreateOrder: (address: CheckoutAddress) => Promise<boolean>;
-    onPaymentConfirmed: () => Promise<void>;
-    onPaymentFailed: () => Promise<void>;
-}
 
 const CheckoutForm: React.FC<CheckoutFormProps> = ({ onCreateOrder, onPaymentConfirmed, onPaymentFailed }) => {
     const { cartTotalAmount } = useCart();

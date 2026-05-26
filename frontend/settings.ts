@@ -1,14 +1,6 @@
 import { createEnv } from "@t3-oss/env-nextjs";
 import { z } from "zod";
 
-const DEFAULT_APP_URL = "http://localhost:30000";
-const DEFAULT_API_ORIGIN = "http://127.0.0.1:8000";
-const DEFAULT_API_VERSION = "v1";
-
-const normalizeUrl = (value: string) => value.replace(/\/+$/, "");
-const joinUrl = (base: string, path: string) =>
-	`${normalizeUrl(base)}/${path.replace(/^\/+/, "")}`;
-
 export const env = createEnv({
 	client: {
 		NEXT_PUBLIC_APP_URL: z.url().optional(),
@@ -19,27 +11,43 @@ export const env = createEnv({
 	},
 	runtimeEnv: {
 		NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
-		NEXT_PUBLIC_API_ORIGIN: process.env.NEXT_PUBLIC_API_ORIGIN ?? "http://127.0.0.1:8000",
+		NEXT_PUBLIC_API_ORIGIN: process.env.NEXT_PUBLIC_API_ORIGIN,
 		NEXT_PUBLIC_API_VERSION: process.env.NEXT_PUBLIC_API_VERSION,
 		NEXT_PUBLIC_STRIPE_TEST_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_STRIPE_TEST_PUBLISHABLE_KEY,
 		NEXT_PUBLIC_STRIPE_PROD_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_STRIPE_PROD_PUBLISHABLE_KEY,
-	},
+		},
 	server: {},
 });
 
 class AppSettings {
-	public readonly appUrl: string;
-	public readonly apiOrigin: string;
-	public readonly apiVersion: string;
-	public readonly apiBaseUrl: string;
-	public readonly stripePublishableKey: string;
+	// ── Defaults ────────────────────────────────────────────────────────────
+	private static readonly DEFAULT_APP_URL = "http://localhost:30000";
+	private static readonly DEFAULT_API_ORIGIN = "http://127.0.0.1:8000";
+	private static readonly DEFAULT_API_VERSION = "v1";
+
+	// ── Helpers ─────────────────────────────────────────────────────────────
+	private static normalizeUrl(value: string): string {
+		return value.replace(/\/+$/, "");
+	}
+
+	private static joinUrl(base: string, path: string): string {
+		return `${AppSettings.normalizeUrl(base)}/${path.replace(/^\/+/, "")}`;
+	}
+
+	// ── Public shape ─────────────────────────────────────────────────────────
+	public readonly app: {
+		url: string;
+	};
 
 	public readonly api: {
 		origin: string;
 		version: string;
 		baseUrl: string;
+		/** Build a versioned URL: /api/v1/<path> */
 		versioned: (path: string) => string;
+		/** Build an unversioned URL off the API origin */
 		root: (path: string) => string;
+		/** Gateway endpoints (go through /api/v1/) */
 		endpoints: {
 			authLogin: string;
 			authRegister: string;
@@ -51,66 +59,66 @@ class AppSettings {
 			cancelOrder: (orderId: string) => string;
 			ordersByUserId: (userId: string) => string;
 			paymentsCreateIntent: string;
-		};
-		backendEndpoints: {
-			orders: string;
-			users: string;
-			products: string;
-			updateProductAvailability: (id: string, inStock: boolean) => string;
-			deleteProduct: (id: string) => string;
-			orderById: (orderId: string) => string;
-			updateOrder: (orderId: string) => string;
-			reviewProduct: (productId: string) => string;
-		};
+	};
+	/** Direct backend endpoints (bypass versioned gateway) */
+	backendEndpoints: {
+		orders: string;
+		users: string;
+		products: string;
+		updateProductAvailability: (id: string, inStock: boolean) => string;
+		deleteProduct: (id: string) => string;
+		orderById: (orderId: string) => string;
+		updateOrder: (orderId: string) => string;
+		reviewProduct: (productId: string) => string;
+	};
 	};
 
-	public readonly stripe: {
-		publishableKey: string;
-	};
+	public readonly stripe: {publishableKey: string;};
 
 	constructor() {
-		this.appUrl = env.NEXT_PUBLIC_APP_URL ?? DEFAULT_APP_URL;
-		this.apiOrigin = env.NEXT_PUBLIC_API_ORIGIN ?? DEFAULT_API_ORIGIN;
-		this.apiVersion = env.NEXT_PUBLIC_API_VERSION ?? DEFAULT_API_VERSION;
-		this.apiBaseUrl = joinUrl(this.apiOrigin, `api/${this.apiVersion}`);
-		this.stripePublishableKey =
-			process.env.NODE_ENV === "production"
-				? env.NEXT_PUBLIC_STRIPE_PROD_PUBLISHABLE_KEY ?? env.NEXT_PUBLIC_STRIPE_TEST_PUBLISHABLE_KEY
-				: env.NEXT_PUBLIC_STRIPE_TEST_PUBLISHABLE_KEY;
+		const origin  = env.NEXT_PUBLIC_API_ORIGIN  ?? AppSettings.DEFAULT_API_ORIGIN;
+		const version = env.NEXT_PUBLIC_API_VERSION ?? AppSettings.DEFAULT_API_VERSION;
+		const baseUrl = AppSettings.joinUrl(origin, `api/${version}`);
 
-		this.api = {
-			origin: this.apiOrigin,
-			version: this.apiVersion,
-			baseUrl: this.apiBaseUrl,
-			versioned: (path: string) => joinUrl(this.apiBaseUrl, path),
-			root: (path: string) => joinUrl(this.apiOrigin, path),
-			endpoints: {
-				authLogin: joinUrl(this.apiBaseUrl, "login"),
-				authRegister: joinUrl(this.apiBaseUrl, "register"),
-				categories: joinUrl(this.apiBaseUrl, "categories"),
-				productsDetailed: joinUrl(this.apiBaseUrl, "products/detailed"),
-				productDetailed: (productId: string) => joinUrl(this.apiBaseUrl, `products/${productId}/detailed`),
-				orders: joinUrl(this.apiBaseUrl, "orders"),
-				orderById: (orderId: string) => joinUrl(this.apiBaseUrl, `orders/${orderId}`),
-				cancelOrder: (orderId: string) => joinUrl(this.apiBaseUrl, `orders/${orderId}/cancel`),
-				ordersByUserId: (userId: string) => joinUrl(this.apiBaseUrl, `orders/user/${userId}`),
-				paymentsCreateIntent: joinUrl(this.apiBaseUrl, "payments/create-intent"),
-			},
-			backendEndpoints: {
-				orders: joinUrl(this.apiOrigin, "orders"),
-				users: joinUrl(this.apiOrigin, "admin/users"),
-				products: joinUrl(this.apiOrigin, "products"),
-				updateProductAvailability: (id: string, inStock: boolean) =>
-					joinUrl(this.apiOrigin, `update_product_availability/${id}?in_stock=${inStock}`),
-				deleteProduct: (id: string) => joinUrl(this.apiOrigin, `delete_product/${id}`),
-				orderById: (orderId: string) => joinUrl(this.apiOrigin, `orders/${orderId}`),
-				updateOrder: (orderId: string) => joinUrl(this.apiOrigin, `orders/${orderId}`),
-				reviewProduct: (productId: string) => joinUrl(this.apiOrigin, `review/product/${productId}`),
-			},
+		this.app = {
+			url: env.NEXT_PUBLIC_APP_URL ?? AppSettings.DEFAULT_APP_URL,
 		};
 
+		this.api = {
+			origin,
+			version,
+			baseUrl,
+			versioned: (path: string) => AppSettings.joinUrl(baseUrl, path),
+			root:      (path: string) => AppSettings.joinUrl(origin,  path),
+			endpoints: {
+			authLogin:            AppSettings.joinUrl(baseUrl, "login"),
+			authRegister:         AppSettings.joinUrl(baseUrl, "register"),
+			categories:           AppSettings.joinUrl(baseUrl, "categories"),
+			productsDetailed:     AppSettings.joinUrl(baseUrl, "products/detailed"),
+			productDetailed:      (productId: string) => AppSettings.joinUrl(baseUrl, `products/${productId}/detailed`),
+			orders:               AppSettings.joinUrl(baseUrl, "orders"),
+			orderById:            (orderId: string)   => AppSettings.joinUrl(baseUrl, `orders/${orderId}`),
+			cancelOrder:          (orderId: string)   => AppSettings.joinUrl(baseUrl, `orders/${orderId}/cancel`),
+			ordersByUserId:       (userId: string)    => AppSettings.joinUrl(baseUrl, `orders/user/${userId}`),
+			paymentsCreateIntent: AppSettings.joinUrl(baseUrl, "payments/create-intent"),
+			},
+			backendEndpoints: {
+			orders:                     AppSettings.joinUrl(origin, "orders"),
+			users:                      AppSettings.joinUrl(origin, "admin/users"),
+			products:                   AppSettings.joinUrl(origin, "products"),
+			updateProductAvailability:  (id: string, inStock: boolean) => AppSettings.joinUrl(origin, `update_product_availability/${id}?in_stock=${inStock}`),
+			deleteProduct:              (id: string)      => AppSettings.joinUrl(origin, `delete_product/${id}`),
+			orderById:                  (orderId: string) => AppSettings.joinUrl(origin, `orders/${orderId}`),
+			updateOrder:                (orderId: string) => AppSettings.joinUrl(origin, `orders/${orderId}`),
+			reviewProduct:              (productId: string) => AppSettings.joinUrl(origin, `review/product/${productId}`),
+			},
+			};
+
 		this.stripe = {
-			publishableKey: this.stripePublishableKey,
+			publishableKey:
+			process.env.NODE_ENV === "production"
+			? env.NEXT_PUBLIC_STRIPE_PROD_PUBLISHABLE_KEY ?? env.NEXT_PUBLIC_STRIPE_TEST_PUBLISHABLE_KEY
+			: env.NEXT_PUBLIC_STRIPE_TEST_PUBLISHABLE_KEY,
 		};
 	}
 }

@@ -46,6 +46,8 @@ const HomeBanner = () => {
   const [placement, setPlacement] = useState("Center Chest");
   const [isGenerating, setIsGenerating] = useState(false);
   const [garmentColor, setGarmentColor] = useState("bg-white");
+  const [size, setSize] = useState("M");
+  const [gender, setGender] = useState("Male");
   const [currentDesign, setCurrentDesign] = useState({
     title: "Cyberpunk Samurai #41",
     price: 78,
@@ -71,16 +73,16 @@ const HomeBanner = () => {
   };
 
   return (
-    <section className="glass-card p-8 md:p-12 grid grid-cols-1 lg:grid-cols-12 gap-8">
+    <section className="glass-card p-6 md:p-8 grid grid-cols-1 lg:grid-cols-12 lg:grid-rows-[minmax(0,1fr)_auto] gap-6 lg:h-[calc(100vh-12rem)] overflow-hidden">
 
       {/* ── Left col: hero text + generation panel ── */}
-      <div className="lg:col-span-5 flex flex-col gap-6">
+      <div className="lg:col-span-5 flex flex-col gap-6 min-h-0 overflow-y-auto">
         <div className="space-y-6">
           <div className="inline-flex items-center bg-white/80 backdrop-blur rounded-full px-4 py-1.5 gap-2 border border-white/40">
             <MdAutoAwesome className="text-[18px]" />
             <span className="font-label-bold text-[12px] uppercase tracking-wider">AI Design Studio</span>
           </div>
-          <h1 className="font-display-lg text-[64px] leading-[1.1] text-primary">
+          <h1 className="font-display-lg text-[36px] lg:text-[44px] xl:text-[56px] leading-[1.1] text-primary">
             The Future of Personal Expression.
           </h1>
           <p className="font-body-lg text-secondary">
@@ -88,66 +90,70 @@ const HomeBanner = () => {
           </p>
         </div>
 
-        {/* Generation panel — flex-1 grows to match the t-shirt height */}
-        <div className="liquid-glass p-8 space-y-6 relative flex-1">
-          <div className="space-y-2 relative z-10">
-            <label className="font-label-bold text-label-bold text-primary">Prompt</label>
-            <textarea
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              className="w-full bg-white/40 border-none rounded-2xl p-4 font-body-md focus:ring-2 focus:ring-brand-lime min-h-[120px] resize-none text-primary placeholder:text-secondary"
-              placeholder="A futuristic cyberpunk samurai mask made of translucent glass shards, neon indigo lighting, minimalist vector style..."
-            />
-          </div>
+        {/* Generation panel — outer div holds the flex height; liquid-glass h-full clips backdrop-filter cleanly; inner div scrolls */}
+        <div className="flex-1 min-h-0 rounded-[2rem] overflow-hidden isolate">
+          <div className="liquid-glass h-full flex flex-col">
+            <div className="relative z-10 flex-1 min-h-0 overflow-y-auto no-scrollbar p-8 space-y-6">
+            <div className="space-y-2">
+              <label className="font-label-bold text-label-bold text-primary">Prompt</label>
+              <textarea
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                className="w-full bg-white/40 border-none rounded-2xl p-4 font-body-md focus:ring-2 focus:ring-brand-lime min-h-[100px] resize-none text-primary placeholder:text-secondary"
+                placeholder="A futuristic cyberpunk samurai mask made of translucent glass shards, neon indigo lighting, minimalist vector style..."
+              />
+            </div>
 
-          <div className="space-y-2 relative z-10">
-            <label className="font-label-bold text-label-bold text-primary">Style</label>
-            <select
-              value={style}
-              onChange={(e) => setStyle(e.target.value as StyleKey)}
-              className="w-full bg-white/40 border-none rounded-2xl p-3 font-label-bold appearance-none text-primary cursor-pointer focus:ring-2 focus:ring-brand-lime"
-            >
-              <option value="Minimal">Minimal</option>
-              <option value="Vintage">Vintage</option>
-              <option value="Anime">Anime</option>
-              <option value="Streetwear">Streetwear</option>
-              <option value="Abstract">Abstract</option>
-              <option value="Typography">Typography</option>
-            </select>
-          </div>
+            <div className="space-y-2">
+              <label className="font-label-bold text-label-bold text-primary">Style</label>
+              <select
+                value={style}
+                onChange={(e) => setStyle(e.target.value as StyleKey)}
+                className="w-full bg-white/40 border-none rounded-2xl p-3 font-label-bold appearance-none text-primary cursor-pointer focus:ring-2 focus:ring-brand-lime"
+              >
+                <option value="Minimal">Minimal</option>
+                <option value="Vintage">Vintage</option>
+                <option value="Anime">Anime</option>
+                <option value="Streetwear">Streetwear</option>
+                <option value="Abstract">Abstract</option>
+                <option value="Typography">Typography</option>
+              </select>
+            </div>
 
-          <div className="flex items-center gap-3 pt-2 relative z-10">
-            <button
-              onClick={handleGenerate}
-              disabled={isGenerating}
-              className="flex-1 bg-brand-lime text-primary py-5 px-8 rounded-2xl font-label-bold flex items-center justify-center gap-3 hover:shadow-xl transition-all active:scale-95 disabled:opacity-75"
-            >
-              <MdAutoAwesome className={`text-lg ${isGenerating ? "animate-spin" : ""}`} />
-              {isGenerating ? "Generating..." : "Generate Now"}
-            </button>
-            <button
-              onClick={() => setPrompt("")}
-              className="border border-primary/20 text-primary p-5 rounded-2xl font-label-bold hover:bg-white/40 transition-all active:scale-95"
-              title="Clear"
-            >
-              <MdRefresh className="text-xl" />
-            </button>
-            <button
-              onClick={() => {
-                setPrompt("Brutalist typography layout containing clean cyber-glitch effects");
-                setStyle("Typography");
-              }}
-              className="border border-primary/20 text-primary p-5 rounded-2xl font-label-bold hover:bg-white/40 transition-all active:scale-95"
-              title="Random Prompt"
-            >
-              <MdElectricBolt className="text-xl" />
-            </button>
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                onClick={handleGenerate}
+                disabled={isGenerating}
+                className="flex-1 bg-brand-lime text-primary py-4 px-8 rounded-2xl font-label-bold flex items-center justify-center gap-3 hover:shadow-xl transition-all active:scale-95 disabled:opacity-75"
+              >
+                <MdAutoAwesome className={`text-lg ${isGenerating ? "animate-spin" : ""}`} />
+                {isGenerating ? "Generating..." : "Generate Now"}
+              </button>
+              <button
+                onClick={() => setPrompt("")}
+                className="border border-primary/20 text-primary p-4 rounded-2xl font-label-bold hover:bg-white/40 transition-all active:scale-95"
+                title="Clear"
+              >
+                <MdRefresh className="text-xl" />
+              </button>
+              <button
+                onClick={() => {
+                  setPrompt("Brutalist typography layout containing clean cyber-glitch effects");
+                  setStyle("Typography");
+                }}
+                className="border border-primary/20 text-primary p-4 rounded-2xl font-label-bold hover:bg-white/40 transition-all active:scale-95"
+                title="Random Prompt"
+              >
+                <MdElectricBolt className="text-xl" />
+              </button>
+            </div>
           </div>
         </div>
       </div>
+      </div>
 
       {/* ── Right col: t-shirt mockup (grid-stretch makes it match left col height) ── */}
-      <div className="lg:col-span-7 relative group rounded-3xl min-h-[420px]">
+      <div className="lg:col-span-7 relative group rounded-3xl min-h-[280px] lg:min-h-0">
         {/* Backdrop */}
         <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-neutral-100/60 via-neutral-200/40 to-neutral-300/30 backdrop-blur-sm" />
 
@@ -210,6 +216,50 @@ const HomeBanner = () => {
 
         <div className="hidden sm:block h-10 w-px bg-black/10 flex-shrink-0" />
 
+        {/* Size */}
+        <div className="space-y-2 flex-shrink-0">
+          <h3 className="font-label-bold text-sm text-primary">Size</h3>
+          <div className="flex gap-2">
+            {["S", "M", "L"].map((s) => (
+              <button
+                key={s}
+                onClick={() => setSize(s)}
+                className={`w-10 h-10 rounded-xl font-label-bold text-sm transition-all hover:scale-110 ${
+                  size === s
+                    ? "bg-brand-lime text-primary ring-2 ring-white ring-offset-2"
+                    : "bg-white/60 text-primary border border-white/20 hover:bg-white/80"
+                }`}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="hidden sm:block h-10 w-px bg-black/10 flex-shrink-0" />
+
+        {/* Gender */}
+        <div className="space-y-2 flex-shrink-0">
+          <h3 className="font-label-bold text-sm text-primary">Gender</h3>
+          <div className="flex gap-2">
+            {["Male", "Female", "X"].map((g) => (
+              <button
+                key={g}
+                onClick={() => setGender(g)}
+                className={`h-10 px-3 rounded-xl font-label-bold text-sm transition-all hover:scale-110 ${
+                  gender === g
+                    ? "bg-brand-lime text-primary ring-2 ring-white ring-offset-2"
+                    : "bg-white/60 text-primary border border-white/20 hover:bg-white/80"
+                }`}
+              >
+                {g}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="hidden sm:block h-10 w-px bg-black/10 flex-shrink-0" />
+
         {/* Print Placement */}
         <div className="space-y-2 flex-grow max-w-sm">
           <h3 className="font-label-bold text-sm text-primary">Print Placement</h3>
@@ -251,6 +301,7 @@ const HomeBanner = () => {
         </button>
       </div>
 
+      
     </section>
   );
 };

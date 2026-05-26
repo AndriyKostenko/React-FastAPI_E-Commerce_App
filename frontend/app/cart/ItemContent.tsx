@@ -1,9 +1,7 @@
 'use client';
 
-
-
-import { ProductProps } from "@/app/interfaces/product";
-import { formatPrice } from "@/utils/formatPrice";
+import { ItemContentProps } from "@/app/interfaces/cart";
+import { formatPrice } from '@/utils/formatPrice';
 import Link from "next/link";
 import { truncateText } from "@/utils/truncateText";
 import Image from "next/image";
@@ -11,24 +9,16 @@ import SetQuantity from "../components/products/SetQuantity";
 import { useCart } from "@/hooks/useCart";
 import { resolveImageUrl } from "@/utils/resolveImageUrl";
 
-
-//defining standart props for cart product
-interface ItemContentProps {
-    item: ProductProps
-}
-
-//content of each item in the sopping cart
 const ItemContent:React.FC<ItemContentProps> = ({item}) => {
-
     const {handleRemoveProductFromCart, handleCartQtyIncrease, handleCartQtyDecrease} = useCart();
 
-    return <div className="grid 
-                            grid-cols-5 
-                            text-xs 
-                            md:text-sm 
-                            gap-4 
+    return <div className="grid
+                            grid-cols-5
+                            text-xs
+                            md:text-sm
+                            gap-4
                             border-t-[1.5px]
-                             border-slate-200 
+                             border-slate-200
                              py-4
                               items-center">
         <div className="col-span-2 justify-self-start flex gap-2 md:gap-4">
@@ -38,7 +28,6 @@ const ItemContent:React.FC<ItemContentProps> = ({item}) => {
                 </div>
             </Link>
             <div className="flex flex-col justify-between">
-
                 <Link href={`/products/${item.id}`}>
                     {truncateText(item.name)}
                     <div>{item.selected_image.image_color}</div>
@@ -52,10 +41,10 @@ const ItemContent:React.FC<ItemContentProps> = ({item}) => {
         </div>
         <div className="justify-self-center">{formatPrice(item.price)}</div>
         <div className="justify-self-center">
-            <SetQuantity cartCounter={true} 
-                            cartProduct={item} 
-                            handleQtyIncrease={() => {handleCartQtyIncrease(item)}} 
-                            handleQtyDecrease={() => {handleCartQtyDecrease(item)}}>                
+            <SetQuantity cartCounter={true}
+                            cartProduct={item}
+                            handleQtyIncrease={() => {handleCartQtyIncrease(item)}}
+                            handleQtyDecrease={() => {handleCartQtyDecrease(item)}}>
             </SetQuantity>
         </div>
         <div className="justify-self-end font-semibold">
@@ -63,6 +52,6 @@ const ItemContent:React.FC<ItemContentProps> = ({item}) => {
         </div>
         <div></div>
     </div>
-    
-}; 
+
+};
 export default ItemContent;

@@ -1,17 +1,9 @@
 'use client';
 
-import { FieldValues, UseFormRegister } from "react-hook-form";
-
-
-interface CustomCheckBoxProps{
-    id: string;
-    label: string;
-    disabled?: boolean
-    register: UseFormRegister<FieldValues>
-}
+import { CustomCheckBoxProps } from "@/app/interfaces/inputs";
 
 const CustomCheckBox:React.FC<CustomCheckBoxProps> = ({id, label, disabled, register}) => {
-    return ( 
+    return (
         <div className="w-full flex flex-row gap-2 items-center">
             <input type="checkbox"
                     id={id}

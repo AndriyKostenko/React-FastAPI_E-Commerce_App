@@ -1,16 +1,12 @@
-// making this component to be client-side rendered
 "use client";
 
+import { ProductCardProps } from "@/app/interfaces/product";
 import { formatPrice } from "@/utils/formatPrice";
 import { truncateText } from "@/utils/truncateText";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { resolveImageUrl } from "@/utils/resolveImageUrl";
 import { toast } from "react-hot-toast";
-
-interface ProductCardProps {
-    product: any;
-}
 
 const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
     const firstImageUrl = resolveImageUrl(product?.images?.[0]?.image_url);
@@ -26,7 +22,6 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
             onClick={() => router.push(`/products/${product.id}`)}
             className="glass-card p-4 group cursor-pointer"
         >
-            {/* Image Wrapper */}
             <div className="aspect-[4/5] rounded-3xl overflow-hidden mb-4 relative">
                 <Image
                     src={firstImageUrl}
@@ -44,7 +39,6 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
                 </div>
             </div>
 
-            {/* Product Info */}
             <div className="flex justify-between items-center px-2">
                 <div>
                     <h3 className="font-label-bold text-primary">
@@ -63,4 +57,3 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
 };
 
 export default ProductCard;
-

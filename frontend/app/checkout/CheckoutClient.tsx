@@ -1,33 +1,22 @@
 "use client";
 
+import { CheckoutAddress, CheckoutClientProps } from "@/app/interfaces/cart";
 import { useCart } from "@/hooks/useCart";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useCallback } from "react";
 import toast from "react-hot-toast";
-import React from "react";
 import { StripeElementsOptions, loadStripe } from "@stripe/stripe-js";
 import { Elements } from "@stripe/react-stripe-js";
 import CheckoutForm from "./CheckOutForm";
 import Button from "../components/Button";
 import Link from "next/link";
 import { MdArrowBack } from "react-icons/md";
-import { ProductProps } from "../interfaces/product";
+import { ProductProps } from "@/app/interfaces/product";
 import { settings } from "@/settings";
-
-interface LoginFormProps {
-    currentUserJWT?: string | null | undefined;
-}
-
-type CheckoutAddress = {
-    line1: string;
-    city: string;
-    state: string;
-    postal_code: string;
-};
 
 const stripePromise = loadStripe(settings.stripe.publishableKey);
 
-const CheckoutClient: React.FC<LoginFormProps> = ({ currentUserJWT }) => {
+const CheckoutClient: React.FC<CheckoutClientProps> = ({ currentUserJWT }) => {
     const { cartProducts, cartTotalAmount, handleSetPaymentIntent, paymentIntent, handleClearCart } = useCart();
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(false);
@@ -171,7 +160,6 @@ const CheckoutClient: React.FC<LoginFormProps> = ({ currentUserJWT }) => {
         } catch (err) {
             console.error("Failed to cancel order after payment failure:", err);
         } finally {
-            // Reset so the useEffect re-runs and creates a fresh payment intent
             setClientSecret(undefined);
             setDraftOrderId(null);
             setCreatedOrderId(null);

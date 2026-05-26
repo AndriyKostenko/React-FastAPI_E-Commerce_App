@@ -1,99 +1,56 @@
 'use client';
 
+import { UserOrdersClientProps } from '@/app/interfaces/cart';
+import { OrderProps } from '@/app/interfaces/order';
 import { formatPrice } from '@/utils/formatPrice';
 import { DataGrid, GridColDef} from '@mui/x-data-grid';
 import Heading from '@/app/components/Heading';
 import Status from '@/app/components/Status';
-import { MdClose, MdDone, MdRemoveRedEye, MdDelete, MdDisabledVisible, MdAccessTimeFilled, MdDeliveryDining} from 'react-icons/md';
+import { MdClose, MdDone, MdRemoveRedEye, MdAccessTimeFilled, MdDeliveryDining} from 'react-icons/md';
 import ActionBtn from '@/app/components/ActionBtn';
-import { useState, useCallback, useEffect } from 'react';
-import toast from 'react-hot-toast';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import fetchOrdersFromBackend from '@/actions/getOrders';
-import { sessionManagaer } from "@/actions/getCurrentUser";
 import { useCurrentUserTokenExpiryCheck } from "@/hooks/useCurrentUserToken";
-import { OrderProps } from '../interfaces/order';
 
+const OrdersClient:React.FC<UserOrdersClientProps> = ({userOrders, token, expiryToken}) => {
+    const [orders] = useState<OrderProps[]>(userOrders);
+const router = useRouter();
 
-
-interface ManageOrdersClientProps{
-  userOrders: OrderProps[];
-  token: string;
-  expiryToken: number | null;
-}
-
-
-const OrdersClient:React.FC<ManageOrdersClientProps> = ({userOrders, token, expiryToken}) => {
-
-    const [orders, setOrders] = useState<OrderProps[]>(userOrders);
-	const [loading, setLoading] = useState(true);
-	const [error, setError] = useState('');
-	
-
-	// creating rows for the table
-  	let rows: any = [];
-
-	// Next.js router
-	const router = useRouter();
-
-    // redirecting back if token is expired
     useCurrentUserTokenExpiryCheck(expiryToken)
 
+  let rows: any = [];
 
-
-	// Function to refresh products from the backend
-	const refreshOrders = async () => {
-		setLoading(true);
-		try {
-			const refreshedOrders = await fetchOrdersFromBackend(token);
-			setOrders([...refreshedOrders]);
-		} catch (error) {
-			toast.error("Failed to refresh orders");
-			console.error("Error refreshing orders:", error);
-		} finally {
-			setLoading(false);
-		}
-	};
-
-
-  // creating rows for the table
   if (orders) {
-
     rows = orders.map((order) => {
       const normalizedPaymentStatus = order.status === 'confirmed' ? 'succeeded' : order.status;
 
       return {
         id: order.id,
         amount: formatPrice(order.amount),
-		status: normalizedPaymentStatus,
-		date_created: order.date_created ? new Date(order.date_created).toLocaleString() : 'N/A',
-		address_id: order.address_id || 'N/A',
-		user_id: order.user_id,
-		currency: order.currency,
-		delivery_status: order.delivery_status,
-		payment_intent_id: order.payment_intent_id
-
+status: normalizedPaymentStatus,
+date_created: order.date_created ? new Date(order.date_created).toLocaleString() : 'N/A',
+address_id: order.address_id || 'N/A',
+user_id: order.user_id,
+currency: order.currency,
+delivery_status: order.delivery_status,
+payment_intent_id: order.payment_intent_id
       }
     })
   }
 
-
-
-  // creating columns for the table
   const columns: GridColDef[] = [
-	// fields name should be equal to rows: id, name....
-	{field: 'id', headerName: 'ID', width: 220},
-	{field: 'amount', headerName: 'Amount (CAD)', width: 220},
-	{field: 'status', headerName: 'Payment Status', width: 100, renderCell: (params: any) => {
-		let background = '';
+{field: 'id', headerName: 'ID', width: 220},
+{field: 'amount', headerName: 'Amount (CAD)', width: 220},
+{field: 'status', headerName: 'Payment Status', width: 100, renderCell: (params: any) => {
+let background = '';
         let color = '';
-        let icon = MdDone; // Default icon
+        let icon = MdDone;
 
-		switch (params.row.status) {
+switch (params.row.status) {
                 case 'pending':
                     background = 'bg-yellow-200';
                     color = 'text-yellow-700';
-                    icon = MdAccessTimeFilled; // Example icon
+                    icon = MdAccessTimeFilled;
                     break;
                 case 'succeeded':
                     background = 'bg-green-200';
@@ -113,27 +70,27 @@ const OrdersClient:React.FC<ManageOrdersClientProps> = ({userOrders, token, expi
                 default:
                     background = 'bg-gray-200';
                     color = 'text-gray-700';
-                    icon = MdDone; // Default icon
+                    icon = MdDone;
             }
-			return (
+return (
                 <div>
                     <Status text={params.row.status} icon={icon} background={background} color={color} />
                 </div>
             );
-	}},
-	{field: 'date_created', headerName: 'Date of creation', width: 200},
-	{field: 'address_id', headerName: 'Address ID', width: 200},
-	{field: 'currency', headerName: 'Currency', width: 200},
-	{field: 'delivery_status', headerName: 'Delivery Status', width: 200, renderCell: (params: any) => {
-		let background = '';
+}},
+{field: 'date_created', headerName: 'Date of creation', width: 200},
+{field: 'address_id', headerName: 'Address ID', width: 200},
+{field: 'currency', headerName: 'Currency', width: 200},
+{field: 'delivery_status', headerName: 'Delivery Status', width: 200, renderCell: (params: any) => {
+let background = '';
         let color = '';
-        let icon = MdDone; // Default icon
+        let icon = MdDone;
 
-		switch (params.row.delivery_status) {
+switch (params.row.delivery_status) {
                 case 'pending':
                     background = 'bg-yellow-200';
                     color = 'text-yellow-700';
-                    icon = MdAccessTimeFilled; // Example icon
+                    icon = MdAccessTimeFilled;
                     break;
                 case 'cancelled':
                     background = 'bg-red-200';
@@ -153,47 +110,45 @@ const OrdersClient:React.FC<ManageOrdersClientProps> = ({userOrders, token, expi
                 default:
                     background = 'bg-gray-200';
                     color = 'text-gray-700';
-                    icon = MdDone; // Default icon
+                    icon = MdDone;
             }
-			return (
+return (
                 <div>
                     <Status text={params.row.delivery_status} icon={icon} background={background} color={color} />
                 </div>
-            ); 
-		}
-	},
-
-	{field: 'action', headerName: 'Actions', width: 200, renderCell: (params) => {
-		return (<div className='flex justify-between gap-4 w-full'>
-			<ActionBtn icon={MdRemoveRedEye} onClick={() => {router.push(`/order/${params.row.id}`)}}/>
-		</div>)
-	}},
+            );
+}
+},
+{field: 'action', headerName: 'Actions', width: 200, renderCell: (params) => {
+return (<div className='flex justify-between gap-4 w-full'>
+<ActionBtn icon={MdRemoveRedEye} onClick={() => {router.push(`/order/${params.row.id}`)}}/>
+</div>)
+}},
   ]
 
   return (
     <div className='max-w-[1150px] m-auto text-xl'>
-		<div className='mb-4 mt-8'>
-			<Heading title='Manage Orders' center/>
-		</div>
+<div className='mb-4 mt-8'>
+<Heading title='Manage Orders' center/>
+</div>
 
-		<div style={{height: 600, width: '100%'}}>
-			<DataGrid
-			rows={rows}
-			columns={columns}
-			initialState={{
-				pagination: {
-				paginationModel: { page: 0, pageSize: 5 },
-				},
-			}}
-			pageSizeOptions={[5, 10]}
-			checkboxSelection
-			disableRowSelectionOnClick
-			/>
-		</div>
-        
+<div style={{height: 600, width: '100%'}}>
+<DataGrid
+rows={rows}
+columns={columns}
+initialState={{
+pagination: {
+paginationModel: { page: 0, pageSize: 5 },
+},
+}}
+pageSizeOptions={[5, 10]}
+checkboxSelection
+disableRowSelectionOnClick
+/>
+</div>
+
     </div>
   )
 }
-
 
 export default OrdersClient;

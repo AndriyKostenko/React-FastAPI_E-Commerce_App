@@ -1,20 +1,6 @@
 'use client';
 
-import { IconType } from "react-icons";
-
-
-interface ButtonProps{
-    label: string,
-    disabled?: boolean,
-    outline?: boolean,
-    small?: boolean,
-    custom?: string,
-    icon?: IconType,
-    type?: "submit" | "button" | "reset",
-    onClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
-}
-
-
+import { ButtonProps } from "@/app/interfaces/components";
 
 const Button: React.FC<ButtonProps> = ({
                                         label,
@@ -26,7 +12,7 @@ const Button: React.FC<ButtonProps> = ({
                                         type,
                                         onClick
                                     }) => {
-    return ( 
+    return (
         <button className={`disabled:opacity-70
                             disabled:cursor-not-allowed
                             rounded-md
@@ -42,7 +28,7 @@ const Button: React.FC<ButtonProps> = ({
                             ${outline ? "text-primary" : "text-on-primary"}
                             ${small ? "text-sm font-light" : "text-md font-semibold"}
                             ${small ? "py-1 px-2 border-[1px]" : "py-3 px-4 border-2"}
-                            ${custom ? custom : ""}`} 
+                            ${custom ? custom : ""}`}
                 type={type}
                 disabled={disabled}
                 onClick={onClick}>

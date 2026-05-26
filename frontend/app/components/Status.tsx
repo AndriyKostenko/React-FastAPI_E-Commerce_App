@@ -1,12 +1,4 @@
-import {IconType} from "react-icons";
-
-
-interface StatusProps{
-    text:string,
-    icon: IconType,
-    background: string,
-    color: string
-}
+import { StatusProps } from "@/app/interfaces/components";
 
 const Status: React.FC<StatusProps> = ({text, icon: Icon, background, color}) => {
   return (

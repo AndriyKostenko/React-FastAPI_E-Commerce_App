@@ -3,16 +3,16 @@ import Container from "../components/Container";
 import FormWrap from "../components/FormWrap";
 import LoginForm from "./LoginForm";
 
-const Login = async () => {
 
+const Login = async () => {
     const currentUser = await sessionManagaer.getCurrentUser();
-    
-    return ( 
-    <Container>
-        <FormWrap>
-            <LoginForm currentUser = {currentUser}/>
-        </FormWrap>
-    </Container> );
+    return (
+      <Container>
+          <FormWrap>
+              <LoginForm currentUser={currentUser}/>
+          </FormWrap>
+      </Container>
+    );
 }
- 
+
 export default Login;

@@ -1,3 +1,6 @@
+import type { ReviewAuthorProps } from "@/app/interfaces/auth";
+import type { ProductProps } from "@/app/interfaces/product";
+
 export interface ReviewProps {
     id: string;
     rating: number;
@@ -15,4 +18,15 @@ export interface ReviewProps {
         role: string;
         date_created: string;
     };
+}
+
+export interface AddReviewProps {
+    product: ProductProps;
+    user: ReviewAuthorProps;
+    isDelivered: boolean;
+    token: string;
+}
+
+export interface ListReviewProps {
+    product: ProductProps | null;
 }

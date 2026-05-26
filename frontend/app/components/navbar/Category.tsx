@@ -1,23 +1,15 @@
 "use client";
 
+import { NavCategoryProps } from "@/app/interfaces/navbar";
 import { useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useSearchParams } from "next/navigation";
 import queryString from "query-string";
 import Image from 'next/image';
 
-
-interface CategoryProps {
-    id: string;
-    name: string;
-    image_url: string;
-    selected?: boolean;
-}
-
-const Category: React.FC<CategoryProps> = ({ id, name, image_url, selected }) => {
+const Category: React.FC<NavCategoryProps> = ({ id, name, image_url, selected }) => {
     const router = useRouter();
 
-    // getting current url qyery params
     const params = useSearchParams();
 
     const handleClick = useCallback(() => {
@@ -27,17 +19,14 @@ const Category: React.FC<CategoryProps> = ({ id, name, image_url, selected }) =>
             let currentQuery = {};
 
             if (params) {
-                // existing query string
                 currentQuery = queryString.parse(params.toString());
             }
 
-            // updating the query string
             const updatedQuery = {
                 ...currentQuery,
                 category: name,
             };
 
-            // creating new url with updated query string
             const url = queryString.stringifyUrl(
                 {
                     url: "/",

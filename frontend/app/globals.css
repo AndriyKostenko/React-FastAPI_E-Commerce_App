@@ -19,6 +19,17 @@
     );
     backdrop-filter: blur(24px) saturate(180%) brightness(1.04);
     -webkit-backdrop-filter: blur(24px) saturate(180%) brightness(1.04);
+    /* Prevent backdrop-filter corner artifacts on rounded glass surfaces. */
+    isolation: isolate;
+    contain: paint;
+    background-clip: padding-box;
+    -webkit-mask-image: -webkit-radial-gradient(white, black);
+    -webkit-mask-repeat: no-repeat;
+    -webkit-clip-path: inset(0 round 2.5rem);
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
     border-top: 1px solid rgba(255, 255, 255, 0.85);
     border-left: 1px solid rgba(255, 255, 255, 0.65);
     border-right: 1px solid rgba(255, 255, 255, 0.25);
@@ -40,6 +51,17 @@
       );
     backdrop-filter: blur(48px) saturate(200%) brightness(1.05);
     -webkit-backdrop-filter: blur(48px) saturate(200%) brightness(1.05);
+    isolation: isolate;
+    contain: paint;
+    background-clip: padding-box;
+    -webkit-mask-image: -webkit-radial-gradient(white, black);
+    -webkit-mask-repeat: no-repeat;
+    clip-path: inset(0 round 2rem);
+    -webkit-clip-path: inset(0 round 2rem);
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
     border-top: 1px solid rgba(255, 255, 255, 0.85);
     border-left: 1px solid rgba(255, 255, 255, 0.65);
     border-right: 1px solid rgba(255, 255, 255, 0.25);
@@ -98,6 +120,3 @@
     border-radius: 10px;
   }
 }
-
-
-

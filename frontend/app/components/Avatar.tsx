@@ -1,13 +1,8 @@
+import { AvatarProps } from "@/app/interfaces/components";
 import Image from "next/image";
 import { FaUserCircle } from 'react-icons/fa';
 
-interface AvatarProps{
-    src?: string | null | undefined;
-}
-
-
 const Avatar:React.FC<AvatarProps> = ({src}) => {
-    // checking if image provided, if not - returning basic image
     if (src) {
         return (
             <Image src={src}
@@ -19,7 +14,7 @@ const Avatar:React.FC<AvatarProps> = ({src}) => {
         );
     }
 
-    return ( 
+    return (
         <FaUserCircle size={24}/>
     );
 }

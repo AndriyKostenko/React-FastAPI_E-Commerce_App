@@ -1,9 +1,5 @@
-import { ReviewProps } from "@/app/interfaces/review";
+import { ReviewUpsertPayload } from "@/app/interfaces/actions";
 import { settings } from "@/settings";
-
-type ReviewUpsertPayload =
-    | Pick<ReviewProps, "product_id" | "rating" | "comment" | "user_id">
-    | { productId: string; rating: number; comment: string; userId: string };
 
 const updateProductReview = async (review: ReviewUpsertPayload, token: string) => {
     const product_id = "product_id" in review ? review.product_id : review.productId;
@@ -26,7 +22,7 @@ const updateProductReview = async (review: ReviewUpsertPayload, token: string) =
         });
 
         if (!response.ok) {
-            const errorData = await response.json(); // Parse error response to get 'detail' message
+            const errorData = await response.json();
             console.error("Failed to update product review:", errorData.detail);
             return { success: false, message: errorData.detail || "Failed to update review" };
         }

@@ -1,5 +1,6 @@
 "use client";
 
+import { CartClientProps } from "@/app/interfaces/cart";
 import { useCart } from "@/hooks/useCart";
 import Link from "next/link";
 import { MdArrowBack } from "react-icons/md";
@@ -8,28 +9,14 @@ import Button from "../components/Button";
 import ItemContent from "./ItemContent";
 import { formatPrice } from "@/utils/formatPrice";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
-import { signOut } from "next-auth/react";
 import { useCurrentUserTokenExpiryCheck } from "@/hooks/useCurrentUserToken";
-
-interface CartClientProps {
-    currentUser: {
-        name?: string | null | undefined;
-        email?: string | null | undefined;
-        image?: string | null | undefined;
-    } | null;
-    expiryToken: number | null;
-}
-
 
 const CartClient: React.FC<CartClientProps> = ({currentUser, expiryToken}) => {
     const {cartProducts, handleClearCart, cartTotalAmount} = useCart();
 
     const router = useRouter()
 
-    // redirecting back if token is expired
     useCurrentUserTokenExpiryCheck(expiryToken)
-
 
     if (!cartProducts || cartProducts.length === 0) {
         return (
@@ -46,7 +33,7 @@ const CartClient: React.FC<CartClientProps> = ({currentUser, expiryToken}) => {
             </div>
         )
     }
-    return ( 
+    return (
         <div>
             <Heading title="Shopping Cart" center></Heading>
             <div className="grid grid-cols-5 text-xs gap-4 pb-2 items-center mt-8">
@@ -65,7 +52,6 @@ const CartClient: React.FC<CartClientProps> = ({currentUser, expiryToken}) => {
                     <Button label="Clear Cart" onClick={() => {handleClearCart()}} small outline></Button>
                 </div>
                 <div className="text-sm flex flex-col gap-1 items-start">
-                    
                         <div className="flex justify-between w-full text-base font-semibold">
                             <span>Subtotal</span>
                             <span>{formatPrice(cartTotalAmount)}</span>
@@ -83,8 +69,6 @@ const CartClient: React.FC<CartClientProps> = ({currentUser, expiryToken}) => {
                             <MdArrowBack></MdArrowBack>
                             <span>Continue shopping</span>
                         </Link>
-                        
-                    
                 </div>
 
             </div>

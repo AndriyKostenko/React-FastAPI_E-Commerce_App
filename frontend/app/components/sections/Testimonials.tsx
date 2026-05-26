@@ -1,13 +1,6 @@
+import { Testimonial } from "@/app/interfaces/sections";
 import Image from "next/image";
 import { MdStar, MdStarHalf, MdGroup } from "react-icons/md";
-
-interface Testimonial {
-  quote: string;
-  name: string;
-  role: string;
-  avatar: string;
-  stars: number;
-}
 
 const TESTIMONIALS: Testimonial[] = [
   {
@@ -42,7 +35,6 @@ const StarRating = ({ count }: { count: number }) => (
 
 const Testimonials = () => (
   <section className="grid grid-cols-1 md:grid-cols-3 gap-8">
-    {/* Testimonial 1 */}
     <div className="glass-card p-8 space-y-6 flex flex-col justify-between">
       <div className="space-y-4">
         <StarRating count={TESTIMONIALS[0].stars} />
@@ -64,7 +56,6 @@ const Testimonials = () => (
       </div>
     </div>
 
-    {/* CTA Card */}
     <div className="glass-card bg-brand-lime p-8 space-y-6 flex flex-col justify-center items-center text-center">
       <div className="w-20 h-20 bg-black text-white rounded-full flex items-center justify-center">
         <MdGroup size={40} />
@@ -80,7 +71,6 @@ const Testimonials = () => (
       </button>
     </div>
 
-    {/* Testimonial 2 */}
     <div className="glass-card p-8 space-y-6 flex flex-col justify-between">
       <div className="space-y-4">
         <StarRating count={TESTIMONIALS[1].stars} />

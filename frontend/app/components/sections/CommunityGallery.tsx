@@ -1,15 +1,9 @@
 "use client";
 
+import { GalleryItem } from "@/app/interfaces/sections";
 import Image from "next/image";
 import { useRef } from "react";
 import { MdChevronLeft, MdChevronRight, MdFavoriteBorder } from "react-icons/md";
-
-interface GalleryItem {
-  image: string;
-  alt: string;
-  author: string;
-  badge?: { label: string; style: string };
-}
 
 const GALLERY_ITEMS: GalleryItem[] = [
   {
@@ -50,7 +44,6 @@ const CommunityGallery = () => {
 
   return (
     <section className="glass-card p-8 md:p-12">
-      {/* Header */}
       <div className="flex justify-between items-end mb-10">
         <div>
           <h2 className="font-headline-lg text-primary">Community Gallery</h2>
@@ -74,7 +67,6 @@ const CommunityGallery = () => {
         </div>
       </div>
 
-      {/* Scrollable Cards */}
       <div
         ref={scrollRef}
         className="flex gap-6 overflow-x-auto no-scrollbar pb-4 -mx-4 px-4 scroll-smooth"

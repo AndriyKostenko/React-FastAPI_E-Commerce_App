@@ -1,6 +1,4 @@
-interface NullDataProps {
-    title: string
-}
+import { NullDataProps } from "@/app/interfaces/components";
 
 const NullData:React.FC<NullDataProps> = ({title}) => {
     return (

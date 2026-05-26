@@ -1,20 +1,10 @@
 "use client";
 
+import { CategoriesProps } from "@/app/interfaces/navbar";
 import Container from "../Container";
 import Category from "./Category";
 import { usePathname, useSearchParams } from "next/navigation";
 import { resolveImageUrl } from "@/utils/resolveImageUrl";
-
-interface CategoryProps {
-    id: string;
-    name: string;
-    image_url?: string | null;
-    selected?: boolean;
-}
-
-export interface CategoriesProps {
-    categories: CategoryProps[];
-}
 
 const Categories: React.FC<CategoriesProps> = ({ categories }) => {
     const params = useSearchParams();

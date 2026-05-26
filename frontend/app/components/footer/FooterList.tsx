@@ -1,11 +1,7 @@
-// creating a type validation for strictly receiving a react-nodes as a props
-interface FooterListProps{
-    children: React.ReactNode
-}
+import { FooterListProps } from "@/app/interfaces/navbar";
 
-//creating a main component for insterting of data into different footer lists like: categories, services etc
 const FooterList: React.FC<FooterListProps> = ({children}) => {
-    return ( 
+    return (
         <div className="w-full
                         sm:w-1/2
                         md:w-1/4

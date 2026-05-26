@@ -1,15 +1,9 @@
 "use client";
 
+import { FeaturedCollectionProps, FilterTab } from "@/app/interfaces/product";
 import { useState } from "react";
 import { MdPsychology, MdTune, MdInventory } from "react-icons/md";
 import ProductCard from "../products/ProductCard";
-import { ProductProps } from "@/app/interfaces/product";
-
-type FilterTab = "All" | "Trending" | "New Arrivals";
-
-interface FeaturedCollectionProps {
-  products: ProductProps[];
-}
 
 const HOW_IT_WORKS = [
   {
@@ -39,7 +33,6 @@ const FeaturedCollection: React.FC<FeaturedCollectionProps> = ({ products }) => 
 
   return (
     <>
-      {/* Featured Products Grid */}
       <section className="glass-card p-8 md:p-12">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10">
           <div>
@@ -70,7 +63,6 @@ const FeaturedCollection: React.FC<FeaturedCollectionProps> = ({ products }) => 
         </div>
       </section>
 
-      {/* How It Works */}
       <section className="glass-card p-8 md:p-12">
         <div className="text-center mb-12">
           <h2 className="font-headline-lg text-headline-xl font-bold text-primary">

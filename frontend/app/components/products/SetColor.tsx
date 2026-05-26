@@ -1,33 +1,20 @@
 'use client';
 
-import { ProductProps } from "@/app/interfaces/product";
-import { ImageProps } from "@/app/interfaces/image";
-
-
-
-// setting color props validation (arrays of imgs)
-interface SetColorProps{
-    images: ImageProps[],
-    cartProduct: ProductProps,
-    handleColorSelect: (value : ImageProps) => void
-}
-
+import { SetColorProps } from "@/app/interfaces/product";
 
 const SetColor: React.FC<SetColorProps> = ({images, cartProduct, handleColorSelect}) => {
-    
-    return ( 
+    return (
         <div>
-            <div className="flex 
+            <div className="flex
                             gap-4
                             items-center">
                 <span className="font-semibold">COLOR:</span>
                 <div className="flex
                                 gap-1">{
                     images.map((image) => {
-                        return ( 
-                            <div key={image.image_color} 
+                        return (
+                            <div key={image.image_color}
                                 onClick={() => handleColorSelect(image)}
-                                // cheking if equal seelcted image colors
                                 className={`h-7
                                              w-7
                                              rounded-full
@@ -36,11 +23,11 @@ const SetColor: React.FC<SetColorProps> = ({images, cartProduct, handleColorSele
                                              items-center
                                              justify-center
                                              ${cartProduct.selected_image.image_color === image.image_color ? 'border-[1.5px]' : 'border-none'}`}>
-                                <div style={{background: image.image_color_code}} className="h-5 
-                                                                                      w-5 
-                                                                                      rounded-full 
+                                <div style={{background: image.image_color_code}} className="h-5
+                                                                                      w-5
+                                                                                      rounded-full
                                                                                       border-[1.2px]
-                                                                                       border-slate-300 
+                                                                                       border-slate-300
                                                                                       cursor-pointer"></div>
                             </div>
                         )
