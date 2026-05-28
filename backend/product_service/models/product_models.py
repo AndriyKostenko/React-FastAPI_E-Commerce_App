@@ -13,14 +13,29 @@ from shared.utils.models_mixins import TimestampMixin
 class Product(Base, TimestampMixin):
     __tablename__: str = 'products'
 
-    # Creating indexes for the Product table
-    __table_args__: tuple[Index, ...] = (
-        Index('idx_product_name', 'name'),
-        Index('idx_product_category', 'category_id'),
-        Index('idx_product_brand', 'brand'),
-        Index('idx_product_in_stock', 'in_stock'),
-        Index('idx_product_date_created', 'date_created'),
-        Index('idx_product_date_updated', 'date_updated'),
+    __table_args__: tuple = (
+        # ── Single-column indexes (used for exact filters & FK lookups) ──────
+        Index('idx_product_name',       'name'),
+        Index('idx_product_brand',      'brand'),
+        Index('idx_product_category',   'category_id'),
+        Index('idx_product_in_stock',   'in_stock'),
+        Index('idx_product_price',      'price'),          # range queries (min_price/max_price)
+
+        # ── Composite indexes for the most common query patterns ─────────────
+        # "Show in-stock products" sorted by newest — the default browse query
+        Index('idx_product_in_stock_date_created', 'in_stock', 'date_created'),
+        # "Browse by category, in-stock only" — most common e-commerce filter
+        Index('idx_product_category_in_stock', 'category_id', 'in_stock'),
+        # "Browse by brand, in-stock only"
+        Index('idx_product_brand_in_stock', 'brand', 'in_stock'),
+        # Sorting by price within a category
+        Index('idx_product_category_price', 'category_id', 'price'),
+
+        # ── Partial index — only indexes in-stock rows ───────────────────────
+        # Smallest possible index for the most common filter; Postgres uses this
+        # automatically when WHERE in_stock = true is present.
+        Index('idx_product_in_stock_partial', 'id', 'date_created',
+              postgresql_where='in_stock = true'),
     )
 
     id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4, unique=True)

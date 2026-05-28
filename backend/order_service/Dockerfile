@@ -91,7 +91,7 @@ HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
 
 #CMD ["uv", "run", "gunicorn", "-k", "uvicorn.workers.UvicornWorker", "main:app", "--bind", "0.0.0.0:8002", "--workers", "1", "--timeout", "60", "--access-logfile"]
 
-CMD ["gunicorn", "-k", "uvicorn.workers.UvicornWorker", "main:app", "--bind", "0.0.0.0:8005", "--workers", "1", "--timeout", "60", "--access-logfile", "-"]
+CMD ["sh", "-c", "gunicorn -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:8005 --workers $((2 * $(nproc) + 1)) --timeout 120 --graceful-timeout 30 --access-logfile -"]
 
 # -------------------------
 # Test Runtime Stage

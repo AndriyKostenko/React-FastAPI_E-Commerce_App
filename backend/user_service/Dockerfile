@@ -95,8 +95,9 @@ HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8001/health || exit 1
 
 
-# DB pool multiplies per worker - when adding/removing the workers the db pool_size and max_overflow must be adjusted accordingly !
-CMD ["gunicorn", "-k", "uvicorn.workers.UvicornWorker", "main:app", "--bind", "0.0.0.0:8001", "--workers", "2", "--timeout", "60", "--access-logfile", "-"]
+# NOTE: DB connection pool size multiplies per worker. With dynamic workers (2×cores+1),
+# ensure pool_size × max_workers stays within your database's max_connections limit.
+CMD ["sh", "-c", "gunicorn -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:8001 --workers $((2 * $(nproc) + 1)) --timeout 120 --graceful-timeout 30 --access-logfile -"]
 
 
 

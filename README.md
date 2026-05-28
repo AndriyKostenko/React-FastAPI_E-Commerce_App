@@ -764,9 +764,11 @@ k6 run -e TEST_TYPE=stress -e BASE_URL=http://127.0.0.1:8001 k6/script.js
 
 
 --- 2 CPU + 8 GIG RAM ---
-1. user-service (1 worker & no chaching) -> = 443 rps
-2. user-service (2 workers & no chaching)-> second test with  = 810 rps
-3. api-gateway  (1 worker , no caching, 50 products) -> user-service (2 workers, no caching) ->  =
+1. max_throughput -> user-service (1 worker & no chaching) -> = 443 rps
+2. max_throughput -> user-service (2 workers & no chaching)-> second test with  = 810 rps
+3. stress -> api-gateway  (5 workers , no caching, 50 products) -> product-service (5 workers, no caching) ->  = 436 rps
+4. stress -> api-gateway  (5 workers , caching, 50 products) -> product-service (5 workers, no caching) ->  = 759 rps
+5. max_throughput -> api-gateway  (5 workers , caching, 50 products) -> product-service (5 workers, no caching) ->  = 759 rps
 
 
 

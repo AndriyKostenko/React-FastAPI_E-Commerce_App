@@ -14,8 +14,8 @@ class ProductCategory(Base, TimestampMixin):
 
     __table_args__: tuple[Index, ...] = (
         Index('idx_product_categories_name', 'name'),
-        Index('idx_product_categories_date_created', 'date_created'),
-        Index('idx_product_categories_image_url', 'image_url'),
+        # idx_product_categories_date_created and idx_product_categories_image_url removed:
+        # categories are tiny, never filtered by date/image_url, and the indexes add write overhead
     )
 
     id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4, unique=True)

@@ -65,8 +65,8 @@ async def gateway_middleware(request: Request, call_next):
     """
     Gateway middleware: global rate limiting, response caching, and cache invalidation.
     """
-    # 1. Global rate limit (1 000 requests per minute per IP)
-    await api_gateway_redis_manager.is_rate_limited(request, times=1000, seconds=60)
+    # 1. Global rate limit (10000 requests per minute per IP)
+    await api_gateway_redis_manager.is_rate_limited(request, times=10000, seconds=60)
 
     # Whether this path/method combination is a declared public endpoint.
     # Public endpoints are cached regardless of auth headers (same data for all callers).
@@ -83,7 +83,9 @@ async def gateway_middleware(request: Request, call_next):
         "Authorization" in request.headers
         or request.cookies.get("access_token") is not None
     )
+
     should_cache_response = request.method == "GET" and (is_public or not is_authenticated)
+
 
     # 3. Forward request to the downstream microservice
     response: Response = await call_next(request)

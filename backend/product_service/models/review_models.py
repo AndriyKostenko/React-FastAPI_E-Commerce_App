@@ -14,8 +14,11 @@ class ProductReview(Base, TimestampMixin):
     __tablename__: str = 'product_reviews'
 
     __table_args__: tuple[Index, ...] = (
-        Index('idx_product_review_user_id', 'user_id'),
-        Index('idx_product_review_product_id', 'product_id'),
+        Index('idx_product_review_user_id',     'user_id'),
+        Index('idx_product_review_product_id',  'product_id'),
+        # Composite: aggregating avg rating per product needs (product_id, rating) together
+        Index('idx_product_review_product_rating', 'product_id', 'rating'),
+        # date_created kept for "newest reviews first" ordering
         Index('idx_product_review_date_created', 'date_created'),
     )
 

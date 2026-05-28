@@ -41,6 +41,11 @@ class Settings(BaseSettings):
 
     DEBUG_MODE: bool
     SECURE_COOKIES: bool # Set True in production (requires HTTPS)
+
+    # PostgreSQL connection pool tuning — used by PoolSettingsCalculator
+    PG_MAX_CONNECTIONS: int = 100       # must match postgresql.conf max_connections
+    PG_RESERVED_CONNECTIONS: int = 5    # reserved for superuser / admin / monitoring
+    PG_DB_SERVICES_COUNT: int = 5       # number of microservices sharing the same Postgres instance
     ALLOWED_HOSTS: list[str]
 
     # Service URLs

@@ -13,9 +13,9 @@ class ProductImage(Base, TimestampMixin):
     __tablename__ = 'product_images'
 
     __table_args__ = (
+        # FK lookup — used by selectinload to batch-fetch images per product
         Index('idx_product_image_product_id', 'product_id'),
-        Index('idx_product_image_date_created', 'date_created'),
-        Index('idx_product_image_date_updated', 'date_updated'),
+        # date indexes removed: images are always accessed via product_id, never filtered by date
     )
 
     id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4, unique=True)

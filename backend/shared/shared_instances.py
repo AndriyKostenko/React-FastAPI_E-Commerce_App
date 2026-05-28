@@ -11,6 +11,7 @@ from shared.managers.password_manager import PasswordManager
 from shared.managers.token_manager import TokenManager
 from shared.events.event_publisher import BaseEventPublisher
 from shared.idempotency.idempotency_service import IdempotencyEventService
+from shared.database_layer.pool_settings import PoolSettingsCalculator
 
 
 # Initialize settings
@@ -19,6 +20,15 @@ test_settings = get_test_settings()
 
 # Logger setup
 logger = setup_logger(__name__)
+
+# Calculate DB pool settings once — shared across all session managers
+_pool_calculator = PoolSettingsCalculator(
+    pg_max_connections=settings.PG_MAX_CONNECTIONS,
+    reserved_connections=settings.PG_RESERVED_CONNECTIONS,
+    num_db_services=settings.PG_DB_SERVICES_COUNT,
+)
+_pool = _pool_calculator.calculate()
+logger.info(_pool.describe())
 
 # Email Service
 user_notification_email_service = UserRelatedNotifications(settings=settings, logger=logger)
@@ -100,67 +110,32 @@ payment_event_idempotency_service = IdempotencyEventService(service_prefix="paym
 # Database session managers for each service
 user_service_database_session_manager = DatabaseSessionManager(
     database_url=settings.USER_SERVICE_DATABASE_URL,
-    engine_settings={
-        "echo": settings.DEBUG_MODE,   # SQL logging disabled in production; enable only via DEBUG_MODE
-        "pool_pre_ping": True,         # Discard stale connections before checkout
-        "pool_size": 40,               # Raised from 20 — covers high-concurrency load tests
-        "max_overflow": 20,            # Raised from 10 — burst headroom (total cap: 120)
-        "pool_timeout": 5,            # Fail fast (was default 30 s) → surface back-pressure quickly
-        "pool_recycle": 1800,          # Recycle connections every 30 min to prevent staleness
-    },
+    engine_settings=_pool.as_dict(echo=settings.DEBUG_MODE),
     logger=logger
 )
 
 product_service_database_session_manager = DatabaseSessionManager(
     database_url=settings.PRODUCT_SERVICE_DATABASE_URL,
-    engine_settings={
-        "echo": settings.DEBUG_MODE,
-        "pool_pre_ping": True,
-        "pool_size": 20,
-        "max_overflow": 10,
-        "pool_timeout": 10,
-        "pool_recycle": 1800,
-    },
+    engine_settings=_pool.as_dict(echo=settings.DEBUG_MODE),
     logger=logger
 )
 
 notification_service_database_session_manager = DatabaseSessionManager(
     database_url=settings.NOTIFICATION_SERVICE_DATABASE_URL,
-    engine_settings={
-        "echo": settings.DEBUG_MODE,
-        "pool_pre_ping": True,
-        "pool_size": 20,
-        "max_overflow": 10,
-        "pool_timeout": 10,
-        "pool_recycle": 1800,
-    },
+    engine_settings=_pool.as_dict(echo=settings.DEBUG_MODE),
     logger=logger
 )
 
 
 order_service_database_session_manager = DatabaseSessionManager(
     database_url=settings.ORDER_SERVICE_DATABASE_URL,
-    engine_settings={
-        "echo": settings.DEBUG_MODE,
-        "pool_pre_ping": True,
-        "pool_size": 20,
-        "max_overflow": 10,
-        "pool_timeout": 10,
-        "pool_recycle": 1800,
-    },
+    engine_settings=_pool.as_dict(echo=settings.DEBUG_MODE),
     logger=logger
 )
 
 payment_service_database_session_manager = DatabaseSessionManager(
     database_url=settings.PAYMENT_SERVICE_DATABASE_URL,
-    engine_settings={
-        "echo": settings.DEBUG_MODE,
-        "pool_pre_ping": True,
-        "pool_size": 20,
-        "max_overflow": 10,
-        "pool_timeout": 10,
-        "pool_recycle": 1800,
-    },
+    engine_settings=_pool.as_dict(echo=settings.DEBUG_MODE),
     logger=logger
 )
 
