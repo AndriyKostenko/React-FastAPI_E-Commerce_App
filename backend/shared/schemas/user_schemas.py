@@ -37,6 +37,9 @@ class UserSaveWithGoogle(BaseModel):
     email: str
     password: str = Field(..., min_length=8, description="User's password")
 
+class GoogleLoginRequest(BaseModel):
+    id_token: str
+
 class UserUpdate(BaseModel):
     name: str
     password: str
@@ -96,6 +99,14 @@ class EmailVerificationResponse(BaseModel):
     detail: str
     email: str
     verified: bool
+
+class ActivationLoginResponse(EmailVerificationResponse):
+    """Returned after email activation — includes a session token so the frontend can auto-sign in."""
+    access_token: str
+    token_type: str = "bearer"
+    user_role: str
+    token_expiry: int
+    user_id: str
 
 class VerificationEmailSchema(BaseModel):
     addresses: List[str]

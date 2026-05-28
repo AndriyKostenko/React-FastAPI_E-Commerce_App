@@ -103,7 +103,7 @@ class UserRelatedNotifications(EmailService):
             template_body={
                 "app_name": self.settings.MAIL_FROM_NAME,
                 "email": event.user_email,
-                "activate_url": f"http://{self.settings.APP_HOST}:{self.settings.USER_SERVICE_APP_PORT}{self.settings.USER_SERVICE_URL_API_VERSION}/activate/{event.token}"
+                "activate_url": f"{self.settings.FRONTEND_URL}/activate/{event.token}"
             },
             recipients=[event.user_email],
             template_name="email_verification.html"

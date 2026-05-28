@@ -12,7 +12,9 @@ from models.user_models import User
 from events_publisher.user_events_publisher import user_events_publisher
 from shared.schemas.user_schemas import (
     EmailVerificationResponse,
+    ActivationLoginResponse,
     ForgotPasswordResponse,
+    GoogleLoginRequest,
     PasswordUpdateResponse,
     RefreshTokenRequest,
     RefreshTokenResponse,
@@ -41,13 +43,17 @@ async def create_user(request: Request,
                   summary="Verify user email",
                   response_description="Email verified successfully",)
 async def verify_email(request: Request, token: str, user_service: user_service_dependency):
-    db_user = await user_service.verify_email(token=token)
+    db_user, access_token, token_expiry = await user_service.verify_email(token=token)
     await user_events_publisher.publish_email_verified(email=db_user.email, user_id=db_user.id)
     return JSONResponse(
-        content=EmailVerificationResponse(
+        content=ActivationLoginResponse(
             detail="Email verified successfully",
             email=db_user.email,
             verified=db_user.is_verified,
+            access_token=access_token,
+            user_role=db_user.role,
+            token_expiry=token_expiry,
+            user_id=str(db_user.id),
         ),
         status_code=status.HTTP_200_OK,
     )
@@ -95,6 +101,29 @@ async def login(request: Request,
                 user_service: user_service_dependency):
     user, access_token, access_expiry, refresh_token, refresh_expiry = await user_service.login_user(form_data)
     await user_events_publisher.publish_user_logged_in(email=user.email, user_id=user.id)
+    return JSONResponse(
+        content=UserLoginDetails(
+            access_token=access_token,
+            token_type=settings.TOKEN_TYPE,
+            token_expiry=access_expiry,
+            refresh_token=refresh_token,
+            refresh_token_expiry=refresh_expiry,
+            user_id=user.id,
+            user_email=user.email,
+            user_role=user.role,
+        ),
+        status_code=status.HTTP_200_OK,
+    )
+
+
+@user_routes.post("/google-login",
+                  summary="Login or register with Google",
+                  response_model=UserLoginDetails,
+                  response_description="Authenticated successfully via Google")
+async def google_login(request: Request,
+                       data: GoogleLoginRequest,
+                       user_service: user_service_dependency):
+    user, access_token, access_expiry, refresh_token, refresh_expiry = await user_service.login_or_register_google_user(data.id_token)
     return JSONResponse(
         content=UserLoginDetails(
             access_token=access_token,

@@ -22,6 +22,7 @@ class AuthMiddleware(metaclass=SingletonMetaClass):
             "/openapi.json": None,
             f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/register": ['POST'],
             f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/login": ['POST'],
+            f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/google-login": ['POST'],
             f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/refresh": ['POST'],
             f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/logout": ['POST'],
             f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/forgot-password": ['POST'],

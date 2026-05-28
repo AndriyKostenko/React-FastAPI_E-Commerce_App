@@ -59,6 +59,34 @@ async def login_user(request: Request, response: Response) -> JSONResponse:
     return upstream
 
 
+@user_proxy.post("/google-login", summary="Login or register with Google OAuth")
+@api_gateway_redis_manager.ratelimiter(times=10, seconds=60)
+async def google_login(request: Request, response: Response) -> JSONResponse:
+    """
+    Accepts a Google ID token, verifies it via the user service, and returns an app JWT.
+    Sets the same HttpOnly auth cookies as the regular login endpoint.
+    """
+    upstream = await api_gateway_manager.forward_request(
+        request=request,
+        service_name=Services.USER_SERVICE,
+    )
+    if upstream.status_code == 200:
+        body: dict[str, str] = loads(upstream.body)
+        refresh_token = body.pop(AuthCookies.REFRESH_COOKIE)
+        access_token = body[AuthCookies.ACCESS_COOKIE]
+        response = JSONResponse(
+            content=body,
+            status_code=status.HTTP_200_OK,
+        )
+        auth_middleware.set_auth_cookies(
+            response=response,
+            access_token=access_token,
+            refresh_token=refresh_token,
+        )
+        return response
+    return upstream
+
+
 @user_proxy.post("/refresh", summary="Refresh access token")
 @api_gateway_redis_manager.ratelimiter(times=10, seconds=60)
 async def refresh_token(request: Request, response: Response) -> JSONResponse:

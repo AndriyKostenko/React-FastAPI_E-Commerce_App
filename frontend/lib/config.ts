@@ -51,6 +51,9 @@ class AppSettings {
 		endpoints: {
 			authLogin: string;
 			authRegister: string;
+			googleLogin: string;
+			activate: (token: string) => string;
+			me: string;
 			categories: string;
 			productsDetailed: string;
 			productDetailed: (productId: string) => string;
@@ -93,6 +96,9 @@ class AppSettings {
 			endpoints: {
 			authLogin:            AppSettings.joinUrl(baseUrl, "login"),
 			authRegister:         AppSettings.joinUrl(baseUrl, "register"),
+			googleLogin:          AppSettings.joinUrl(baseUrl, "google-login"),
+			activate:             (token: string) => AppSettings.joinUrl(baseUrl, `activate/${token}`),
+			me:                   AppSettings.joinUrl(baseUrl, "me"),
 			categories:           AppSettings.joinUrl(baseUrl, "categories"),
 			productsDetailed:     AppSettings.joinUrl(baseUrl, "products/detailed"),
 			productDetailed:      (productId: string) => AppSettings.joinUrl(baseUrl, `products/${productId}/detailed`),

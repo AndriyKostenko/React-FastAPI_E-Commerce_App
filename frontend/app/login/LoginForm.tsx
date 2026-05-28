@@ -9,6 +9,7 @@ import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { MdAutoAwesome, MdVisibility, MdVisibilityOff } from "react-icons/md";
+import { FcGoogle } from "react-icons/fc";
 
 const LoginForm:React.FC<LoginFormProps> = ({currentUser}) => {
     const [isLoading, setIsLoading] = useState(false);
@@ -69,6 +70,23 @@ const LoginForm:React.FC<LoginFormProps> = ({currentUser}) => {
             </div>
 
             <div className="w-full h-px bg-white/40" />
+
+            {/* Google sign-in */}
+            <button
+                type="button"
+                onClick={() => signIn('google', { callbackUrl: '/cart' })}
+                className="w-full flex items-center justify-center gap-3 bg-white/60 border border-white/40 text-primary py-3.5 px-8 rounded-2xl font-label-bold hover:bg-white/80 transition-all active:scale-95"
+            >
+                <FcGoogle size={20} />
+                Continue with Google
+            </button>
+
+            {/* Divider */}
+            <div className="w-full flex items-center gap-3">
+                <div className="flex-1 h-px bg-white/40" />
+                <span className="font-body-md text-xs text-secondary">or sign in with email</span>
+                <div className="flex-1 h-px bg-white/40" />
+            </div>
 
             {/* Email */}
             <div className="w-full">

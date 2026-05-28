@@ -1,6 +1,7 @@
 from decimal import Decimal
 from functools import lru_cache
 from pathlib import Path
+from typing import override
 from uuid import UUID, uuid4
 from datetime import datetime
 
@@ -20,7 +21,7 @@ _ROOT_ENV = Path(__file__).resolve().parents[1] / ".env"
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(
+    model_config: SettingsConfigDict = SettingsConfigDict(
         env_file=_ROOT_ENV,
         env_file_encoding="utf-8",
         extra="ignore",   # ignore vars in .env that aren't declared on this model
@@ -28,6 +29,7 @@ class Settings(BaseSettings):
 
     # Application configuration
     APP_HOST: str
+    FRONTEND_URL: str = "http://localhost:3000"
 
     API_GATEWAY_SERVICE_APP_PORT: int
     USER_SERVICE_APP_PORT: int
@@ -143,6 +145,9 @@ class Settings(BaseSettings):
     CORS_ALLOW_CREDENTIALS: bool
     CORS_ALLOWED_METHODS: list[str]
     CORS_ALLOWED_HEADERS: list[str]
+
+    # Google OAuth
+    GOOGLE_CLIENT_ID: str
 
     #AdminJs
     ADMINJS_SERVICE_TOKEN: str

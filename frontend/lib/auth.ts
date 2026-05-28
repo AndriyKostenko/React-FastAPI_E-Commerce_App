@@ -1,5 +1,6 @@
 import { AuthOptions, User } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
+import GoogleProvider from "next-auth/providers/google";
 import { settings } from "@/lib/config";
 
 // adding jwt, user role and token expiry to the User object
@@ -16,97 +17,140 @@ declare module "next-auth" {
         role: string;
         token_expiry: number;
         user: {
-            id: string; // Add user ID here
+            id: string;
         };
     }
 }
 
-// so.....during loggin/registerring of user we will be redirected here to authorize() function
-// where i do endpoint with getting of user by email, however it is suppose to be logic like with login to check by email and password but im sending back hashed_password
-// so, its suppose to be refactored to got jwt token instead all of that and to compare it in authorize() function
-
 export const authOptions: AuthOptions = {
-// Configure one or more authentication providers
   providers: [
-    CredentialsProvider( {
-        name: "Credentials",
-        // The credentials are used to generate a suitable form on the sign in page.
-        // You can specify whatever fields you are expecting to be submitted.
-        // e.g. domain, username, password, 2FA token, etc.
-        // we can pass any HTML attribute to the <input> tag through the object.
+    GoogleProvider({
+        clientId: process.env.GOOGLE_CLIENT_ID!,
+        clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+    }),
+    // Used after email activation — the backend already verified identity, so we just validate
+    // the returned token via /me before creating a session (prevents forgery).
+    CredentialsProvider({
+        id: "activation-token",
+        name: "ActivationToken",
         credentials: {
-            email: {
-                label: "Email",
-                type: "email",
-            },
-            password: {
-                label: "Password",
-                type: "password"
-            }
-
+            access_token: {},
+            user_role: {},
+            token_expiry: {},
+            user_id: {},
+            email: {},
         },
-        // built in function authorize() where im checking with an existing user in db by email
-        // by default its returning an User object with id, name, email, image...but we a including there jwt to, thats why gining an error
-        async authorize(credentials, req) {
-            // here we write logic that takes the credentials and
-            // submit to backend server and returns either a object representing a user or value
-            // that is false/null if the credentials are invalid.
-            // e.g. return { id: 1, name: 'J Smith', email: 'jsmith@example.com' }
-            //console.log('Credentials inside of authorize():', [credentials?.email, credentials?.password])
-            if (!credentials?.email || !credentials?.password){
-                throw new Error('Invalid email or password!')
+        async authorize(credentials) {
+            if (!credentials?.access_token) return null;
+            try {
+                const res = await fetch(settings.api.endpoints.me, {
+                    headers: { Authorization: `Bearer ${credentials.access_token}` },
+                });
+                if (!res.ok) return null;
+                return {
+                    id: credentials.user_id,
+                    email: credentials.email,
+                    jwt: credentials.access_token,
+                    role: credentials.user_role,
+                    token_expiry: Number(credentials.token_expiry),
+                } as CustomUser;
+            } catch {
+                return null;
+            }
+        },
+    }),
+    CredentialsProvider({
+        name: "Credentials",
+        credentials: {
+            email: { label: "Email", type: "email" },
+            password: { label: "Password", type: "password" },
+        },
+        async authorize(credentials) {
+            if (!credentials?.email || !credentials?.password) {
+                throw new Error('Invalid email or password!');
             }
 
             try {
-
-                // params to send to form_data on backend
                 const formData = new URLSearchParams();
                 formData.append('username', credentials.email);
                 formData.append('password', credentials.password);
 
-                const response = await fetch(settings.api.endpoints.authLogin ,{
+                const response = await fetch(settings.api.endpoints.authLogin, {
                     method: "POST",
                     headers: { "Content-Type": "application/x-www-form-urlencoded" },
-                    body: formData.toString()
+                    body: formData.toString(),
                 });
 
                 if (!response.ok) {
-                    throw new Error('Something went wrong')
+                    throw new Error('Something went wrong');
                 }
 
-                const data = await response.json()
+                const data = await response.json();
 
                 // access_token is returned in the body by the gateway (alongside the HttpOnly cookie).
                 // refresh_token is cookie-only and never exposed here.
-                const jwt = data['access_token']
-                const role = data['user_role']
-                const token_expiry = data['token_expiry']
-                const userId = data['user_id']
+                const jwt = data['access_token'];
+                const role = data['user_role'];
+                const token_expiry = data['token_expiry'];
+                const userId = data['user_id'];
 
                 if (!jwt) {
                     console.error('authorize(): no access_token in response body');
                     return null;
                 }
 
-                // returning jwt token and credentials...by default its must to return only the User object or null but i do my implementetion with jwt token, role and tok_expiry and thats why we need to ovewrite the User object
-                return {
-                    id: userId,
-                    email: credentials.email,
-                    jwt,
-                    role,
-                    token_expiry} as CustomUser;
+                return { id: userId, email: credentials.email, jwt, role, token_expiry } as CustomUser;
 
-
-            } catch (error) {
+            } catch {
                 return null;
             }
-        }
-    })
+        },
+    }),
   ],
-  // to make sure that our JWT is included in the session object, we have to add it to the callbacks object
   callbacks: {
-    // adding jwt, user role and token expiry to the token
-    jwt: async ({token, user}) => {
+    // Exchange the Google ID token with the backend before persisting the session.
+    // Returning false rejects the sign-in entirely — no half-authenticated state possible.
+    signIn: async ({ account }) => {
+        if (account?.provider === 'google') {
+            const idToken = account.id_token;
+            if (!idToken) return false;
+
+            try {
+                const response = await fetch(settings.api.endpoints.googleLogin, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id_token: idToken }),
+                });
+
+                if (!response.ok) return false;
+
+                const data = await response.json();
+
+                // Attach backend data to account so the jwt callback can pick it up
+                (account as Record<string, unknown>).backendJwt = data['access_token'];
+                (account as Record<string, unknown>).backendRole = data['user_role'];
+                (account as Record<string, unknown>).backendTokenExpiry = data['token_expiry'];
+                (account as Record<string, unknown>).backendUserId = data['user_id'];
+            } catch {
+                return false;
+            }
+        }
+        return true;
+    },
+
+    jwt: async ({ token, user, account }) => {
+        // Google sign-in: backend data was fetched in signIn callback and attached to account
+        if (account?.provider === 'google' && (account as Record<string, unknown>).backendJwt) {
+            return {
+                ...token,
+                id: (account as Record<string, unknown>).backendUserId,
+                jwt: (account as Record<string, unknown>).backendJwt,
+                role: (account as Record<string, unknown>).backendRole,
+                token_expiry: (account as Record<string, unknown>).backendTokenExpiry,
+            };
+        }
+
+        // Credentials sign-in
         if (user) {
             const customUser = user as CustomUser;
             return {
@@ -115,26 +159,23 @@ export const authOptions: AuthOptions = {
                 jwt: customUser.jwt,
                 role: customUser.role,
                 token_expiry: customUser.token_expiry,
-
             };
         }
         return token;
     },
 
-    // adding jwt, user role and token expriration time to the session
-    session: async ({session, token}) => {
+    session: async ({ session, token }) => {
         if (token) {
             session.jwt = token.jwt as string;
             session.role = token.role as string;
             session.token_expiry = token.token_expiry as number;
             session.user.id = token.id as string;
         }
-        return session
-    }
+        return session;
+    },
   },
   secret: process.env.NEXTAUTH_SECRET || process.env.SECRET_KEY,
   pages: {
     signIn: '/login',
   },
-
 };

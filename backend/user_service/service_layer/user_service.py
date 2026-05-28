@@ -1,7 +1,9 @@
 from datetime import timedelta
-from typing import Annotated
+import secrets
+from typing import Annotated, Any
 from uuid import UUID
 
+from httpx import AsyncClient, Response
 from pydantic import EmailStr
 from fastapi import Query
 from fastapi.security import OAuth2PasswordRequestForm
@@ -45,6 +47,7 @@ class UserService:
         self.password_manager: PasswordManager = password_manager
         self.token_manager: TokenManager = token_manager
         self.redis_manager: RedisManager = redis_manager
+        self.httpx_client: AsyncClient = AsyncClient()
 
     def _refresh_key(self, token: str, prefix: str = "refresh") -> str:
         return f"{prefix}:{token}"
@@ -86,6 +89,86 @@ class UserService:
         current_user, access_token, access_expiry, refresh_token, refresh_expiry = await self.authenticate_user(
             email=form_data.username, password=form_data.password
         )
+        return current_user, access_token, access_expiry, refresh_token, refresh_expiry
+
+    async def login_or_register_google_user(self, id_token: str) -> tuple[CurrentUserInfo, str, int, str, int]:
+        """
+        Verify a Google ID token, then find or create the user, and issue backend JWT tokens.
+        Validates aud, iss, and email_verified claims before trusting the token.
+        """
+        async with self.httpx_client as client:
+            response: Response = await client.get(
+                "https://oauth2.googleapis.com/tokeninfo",
+                params={"id_token": id_token},
+            )
+
+        if response.status_code != 200:
+            raise HTTPException(status_code=401, detail="Invalid Google token")
+
+        claims = response.json()
+
+        # Validate aud — must match our Google client ID to prevent token theft
+        if settings.GOOGLE_CLIENT_ID and claims.get("aud") != settings.GOOGLE_CLIENT_ID:
+            raise HTTPException(status_code=401, detail="Google token audience mismatch")
+
+        # Validate iss
+        valid_issuers = {"accounts.google.com", "https://accounts.google.com"}
+        if claims.get("iss") not in valid_issuers:
+            raise HTTPException(status_code=401, detail="Invalid Google token issuer")
+
+        # Require email_verified
+        if claims.get("email_verified") not in (True, "true"):
+            raise HTTPException(status_code=401, detail="Google email is not verified")
+
+        email: str | None = claims.get("email")
+        if not email:
+            raise HTTPException(status_code=400, detail="Could not retrieve email from Google token")
+
+        name: str = claims.get("name") or email.split("@")[0]
+
+        # Find or create the user
+        user = await self.repository.get_by_field("email", email)
+        if not user:
+            try:
+                hashed_password = self.password_manager.hash_password(secrets.token_urlsafe(32))
+                new_user = User(
+                    name=name,
+                    email=email,
+                    hashed_password=hashed_password,
+                    is_verified=True,
+                    role="user",
+                    is_active=True,
+                )
+                user = await self.repository.create(new_user)
+            except Exception:
+                # Race condition: another request created the same user — fetch it
+                user = await self.repository.get_by_field("email", email)
+                if not user:
+                    raise HTTPException(status_code=500, detail="Failed to create user")
+
+        # Enforce account-level guards (same as authenticate_user)
+        if not user.is_active:
+            raise HTTPException(status_code=401, detail="Account is deactivated")
+
+        access_token, access_expiry = self.token_manager.create_access_token(
+            email=email,
+            user_id=user.id,
+            role=user.role,
+            expires_delta=timedelta(minutes=settings.TOKEN_TIME_DELTA_MINUTES),
+            purpose="access",
+        )
+        refresh_token, refresh_expiry = self.token_manager.create_refresh_token(
+            email=email,
+            user_id=user.id,
+            role=user.role,
+        )
+        ttl_seconds = settings.REFRESH_TOKEN_TIME_DELTA_DAYS * 86400
+        await self.redis_manager.redis.setex(
+            self._refresh_key(refresh_token),
+            ttl_seconds,
+            str(user.id),
+        )
+        current_user = CurrentUserInfo(email=user.email, id=user.id, role=user.role)
         return current_user, access_token, access_expiry, refresh_token, refresh_expiry
 
     async def get_all_users(self, filters: Annotated[UsersFilterParams, Query()]) -> list[UserInfo]:
@@ -151,14 +234,22 @@ class UserService:
             raise UserNotFoundError(f"User with id: {user_id} not found.")
         return UserInfo.model_validate(updated_user)
 
-    async def verify_email(self, token: str) -> UserInfo:
+    async def verify_email(self, token: str) -> tuple["UserInfo", str, int]:
         token_data = self.token_manager.decode_token(token=token, required_purpose="email_verification")
         updated_user = await self.repository.update_by_field(field_name="email",
                                                             value=token_data.email,
                                                             is_verified=True)
         if not updated_user:
             raise UserNotFoundError("User not found for verification")
-        return UserInfo.model_validate(updated_user)
+
+        access_token, access_expiry = self.token_manager.create_access_token(
+            email=updated_user.email,
+            user_id=updated_user.id,
+            role=updated_user.role,
+            expires_delta=timedelta(minutes=settings.TOKEN_TIME_DELTA_MINUTES),
+            purpose="access"
+        )
+        return UserInfo.model_validate(updated_user), access_token, access_expiry
 
     async def delete_user_by_id(self, user_id: UUID) -> None:
         success = await self.repository.delete_by_id(user_id)
