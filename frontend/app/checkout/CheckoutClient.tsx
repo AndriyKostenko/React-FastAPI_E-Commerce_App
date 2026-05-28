@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckoutAddress, CheckoutClientProps } from "@/app/interfaces/cart";
+import { CheckoutAddress, CheckoutClientProps } from "@/types/cart";
 import { useCart } from "@/hooks/useCart";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useCallback } from "react";
@@ -8,11 +8,11 @@ import toast from "react-hot-toast";
 import { StripeElementsOptions, loadStripe } from "@stripe/stripe-js";
 import { Elements } from "@stripe/react-stripe-js";
 import CheckoutForm from "./CheckOutForm";
-import Button from "../components/Button";
+import Button from "@/components/Button";
 import Link from "next/link";
 import { MdArrowBack } from "react-icons/md";
-import { ProductProps } from "@/app/interfaces/product";
-import { settings } from "@/settings";
+import { ProductProps } from "@/types/product";
+import { settings } from "@/lib/config";
 
 const stripePromise = loadStripe(settings.stripe.publishableKey);
 

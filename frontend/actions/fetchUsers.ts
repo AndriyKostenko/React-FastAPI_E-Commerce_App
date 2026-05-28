@@ -1,5 +1,5 @@
-import { UserProps } from '@/app/interfaces/user';
-import { settings } from "@/settings";
+import { UserProps } from '@/types/user';
+import { settings } from "@/lib/config";
 
 export default async function fetchUsersFromBackend(token: string): Promise<UserProps[]> {
     try {

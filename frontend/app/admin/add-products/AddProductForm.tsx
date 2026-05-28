@@ -1,22 +1,22 @@
 'use client'
 
-import { AddProductProps, ImageType } from "@/app/interfaces/admin";
-import Heading from "@/app/components/Heading";
-import Input from "@/app/components/inputs/Input";
-import CustomCheckBox from "@/app/components/inputs/CustomCheckbox";
+import { AddProductProps, ImageType } from "@/types/admin";
+import Heading from "@/components/Heading";
+import Input from "@/components/inputs/Input";
+import CustomCheckBox from "@/components/inputs/CustomCheckbox";
 import { useCallback, useEffect, useState } from "react";
 import { FieldValues, useForm } from "react-hook-form";
-import TextArea from "@/app/components/inputs/TextArea";
-import CategoryInput from "@/app/components/inputs/CategoryInput";
-import {colors} from "@/utils/Colors";
-import SelectColor from "@/app/components/inputs/SelectColor";
+import TextArea from "@/components/inputs/TextArea";
+import CategoryInput from "@/components/inputs/CategoryInput";
+import { colors } from "@/utils/constants";
+import SelectColor from "@/components/inputs/SelectColor";
 import { SubmitHandler } from "react-hook-form";
-import Button from "@/app/components/Button";
+import Button from "@/components/Button";
 import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
 import { useCurrentUserTokenExpiryCheck } from "@/hooks/useCurrentUserToken";
 import { resolveImageUrl } from "@/utils/resolveImageUrl";
-import { settings } from "@/settings";
+import { settings } from "@/lib/config";
 
 const AddProductForm:React.FC<AddProductProps> = ({currentUserJWT, expiryToken, categories}) => {
     const [isLoading, setIsLoading] = useState(false)

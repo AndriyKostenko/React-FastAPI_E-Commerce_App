@@ -1,6 +1,6 @@
 'use client';
 
-import { CartProviderProps } from "@/app/interfaces/components";
+import { CartProviderProps } from "@/types/components";
 import { CartContextProvider } from "@/hooks/useCart";
 
 const CartProvider: React.FC<CartProviderProps> = ({children}) => {

@@ -1,8 +1,8 @@
-import FormWrap from "@/app/components/FormWrap";
-import Container from "@/app/components/Container";
+import FormWrap from "@/components/FormWrap";
+import Container from "@/components/Container";
 import AddProductForm from "./AddProductForm";
 import {sessionManagaer} from "@/actions/getCurrentUser";
-import NullData from "@/app/components/NullData";
+import NullData from "@/components/NullData";
 import fetchCategoriesFromBackend from "@/actions/getCategories";
 
 

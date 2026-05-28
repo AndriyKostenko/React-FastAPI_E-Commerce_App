@@ -1,13 +1,13 @@
 'use client';
 
-import { ManageProductsClientProps } from "@/app/interfaces/admin";
-import { ProductProps } from '@/app/interfaces/product';
+import { ManageProductsClientProps } from "@/types/admin";
+import { ProductProps } from '@/types/product';
 import { formatPrice } from '@/utils/formatPrice';
 import { DataGrid, GridColDef} from '@mui/x-data-grid';
-import Heading from '@/app/components/Heading';
-import Status from '@/app/components/Status';
+import Heading from '@/components/Heading';
+import Status from '@/components/Status';
 import { MdClose, MdDone, MdRemoveRedEye, MdDelete, MdDisabledVisible} from 'react-icons/md';
-import ActionBtn from '@/app/components/ActionBtn';
+import ActionBtn from '@/components/ActionBtn';
 import { useState, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import { useRouter } from 'next/navigation';
@@ -15,7 +15,7 @@ import fetchProductsFromBackend from '@/actions/getProducts';
 import Image from 'next/legacy/image';
 import { useCurrentUserTokenExpiryCheck } from "@/hooks/useCurrentUserToken";
 import { resolveImageUrl } from '@/utils/resolveImageUrl';
-import { settings } from "@/settings";
+import { settings } from "@/lib/config";
 
 const ManageProductsClient:React.FC<ManageProductsClientProps> = ({initialProducts, expiryToken}) => {
 const [products, setProducts] = useState<ProductProps[]>(initialProducts);

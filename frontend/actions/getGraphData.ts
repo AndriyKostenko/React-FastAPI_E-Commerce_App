@@ -1,6 +1,6 @@
 import moment from "moment";
 import fetchOrdersFromBackend from "./getOrders";
-import { OrderProps } from "@/app/interfaces/order";
+import { OrderProps } from "@/types/order";
 
 export default async function getGraphData(token: string) {
 	try {

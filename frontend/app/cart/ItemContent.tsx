@@ -1,11 +1,11 @@
 'use client';
 
-import { ItemContentProps } from "@/app/interfaces/cart";
+import { ItemContentProps } from "@/types/cart";
 import { formatPrice } from '@/utils/formatPrice';
 import Link from "next/link";
 import { truncateText } from "@/utils/truncateText";
 import Image from "next/image";
-import SetQuantity from "../components/products/SetQuantity";
+import SetQuantity from "@/components/products/SetQuantity";
 import { useCart } from "@/hooks/useCart";
 import { resolveImageUrl } from "@/utils/resolveImageUrl";
 

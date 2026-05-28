@@ -1,4 +1,4 @@
-import { OrderItemRef, UserOrderRef } from "@/app/interfaces/actions";
+import { OrderItemRef, UserOrderRef } from "@/types/actions";
 import fetchOrderByUserId from "./getOrdersByUserId";
 
 const checkIfOrderIsDelivered = async (userId: string, productId: string, token: string | null): Promise<boolean> => {

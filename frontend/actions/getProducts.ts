@@ -1,5 +1,5 @@
-import { ProductProps } from "@/app/interfaces/product";
-import { settings } from "@/settings";
+import { ProductProps } from "@/types/product";
+import { settings } from "@/lib/config";
 
 const fetchProductsFromBackend = async (category?: string , searchTerm?: string): Promise<ProductProps[]> => {
     try {

@@ -1,4 +1,4 @@
-import { settings } from "@/settings";
+import { settings } from "@/lib/config";
 
 const fetchOrderById = async (id: string): Promise<any> => {
 	try {

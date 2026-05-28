@@ -1,13 +1,13 @@
 "use client";
 
-import { AddReviewProps } from "@/app/interfaces/review";
+import { AddReviewProps } from "@/types/review";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { FieldValues, SubmitHandler, useForm } from "react-hook-form";
-import Heading from "@/app/components/Heading";
+import Heading from "@/components/Heading";
 import { Rating } from "@mui/material";
-import Input from "@/app/components/inputs/Input";
-import Button from "@/app/components/Button";
+import Input from "@/components/inputs/Input";
+import Button from "@/components/Button";
 import toast from "react-hot-toast";
 import updateProductReview from "@/actions/updateProductReview";
 

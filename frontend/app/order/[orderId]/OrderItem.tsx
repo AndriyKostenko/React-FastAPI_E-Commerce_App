@@ -1,6 +1,6 @@
 "use client";
 
-import { OrderItemComponentProps } from "@/app/interfaces/order";
+import { OrderItemComponentProps } from "@/types/order";
 import { formatPrice } from "@/utils/formatPrice";
 import { truncateText } from "@/utils/truncateText";
 import Image from "next/image";

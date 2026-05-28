@@ -1,8 +1,8 @@
 
 import { sessionManagaer } from "@/actions/getCurrentUser";
-import NullData from "@/app/components/NullData";
+import NullData from "@/components/NullData";
 import OrdersClient from "@/app/orders/OrderClient";
-import Container from "../components/Container";
+import Container from "@/components/Container";
 import fetchOrderByUserId from "@/actions/getOrdersByUserId";
 
 

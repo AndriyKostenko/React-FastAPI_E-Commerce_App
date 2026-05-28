@@ -1,5 +1,5 @@
-import { OrderProps } from "@/app/interfaces/order";
-import { settings } from "@/settings";
+import { OrderProps } from "@/types/order";
+import { settings } from "@/lib/config";
 
 const fetchOrdersFromBackend = async (token: string, startDate?: string, endDate?: string): Promise<OrderProps[]> => {
 

@@ -1,8 +1,8 @@
 'use client';
 
-import { SummaryDataType, SummaryProps } from "@/app/interfaces/admin";
+import { SummaryDataType, SummaryProps } from "@/types/admin";
 import { useEffect, useState } from "react";
-import Heading from "../components/Heading";
+import Heading from "@/components/Heading";
 import { formatPrice } from "@/utils/formatPrice";
 import { formatNumber } from "@/utils/formatNumber";
 import { useCurrentUserTokenExpiryCheck } from "@/hooks/useCurrentUserToken";

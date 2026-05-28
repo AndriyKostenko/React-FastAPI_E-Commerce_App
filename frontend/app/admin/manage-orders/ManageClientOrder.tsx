@@ -1,19 +1,19 @@
 'use client';
 
-import { AdminManageOrdersClientProps } from '@/app/interfaces/admin';
-import { OrderProps } from '@/app/interfaces/order';
+import { AdminManageOrdersClientProps } from '@/types/admin';
+import { OrderProps } from '@/types/order';
 import { formatPrice } from '@/utils/formatPrice';
 import { DataGrid, GridColDef} from '@mui/x-data-grid';
-import Heading from '@/app/components/Heading';
-import Status from '@/app/components/Status';
+import Heading from '@/components/Heading';
+import Status from '@/components/Status';
 import { MdClose, MdDone, MdRemoveRedEye, MdAccessTimeFilled, MdDeliveryDining} from 'react-icons/md';
-import ActionBtn from '@/app/components/ActionBtn';
+import ActionBtn from '@/components/ActionBtn';
 import { useState, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import { useRouter } from 'next/navigation';
 import fetchOrdersFromBackend from '@/actions/getOrders';
 import { useCurrentUserTokenExpiryCheck } from "@/hooks/useCurrentUserToken";
-import { settings } from "@/settings";
+import { settings } from "@/lib/config";
 
 const ManagaeClientOrders:React.FC<AdminManageOrdersClientProps> = ({initialOrders, token, expiryToken}) => {
     const [orders, setOrders] = useState<OrderProps[]>(initialOrders);

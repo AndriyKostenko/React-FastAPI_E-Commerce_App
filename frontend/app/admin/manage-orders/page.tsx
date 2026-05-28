@@ -1,6 +1,6 @@
 import fetchOrdersFromBackend from "@/actions/getOrders";
 import { sessionManagaer } from "@/actions/getCurrentUser";
-import NullData from "@/app/components/NullData";
+import NullData from "@/components/NullData";
 import ManageClientOrders from "@/app/admin/manage-orders/ManageClientOrder";
 
 

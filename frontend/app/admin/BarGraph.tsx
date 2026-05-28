@@ -1,6 +1,6 @@
 'use client'
 
-import { BarGraphProps } from "@/app/interfaces/admin";
+import { BarGraphProps } from "@/types/admin";
 import { Bar } from 'react-chartjs-2';
 import { Chart as ChartJS, BarElement, CategoryScale, LinearScale, Tooltip, Legend} from "chart.js";
 

@@ -1,9 +1,9 @@
 //import { products } from "@/utils/products";
-import HomeBanner from "./components/banner/HomeBanner";
-import CommunityGallery from "./components/sections/CommunityGallery";
-import FeaturedCollection from "./components/sections/FeaturedCollection";
-import Testimonials from "./components/sections/Testimonials";
-import NullData from "./components/NullData";
+import HomeBanner from "@/components/banner/HomeBanner";
+import CommunityGallery from "@/components/sections/CommunityGallery";
+import FeaturedCollection from "@/components/sections/FeaturedCollection";
+import Testimonials from "@/components/sections/Testimonials";
+import NullData from "@/components/NullData";
 import fetchProductsFromBackend from "../actions/getProducts";
 
 type Params = Promise<{ slug: string }>

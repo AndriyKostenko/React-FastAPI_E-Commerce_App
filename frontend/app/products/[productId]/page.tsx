@@ -1,4 +1,4 @@
-import Container from "@/app/components/Container";
+import Container from "@/components/Container";
 import ProductDetails from "./ProductDetails";
 import checkIfOrderIsDelivered from "@/actions/checkIfOrderDelivered";
 

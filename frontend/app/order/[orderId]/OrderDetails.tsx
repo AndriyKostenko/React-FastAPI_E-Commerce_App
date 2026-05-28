@@ -1,9 +1,9 @@
 'use client';
 
-import { OrderDetailProps } from "@/app/interfaces/order";
+import { OrderDetailProps } from "@/types/order";
 import { formatPrice } from "@/utils/formatPrice";
-import Heading from "@/app/components/Heading";
-import Status from "@/app/components/Status";
+import Heading from "@/components/Heading";
+import Status from "@/components/Status";
 import { MdAccessTimeFilled, MdDeliveryDining, MdDone } from "react-icons/md";
 import { formatDate } from "@/utils/formatDate";
 import OrderItem from "./OrderItem";

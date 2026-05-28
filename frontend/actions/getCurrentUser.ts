@@ -1,6 +1,6 @@
 
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/middleware/NextAuth";
+import { authOptions } from "@/lib/auth";
 
 
 // Adding jwt property to Session interface

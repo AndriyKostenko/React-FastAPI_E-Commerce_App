@@ -1,8 +1,8 @@
 'use client';
 
-import { ListReviewProps, ReviewProps } from "@/app/interfaces/review";
-import Avatar from "@/app/components/Avatar";
-import Heading from "@/app/components/Heading";
+import { ListReviewProps, ReviewProps } from "@/types/review";
+import Avatar from "@/components/Avatar";
+import Heading from "@/components/Heading";
 import { Rating } from "@mui/material";
 import moment from "moment";
 

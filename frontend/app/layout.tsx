@@ -1,8 +1,8 @@
 import type { Metadata } from 'next';
 import { Hanken_Grotesk, Inter } from 'next/font/google';
 
-import NavBar from './components/navbar/NavBar';
-import Footer from './components/footer/Footer';
+import NavBar from '@/components/navbar/NavBar';
+import Footer from '@/components/footer/Footer';
 
 import './globals.css';
 import CartProvider from '@/providers/CartProvider';

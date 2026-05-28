@@ -1,7 +1,7 @@
-import Container from "@/app/components/Container";
+import Container from "@/components/Container";
 import ManageProductsClient from "./ManageProductsClient";
 import { sessionManagaer } from "@/actions/getCurrentUser";
-import NullData from "@/app/components/NullData";
+import NullData from "@/components/NullData";
 import fetchProductsFromBackend from "@/actions/getProducts";
 
 

@@ -1,13 +1,13 @@
 'use client';
 
-import { UserOrdersClientProps } from '@/app/interfaces/cart';
-import { OrderProps } from '@/app/interfaces/order';
+import { UserOrdersClientProps } from '@/types/cart';
+import { OrderProps } from '@/types/order';
 import { formatPrice } from '@/utils/formatPrice';
 import { DataGrid, GridColDef} from '@mui/x-data-grid';
-import Heading from '@/app/components/Heading';
-import Status from '@/app/components/Status';
+import Heading from '@/components/Heading';
+import Status from '@/components/Status';
 import { MdClose, MdDone, MdRemoveRedEye, MdAccessTimeFilled, MdDeliveryDining} from 'react-icons/md';
-import ActionBtn from '@/app/components/ActionBtn';
+import ActionBtn from '@/components/ActionBtn';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCurrentUserTokenExpiryCheck } from "@/hooks/useCurrentUserToken";

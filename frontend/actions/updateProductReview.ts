@@ -1,5 +1,5 @@
-import { ReviewUpsertPayload } from "@/app/interfaces/actions";
-import { settings } from "@/settings";
+import { ReviewUpsertPayload } from "@/types/actions";
+import { settings } from "@/lib/config";
 
 const updateProductReview = async (review: ReviewUpsertPayload, token: string) => {
     const product_id = "product_id" in review ? review.product_id : review.productId;

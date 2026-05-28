@@ -5,16 +5,16 @@
 import { Rating } from "@mui/material";
 import { useCallback, useEffect, useState } from "react";
 
-import SetColor from "@/app/components/products/SetColor";
-import SetQuantity from "@/app/components/products/SetQuantity";
-import Button from "@/app/components/Button";
+import SetColor from "@/components/products/SetColor";
+import SetQuantity from "@/components/products/SetQuantity";
+import Button from "@/components/Button";
 import calculateAvarageRating from "@/utils/productRating";
-import ProductImage from "@/app/components/products/ProductImage";
+import ProductImage from "@/components/products/ProductImage";
 import { useCart } from "@/hooks/useCart";
 import { MdCheckCircle } from "react-icons/md";
 import { useRouter } from "next/navigation";
-import { ProductProps } from "@/app/interfaces/product";
-import { ImageProps } from "@/app/interfaces/image";
+import { ProductProps } from "@/types/product";
+import { ImageProps } from "@/types/image";
 
 
 // drawing a simple line

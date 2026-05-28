@@ -1,6 +1,5 @@
-import { settings } from "@/settings";
-
-const DEFAULT_PLACEHOLDER_IMAGE = "https://placehold.co/800x600.png?text=No+Image";
+import { settings } from "@/lib/config";
+import { DEFAULT_PLACEHOLDER_IMAGE } from "./constants";
 
 export const resolveImageUrl = (imageUrl?: string | null): string => {
     if (!imageUrl) {

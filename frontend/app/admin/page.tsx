@@ -1,10 +1,10 @@
 // import { sessionManagaer } from "@/actions/getCurrentUser";
-// import NullData from "@/app/components/NullData";
+// import NullData from "@/components/NullData";
 // import Summary from "./Summary";
 // import fetchProductsFromBackend from "@/actions/getProducts";
 // import fetchOrdersFromBackend from "@/actions/getOrders";
 // import fetchUsersFromBackend from "@/actions/fetchUsers";
-// import Container from "@/app/components/Container";
+// import Container from "@/components/Container";
 // import getGraphData from "@/actions/getGraphData";
 // import BarGraph from "./BarGraph";
 

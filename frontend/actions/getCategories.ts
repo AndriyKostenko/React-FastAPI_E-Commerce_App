@@ -1,5 +1,5 @@
-import { CategoryProps } from "./../app/interfaces/category";
-import { settings } from "@/settings";
+import { CategoryProps } from "@/types/category";
+import { settings } from "@/lib/config";
 
 const fetchCategoriesFromBackend = async (): Promise<CategoryProps[]> => {
     try {
