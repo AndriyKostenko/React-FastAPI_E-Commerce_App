@@ -3,11 +3,11 @@ from uuid import UUID
 from fastapi import APIRouter, Request, Depends
 
 from gateway.apigateway import api_gateway_manager
+from shared.shared_instances import api_gateway_redis_manager
 from dependencies.auth_dependencies import (get_current_user,
                                             require_admin,
                                             require_user_or_admin)
 from shared.schemas.user_schemas import CurrentUserInfo
-from shared.shared_instances import api_gateway_redis_manager
 
 
 
@@ -18,7 +18,6 @@ product_proxy = APIRouter(tags=["Product Service Proxy"])
 
 # Products
 @product_proxy.get("/products", summary="Get all products")
-@api_gateway_redis_manager.cached(ttl=36000)
 async def get_all_products(request: Request):
     """PUBLIC - Anyone can browse products"""
     return await api_gateway_manager.forward_request(
@@ -128,6 +127,25 @@ async def get_review_by_id(request: Request,
         request=request,
     )
 
+@product_proxy.get("/users/{user_id}/reviews", summary="Get all reviews by user")
+async def get_reviews_by_user_id(request: Request,
+                                 user_id: UUID):
+    """PUBLIC - Anyone can view a user's reviews"""
+    return await api_gateway_manager.forward_request(
+        service_name="product-service",
+        request=request,
+    )
+
+@product_proxy.get("/products/{product_id}/users/{user_id}/reviews", summary="Get user's review for a product")
+async def get_review_by_product_and_user(request: Request,
+                                         product_id: UUID,
+                                         user_id: UUID):
+    """PUBLIC - Anyone can view a specific user's review for a product"""
+    return await api_gateway_manager.forward_request(
+        service_name="product-service",
+        request=request,
+    )
+
 
 
 # ==================== ADMIN ONLY ENDPOINTS ====================
@@ -156,6 +174,16 @@ async def update_product(request: Request,
                         product_id: UUID,
                         current_user: CurrentUserInfo = Depends(require_admin)):
     """ADMIN ONLY - Update products"""
+    return await api_gateway_manager.forward_request(
+        service_name="product-service",
+        request=request,
+    )
+
+@product_proxy.patch("/products/{product_id}/upload", summary="Update product with images (FormData)")
+async def update_product_with_images(request: Request,
+                                     product_id: UUID,
+                                     current_user: CurrentUserInfo = Depends(require_admin)):
+    """ADMIN ONLY - Update product along with image uploads"""
     return await api_gateway_manager.forward_request(
         service_name="product-service",
         request=request,
@@ -258,6 +286,7 @@ async def delete_product_image(request: Request,
 
 # Reviews
 @product_proxy.post("/products/{product_id}/users/{user_id}/reviews", summary="Create product review")
+@api_gateway_redis_manager.ratelimiter(times=5, seconds=3600)
 async def create_product_review(request: Request,
                                 product_id: UUID,
                                 user_id: UUID,
@@ -268,20 +297,24 @@ async def create_product_review(request: Request,
         request=request,
     )
 
-@product_proxy.patch("/reviews/{review_id}", summary="Update review")
-async def update_review(request: Request,
-                       review_id: UUID,
-                       current_user: CurrentUserInfo = Depends(require_user_or_admin)):
+@product_proxy.put("/products/{product_id}/users/{user_id}/reviews", summary="Update product review")
+@api_gateway_redis_manager.ratelimiter(times=10, seconds=3600)
+async def update_product_review(request: Request,
+                                product_id: UUID,
+                                user_id: UUID,
+                                current_user: CurrentUserInfo = Depends(require_user_or_admin)):
     """PROTECTED - Users can update their own reviews, admins can update any"""
     return await api_gateway_manager.forward_request(
         service_name="product-service",
         request=request,
     )
 
-@product_proxy.delete("/reviews/{review_id}", summary="Delete review")
-async def delete_review(request: Request,
-                       review_id: UUID,
-                       current_user: CurrentUserInfo = Depends(require_user_or_admin)):
+@product_proxy.delete("/products/{product_id}/users/{user_id}/reviews", summary="Delete product review")
+@api_gateway_redis_manager.ratelimiter(times=10, seconds=3600)
+async def delete_product_review(request: Request,
+                                product_id: UUID,
+                                user_id: UUID,
+                                current_user: CurrentUserInfo = Depends(require_user_or_admin)):
     """PROTECTED - Users can delete their own reviews, admins can delete any"""
     return await api_gateway_manager.forward_request(
         service_name="product-service",
@@ -289,6 +322,7 @@ async def delete_review(request: Request,
     )
 
 @product_proxy.post("/products/{product_id}/favorite", summary="Add to favorites")
+@api_gateway_redis_manager.ratelimiter(times=30, seconds=60)
 async def add_to_favorites(request: Request,
                            product_id: UUID,
                            current_user: CurrentUserInfo = Depends(get_current_user)):

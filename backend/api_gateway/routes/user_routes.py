@@ -24,8 +24,7 @@ user_proxy = APIRouter(tags=["User Service Proxy"])
 async def register_user(request: Request) -> JSONResponse:
     return await api_gateway_manager.forward_request(
         request=request,
-        service_name=Services.USER_SERVICE,
-    )
+        service_name=Services.USER_SERVICE)
 
 
 @user_proxy.post("/login", summary="User login")
@@ -174,7 +173,6 @@ async def get_current_user_data(request: Request,
 
 
 @user_proxy.get("/users/{user_id}", summary="Get user by ID")
-@api_gateway_redis_manager.cached(ttl=60)
 @api_gateway_redis_manager.ratelimiter(times=10, seconds=60)
 async def get_user_by_id(request: Request,
                          user_id: UUID,

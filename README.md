@@ -770,6 +770,14 @@ k6 run -e TEST_TYPE=stress -e BASE_URL=http://127.0.0.1:8001 k6/script.js
 4. stress -> api-gateway  (5 workers , caching, 50 products) -> product-service (5 workers, no caching) ->  = 759 rps
 5. max_throughput -> api-gateway  (5 workers , caching, 50 products) -> product-service (5 workers, no caching) ->  = 759 rps
 
+App Stage | Typical RPS | Your 2CPU result |
+|---|---|---|
+| Early startup (0–1k users/day) | 1–5 RPS | ✅ Way more than enough |
+| Growing product (10k users/day) | 10–50 RPS | ✅ Comfortable |
+| Mid-scale (100k users/day) | 50–200 RPS | ✅ Handles it |
+| High traffic (1M users/day) | 500–2000 RPS | ⚠️ Hitting the ceiling
+
+
 
 
 ## TRAEFIK

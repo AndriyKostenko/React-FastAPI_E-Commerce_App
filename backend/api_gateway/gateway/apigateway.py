@@ -99,10 +99,10 @@ class ApiGateway:
     _http_client: AsyncClient | None = None
 
     # Upstream timeout configuration (seconds).
-    _TIMEOUT = Timeout(connect=5.0, read=30.0, write=10.0, pool=5.0)
+    _TIMEOUT: Timeout = Timeout(connect=5.0, read=30.0, write=10.0, pool=5.0)
 
     # Connection pool limits.
-    _LIMITS = Limits(max_connections=100, max_keepalive_connections=20, keepalive_expiry=30)
+    _LIMITS: Limits = Limits(max_connections=100, max_keepalive_connections=20, keepalive_expiry=30)
 
     def __init__(self, settings: Settings, logger: Logger):
         self.settings: Settings = settings

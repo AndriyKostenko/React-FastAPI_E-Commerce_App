@@ -1,11 +1,11 @@
-from typing import Any, Callable, Optional
+from typing import Any, Optional
 from functools import wraps
 from time import perf_counter
 from math import ceil
 from logging import Logger
 
 from orjson import loads, dumps, JSONDecodeError
-from fastapi import Request, Response
+from fastapi import Request, 
 from redis import asyncio as aioredis
 from shared.exceptions.base_exceptions import BaseAPIException, RateLimitExceededError
 from shared.utils.customized_json_response import JSONResponse
@@ -23,7 +23,7 @@ class RedisManager:
         self._redis: aioredis.Redis | None = None
         self.http_methods: list[str] = ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"]
         self.service_api_version: str = service_api_version
-        self.namespaces: list[str] = ["users", "products", "categories", "orders", "reviews", "images"]
+        self.namespaces: list[str] = ["users", "products", "categories", "orders", "reviews", "images", "notifications"]
 
     # property to lazily initialize RedisCache
     @property

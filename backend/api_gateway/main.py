@@ -23,6 +23,12 @@ from gateway.apigateway import api_gateway_manager
 from gateway.cache_policy import cache_policy
 
 
+"""
+Request  →  logging → CORS → authentication_middleware → gateway_middleware → route
+
+Response ←  logging ← CORS ← authentication_middleware ← gateway_middleware ← route
+"""
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
@@ -43,23 +49,19 @@ async def lifespan(app: FastAPI):
     logger.warning(f"Server has shut down !")
 
 
+# initializing the main app instance
 app = FastAPI(title="API Gateway", lifespan=lifespan)
 
+
+# initializing the OpenTelemetry tracing
 setup_tracing(app, service_name="api-gateway", instrument_sqlalchemy=False)
 
+# initializing the Prometheus metrics and monitoring analyzer
 Instrumentator().instrument(app).expose(app, endpoint="/metrics")
 
-# Auth middleware runs before gateway middleware and checks JWT tokens
-@app.middleware("http")
-async def authentication_middleware(request: Request, call_next):
-    """
-    Authentication middleware to handle JWT tokens
-    """
-    logger.debug("Running authentication middleware...")
-    return await auth_middleware.middleware(request, call_next)
-
-
-
+# Ratelimiting and caching middleware on each request
+# Registered first → becomes the inner layer, runs AFTER authentication_middleware.
+# This ensures auth is always validated before cache is consulted or rate limits are tracked.
 @app.middleware("http")
 async def gateway_middleware(request: Request, call_next):
     """
@@ -86,7 +88,6 @@ async def gateway_middleware(request: Request, call_next):
 
     should_cache_response = request.method == "GET" and (is_public or not is_authenticated)
 
-
     # 3. Forward request to the downstream microservice
     response: Response = await call_next(request)
 
@@ -105,11 +106,22 @@ async def gateway_middleware(request: Request, call_next):
                 media_type=response.media_type,
             )
         elif request.method in ("POST", "PUT", "PATCH", "DELETE"):
-            namespace = cache_policy.get_invalidation_namespace(request.url.path)
-            if namespace:
+            namespaces = cache_policy.get_invalidation_namespaces(request.url.path)
+            for namespace in namespaces:
                 await api_gateway_redis_manager.invalidate_namespace(namespace)
 
     return response
+
+
+# Auth middleware registered second → becomes the outer layer, runs FIRST on every request.
+# This guarantees tokens are validated before cache lookups or rate limiting.
+@app.middleware("http")
+async def authentication_middleware(request: Request, call_next):
+    """
+    Authentication middleware to handle JWT tokens
+    """
+    logger.debug("Running authentication middleware...")
+    return await auth_middleware.middleware(request, call_next)
 
 
 # CORS must be added AFTER @app.middleware decorators — Starlette builds the stack
@@ -122,6 +134,8 @@ app.add_middleware(
     allow_methods=settings.CORS_ALLOWED_METHODS,
     allow_headers=settings.CORS_ALLOWED_HEADERS,
 )
+
+# adding the logging
 add_logging_middleware(app, service_name="api-gateway")
 
 
@@ -146,7 +160,6 @@ def add_exception_handlers(app: FastAPI):
     """
     This function adds exception handlers to the FastAPI application.
     """
-
     @app.exception_handler(BaseAPIException)
     async def base_api_exception_handler(request: Request, exc: BaseAPIException):
         """Base exception handler for all custom API exceptions"""
