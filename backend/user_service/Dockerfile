@@ -112,7 +112,8 @@ FROM python:3.12-slim AS test
 WORKDIR /app
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    PROMETHEUS_MULTIPROC_DIR=/tmp/prometheus_multiproc
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
@@ -122,8 +123,8 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/* \
     && addgroup --system --gid 1001 usergroup \
     && adduser --system --uid 1001 --ingroup usergroup user \
-    && mkdir -p /app/logs \
-    && chown -R user:usergroup /app
+    && mkdir -p /app/logs /tmp/prometheus_multiproc \
+    && chown -R user:usergroup /app /tmp/prometheus_multiproc
 
 # Copy venv with dev deps (pytest, httpx, etc.) from test-builder
 COPY --from=test-builder /app/.venv /app/.venv

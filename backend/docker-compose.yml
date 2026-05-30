@@ -429,6 +429,7 @@ services:
       - '--web.console.libraries=/usr/share/prometheus/console_libraries'
       - '--web.console.templates=/usr/share/prometheus/consoles'
       - '--web.enable-lifecycle'
+      - '--web.enable-remote-write-receiver'
     depends_on:
       - alertmanager
     networks:
@@ -453,6 +454,11 @@ services:
   grafana:
     image: grafana/grafana:13.0.1-security-01
     ports: ["3002:3000"]
+    environment:
+      # Stable secret key prevents session invalidation on container restarts.
+      # Generate once: python3 -c "import secrets; print(secrets.token_hex(32))"
+      # then add GRAFANA_SECRET_KEY=<value> to your .env file.
+      GF_SECURITY_SECRET_KEY: ${GRAFANA_SECRET_KEY}
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning
       - ./grafana/dashboards:/var/lib/grafana/dashboards

@@ -195,13 +195,11 @@ def _make_db_manager(settings, logger) -> DatabaseSessionManager:
     """Build a lean DatabaseSessionManager for the product-service DB."""
     return DatabaseSessionManager(
         database_url=settings.PRODUCT_SERVICE_DATABASE_URL,
-        engine_settings={
-            "echo": False,
-            "pool_pre_ping": True,
-            "pool_size": 5,
-            "max_overflow": 0,
-        },
         logger=logger,
+        echo=False,
+        pg_max_connections=100,
+        reserved_connections=5,
+        num_db_services=1,   # seed script is the sole user — allocate the full budget
     )
 
 

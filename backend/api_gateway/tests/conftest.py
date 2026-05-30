@@ -5,7 +5,7 @@ Strategy:
   - No database — api_gateway is a pure proxy service.
   - The lifespan (Redis + httpx client init) is replaced with a no-op.
   - auth_middleware.middleware is patched to inject a mock user (bypass JWT validation).
-  - All RedisManager async methods (rate-limiter, cache) are patched to no-ops.
+  - All CacheManager and RateLimitManager async methods (rate-limiter, cache) are patched to no-ops.
   - api_gateway_manager.forward_request is patched per-test via the `mock_forward` fixture.
 """
 from collections.abc import AsyncGenerator
@@ -21,7 +21,7 @@ from httpx import AsyncClient, ASGITransport
 from main import app
 from middleware.auth_middleware import auth_middleware
 from gateway.apigateway import api_gateway_manager
-from shared.shared_instances import api_gateway_redis_manager, test_settings
+from shared.shared_instances import api_gateway_cache_manager, api_gateway_rate_limit_manager, test_settings
 from shared.schemas.user_schemas import CurrentUserInfo
 from tests.constants import (
     TEST_USER_ID,
@@ -80,10 +80,10 @@ def _make_client(current_user: CurrentUserInfo, mock_forward: AsyncMock):
 
     patches = [
         patch.object(auth_middleware, "middleware", side_effect=_bypass_auth),
-        patch.object(api_gateway_redis_manager, "is_rate_limited", new=AsyncMock(return_value=False)),
-        patch.object(api_gateway_redis_manager, "get_cached_response", new=AsyncMock(return_value=None)),
-        patch.object(api_gateway_redis_manager, "cache_response", new=AsyncMock()),
-        patch.object(api_gateway_redis_manager, "invalidate_namespace", new=AsyncMock()),
+        patch.object(api_gateway_rate_limit_manager, "is_rate_limited", new=AsyncMock(return_value=False)),
+        patch.object(api_gateway_cache_manager, "get_cached_response", new=AsyncMock(return_value=None)),
+        patch.object(api_gateway_cache_manager, "cache_response", new=AsyncMock()),
+        patch.object(api_gateway_cache_manager, "invalidate_namespace", new=AsyncMock()),
         patch.object(api_gateway_manager, "forward_request", mock_forward),
     ]
 

@@ -10,7 +10,7 @@ class UserInfo(BaseModel):
     id: UUID
     name: str = Field(..., min_length=3, max_length=50, description="User name must be between 3 and 50 characters")
     email: EmailStr = Field(..., description="User email")
-    role: Optional[str]
+    role: str
     phone_number: Optional[str]
     image: Optional[str]
     date_created: datetime
@@ -60,7 +60,7 @@ class DeleteUser(BaseModel):
 class TokenSchema(BaseModel):
     access_token: str
     token_type: str
-    
+
 class DecodedTokenSchema(BaseModel):
     email: EmailStr
     id: UUID

@@ -6,7 +6,7 @@ from dependencies.auth_dependencies import (get_current_user,
                                             require_admin,
                                             require_user_or_admin)
 from gateway.apigateway import api_gateway_manager
-from shared.shared_instances import api_gateway_redis_manager
+from shared.shared_instances import api_gateway_rate_limit_manager
 from shared.utils.customized_json_response import JSONResponse
 from shared.enums.services_enums import Services
 from shared.schemas.user_schemas import CurrentUserInfo
@@ -18,7 +18,7 @@ payment_proxy = APIRouter(tags=["Payment Service Proxy"])
 # ==================== PUBLIC ENDPOINTS ====================
 
 @payment_proxy.post("/payments/create-intent", summary="Create a Stripe PaymentIntent")
-@api_gateway_redis_manager.ratelimiter(times=10, seconds=60)
+@api_gateway_rate_limit_manager.ratelimiter(times=10, seconds=60)
 async def create_payment_intent(
     request: Request,
     current_user: CurrentUserInfo = Depends(get_current_user),

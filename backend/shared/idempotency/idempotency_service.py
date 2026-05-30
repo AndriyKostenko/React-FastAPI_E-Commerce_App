@@ -4,21 +4,21 @@ from datetime import datetime, timezone
 
 from orjson import dumps
 
-from shared.managers.redis_manager import RedisManager
+from shared.managers.redis_base import RedisBase
 
 
-class IdempotencyEventService(RedisManager):
-    """Service to ensure idempotent processing of events using Redis"""
+class IdempotencyEventService(RedisBase):
+    """Service to ensure idempotent processing of events using Redis."""
+
     def __init__(self,
                 service_prefix: str,
                 logger: Logger,
                 redis_url: str,
-                service_api_version: str,
-                ttl_hours: int = 72,) -> None:
-        super().__init__(service_prefix,
-                         redis_url,
-                         logger,
-                         service_api_version)
+                service_api_version: str | None = None,  # accepted for caller compat, not used
+                ttl_hours: int = 72) -> None:
+        super().__init__(service_prefix=service_prefix,
+                         redis_url=redis_url,
+                         logger=logger)
         self.logger: Logger = logger
         self.ttl_seconds: int= ttl_hours * 3600 # Convert hours to seconds for Redis TTL
         self.prefix: str = service_prefix

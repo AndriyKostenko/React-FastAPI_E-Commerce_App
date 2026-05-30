@@ -1,3 +1,7 @@
+
+
+
+
 import math
 import os
 from dataclasses import dataclass
@@ -11,7 +15,7 @@ class PoolSettings:
     pool_recycle: int
     pool_pre_ping: bool
 
-    def as_dict(self, echo: bool = False) -> dict:
+    def as_dict(self, echo: bool = False) -> dict[str, str | int]:
         return {
             "echo": echo,
             "pool_pre_ping": self.pool_pre_ping,
@@ -22,6 +26,7 @@ class PoolSettings:
         }
 
     def describe(self) -> str:
+        """Human-readable summary of the calculated pool settings."""
         workers = (2 * (os.cpu_count() or 1)) + 1
         total = (self.pool_size + self.max_overflow) * workers
         return (
@@ -35,7 +40,7 @@ class PoolSettingsCalculator:
     """
     Calculates safe SQLAlchemy connection-pool settings based on:
 
-        workers            = (2 × cpu_count) + 1          (Gunicorn formula)
+        workers            = (2 × cpu_count) + 1          (Gunicorn/uvicorn formula)
         per_service_budget = (pg_max_connections - reserved) ÷ num_db_services
         pool_size          = max(1, floor(per_service_budget ÷ workers ÷ 2))
         max_overflow       = pool_size                     (equal burst headroom)
@@ -65,11 +70,11 @@ class PoolSettingsCalculator:
         pool_timeout: int = 5,
         pool_recycle: int = 1800,
     ) -> None:
-        self.pg_max_connections = pg_max_connections
-        self.reserved_connections = reserved_connections
-        self.num_db_services = num_db_services
-        self.pool_timeout = pool_timeout
-        self.pool_recycle = pool_recycle
+        self.pg_max_connections: int = pg_max_connections
+        self.reserved_connections: int = reserved_connections
+        self.num_db_services: int = num_db_services
+        self.pool_timeout: int = pool_timeout
+        self.pool_recycle: int = pool_recycle
 
     @property
     def _cpu_count(self) -> int:
@@ -77,6 +82,7 @@ class PoolSettingsCalculator:
 
     @property
     def workers(self) -> int:
+        """Must use the same formula as the uvicorn workers count in Dockerfile."""
         return (2 * self._cpu_count) + 1
 
     def calculate(self) -> PoolSettings:
@@ -91,3 +97,4 @@ class PoolSettingsCalculator:
             pool_recycle=self.pool_recycle,
             pool_pre_ping=True,
         )
+    

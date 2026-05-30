@@ -1,10 +1,12 @@
+import os
 from contextlib import asynccontextmanager
 from datetime import datetime
 
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response as PlainResponse
 from uvicorn import run
 from fastapi import FastAPI, Request, Response
+from prometheus_client import CollectorRegistry, generate_latest, multiprocess, REGISTRY
 
 from shared.exceptions.base_exceptions import BaseAPIException
 from shared.middleware.logging_middleware import add_logging_middleware
@@ -15,12 +17,13 @@ from routes.product_routes import product_proxy
 from routes.order_routes import order_proxy
 from routes.notification_routes import notification_proxy
 from routes.payment_routes import payment_proxy
-from shared.shared_instances import (api_gateway_redis_manager,
+from shared.shared_instances import (api_gateway_cache_manager,
+                                     api_gateway_rate_limit_manager,
                                      logger,
                                      settings)
 from middleware.auth_middleware import auth_middleware
 from gateway.apigateway import api_gateway_manager
-from gateway.cache_policy import cache_policy
+from middleware.cache_middleware import GatewayRequestMiddleware
 
 
 """
@@ -36,7 +39,8 @@ async def lifespan(app: FastAPI):
     events of a FastAPI application.
     """
     logger.info(f"Server is starting up on {settings.APP_HOST}:{settings.API_GATEWAY_SERVICE_APP_PORT}...")
-    await api_gateway_redis_manager.connect()
+    await api_gateway_cache_manager.connect()
+    await api_gateway_rate_limit_manager.connect()
     await api_gateway_manager.startup()
     logger.info('Server startup complete!')
 
@@ -44,7 +48,8 @@ async def lifespan(app: FastAPI):
 
     # Cleanup on shutdown
     await api_gateway_manager.shutdown()
-    await api_gateway_redis_manager.close()
+    await api_gateway_cache_manager.close()
+    await api_gateway_rate_limit_manager.close()
     logger.warning("Cache connection closed on shutdown!")
     logger.warning(f"Server has shut down !")
 
@@ -52,12 +57,18 @@ async def lifespan(app: FastAPI):
 # initializing the main app instance
 app = FastAPI(title="API Gateway", lifespan=lifespan)
 
+# Instantiate the class-based gateway middleware (holds CacheManager + RateLimitManager).
+gateway_request_middleware = GatewayRequestMiddleware(
+    cache_manager=api_gateway_cache_manager,
+    rate_limit_manager=api_gateway_rate_limit_manager,
+)
+
 
 # initializing the OpenTelemetry tracing
 setup_tracing(app, service_name="api-gateway", instrument_sqlalchemy=False)
 
-# initializing the Prometheus metrics and monitoring analyzer
-Instrumentator().instrument(app).expose(app, endpoint="/metrics")
+# Instrument app (do NOT call .expose() — we provide a multiprocess-aware /metrics route below).
+Instrumentator().instrument(app)
 
 # Ratelimiting and caching middleware on each request
 # Registered first → becomes the inner layer, runs AFTER authentication_middleware.
@@ -66,51 +77,12 @@ Instrumentator().instrument(app).expose(app, endpoint="/metrics")
 async def gateway_middleware(request: Request, call_next):
     """
     Gateway middleware: global rate limiting, response caching, and cache invalidation.
+    Monitoring paths bypass all gateway logic — they must never be rate-limited or cached.
     """
-    # 1. Global rate limit (10000 requests per minute per IP)
-    await api_gateway_redis_manager.is_rate_limited(request, times=10000, seconds=60)
-
-    # Whether this path/method combination is a declared public endpoint.
-    # Public endpoints are cached regardless of auth headers (same data for all callers).
-    # Protected endpoints are only cached for unauthenticated requests (avoid cross-user leaks).
+    if request.url.path in ("/metrics", "/health"):
+        return await call_next(request)
     is_public = auth_middleware.is_public_endpoint(request.url.path, request.method)
-
-    # 2. Serve from cache (public endpoints always, protected endpoints only when unauthenticated)
-    cached_response = await api_gateway_redis_manager.get_cached_response(request, is_public=is_public)
-    if cached_response:
-        return cached_response
-
-    # Determine auth state for the cache-write decision below
-    is_authenticated = (
-        "Authorization" in request.headers
-        or request.cookies.get("access_token") is not None
-    )
-
-    should_cache_response = request.method == "GET" and (is_public or not is_authenticated)
-
-    # 3. Forward request to the downstream microservice
-    response: Response = await call_next(request)
-
-    # 4. Cache successful GET responses; invalidate stale namespaces on mutations
-    if 200 <= response.status_code < 300:
-        if should_cache_response:
-            # Consume the streaming body — mandatory before the iterator is exhausted
-            body = b"".join([chunk async for chunk in response.body_iterator])
-            ttl = cache_policy.get_cache_ttl(request.url.path)
-            await api_gateway_redis_manager.cache_response(request, body, response.status_code, ttl=ttl)
-            # Reconstruct response since body_iterator is now consumed
-            response = Response(
-                content=body,
-                status_code=response.status_code,
-                headers=dict(response.headers),
-                media_type=response.media_type,
-            )
-        elif request.method in ("POST", "PUT", "PATCH", "DELETE"):
-            namespaces = cache_policy.get_invalidation_namespaces(request.url.path)
-            for namespace in namespaces:
-                await api_gateway_redis_manager.invalidate_namespace(namespace)
-
-    return response
+    return await gateway_request_middleware(request, call_next, is_public=is_public)
 
 
 # Auth middleware registered second → becomes the outer layer, runs FIRST on every request.
@@ -153,6 +125,25 @@ async def health_check():
         },
         status_code=200,
         headers={"Cache-Control": "no-cache"}
+    )
+
+
+@app.get("/metrics", include_in_schema=False)
+def metrics():
+    """
+    Prometheus metrics endpoint — multiprocess-aware.
+    When PROMETHEUS_MULTIPROC_DIR is set (Gunicorn multi-worker), aggregates metrics
+    across all worker processes from shared files. Falls back to in-process registry
+    for single-process use (tests, local uvicorn).
+    """
+    if "PROMETHEUS_MULTIPROC_DIR" in os.environ:
+        registry = CollectorRegistry()
+        multiprocess.MultiProcessCollector(registry)
+    else:
+        registry = REGISTRY
+    return PlainResponse(
+        content=generate_latest(registry),
+        media_type="text/plain; version=0.0.4; charset=utf-8",
     )
 
 

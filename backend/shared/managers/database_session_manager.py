@@ -2,39 +2,48 @@ from contextlib import asynccontextmanager
 from logging import Logger
 from collections.abc import AsyncGenerator
 
-from sqlalchemy.pool import NullPool
 from sqlalchemy import URL
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker, AsyncEngine
 
 from shared.models.models_base_class import Base
 from shared.exceptions.base_exceptions import BaseAPIException, DatabaseConnectionError, DatabaseSessionError
-
-
+from shared.database_layer.pool_settings import PoolSettingsCalculator
 
 
 class DatabaseSessionManager:
     """
     Manages database sessions and connections for the application.
-    - Initializes the database engine and session maker.
-    - Provides a method to initialize the database and create all tables.
-    - Provides a context manager for transactional scope for ORM operations.
-    - Handles connection pooling and session management.
-    - Provides a method to close the database connection.
-    - Handles errors related to database connection and session management.
-    - Uses async context manager for session management.
-    - Uses SQLAlchemy's async engine and sessionmaker for asynchronous operations.
-    - Uses a logger for logging database operations and errors.
+
+    Accepts PostgreSQL capacity figures and delegates pool-size calculation to
+    PoolSettingsCalculator — callers never need to instantiate it directly.
     """
-    def __init__(self, database_url: str | URL, engine_settings: dict[str, str | int | type[NullPool]] , logger: Logger) -> None:
+    def __init__(
+        self,
+        database_url: str | URL,
+        logger: Logger,
+        *,
+        echo: bool = False,
+        pg_max_connections: int = 100,
+        reserved_connections: int = 5,
+        num_db_services: int = 5,
+        pool_timeout: int = 5,
+        pool_recycle: int = 1800,
+    ) -> None:
+        self.database_url: str | URL = database_url
+        self.logger: Logger = logger
         self.async_engine: AsyncEngine | None = None
         self.async_session: async_sessionmaker[AsyncSession] | None = None
-        self.database_url: str | URL = database_url
-        self.engine_settings: dict[str, str|int|type[NullPool]] = engine_settings
-        self.logger: Logger = logger
 
-        # Initializing the database engine and session maker
+        pool = PoolSettingsCalculator(
+            pg_max_connections=pg_max_connections,
+            reserved_connections=reserved_connections,
+            num_db_services=num_db_services,
+            pool_timeout=pool_timeout,
+            pool_recycle=pool_recycle,
+        ).calculate()
+        self.engine_settings: dict[str ,str|int] = pool.as_dict(echo=echo)
+
         self._initialize_engine()
-
 
     def _initialize_engine(self) -> None:
         """Initialize the engine and session maker."""
@@ -46,7 +55,7 @@ class DatabaseSessionManager:
                     autoflush=False, #If True, the session will automatically flush changes to the database.
                     bind=self.async_engine,
                     class_=AsyncSession,
-                    expire_on_commit=False #If True, the session will expire all instances after commit.
+                    expire_on_commit=False, #If True, the session will expire all instances after commit.
             )
             self.logger.info("Database engine initialized")
         except Exception as e:
@@ -77,7 +86,7 @@ class DatabaseSessionManager:
                 yield session
                 await session.commit()
             except BaseAPIException as e:
-                # Expected business logic errors (4xx) - rollback silently
+                # Expected business logic errors (4xx) — rollback silently
                 await session.rollback()
                 self.logger.warning(f"Session rollback due to expected exception: {e.status_code}: {e.detail}")
                 raise

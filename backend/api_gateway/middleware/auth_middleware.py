@@ -72,10 +72,10 @@ class AuthMiddleware(metaclass=SingletonMetaClass):
 
         # 1. Skip authentication for public endpoints
         is_public = self.is_public_endpoint(path, method)
-        self.logger.info(f"🔍 Is path '{path}' public? {is_public}")
+        self.logger.info(f"🔍 Is path: '{path}' public?  - {is_public}")
 
         if is_public:
-            self.logger.info(f"Path {path} is public, skipping auth")
+            self.logger.info(f"Path: {path} is public, skipping auth")
             return await call_next(request)
 
         self.logger.info(f"Path {path} requires authentication")

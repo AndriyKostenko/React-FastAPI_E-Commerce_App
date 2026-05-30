@@ -1,6 +1,6 @@
 from datetime import timedelta
 import secrets
-from typing import Annotated, Any
+from typing import Annotated
 from uuid import UUID
 
 from httpx import AsyncClient, Response
@@ -18,7 +18,7 @@ from shared.schemas.user_schemas import (
     UsersFilterParams,
 )
 from shared.shared_instances import settings
-from shared.managers.redis_manager import RedisManager
+from shared.managers.cache_manager import CacheManager
 from exceptions.user_exceptions import (
     UserAlreadyExistsError,
     UserNotFoundError,
@@ -42,11 +42,11 @@ class UserService:
                 repository: UserRepository,
                 password_manager: PasswordManager,
                 token_manager: TokenManager,
-                redis_manager: RedisManager):
+                cache_manager: CacheManager):
         self.repository: UserRepository = repository
         self.password_manager: PasswordManager = password_manager
         self.token_manager: TokenManager = token_manager
-        self.redis_manager: RedisManager = redis_manager
+        self.cache_manager: CacheManager = cache_manager
         self.httpx_client: AsyncClient = AsyncClient()
 
     def _refresh_key(self, token: str, prefix: str = "refresh") -> str:
@@ -163,7 +163,7 @@ class UserService:
             role=user.role,
         )
         ttl_seconds = settings.REFRESH_TOKEN_TIME_DELTA_DAYS * 86400
-        await self.redis_manager.redis.setex(
+        await self.cache_manager.redis.setex(
             self._refresh_key(refresh_token),
             ttl_seconds,
             str(user.id),
@@ -318,7 +318,7 @@ class UserService:
             role=user.role,
         )
         ttl_seconds = settings.REFRESH_TOKEN_TIME_DELTA_DAYS * 86400 # days
-        await self.redis_manager.redis.setex(
+        await self.cache_manager.redis.setex(
             self._refresh_key(refresh_token),
             ttl_seconds,
             str(user.id)
@@ -338,7 +338,7 @@ class UserService:
             tuple: (new_access_token, expiry_timestamp)
         """
         token_data = self.token_manager.decode_token(refresh_token, required_purpose="refresh")
-        stored_refresh_token = await self.redis_manager.redis.get(self._refresh_key(refresh_token))
+        stored_refresh_token = await self.cache_manager.redis.get(self._refresh_key(refresh_token))
         if not stored_refresh_token:
             raise HTTPException(status_code=401, detail="Refresh token expired or revoked")
         access_token, expiry = self.token_manager.create_access_token(
@@ -352,7 +352,7 @@ class UserService:
 
     async def logout_user(self, refresh_token: str) -> None:
         """Revoke a refresh token so it can no longer be used."""
-        await self.redis_manager.redis.delete(self._refresh_key(refresh_token))
+        await self.cache_manager.redis.delete(self._refresh_key(refresh_token))
 
     async def get_current_user_from_token(self, token: str) -> CurrentUserInfo:
         user_info = self.token_manager.decode_token(token)

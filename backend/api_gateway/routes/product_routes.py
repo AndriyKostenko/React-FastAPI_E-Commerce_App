@@ -3,7 +3,7 @@ from uuid import UUID
 from fastapi import APIRouter, Request, Depends
 
 from gateway.apigateway import api_gateway_manager
-from shared.shared_instances import api_gateway_redis_manager
+from shared.shared_instances import api_gateway_rate_limit_manager
 from dependencies.auth_dependencies import (get_current_user,
                                             require_admin,
                                             require_user_or_admin)
@@ -286,7 +286,7 @@ async def delete_product_image(request: Request,
 
 # Reviews
 @product_proxy.post("/products/{product_id}/users/{user_id}/reviews", summary="Create product review")
-@api_gateway_redis_manager.ratelimiter(times=5, seconds=3600)
+@api_gateway_rate_limit_manager.ratelimiter(times=5, seconds=3600)
 async def create_product_review(request: Request,
                                 product_id: UUID,
                                 user_id: UUID,
@@ -298,7 +298,7 @@ async def create_product_review(request: Request,
     )
 
 @product_proxy.put("/products/{product_id}/users/{user_id}/reviews", summary="Update product review")
-@api_gateway_redis_manager.ratelimiter(times=10, seconds=3600)
+@api_gateway_rate_limit_manager.ratelimiter(times=10, seconds=3600)
 async def update_product_review(request: Request,
                                 product_id: UUID,
                                 user_id: UUID,
@@ -310,7 +310,7 @@ async def update_product_review(request: Request,
     )
 
 @product_proxy.delete("/products/{product_id}/users/{user_id}/reviews", summary="Delete product review")
-@api_gateway_redis_manager.ratelimiter(times=10, seconds=3600)
+@api_gateway_rate_limit_manager.ratelimiter(times=10, seconds=3600)
 async def delete_product_review(request: Request,
                                 product_id: UUID,
                                 user_id: UUID,
@@ -322,7 +322,7 @@ async def delete_product_review(request: Request,
     )
 
 @product_proxy.post("/products/{product_id}/favorite", summary="Add to favorites")
-@api_gateway_redis_manager.ratelimiter(times=30, seconds=60)
+@api_gateway_rate_limit_manager.ratelimiter(times=30, seconds=60)
 async def add_to_favorites(request: Request,
                            product_id: UUID,
                            current_user: CurrentUserInfo = Depends(get_current_user)):

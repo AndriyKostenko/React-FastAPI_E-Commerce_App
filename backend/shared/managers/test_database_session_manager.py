@@ -1,6 +1,5 @@
 from logging import Logger
 from collections.abc import AsyncGenerator
-from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import URL, text
@@ -13,12 +12,17 @@ class TestDatabaseSessionManager(DatabaseSessionManager):
     """
     DatabaseSessionManager pre-configured for the test database.
 
-    Adds truncate_all_tables() for fast between-test isolation:
-    all rows are deleted in reverse dependency order so FK constraints
-    are never violated, and sequences are reset to 1.
+    Always uses NullPool (no connection reuse between tests) and disables echo.
+    Adds truncate_all_tables() for fast between-test isolation.
     """
-    def __init__(self, database_url: str | URL, engine_settings: dict[str, str | int | type[NullPool]], logger: Logger) -> None:
-        super().__init__(database_url, engine_settings, logger)
+    def __init__(self, database_url: str | URL, logger: Logger) -> None:
+        # Bypass PoolSettingsCalculator — tests always use NullPool.
+        self.database_url = database_url
+        self.logger = logger
+        self.async_engine = None
+        self.async_session = None
+        self.engine_settings = {"echo": False, "pool_pre_ping": True, "poolclass": NullPool}
+        self._initialize_engine()
 
     async def truncate_all_tables(self) -> None:
         """

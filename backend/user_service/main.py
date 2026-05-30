@@ -1,12 +1,14 @@
 from datetime import datetime
 from contextlib import asynccontextmanager
+import os
 
 from uvicorn import run
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response as PlainResponse
 from fastapi import FastAPI, Request, HTTPException
 from pydantic import ValidationError
 from fastapi.exceptions import ResponseValidationError, RequestValidationError
+from prometheus_client import CollectorRegistry, generate_latest, multiprocess, REGISTRY
 from prometheus_fastapi_instrumentator import Instrumentator
 
 from routes.user_routes import user_routes
@@ -58,8 +60,8 @@ app = FastAPI(
 
 setup_tracing(app, service_name="user-service")
 
-# Connecting the prometheus
-Instrumentator().instrument(app).expose(app, endpoint="/metrics")
+# Instrument app (do NOT call .expose() — we provide a multiprocess-aware /metrics route below).
+Instrumentator().instrument(app)
 
 
 
@@ -122,6 +124,20 @@ async def health_check():
         },
         status_code=200,
         headers={"Cache-Control": "no-cache"}
+    )
+
+
+@app.get("/metrics", include_in_schema=False)
+def metrics():
+    """Prometheus metrics — multiprocess-aware for Gunicorn multi-worker deployments."""
+    if "PROMETHEUS_MULTIPROC_DIR" in os.environ:
+        registry = CollectorRegistry()
+        multiprocess.MultiProcessCollector(registry)
+    else:
+        registry = REGISTRY
+    return PlainResponse(
+        content=generate_latest(registry),
+        media_type="text/plain; version=0.0.4; charset=utf-8",
     )
 
 

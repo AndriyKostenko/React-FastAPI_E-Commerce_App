@@ -68,7 +68,7 @@ def get_user_service(session: AsyncSession = Depends(get_db_session),
         repository=UserRepository(session=session),
         password_manager=password_manager,
         token_manager=token_manager,
-        redis_manager=user_service_redis_manager
+        cache_manager=user_service_redis_manager
     )
 
 # Type annotations for dependency injection

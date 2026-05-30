@@ -73,9 +73,10 @@ FROM python:3.12-slim AS runtime
 WORKDIR /app
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
-
-# Install runtime dependencies (smaller footprint than build stage)
+    PYTHONUNBUFFERED=1 \
+    # Prometheus multiprocess mode: each Gunicorn worker writes metrics to shared files
+    # so the /metrics endpoint can aggregate across all workers.
+    PROMETHEUS_MULTIPROC_DIR=/tmp/prometheus_multiproc
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         libpq5 \
@@ -84,8 +85,8 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/* \
     && addgroup --system --gid 1000 apigatewaygroup \
     && adduser --system --uid 1000 --ingroup apigatewaygroup apigatewayuser \
-    && mkdir -p /app/logs \
-    && chown -R apigatewayuser:apigatewaygroup /app
+    && mkdir -p /app/logs /tmp/prometheus_multiproc \
+    && chown -R apigatewayuser:apigatewaygroup /app /tmp/prometheus_multiproc
 
 # Copy dependencies from builder
 COPY --from=builder /app/.venv /app/.venv

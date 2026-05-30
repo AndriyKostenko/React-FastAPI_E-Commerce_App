@@ -110,7 +110,8 @@ FROM python:3.12-slim AS test
 WORKDIR /app
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    PROMETHEUS_MULTIPROC_DIR=/tmp/prometheus_multiproc
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
@@ -123,8 +124,10 @@ RUN apt-get update \
     && mkdir -p /app/logs \
     && mkdir -p /media/images \
     && mkdir -p /media/icons \
+    && mkdir -p /tmp/prometheus_multiproc \
     && chown -R productuser:productgroup /app \
-    && chown -R productuser:productgroup /media
+    && chown -R productuser:productgroup /media \
+    && chown -R productuser:productgroup /tmp/prometheus_multiproc
 
 # Copy venv with dev deps (pytest, httpx, etc.) from test-builder
 COPY --from=test-builder /app/.venv /app/.venv
