@@ -1,6 +1,6 @@
 
-import Container from "@/components/Container";
-import FormWrap from "@/components/FormWrap";
+import Container from "@/components/ui/Container";
+import FormWrap from "@/components/ui/FormWrap";
 import CheckoutClient from "./CheckoutClient";
 import { sessionManagaer } from "@/actions/getCurrentUser";
 

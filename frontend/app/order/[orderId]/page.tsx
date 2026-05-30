@@ -1,7 +1,7 @@
 import fetchOrderById from "@/actions/getOrderById";
 import OrderDetails from "./OrderDetails";
-import Container from "@/components/Container";
-import NullData from "@/components/NullData";
+import Container from "@/components/ui/Container";
+import NullData from "@/components/ui/NullData";
 
 
 interface IDParameters {

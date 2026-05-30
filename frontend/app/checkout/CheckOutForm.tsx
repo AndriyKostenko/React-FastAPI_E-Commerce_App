@@ -6,8 +6,8 @@ import { formatPrice } from "@/utils/formatPrice";
 import { useElements, useStripe, PaymentElement, AddressElement } from "@stripe/react-stripe-js";
 import { useState } from "react";
 import toast from "react-hot-toast";
-import Heading from "@/components/Heading";
-import Button from "@/components/Button";
+import Heading from "@/components/ui/Heading";
+import Button from "@/components/ui/Button";
 
 const CheckoutForm: React.FC<CheckoutFormProps> = ({ onCreateOrder, onPaymentConfirmed, onPaymentFailed }) => {
     const { cartTotalAmount } = useCart();

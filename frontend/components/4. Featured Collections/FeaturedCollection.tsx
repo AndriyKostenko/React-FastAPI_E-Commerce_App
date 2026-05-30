@@ -3,7 +3,7 @@
 import { FeaturedCollectionProps, FilterTab } from "@/types/product";
 import { HOW_IT_WORKS } from "@/utils/constants";
 import { useState } from "react";
-import ProductCard from "@/components/products/ProductCard";
+import ProductCard from "@/components/4. Featured Collections/ProductCard";
 
 const FeaturedCollection: React.FC<FeaturedCollectionProps> = ({ products }) => {
   const [activeTab, setActiveTab] = useState<FilterTab>("All");

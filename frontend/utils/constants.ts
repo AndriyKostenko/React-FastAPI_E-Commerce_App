@@ -4,6 +4,13 @@ import { MdInventory, MdPsychology, MdTune } from "react-icons/md";
 
 export const DEFAULT_PLACEHOLDER_IMAGE = "https://placehold.co/800x600.png?text=No+Image";
 
+export const SIZE_MEASUREMENTS = {
+	S: { width: 48, height: "62-65" },
+	M: { width: 50, height: "64-67" },
+	L: { width: 55, height: "69-72" },
+
+}
+
 export interface HowItWorksStep {
   icon: IconType;
   step: string;

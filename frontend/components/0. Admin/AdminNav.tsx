@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import Container from "@/components/Container";
+import Container from "@/components/ui/Container";
 import AdminNavItem from "./AdminNavItem";
 import { MdDashboard, MdDns, MdFormatListBulleted, MdLibraryAdd } from "react-icons/md";
 import { usePathname } from "next/navigation";

@@ -1,4 +1,4 @@
-import AdminNav from "@/components/admin/AdminNav";
+import AdminNav from "@/components/0. Admin/AdminNav";
 
 export const metadata = {
     title: 'E-Shop-Admin',

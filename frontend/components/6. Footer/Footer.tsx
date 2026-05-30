@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import Container from "@/components/Container";
+import Container from "@/components/ui/Container";
 import { useState } from "react";
 import { toast } from "react-hot-toast";
 import { MdArrowForward } from "react-icons/md";

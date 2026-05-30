@@ -3,7 +3,7 @@
 import { SelectColorProps } from "@/types/inputs";
 import { useCallback, useEffect, useState } from "react";
 import SelectImage from "./SelectImage";
-import Button from "@/components/Button";
+import Button from "@/components/ui/Button";
 
 const SelectColor:React.FC<SelectColorProps> = ({item, addImageToState, removeImageFromState, isProductCreated}) => {
     const [isSelected, setIsSelected] = useState(false)

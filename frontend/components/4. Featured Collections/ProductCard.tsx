@@ -45,7 +45,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
                         {truncateText(product.name)}
                     </h3>
                     <p className="text-sm text-secondary">
-                        {product.category || "Apparel"}
+                        {product.category.name || "Apparel"}
                     </p>
                 </div>
                 <span className="font-price-lg text-primary">

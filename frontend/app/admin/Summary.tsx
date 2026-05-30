@@ -2,7 +2,7 @@
 
 import { SummaryDataType, SummaryProps } from "@/types/admin";
 import { useEffect, useState } from "react";
-import Heading from "@/components/Heading";
+import Heading from "@/components/ui/Heading";
 import { formatPrice } from "@/utils/formatPrice";
 import { formatNumber } from "@/utils/formatNumber";
 import { useCurrentUserTokenExpiryCheck } from "@/hooks/useCurrentUserToken";

@@ -1,7 +1,7 @@
 "use client";
 
 import { CategoriesProps } from "@/types/navbar";
-import Container from "@/components/Container";
+import Container from "@/components/ui/Container";
 import Category from "./Category";
 import { usePathname, useSearchParams } from "next/navigation";
 import { resolveImageUrl } from "@/utils/resolveImageUrl";

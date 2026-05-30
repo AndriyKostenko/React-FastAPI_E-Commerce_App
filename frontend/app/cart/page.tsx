@@ -1,5 +1,5 @@
 import {sessionManagaer} from "@/actions/getCurrentUser";
-import Container from "@/components/Container";
+import Container from "@/components/ui/Container";
 import CartClient from "./CartClient";
 
 

@@ -2,7 +2,7 @@
 
 import { LoginFormProps } from "@/types/auth";
 import { useEffect, useState } from "react";
-import Input from "@/components/inputs/Input";
+import Input from "@/components/ui/Input";
 import { FieldValues, SubmitHandler, useForm } from "react-hook-form";
 import Link from "next/link";
 import toast from "react-hot-toast";

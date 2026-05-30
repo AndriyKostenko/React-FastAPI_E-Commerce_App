@@ -1,17 +1,14 @@
 import type { Metadata } from 'next';
 import { Hanken_Grotesk, Inter } from 'next/font/google';
 
-import NavBar from '@/components/navbar/NavBar';
-import Footer from '@/components/footer/Footer';
+import NavBar from '@/components/1. Header/NavBar';
+import Footer from '@/components/6. Footer/Footer';
 
 import './globals.css';
 import CartProvider from '@/providers/CartProvider';
 import { Toaster } from 'react-hot-toast';
 
 
-
-
-//root ot the application
 
 //setting google fonts
 const hankenGrotesk = Hanken_Grotesk({

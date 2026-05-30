@@ -1,28 +1,13 @@
-//import { products } from "@/utils/products";
-import HomeBanner from "@/components/banner/HomeBanner";
-import CommunityGallery from "@/components/sections/CommunityGallery";
-import FeaturedCollection from "@/components/sections/FeaturedCollection";
-import Testimonials from "@/components/sections/Testimonials";
-import NullData from "@/components/NullData";
+import CommunityGallery from "@/components/3. Community Gallery/CommunityGallery";
+import FeaturedCollection from "@/components/4. Featured Collections/FeaturedCollection";
+import Testimonials from "@/components/5. Testimonials/Testimonials";
+import NullData from "@/components/ui/NullData";
 import fetchProductsFromBackend from "../actions/getProducts";
+import { Params, SearchParams } from "../types/params";
+import HeroSection from "@/components/2. Hero/HeroComponentr";
 
-type Params = Promise<{ slug: string }>
-type SearchParams = Promise<{ [key: string]: string | string[] | undefined }>
 
-export async function generateMetadata(props: {
-	params: Params
-	searchParams: SearchParams
-  }) {
-	const params = await props.params
-	const searchParams = await props.searchParams
-	const slug = params.slug
-	const query = searchParams.query
-  }
-
-export default async function Home(props: {
-	params: Params
-	searchParams: SearchParams
-  }) {
+export default async function Home(props: {params: Params, searchParams: SearchParams}) {
 
 	const searchParams = await props.searchParams
 	const searchTerm = searchParams['searchTerm'] as string | undefined;
@@ -30,17 +15,18 @@ export default async function Home(props: {
 
 	console.log("searchParams", searchParams)
 
-	// const products = await fetchProductsFromBackend(category, searchTerm);
+  const products = await fetchProductsFromBackend(category, searchTerm);
+  console.log(products)
 
-	// if (!products || products.length === 0) {
-	// 	return <NullData title="No products!!!"/>
-	// }
+	if (!products || products.length === 0) {
+		return <NullData title="No products!!!"/>
+	}
 
 	return (
 		<div className="space-y-8">
-			<HomeBanner />
+			<HeroSection />
 			<CommunityGallery />
-			{/*<FeaturedCollection products={products} />*/}
+			<FeaturedCollection products={products} />
 			<Testimonials />
 		</div>
 	)

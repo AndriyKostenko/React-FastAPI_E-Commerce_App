@@ -2,8 +2,8 @@
 
 import { OrderDetailProps } from "@/types/order";
 import { formatPrice } from "@/utils/formatPrice";
-import Heading from "@/components/Heading";
-import Status from "@/components/Status";
+import Heading from "@/components/ui/Heading";
+import Status from "@/components/ui/Status";
 import { MdAccessTimeFilled, MdDeliveryDining, MdDone } from "react-icons/md";
 import { formatDate } from "@/utils/formatDate";
 import OrderItem from "./OrderItem";

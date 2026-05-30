@@ -8,7 +8,7 @@ import toast from "react-hot-toast";
 import { StripeElementsOptions, loadStripe } from "@stripe/stripe-js";
 import { Elements } from "@stripe/react-stripe-js";
 import CheckoutForm from "./CheckOutForm";
-import Button from "@/components/Button";
+import Button from "@/components/ui/Button";
 import Link from "next/link";
 import { MdArrowBack } from "react-icons/md";
 import { ProductProps } from "@/types/product";

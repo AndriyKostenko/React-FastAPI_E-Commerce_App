@@ -3,12 +3,13 @@
 import { useState } from "react";
 import { toast } from "react-hot-toast";
 import { MdAutoAwesome, MdRefresh, MdElectricBolt } from "react-icons/md";
-import { STYLE_PREVIEWS } from "@/utils/constants";
+import { STYLE_PREVIEWS, SIZE_MEASUREMENTS } from "@/utils/constants";
 import TShirtPreview from "./TShirtPreview";
+import HeroText from "./HeroText";
 
 type StyleKey = keyof typeof STYLE_PREVIEWS;
 
-const HomeBanner = () => {
+const HeroSection = () => {
   const [prompt, setPrompt] = useState("");
   const [style, setStyle] = useState<StyleKey>("Streetwear");
   const [placement, setPlacement] = useState("Center Chest");
@@ -41,24 +42,13 @@ const HomeBanner = () => {
     <section className="glass-card p-6 md:p-8 grid grid-cols-1 lg:grid-cols-2 lg:grid-rows-[minmax(0,1fr)_auto] gap-6 lg:h-[calc(100vh-12rem)] overflow-hidden">
 
       {/* ── Left col: hero text + generation panel ── */}
-      <div className="lg:col-span-1 flex flex-col gap-6 min-h-0 overflow-y-auto">
-        <div className="space-y-6">
-          <div className="inline-flex items-center bg-white/80 backdrop-blur rounded-full px-4 py-1.5 gap-2 border border-white/40">
-            <MdAutoAwesome className="text-[18px]" />
-            <span className="font-label-bold text-[12px] uppercase tracking-wider">AI Design Studio</span>
-          </div>
-          <h1 className="font-display-lg text-[36px] lg:text-[44px] xl:text-[56px] leading-[1.1] text-primary">
-            The Future of Personal Expression.
-          </h1>
-          <p className="font-body-lg text-secondary">
-            Craft your vision. The AI Design Studio puts a team of world-class artists at your fingertips. No design skills required.
-          </p>
-        </div>
+      <div className="lg:col-span-1 flex flex-col gap-6 min-h-0">
+        <HeroText />
 
         {/* Generation panel — outer div holds the flex height; liquid-glass h-full clips backdrop-filter cleanly; inner div scrolls */}
-        <div className="flex-1 min-h-0 rounded-[2rem] overflow-hidden isolate">
-          <div className="liquid-glass h-full flex flex-col">
-            <div className="relative z-10 flex-1 min-h-0 overflow-y-auto no-scrollbar p-8 space-y-6">
+        <div className="flex-1 min-h-0 rounded-[2rem] overflow-hidden isolate flex flex-col">
+          <div className="liquid-glass h-full flex flex-col min-h-0">
+            <div className="relative z-10 flex flex-col flex-1 p-8 space-y-6 min-h-0">
             <div className="grid grid-cols-[minmax(0,1fr)_220px] gap-6 items-start">
               <div className="space-y-2">
                 <label className="font-label-bold text-label-bold text-primary">Prompt</label>
@@ -87,7 +77,7 @@ const HomeBanner = () => {
               </div>
             </div>
 
-            <div className="flex items-center gap-3 pt-2">
+            <div className="flex flex-wrap sm:flex-nowrap items-center gap-3 pt-2 w-full">
               <button
                 onClick={handleGenerate}
                 disabled={isGenerating}
@@ -134,19 +124,138 @@ const HomeBanner = () => {
             designUrl={currentDesign.image}
             isGenerating={isGenerating}
           />
+
+          {/* SVG measurement lines */}
+
+          <svg
+            className="absolute inset-0 pointer-events-none z-20"
+            width="100%"
+            height="100%"
+            viewBox="0 0 300 340"
+            preserveAspectRatio="xMidYMid meet"
+          >
+            {/* ---------- WIDTH ---------- */}
+
+            {/* Main horizontal line */}
+            <line
+              x1="70"
+              y1="55"
+              x2="230"
+              y2="55"
+              stroke="#000"
+              strokeWidth="1"
+            />
+
+            {/* Short end caps */}
+            <line
+              x1="70"
+              y1="48"
+              x2="70"
+              y2="62"
+              stroke="#000"
+              strokeWidth="1"
+            />
+            <line
+              x1="230"
+              y1="48"
+              x2="230"
+              y2="62"
+              stroke="#000"
+              strokeWidth="1"
+            />
+
+            {/* Width label */}
+            <rect
+              x="120"
+              y="45"
+              width="60"
+              height="18"
+              rx="9"
+              fill="#111"
+              opacity="0.95"
+            />
+
+            <text
+              x="150"
+              y="55"
+              textAnchor="middle"
+              dominantBaseline="central"
+              alignmentBaseline="middle"
+              fontSize="8"
+              fill="#fff"
+              fontWeight="700"
+            >
+              {SIZE_MEASUREMENTS[size]?.width} cm
+            </text>
+
+            {/* ---------- HEIGHT ---------- */}
+
+            {/* Main vertical line */}
+            <line
+              x1="265"
+              y1="85"
+              x2="265"
+              y2="275"
+              stroke="#000"
+              strokeWidth="1"
+            />
+
+            {/* Short top/bottom caps */}
+            <line
+              x1="258"
+              y1="85"
+              x2="272"
+              y2="85"
+              stroke="#000"
+              strokeWidth="1"
+            />
+
+            <line
+              x1="258"
+              y1="275"
+              x2="272"
+              y2="275"
+              stroke="#000"
+              strokeWidth="1"
+            />
+
+            {/* Height label */}
+            <rect
+              x="256"
+              y="150"
+              width="18"
+              height="60"
+              rx="9"
+              fill="#111"
+              opacity="0.95"
+            />
+
+            <text
+              x="260"
+              y="185"
+              textAnchor="middle"
+              dominantBaseline="middle"
+              fontSize="8"
+              fill="#fff"
+              fontWeight="700"
+              transform="rotate(90 265 185)"
+            >
+              {SIZE_MEASUREMENTS[size]?.height} cm
+            </text>
+          </svg>
         </div>
 
         {/* Hover info card */}
-        <div className="absolute bottom-6 left-6 right-6 glass-card p-5 flex justify-between items-center transform translate-y-3 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300">
+        <div className="absolute h-[60px] bottom-6 left-6 right-6 glass-card p-5 flex justify-between items-center transform translate-y-3 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300">
           <div>
             <p className="font-label-bold text-primary">{currentDesign.title}</p>
-            <p className="text-sm text-secondary">${currentDesign.price.toFixed(2)} USD</p>
+            <p className="text-sm text-secondary">${currentDesign.price.toFixed(2)} CAD</p>
           </div>
           <button
             onClick={handleAddToCart}
             className="bg-brand-lime text-primary px-6 py-2 rounded-full font-label-bold hover:shadow-md transition-all active:scale-95"
           >
-            Quick Add
+            Buy Now
           </button>
         </div>
       </div>
@@ -296,4 +405,4 @@ const HomeBanner = () => {
   );
 };
 
-export default HomeBanner;
+export default HeroSection;

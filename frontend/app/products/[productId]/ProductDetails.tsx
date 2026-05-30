@@ -5,11 +5,11 @@
 import { Rating } from "@mui/material";
 import { useCallback, useEffect, useState } from "react";
 
-import SetColor from "@/components/products/SetColor";
-import SetQuantity from "@/components/products/SetQuantity";
-import Button from "@/components/Button";
+import SetColor from "@/components/4. Featured Collections/SetColor";
+import SetQuantity from "@/components/4. Featured Collections/SetQuantity";
+import Button from "@/components/ui/Button";
 import calculateAvarageRating from "@/utils/productRating";
-import ProductImage from "@/components/products/ProductImage";
+import ProductImage from "@/components/4. Featured Collections/ProductImage";
 import { useCart } from "@/hooks/useCart";
 import { MdCheckCircle } from "react-icons/md";
 import { useRouter } from "next/navigation";

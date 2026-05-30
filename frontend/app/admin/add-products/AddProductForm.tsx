@@ -1,17 +1,17 @@
 'use client'
 
 import { AddProductProps, ImageType } from "@/types/admin";
-import Heading from "@/components/Heading";
-import Input from "@/components/inputs/Input";
-import CustomCheckBox from "@/components/inputs/CustomCheckbox";
+import Heading from "@/components/ui/Heading";
+import Input from "@/components/ui/Input";
+import CustomCheckBox from "@/components/ui/CustomCheckbox";
 import { useCallback, useEffect, useState } from "react";
 import { FieldValues, useForm } from "react-hook-form";
-import TextArea from "@/components/inputs/TextArea";
-import CategoryInput from "@/components/inputs/CategoryInput";
+import TextArea from "@/components/ui/TextArea";
+import CategoryInput from "@/components/ui/CategoryInput";
 import { colors } from "@/utils/constants";
-import SelectColor from "@/components/inputs/SelectColor";
+import SelectColor from "@/components/ui/SelectColor";
 import { SubmitHandler } from "react-hook-form";
-import Button from "@/components/Button";
+import Button from "@/components/ui/Button";
 import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
 import { useCurrentUserTokenExpiryCheck } from "@/hooks/useCurrentUserToken";

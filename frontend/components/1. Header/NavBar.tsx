@@ -2,16 +2,13 @@ import Link from "next/link";
 import CartCount from "./CartCount";
 import UserMenu from "./UserMenu";
 import { sessionManagaer} from "@/actions/getCurrentUser";
-import Categories from "./Categories";
-import fetchCategoriesFromBackend from "@/actions/getCategories";
 import SearchBar from "./SearchBar";
 import { Suspense } from "react";
 
 const NavBar = async () => {
-    // getting current user from the session
+    // getting current user from the server session
     const currentUser = await sessionManagaer.getCurrentUser();
     const currentUserRole = await sessionManagaer.getCurrentUserRole();
-    const categories = (await fetchCategoriesFromBackend()) || [];
 
     return (
         <header className="w-full z-50 px-margin-desktop py-6">
@@ -57,9 +54,6 @@ const NavBar = async () => {
                 </div>
             </nav>
 
-            <Suspense fallback={null}>
-                <Categories categories={categories}/>
-            </Suspense>
         </header>
     );
 }
