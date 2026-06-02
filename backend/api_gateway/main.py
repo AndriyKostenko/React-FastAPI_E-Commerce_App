@@ -1,17 +1,17 @@
 import os
 from contextlib import asynccontextmanager
 from datetime import datetime
+from time import perf_counter
 
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response as PlainResponse
 from uvicorn import run
-from fastapi import FastAPI, Request, Response
-from prometheus_client import CollectorRegistry, generate_latest, multiprocess, REGISTRY
+from fastapi import FastAPI, Request
+from prometheus_client import CollectorRegistry, generate_latest, multiprocess, REGISTRY, Histogram, Counter
 
 from shared.exceptions.base_exceptions import BaseAPIException
 from shared.middleware.logging_middleware import add_logging_middleware
 from shared.telemetry import setup_tracing
-from prometheus_fastapi_instrumentator import Instrumentator
 from routes.user_routes import user_proxy
 from routes.product_routes import product_proxy
 from routes.order_routes import order_proxy
@@ -26,11 +26,15 @@ from gateway.apigateway import api_gateway_manager
 from middleware.cache_middleware import GatewayRequestMiddleware
 
 
+
 """
 Request  →  logging → CORS → authentication_middleware → gateway_middleware → route
 
 Response ←  logging ← CORS ← authentication_middleware ← gateway_middleware ← route
 """
+
+REQUEST_COUNTER: Counter | None = None
+LATENCY_COUNTER: Histogram | None = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -38,6 +42,24 @@ async def lifespan(app: FastAPI):
     This is a context manager that will run the startup and shutdown
     events of a FastAPI application.
     """
+    global REQUEST_COUNTER
+    global LATENCY_COUNTER
+
+    REQUEST_COUNTER = Counter(
+        "gateway_requests_total",
+        "Total HTTP requests at API Gateway",
+        ["method", "path", "status"],
+    )
+
+    LATENCY_COUNTER = Histogram(
+        "gateway_request_duration_seconds",
+        "Gateway request latency",
+        ["method", "path"],
+        buckets=(0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 5),
+    )
+
+
+
     logger.info(f"Server is starting up on {settings.APP_HOST}:{settings.API_GATEWAY_SERVICE_APP_PORT}...")
     await api_gateway_cache_manager.connect()
     await api_gateway_rate_limit_manager.connect()
@@ -67,8 +89,7 @@ gateway_request_middleware = GatewayRequestMiddleware(
 # initializing the OpenTelemetry tracing
 setup_tracing(app, service_name="api-gateway", instrument_sqlalchemy=False)
 
-# Instrument app (do NOT call .expose() — we provide a multiprocess-aware /metrics route below).
-Instrumentator().instrument(app)
+
 
 # Ratelimiting and caching middleware on each request
 # Registered first → becomes the inner layer, runs AFTER authentication_middleware.
@@ -79,10 +100,27 @@ async def gateway_middleware(request: Request, call_next):
     Gateway middleware: global rate limiting, response caching, and cache invalidation.
     Monitoring paths bypass all gateway logic — they must never be rate-limited or cached.
     """
+
     if request.url.path in ("/metrics", "/health"):
         return await call_next(request)
+
     is_public = auth_middleware.is_public_endpoint(request.url.path, request.method)
-    return await gateway_request_middleware(request, call_next, is_public=is_public)
+    start = perf_counter()
+    response = await gateway_request_middleware(request, call_next, is_public=is_public)
+    duration = perf_counter() - start
+
+    if REQUEST_COUNTER and LATENCY_COUNTER:
+        REQUEST_COUNTER.labels(
+            method=request.method,
+            path=request.url.path,
+            status=f"{response.status_code // 100}xx",
+        ).inc()
+        LATENCY_COUNTER.labels(
+            method=request.method,
+            path=request.url.path,
+        ).observe(duration)
+
+    return response
 
 
 # Auth middleware registered second → becomes the outer layer, runs FIRST on every request.
@@ -127,20 +165,19 @@ async def health_check():
         headers={"Cache-Control": "no-cache"}
     )
 
-
 @app.get("/metrics", include_in_schema=False)
 def metrics():
-    """
-    Prometheus metrics endpoint — multiprocess-aware.
-    When PROMETHEUS_MULTIPROC_DIR is set (Gunicorn multi-worker), aggregates metrics
-    across all worker processes from shared files. Falls back to in-process registry
-    for single-process use (tests, local uvicorn).
-    """
-    if "PROMETHEUS_MULTIPROC_DIR" in os.environ:
+    """Multiprocess-aware Prometheus metrics endpoint."""
+    multiproc_dir = os.environ.get("PROMETHEUS_MULTIPROC_DIR")
+
+    if multiproc_dir:
+        # Multi-worker: merge all worker .db files from the shared dir
         registry = CollectorRegistry()
         multiprocess.MultiProcessCollector(registry)
     else:
+        # Single process (local dev): use the default registry directly
         registry = REGISTRY
+
     return PlainResponse(
         content=generate_latest(registry),
         media_type="text/plain; version=0.0.4; charset=utf-8",

@@ -5,7 +5,7 @@ FROM python:3.12-slim AS builder
 
 WORKDIR /app
 
-# Environment variables 
+# Environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PATH="/root/.local/bin:${PATH}"
@@ -28,7 +28,7 @@ RUN apt-get update \
 COPY pyproject.toml uv.lock ./
 
 # Install dependencies using uv sync instead of uv pip install
-RUN uv sync --frozen --no-dev 
+RUN uv sync --frozen --no-dev
 
 # -------------------------
 # Test Build Stage
@@ -83,14 +83,11 @@ HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
 # Each Gunicorn worker is a separate process.
 # If you're using uvicorn.workers.UvicornWorker, then each worker runs a full async FastAPI app.
 
-# ( automatically detects the number of CPU cores and sets the number of workers accordingly )
-# CMD ["sh", "-c", "gunicorn -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:8001 --workers $(nproc) --timeout 60 --access-logfile -"]
 
-# CMD ["uv", "run", "gunicorn", "-k", "uvicorn.workers.UvicornWorker", "main:app", "--bind", "0.0.0.0:8003", "--workers", "1", "--timeout", "60", "--access-logfile"]
+#CMD ["sh", "-c", "gunicorn -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:8003 --workers $((2 * $(nproc) + 1)) --timeout 120 --graceful-timeout 30 --access-logfile -"]
 
-CMD ["sh", "-c", "gunicorn -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:8003 --workers $((2 * $(nproc) + 1)) --timeout 120 --graceful-timeout 30 --access-logfile -"]
+CMD ["sh", "-c", "mkdir -p ${PROMETHEUS_MULTIPROC_DIR} && gunicorn -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:8003 --workers 1 --timeout 120 --graceful-timeout 30 --access-logfile -"]
 
-#CMD ["uv", "run", "gunicorn", "-k", "uvicorn.workers.UvicornWorker", "main:app", "--bind", "0.0.0.0:8003", "--workers", "1", "--timeout", "60", "--access-logfile", "-"]
 
 # -------------------------
 # Test Runtime Stage
@@ -101,7 +98,7 @@ WORKDIR /app
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PROMETHEUS_MULTIPROC_DIR=/tmp/prometheus_multiproc
+    PROMETHEUS_MULTIPROC_DIR=/tmp/prometheus_multiproc/notification-service
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
@@ -111,7 +108,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/* \
     && addgroup --system --gid 1009 notificationgroup \
     && adduser --system --uid 1009 --ingroup notificationgroup notificationuser \
-    && mkdir -p /app/logs /tmp/prometheus_multiproc \
+    && mkdir -p /app/logs /tmp/prometheus_multiproc/notification-service \
     && chown -R notificationuser:notificationgroup /app /tmp/prometheus_multiproc
 
 # Copy venv with dev deps (pytest, httpx, etc.) from test-builder

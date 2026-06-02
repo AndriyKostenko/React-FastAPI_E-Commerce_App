@@ -70,7 +70,9 @@ EXPOSE 8006
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8006/health || exit 1
 
-CMD ["sh", "-c", "gunicorn -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:8006 --workers $((2 * $(nproc) + 1)) --timeout 120 --graceful-timeout 30 --access-logfile -"]
+
+#CMD ["sh", "-c", "gunicorn -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:8006 --workers $((2 * $(nproc) + 1)) --timeout 120 --graceful-timeout 30 --access-logfile -"]
+CMD ["sh", "-c", "mkdir -p ${PROMETHEUS_MULTIPROC_DIR} && gunicorn -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:8006 --workers 1 --timeout 120 --graceful-timeout 30 --access-logfile -"]
 
 
 # -------------------------
@@ -82,7 +84,7 @@ WORKDIR /app
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PROMETHEUS_MULTIPROC_DIR=/tmp/prometheus_multiproc
+    PROMETHEUS_MULTIPROC_DIR=/tmp/prometheus_multiproc/payment-service
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
@@ -92,7 +94,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/* \
     && addgroup --system --gid 1007 paymentgroup \
     && adduser --system --uid 1007 --ingroup paymentgroup paymentuser \
-    && mkdir -p /app/logs /tmp/prometheus_multiproc \
+    && mkdir -p /app/logs /tmp/prometheus_multiproc/payment-service \
     && chown -R paymentuser:paymentgroup /app /tmp/prometheus_multiproc
 
 # Copy venv with dev deps (pytest, httpx, etc.) from test-builder

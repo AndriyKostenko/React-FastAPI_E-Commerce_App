@@ -23,6 +23,7 @@ class GatewayRequestMiddleware:
         self.cache_manager: CacheManager = cache_manager
         self.rate_limit_manager: RateLimitManager = rate_limit_manager
 
+
     async def __call__(self, request: Request, call_next: Any, is_public: bool) -> Response:
         """
         Execute the full gateway middleware pipeline for a single request.
@@ -41,7 +42,7 @@ class GatewayRequestMiddleware:
                               (same response for all users).
         """
         # 1. Global rate limit: fail-open so Redis outages don't block all traffic.
-        await self.rate_limit_manager.is_rate_limited(
+        _ = await self.rate_limit_manager.is_rate_limited(
             request,
             times=self._RATE_LIMIT_TIMES,
             seconds=self._RATE_LIMIT_SECONDS,
@@ -65,6 +66,7 @@ class GatewayRequestMiddleware:
         # 4. Forward to downstream microservice.
         response: Response = await call_next(request)
 
+
         # 5. Post-response cache handling.
         if 200 <= response.status_code < 300:
             if should_cache:
@@ -86,4 +88,3 @@ class GatewayRequestMiddleware:
                     await self.cache_manager.invalidate_namespace(namespace)
 
         return response
-

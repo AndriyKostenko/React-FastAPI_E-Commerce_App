@@ -743,23 +743,9 @@ Redis Idempotency Flow:
 
 
 ## k6 - load testing
-1. k6 run k6/script.js
+1. max_throughput test - `k6 run max_throughput_tests.js`
+2. stress test- `k6 run stress_tests.js`
 
-# quick sanity
-TEST_TYPE=smoke k6 run k6/script.js
-
-# normal load test
-TEST_TYPE=load k6 run k6/script.js
-
-# push toward limits
-TEST_TYPE=stress k6 run k6/script.js
-
-# long stability run
-TEST_TYPE=soak k6 run k6/script.js
-
-# max throughput test
-k6 run -e TEST_TYPE=max_throughput k6/script.js
-k6 run -e TEST_TYPE=stress -e BASE_URL=http://127.0.0.1:8001 k6/script.js
 
 
 
@@ -768,14 +754,15 @@ k6 run -e TEST_TYPE=stress -e BASE_URL=http://127.0.0.1:8001 k6/script.js
 2. max_throughput -> user-service (2 workers & no chaching)-> second test with  = 810 rps
 3. stress -> api-gateway  (5 workers , no caching, 50 products) -> product-service (5 workers, no caching) ->  = 436 rps
 4. stress -> api-gateway  (5 workers , caching, 50 products) -> product-service (5 workers, no caching) ->  = 759 rps
-5. max_throughput -> api-gateway  (5 workers , caching, 50 products) -> product-service (5 workers, no caching) ->  = 759 rps
+5. max_throughput -> api-gateway  (5 workers , caching, 50 products) = 759 rps
+6. stress -> api-gateway (1 worker, caching, 50 products) = 584 rps / 100% / 668ms max / 272ms average 
 
-App Stage | Typical RPS | Your 2CPU result |
-|---|---|---|
-| Early startup (0–1k users/day) | 1–5 RPS | ✅ Way more than enough |
-| Growing product (10k users/day) | 10–50 RPS | ✅ Comfortable |
-| Mid-scale (100k users/day) | 50–200 RPS | ✅ Handles it |
-| High traffic (1M users/day) | 500–2000 RPS | ⚠️ Hitting the ceiling
+App Stage                         | Typical RPS  | Your 2CPU result |
+|---------------------------------|--------------|---|
+| Early startup (0–1k users/day)  | 1–5 RPS      | ✅ Way more than enough |
+| Growing product (10k users/day) | 10–50 RPS    | ✅ Comfortable |
+| Mid-scale (100k users/day)      | 50–200 RPS   | ✅ Handles it |
+| High traffic (1M users/day)     | 500–2000 RPS | ⚠️ Hitting the ceiling
 
 
 

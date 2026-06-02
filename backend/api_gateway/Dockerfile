@@ -5,7 +5,7 @@ FROM python:3.12-slim AS builder
 
 WORKDIR /app
 
-# Environment variables 
+# Environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PATH="/root/.local/bin:${PATH}"
@@ -76,7 +76,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     # Prometheus multiprocess mode: each Gunicorn worker writes metrics to shared files
     # so the /metrics endpoint can aggregate across all workers.
-    PROMETHEUS_MULTIPROC_DIR=/tmp/prometheus_multiproc
+    PROMETHEUS_MULTIPROC_DIR=/tmp/prometheus_multiproc/api-gateway
+
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         libpq5 \
@@ -85,7 +86,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/* \
     && addgroup --system --gid 1000 apigatewaygroup \
     && adduser --system --uid 1000 --ingroup apigatewaygroup apigatewayuser \
-    && mkdir -p /app/logs /tmp/prometheus_multiproc \
+    && mkdir -p /app/logs /tmp/prometheus_multiproc/api-gateway \
     && chown -R apigatewayuser:apigatewaygroup /app /tmp/prometheus_multiproc
 
 # Copy dependencies from builder
@@ -112,9 +113,16 @@ HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
 # Each Gunicorn worker is a separate process.
 # If you're using uvicorn.workers.UvicornWorker, then each worker runs a full async FastAPI app.
 
-# ( automatically detects the number of CPU cores and sets the number of workers accordingly )
-# CMD ["sh", "-c", "gunicorn -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:8000 --workers $(nproc) --timeout 60 --access-logfile -"]
-
-#CMD ["uv", "run", "gunicorn", "-k", "uvicorn.workers.UvicornWorker", "main:app", "--bind", "0.0.0.0:8000", "--workers", "1", "--timeout", "60", "--access-logfile"]
-
-CMD ["sh", "-c", "gunicorn -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:8000 --workers $((2 * $(nproc) + 1)) --timeout 120 --graceful-timeout 30 --access-logfile -"]
+# adding the clean up for prometheus metrics
+# CMD ["sh", "-c", "gunicorn -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:8000 --workers $((2 * $(nproc) + 1)) --timeout 120 --graceful-timeout 30 --access-logfile -"]
+CMD ["sh", "-c", \
+"mkdir -p ${PROMETHEUS_MULTIPROC_DIR} && \
+ rm -rf ${PROMETHEUS_MULTIPROC_DIR}/* && \
+ gunicorn \
+ -k uvicorn.workers.UvicornWorker \
+ main:app \
+ --bind 0.0.0.0:8000 \
+ --workers ${GUNICORN_WORKERS:-4} \
+ --timeout 120 \
+ --graceful-timeout 30 \
+ --access-logfile -"]

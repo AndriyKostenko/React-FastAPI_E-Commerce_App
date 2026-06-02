@@ -1,6 +1,7 @@
 import os
 from datetime import datetime
 from contextlib import asynccontextmanager
+from time import perf_counter
 
 from uvicorn import run
 from fastapi.middleware.cors import CORSMiddleware
@@ -9,7 +10,8 @@ from fastapi import FastAPI, Request, HTTPException
 from fastapi.staticfiles import StaticFiles
 from pydantic import ValidationError
 from fastapi.exceptions import ResponseValidationError, RequestValidationError
-from prometheus_client import CollectorRegistry, generate_latest, multiprocess, REGISTRY
+from prometheus_client import CollectorRegistry, generate_latest, multiprocess, Histogram, REGISTRY
+from prometheus_fastapi_instrumentator import Instrumentator
 
 from routes.product_image_routes import product_images_routes
 from routes.product_routes import product_routes
@@ -18,12 +20,14 @@ from routes.review_routes import review_routes
 from shared.exceptions.base_exceptions import (BaseAPIException,RateLimitExceededError)
 from shared.middleware.logging_middleware import add_logging_middleware
 from shared.telemetry import setup_tracing
-from prometheus_fastapi_instrumentator import Instrumentator
 from shared.shared_instances import (product_event_idempotency_service, product_service_redis_manager,
                                     product_service_database_session_manager,
                                     logger,
                                     settings,
                                     base_event_publisher)
+
+# using global ref. for proper multiprocess uvicorn start
+REQUEST_LATENCY: Histogram | None = None
 
 
 @asynccontextmanager
@@ -32,6 +36,15 @@ async def lifespan(app: FastAPI): # pyright: ignore[reportUnusedParameter]
     This is a context manager that will run the startup and shutdown
     events of a FastAPI application.
     """
+    global REQUEST_LATENCY
+    # Each worker initializes its OWN histogram instance after forking
+    # Explicit histogram — this is what multiprocess mode needs for p95/p99
+    REQUEST_LATENCY = Histogram(
+        "product_service_request_latency_seconds",
+        "HTTP request latency histogram (multiprocess-safe)",
+        ["method", "handler", "status"],
+        buckets=(0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 5),
+    )
 
     logger.info(f"Server is starting up on {settings.APP_HOST}:{settings.PRODUCT_SERVICE_APP_PORT}...")
     await product_service_redis_manager.connect()
@@ -82,6 +95,29 @@ def _is_internal_client(request) -> bool:
         or any(client_host.startswith(p) for p in _PRIVATE_PREFIXES)
     )
 
+# Registered second → inner layer → runs FIRST
+@app.middleware("http")
+async def metrics_middleware(request: Request, call_next):
+    """Records request latency into a multiprocess-safe histogram."""
+    # Skip internal paths — no value in tracking /metrics scraping itself
+    if request.url.path in _INTERNAL_PATHS:
+        return await call_next(request)
+
+    start = perf_counter()
+    response = await call_next(request)
+    duration = perf_counter() - start
+
+    if REQUEST_LATENCY is not None:
+        route = request.scope.get("route")
+        handler = route.path if route else request.url.path
+        REQUEST_LATENCY.labels(
+            method=request.method,
+            handler=handler,
+            status=f"{response.status_code // 100}xx",
+        ).observe(duration)
+
+    return response
+
 
 @app.middleware("http")
 async def host_validation_middleware(request: Request, call_next):
@@ -128,12 +164,17 @@ async def health_check():
 
 @app.get("/metrics", include_in_schema=False)
 def metrics():
-    """Prometheus metrics — multiprocess-aware for Gunicorn multi-worker deployments."""
-    if "PROMETHEUS_MULTIPROC_DIR" in os.environ:
+    """Multiprocess-aware Prometheus metrics endpoint."""
+    multiproc_dir = os.environ.get("PROMETHEUS_MULTIPROC_DIR")
+
+    if multiproc_dir:
+        # Multi-worker: merge all worker .db files from the shared dir
         registry = CollectorRegistry()
         multiprocess.MultiProcessCollector(registry)
     else:
+        # Single process (local dev): use the default registry directly
         registry = REGISTRY
+
     return PlainResponse(
         content=generate_latest(registry),
         media_type="text/plain; version=0.0.4; charset=utf-8",

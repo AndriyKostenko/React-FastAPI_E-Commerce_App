@@ -52,7 +52,8 @@ FROM python:3.12-slim AS runtime
 WORKDIR /app
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    PROMETHEUS_MULTIPROC_DIR=/tmp/prometheus_multiproc/product-service
 
 RUN apt-get update \
     && apt-get upgrade -y \
@@ -66,8 +67,10 @@ RUN apt-get update \
     && mkdir -p /app/logs \
     && mkdir -p /media/images \
     && mkdir -p /media/icons \
+    && mkdir -p /app/logs /tmp/prometheus_multiproc/product-service \
     && chown -R productuser:productgroup /app \
-    && chown -R productuser:productgroup /media
+    && chown -R productuser:productgroup /media \
+    && chown -R productuser:productgroup /app /tmp/prometheus_multiproc
 
 # Copy dependencies from builder
 COPY --from=builder /app/.venv /app/.venv
@@ -93,11 +96,9 @@ HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
 # If you're using uvicorn.workers.UvicornWorker, then each worker runs a full async FastAPI app.
 
 # ( automatically detects the number of CPU cores and sets the number of workers accordingly )
-# CMD ["sh", "-c", "gunicorn -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:8002 --workers $(nproc) --timeout 60 --access-logfile -"]
 
-#CMD ["uv", "run", "gunicorn", "-k", "uvicorn.workers.UvicornWorker", "main:app", "--bind", "0.0.0.0:8002", "--workers", "1", "--timeout", "60", "--access-logfile"]
-
-CMD ["sh", "-c", "gunicorn -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:8002 --workers $((2 * $(nproc) + 1)) --timeout 120 --graceful-timeout 30 --access-logfile -"]
+#CMD ["sh", "-c", "rm -rf /tmp/prometheus_multiproc/* && gunicorn -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:8002 --workers $((2 * $(nproc) + 1)) --timeout 120 --graceful-timeout 30 --access-logfile -"]
+CMD ["sh", "-c", "mkdir -p ${PROMETHEUS_MULTIPROC_DIR} && rm -rf ${PROMETHEUS_MULTIPROC_DIR}/* && gunicorn -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:8002 --workers 4 --timeout 120 --graceful-timeout 30 --access-logfile -"]
 
 
 
@@ -111,7 +112,7 @@ WORKDIR /app
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PROMETHEUS_MULTIPROC_DIR=/tmp/prometheus_multiproc
+    PROMETHEUS_MULTIPROC_DIR=/tmp/prometheus_multiproc/product-service
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \

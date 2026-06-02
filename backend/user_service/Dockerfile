@@ -60,7 +60,8 @@ FROM python:3.12-slim AS runtime
 WORKDIR /app
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    PROMETHEUS_MULTIPROC_DIR=/tmp/prometheus_multiproc/user-service
 
 # Install runtime dependencies (smaller footprint than build stage)
 RUN apt-get update \
@@ -73,8 +74,10 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/* \
     && addgroup --system --gid 1001 usergroup \
     && adduser --system --uid 1001 --ingroup usergroup user \
+    && mkdir -p /app/logs /tmp/prometheus_multiproc/user-service \
     && mkdir -p /app/logs \
-    && chown -R user:usergroup /app
+    && chown -R user:usergroup /app \
+    && chown -R user:usergroup /app /tmp/prometheus_multiproc
 
 # Copy production venv from builder
 COPY --from=builder /app/.venv /app/.venv
@@ -97,7 +100,11 @@ HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
 
 # NOTE: DB connection pool size multiplies per worker. With dynamic workers (2×cores+1),
 # ensure pool_size × max_workers stays within your database's max_connections limit.
-CMD ["sh", "-c", "gunicorn -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:8001 --workers $((2 * $(nproc) + 1)) --timeout 120 --graceful-timeout 30 --access-logfile -"]
+
+#CMD ["sh", "-c", "rm -rf /tmp/prometheus_multiproc/* && gunicorn -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:8001 --workers $((2 * $(nproc) + 1)) --timeout 120 --graceful-timeout 30 --access-logfile -"]
+
+CMD ["sh", "-c", "mkdir -p ${PROMETHEUS_MULTIPROC_DIR} && rm -rf ${PROMETHEUS_MULTIPROC_DIR}/* && gunicorn -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:8001 --workers ${GUNICORN_WORKERS:-4} --timeout 120 --graceful-timeout 30 --access-logfile -"]
+
 
 
 
