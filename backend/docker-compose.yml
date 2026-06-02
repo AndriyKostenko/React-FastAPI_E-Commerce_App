@@ -92,7 +92,7 @@ services:
     env_file:
       - .env
     environment:
-      GUNICORN_WORKERS: 4
+      GUNICORN_WORKERS: 1
       PROMETHEUS_MULTIPROC_DIR: /tmp/prometheus_multiproc/api-gateway
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
       REDIS_URL: redis://:${REDIS_PASSWORD}@${REDIS_HOST}:${REDIS_PORT}/${APIGATEWAY_SERVICE_REDIS_DB}
@@ -137,7 +137,7 @@ services:
       - .env
     environment:
       PROMETHEUS_MULTIPROC_DIR: /tmp/prometheus_multiproc/user-service
-      GUNICORN_WORKERS: 4
+      GUNICORN_WORKERS: 1
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${USER_SERVICE_DB}
       REDIS_URL: redis://:${REDIS_PASSWORD}@${REDIS_HOST}:${REDIS_PORT}/${USER_SERVICE_REDIS_DB}
@@ -168,6 +168,7 @@ services:
     env_file:
       - .env
     environment:
+      GUNICORN_WORKERS: 1
       PROMETHEUS_MULTIPROC_DIR: /tmp/prometheus_multiproc/product-service
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${PRODUCT_SERVICE_DB}
@@ -221,6 +222,7 @@ services:
       - .env
     environment:
       PROMETHEUS_MULTIPROC_DIR: /tmp/prometheus_multiproc/notification-service
+      GUNICORN_WORKERS: 1
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${NOTIFICATION_SERVICE_DB}
       REDIS_URL: redis://:${REDIS_PASSWORD}@${REDIS_HOST}:${REDIS_PORT}/${NOTIFICATION_SERVICE_REDIS_DB}
@@ -232,6 +234,7 @@ services:
     volumes:
       - ./shared:/app/shared:ro
       - ./shared/templates:/app/templates:ro
+      - /tmp/prometheus_multiproc:/tmp/prometheus_multiproc
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
       interval: 60s
@@ -293,12 +296,14 @@ services:
       - .env
     environment:
       PROMETHEUS_MULTIPROC_DIR: /tmp/prometheus_multiproc/order-service
+      GUNICORN_WORKERS: 1
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${ORDER_SERVICE_DB}
       REDIS_URL: redis://:${REDIS_PASSWORD}@${REDIS_HOST}:${REDIS_PORT}/${ORDER_SERVICE_REDIS_DB}
       RABBITMQ_BROKER_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@${RABBITMQ_HOST}:${RABBITMQ_PORT}
     volumes:
       - ./shared:/app/shared:ro
+      - /tmp/prometheus_multiproc:/tmp/prometheus_multiproc
     ports:
       - "8005:8005"
     networks:
@@ -343,12 +348,14 @@ services:
       - .env
     environment:
       PROMETHEUS_MULTIPROC_DIR: /tmp/prometheus_multiproc/payment-service
+      GUNICORN_WORKERS: 1
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${PAYMENT_SERVICE_DB}
       REDIS_URL: redis://:${REDIS_PASSWORD}@${REDIS_HOST}:${REDIS_PORT}/${PAYMENT_SERVICE_REDIS_DB}
       RABBITMQ_BROKER_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@${RABBITMQ_HOST}:${RABBITMQ_PORT}
     volumes:
       - ./shared:/app/shared:ro
+      - /tmp/prometheus_multiproc:/tmp/prometheus_multiproc
     ports:
       - "8006:8006"
     networks:

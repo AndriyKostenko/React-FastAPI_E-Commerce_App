@@ -10,7 +10,7 @@ from fastapi import FastAPI, Request, HTTPException
 from fastapi.staticfiles import StaticFiles
 from pydantic import ValidationError
 from fastapi.exceptions import ResponseValidationError, RequestValidationError
-from prometheus_client import CollectorRegistry, generate_latest, multiprocess, Histogram, REGISTRY
+from prometheus_client import CollectorRegistry, generate_latest, multiprocess, REGISTRY
 from prometheus_fastapi_instrumentator import Instrumentator
 
 from routes.product_image_routes import product_images_routes
@@ -25,9 +25,8 @@ from shared.shared_instances import (product_event_idempotency_service, product_
                                     logger,
                                     settings,
                                     base_event_publisher)
-
-# using global ref. for proper multiprocess uvicorn start
-REQUEST_LATENCY: Histogram | None = None
+from helpers.internal_access_helper import internal_access_helper
+from helpers.request_helper import request_metrics_helper
 
 
 @asynccontextmanager
@@ -36,15 +35,7 @@ async def lifespan(app: FastAPI): # pyright: ignore[reportUnusedParameter]
     This is a context manager that will run the startup and shutdown
     events of a FastAPI application.
     """
-    global REQUEST_LATENCY
-    # Each worker initializes its OWN histogram instance after forking
-    # Explicit histogram — this is what multiprocess mode needs for p95/p99
-    REQUEST_LATENCY = Histogram(
-        "product_service_request_latency_seconds",
-        "HTTP request latency histogram (multiprocess-safe)",
-        ["method", "handler", "status"],
-        buckets=(0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 5),
-    )
+    request_metrics_helper.initialize()
 
     logger.info(f"Server is starting up on {settings.APP_HOST}:{settings.PRODUCT_SERVICE_APP_PORT}...")
     await product_service_redis_manager.connect()
@@ -79,43 +70,19 @@ setup_tracing(app, service_name="product-service")
 
 Instrumentator().instrument(app)
 
-
-_INTERNAL_PATHS = frozenset({"/metrics", "/health"})
-
-# RFC-1918 private ranges used by Docker bridge/overlay networks.
-# Any caller whose IP falls in these ranges is inside the Docker network
-# and is a trusted internal service — skip Host-header validation for them.
-_PRIVATE_PREFIXES = ("10.", "172.", "192.168.")
-
-
-def _is_internal_client(request) -> bool:
-    client_host = request.client.host if request.client else ""
-    return (
-        request.url.path in _INTERNAL_PATHS
-        or any(client_host.startswith(p) for p in _PRIVATE_PREFIXES)
-    )
-
 # Registered second → inner layer → runs FIRST
 @app.middleware("http")
 async def metrics_middleware(request: Request, call_next):
     """Records request latency into a multiprocess-safe histogram."""
     # Skip internal paths — no value in tracking /metrics scraping itself
-    if request.url.path in _INTERNAL_PATHS:
+    if internal_access_helper.is_internal_path(request.url.path):
         return await call_next(request)
 
     start = perf_counter()
     response = await call_next(request)
     duration = perf_counter() - start
 
-    if REQUEST_LATENCY is not None:
-        route = request.scope.get("route")
-        handler = route.path if route else request.url.path
-        REQUEST_LATENCY.labels(
-            method=request.method,
-            handler=handler,
-            status=f"{response.status_code // 100}xx",
-        ).observe(duration)
-
+    request_metrics_helper.observe(request=request, response=response, duration=duration)
     return response
 
 
@@ -131,7 +98,7 @@ async def host_validation_middleware(request: Request, call_next):
       calling /api/v1/admin/schema/* on product-service) where the Host header
       is the Docker service name, not a public hostname
     """
-    if settings.DEBUG_MODE or _is_internal_client(request):
+    if settings.DEBUG_MODE or internal_access_helper.is_internal_client(request):
         return await call_next(request)
 
     host = request.headers.get("host", "").split(":")[0]

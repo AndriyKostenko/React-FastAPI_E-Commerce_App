@@ -60,8 +60,9 @@ RUN apt-get update \
     && mkdir -p /app/logs \
     && mkdir -p /media/images \
     && mkdir -p /media/icons \
+    && mkdir -p /tmp/prometheus_multiproc/order-service \
     && chown -R orderuser:ordergroup /app \
-    && chown -R orderuser:ordergroup /media
+    && chown -R orderuser:ordergroup /media /tmp/prometheus_multiproc
 
 # Copy dependencies from builder
 COPY --from=builder /app/.venv /app/.venv
@@ -88,7 +89,7 @@ HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
 
 # CMD ["sh", "-c", "gunicorn -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:8005 --workers $((2 * $(nproc) + 1)) --timeout 120 --graceful-timeout 30 --access-logfile -"]
 
-CMD ["sh", "-c", "mkdir -p ${PROMETHEUS_MULTIPROC_DIR} && gunicorn -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:8005 --workers 1 --timeout 120 --graceful-timeout 30 --access-logfile -"]
+CMD ["sh", "-c", "mkdir -p ${PROMETHEUS_MULTIPROC_DIR} && rm -rf ${PROMETHEUS_MULTIPROC_DIR}/* && gunicorn -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:8005 --workers ${GUNICORN_WORKERS:-4} --timeout 120 --graceful-timeout 30 --access-logfile -"]
 
 
 # -------------------------

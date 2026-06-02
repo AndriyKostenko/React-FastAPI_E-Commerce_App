@@ -2,6 +2,7 @@ from datetime import datetime
 from contextlib import asynccontextmanager
 from asyncio import create_task
 import os
+from time import perf_counter
 
 from uvicorn import run
 from fastapi.middleware.cors import CORSMiddleware
@@ -25,10 +26,14 @@ from shared.shared_instances import (
     settings,
     base_event_publisher,
 )
+from helpers.internal_access_helper import internal_access_helper
+from helpers.request_helper import request_metrics_helper
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    request_metrics_helper.initialize()
+
     logger.info(f"Payment service starting on {settings.APP_HOST}:{settings.PAYMENT_SERVICE_APP_PORT}...")
     await payment_service_redis_manager.connect()
     await payment_event_idempotency_service.connect()
@@ -63,21 +68,17 @@ setup_tracing(app, service_name="payment-service")
 
 Instrumentator().instrument(app)
 
+@app.middleware("http")
+async def metrics_middleware(request: Request, call_next):
+    """Records request latency into a multiprocess-safe histogram."""
+    if internal_access_helper.is_internal_path(request.url.path):
+        return await call_next(request)
 
-_INTERNAL_PATHS = frozenset({"/metrics", "/health"})
-
-# RFC-1918 private ranges used by Docker bridge/overlay networks.
-# Any caller whose IP falls in these ranges is inside the Docker network
-# and is a trusted internal service — skip Host-header validation for them.
-_PRIVATE_PREFIXES = ("10.", "172.", "192.168.")
-
-
-def _is_internal_client(request) -> bool:
-    client_host = request.client.host if request.client else ""
-    return (
-        request.url.path in _INTERNAL_PATHS
-        or any(client_host.startswith(p) for p in _PRIVATE_PREFIXES)
-    )
+    start = perf_counter()
+    response = await call_next(request)
+    duration = perf_counter() - start
+    request_metrics_helper.observe(request=request, response=response, duration=duration)
+    return response
 
 
 @app.middleware("http")
@@ -92,7 +93,7 @@ async def host_validation_middleware(request: Request, call_next):
       calling /api/v1/admin/schema/* on product-service) where the Host header
       is the Docker service name, not a public hostname
     """
-    if settings.DEBUG_MODE or _is_internal_client(request):
+    if settings.DEBUG_MODE or internal_access_helper.is_internal_client(request):
         return await call_next(request)
 
     host = request.headers.get("host", "").split(":")[0]

@@ -20,10 +20,9 @@ from shared.shared_instances import (base_event_publisher, user_service_redis_ma
                                     user_service_database_session_manager,
                                     logger,
                                     settings)
+from helpers.internal_access_helper import internal_access_helper
+from helpers.request_helper import request_metrics_helper
 
-# Each worker creates its own histogram after forking so multiprocess mode can
-# merge the data correctly from the shared PROMETHEUS_MULTIPROC_DIR.
-REQUEST_LATENCY: Histogram | None = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI): # pyright: ignore[reportUnusedParameter]
@@ -31,16 +30,9 @@ async def lifespan(app: FastAPI): # pyright: ignore[reportUnusedParameter]
     This is a context manager that will run the startup and shutdown
     events of a FastAPI application.
     """
-    global REQUEST_LATENCY
-
-    REQUEST_LATENCY = Histogram(
-        "user_service_request_latency_seconds",
-        "HTTP request latency histogram (multiprocess-safe)",
-        ["method", "handler", "status"],
-        buckets=(0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0),
-    )
-
     logger.info(f"Server is starting up on {settings.APP_HOST}:{settings.USER_SERVICE_APP_PORT}...")
+    request_metrics_helper.initialize()
+    logger.info("User service Prometheus metrics are initialized!")
     await user_service_redis_manager.connect()
     logger.info("User service redis manager is ok.")
     await user_service_database_session_manager.init_db()
@@ -60,7 +52,6 @@ async def lifespan(app: FastAPI): # pyright: ignore[reportUnusedParameter]
     logger.warning("Server has shut down!")
 
 
-
 app = FastAPI(
     title="user-service",
     description="This is a user service for managing users, authentication, and authorization.",
@@ -71,51 +62,22 @@ app = FastAPI(
 # opentelemetry tracing
 setup_tracing(app, service_name="user-service")
 
-
 # init the prometheus metriscs scraping
 Instrumentator().instrument(app)
-
-
-# Paths that must be reachable by internal scrapers (Prometheus, health checks).
-# These are not user-facing routes, so host validation would only block
-# legitimate infrastructure traffic without any security benefit.
-_INTERNAL_PATHS = frozenset({"/metrics", "/health"})
-
-# RFC-1918 private ranges used by Docker bridge/overlay networks.
-# Any caller whose IP falls in these ranges is inside the Docker network
-# and is a trusted internal service — skip Host-header validation for them.
-_PRIVATE_PREFIXES = ("10.", "172.", "192.168.")
-
-
-def _is_internal_client(request) -> bool:
-    client_host = request.client.host if request.client else ""
-    return (
-        request.url.path in _INTERNAL_PATHS
-        or any(client_host.startswith(p) for p in _PRIVATE_PREFIXES)
-    )
-
 
 # Registered second → inner layer → runs FIRST
 @app.middleware("http")
 async def metrics_middleware(request: Request, call_next):
     """Records request latency into a multiprocess-safe histogram."""
     # Skip internal paths — no value in tracking /metrics scraping itself
-    if request.url.path in _INTERNAL_PATHS:
+    if internal_access_helper.is_internal_path(request.url.path):
         return await call_next(request)
 
     start = perf_counter()
     response = await call_next(request)
     duration = perf_counter() - start
-    route = request.scope.get("route")
-    handler = route.path if route else request.url.path
 
-    if REQUEST_LATENCY is not None:
-        REQUEST_LATENCY.labels(
-            method=request.method,
-            handler=handler,
-            status=f"{response.status_code // 100}xx",
-        ).observe(duration)
-
+    request_metrics_helper.observe(request=request, response=response, duration=duration)
     return response
 
 @app.middleware("http")
@@ -130,7 +92,7 @@ async def host_validation_middleware(request: Request, call_next):
       calling /api/v1/admin/schema/* on product-service) where the Host header
       is the Docker service name, not a public hostname
     """
-    if settings.DEBUG_MODE or _is_internal_client(request):
+    if settings.DEBUG_MODE or internal_access_helper.is_internal_client(request):
         return await call_next(request)
 
     host = request.headers.get("host", "").split(":")[0]
@@ -143,10 +105,6 @@ async def host_validation_middleware(request: Request, call_next):
         detail="Invalid Host header",
         headers={"X-Error": "Invalid Host header"}
     )
-
-
-
-
 
 @app.get("/health", tags=["Health Check"])
 async def health_check():
@@ -162,8 +120,6 @@ async def health_check():
         status_code=200,
         headers={"Cache-Control": "no-cache"}
     )
-
-
 
 @app.get("/metrics", include_in_schema=False)
 def metrics():
@@ -182,7 +138,6 @@ def metrics():
         content=generate_latest(registry),
         media_type="text/plain; version=0.0.4; charset=utf-8",
     )
-
 
 def add_exception_handlers(app: FastAPI):
     """
@@ -256,9 +211,7 @@ def add_exception_handlers(app: FastAPI):
             }
         )
 
-
 # adding exception handlers to the app
-
 add_exception_handlers(app)
 
 # CORS or "Cross-Origin Resource Sharing" is a mechanism that
@@ -277,7 +230,6 @@ add_logging_middleware(app, service_name="user-service")
 
 # including all the routers to the app
 app.include_router(user_routes, prefix=settings.USER_SERVICE_URL_API_VERSION)
-
 
 if __name__ == "__main__":
     run("main:app",

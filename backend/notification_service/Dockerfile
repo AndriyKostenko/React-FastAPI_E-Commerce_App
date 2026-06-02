@@ -57,8 +57,8 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/* \
     && addgroup --system --gid 1003 notificationgroup \
     && adduser --system --uid 1003 --ingroup notificationgroup notificationuser \
-    && mkdir -p /app/logs \
-    && chown -R notificationuser:notificationgroup /app
+    && mkdir -p /app/logs /tmp/prometheus_multiproc/notification-service \
+    && chown -R notificationuser:notificationgroup /app /tmp/prometheus_multiproc
 
 # Copy dependencies from builder
 COPY --from=builder /app/.venv /app/.venv
@@ -86,7 +86,7 @@ HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
 
 #CMD ["sh", "-c", "gunicorn -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:8003 --workers $((2 * $(nproc) + 1)) --timeout 120 --graceful-timeout 30 --access-logfile -"]
 
-CMD ["sh", "-c", "mkdir -p ${PROMETHEUS_MULTIPROC_DIR} && gunicorn -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:8003 --workers 1 --timeout 120 --graceful-timeout 30 --access-logfile -"]
+CMD ["sh", "-c", "mkdir -p ${PROMETHEUS_MULTIPROC_DIR} && rm -rf ${PROMETHEUS_MULTIPROC_DIR}/* && gunicorn -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:8003 --workers ${GUNICORN_WORKERS:-4} --timeout 120 --graceful-timeout 30 --access-logfile -"]
 
 
 # -------------------------

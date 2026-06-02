@@ -54,8 +54,8 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/* \
     && addgroup --system --gid 1007 paymentgroup \
     && adduser --system --uid 1007 --ingroup paymentgroup paymentuser \
-    && mkdir -p /app/logs \
-    && chown -R paymentuser:paymentgroup /app
+    && mkdir -p /app/logs /tmp/prometheus_multiproc/payment-service \
+    && chown -R paymentuser:paymentgroup /app /tmp/prometheus_multiproc
 
 COPY --from=builder /app/.venv /app/.venv
 
@@ -72,7 +72,7 @@ HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
 
 
 #CMD ["sh", "-c", "gunicorn -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:8006 --workers $((2 * $(nproc) + 1)) --timeout 120 --graceful-timeout 30 --access-logfile -"]
-CMD ["sh", "-c", "mkdir -p ${PROMETHEUS_MULTIPROC_DIR} && gunicorn -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:8006 --workers 1 --timeout 120 --graceful-timeout 30 --access-logfile -"]
+CMD ["sh", "-c", "mkdir -p ${PROMETHEUS_MULTIPROC_DIR} && rm -rf ${PROMETHEUS_MULTIPROC_DIR}/* && gunicorn -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:8006 --workers ${GUNICORN_WORKERS:-4} --timeout 120 --graceful-timeout 30 --access-logfile -"]
 
 
 # -------------------------
