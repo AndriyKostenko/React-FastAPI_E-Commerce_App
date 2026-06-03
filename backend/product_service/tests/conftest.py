@@ -47,16 +47,19 @@ from dependencies.dependencies import (
     get_product_service,
     get_review_service,
     get_product_image_service,
+    get_image_generation_service,
 )
 from service_layer.category_service import CategoryService
 from service_layer.product_service import ProductService
 from service_layer.review_service import ReviewService
 from service_layer.product_image_service import ProductImageService
+from service_layer.image_generation_service import ImageGenerationService
 from shared.shared_instances import test_product_service_database_session_manager, test_settings
 from shared.schemas.product_schemas import ProductBase, ProductSchema
 from shared.schemas.category_schema import CategorySchema
 from shared.schemas.review_schemas import ReviewSchema
 from shared.schemas.product_image_schema import ImageType
+from shared.schemas.image_generation_schema import GenerateImageResponse
 
 
 # ---------------------------------------------------------------------------
@@ -263,6 +266,24 @@ def mock_route_review_service() -> MagicMock:
     return svc
 
 
+@pytest.fixture
+def mock_route_image_generation_service() -> MagicMock:
+    svc = MagicMock(spec=ImageGenerationService)
+    svc.GUEST_QUOTA_COOKIE = "guest_generation_id"
+    svc.settings = MagicMock()
+    svc.settings.SECURE_COOKIES = False
+    svc.settings.PRODUCT_IMAGE_GUEST_GENERATION_WINDOW_HOURS = 24
+    svc.generate_image = AsyncMock(
+        return_value=GenerateImageResponse(
+            image_url="/media/generated/fake-image.png",
+            model="openai/gpt-image-1",
+            remaining_generations=2,
+            guest_limit=3,
+        )
+    )
+    return svc
+
+
 @asynccontextmanager
 async def _noop_lifespan(app):
     """No-op lifespan replaces the real one to avoid DB/Redis/RabbitMQ connections."""
@@ -274,6 +295,7 @@ async def client_for_unit_testing(
     mock_route_product_service: MagicMock,
     mock_route_category_service: MagicMock,
     mock_route_review_service: MagicMock,
+    mock_route_image_generation_service: MagicMock,
 ) -> AsyncGenerator[AsyncClient, Any]:
     """
     Async HTTP test client for route-level unit tests.
@@ -288,8 +310,9 @@ async def client_for_unit_testing(
     app.dependency_overrides[get_product_service] = lambda: mock_route_product_service
     app.dependency_overrides[get_category_service] = lambda: mock_route_category_service
     app.dependency_overrides[get_review_service] = lambda: mock_route_review_service
+    app.dependency_overrides[get_image_generation_service] = lambda: mock_route_image_generation_service
 
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as async_client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://localhost") as async_client:
         yield async_client
 
     app.dependency_overrides.clear()
@@ -356,7 +379,7 @@ async def integration_client() -> AsyncGenerator[AsyncClient, Any]:
     app.dependency_overrides[get_review_service] = _override_get_review_service
     app.dependency_overrides[get_product_service] = _override_get_product_service
 
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as async_client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://localhost") as async_client:
         yield async_client
 
     app.dependency_overrides.clear()

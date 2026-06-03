@@ -53,3 +53,12 @@ class NotificationsFilterParams(BaseModel):
     sort_order: str = "desc"
     date_created_from: datetime | None = None
     date_created_to: datetime | None = None
+
+
+class UnreadCountResponse(BaseModel):
+    user_id: str
+    unread_count: int
+
+
+class BulkMarkReadResponse(BaseModel):
+    updated: int

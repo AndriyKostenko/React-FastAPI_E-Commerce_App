@@ -1,11 +1,11 @@
 from typing import Annotated
+from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import EmailStr
 
-from shared.utils.customized_json_response import JSONResponse
 from shared.shared_instances import settings
 from dependencies.dependencies import user_service_dependency, current_user_dependency
 from models.user_models import User
@@ -19,6 +19,7 @@ from shared.schemas.user_schemas import (
     RefreshTokenRequest,
     RefreshTokenResponse,
     ResetPasswordRequest,
+    CurrentUserInfo,
     UserBasicUpdate,
     UserInfo,
     UserLoginDetails,
@@ -31,46 +32,44 @@ user_routes = APIRouter(tags=["users"])
 @user_routes.post("/register",
                   summary="Create new user",
                   response_description="New user created successfully",
-                  response_model=UserInfo)
+                  response_model=UserInfo,
+                  status_code=status.HTTP_201_CREATED)
 async def create_user(request: Request,
                       data: UserSignUp,
                       user_service: user_service_dependency):
     new_db_user, verification_token = await user_service.create_user(data=data)
     await user_events_publisher.publish_user_registered(new_db_user.email, verification_token, user_id=new_db_user.id)
-    return JSONResponse(content=new_db_user, status_code=status.HTTP_201_CREATED)
+    return new_db_user
 
 @user_routes.post("/activate/{token}",
                   summary="Verify user email",
-                  response_description="Email verified successfully",)
+                  response_description="Email verified successfully",
+                  response_model=ActivationLoginResponse,
+                  status_code=status.HTTP_200_OK)
 async def verify_email(request: Request, token: str, user_service: user_service_dependency):
     db_user, access_token, token_expiry = await user_service.verify_email(token=token)
     await user_events_publisher.publish_email_verified(email=db_user.email, user_id=db_user.id)
-    return JSONResponse(
-        content=ActivationLoginResponse(
-            detail="Email verified successfully",
-            email=db_user.email,
-            verified=db_user.is_verified,
-            access_token=access_token,
-            user_role=db_user.role,
-            token_expiry=token_expiry,
-            user_id=str(db_user.id),
-        ),
-        status_code=status.HTTP_200_OK,
+    return ActivationLoginResponse(
+        detail="Email verified successfully",
+        email=db_user.email,
+        verified=db_user.is_verified,
+        access_token=access_token,
+        user_role=db_user.role,
+        token_expiry=token_expiry,
+        user_id=str(db_user.id),
     )
 
 @user_routes.post("/forgot-password",
                     summary="Request password reset",
                     response_description="Password reset email sent successfully",
-                    response_model=ForgotPasswordResponse)
+                    response_model=ForgotPasswordResponse,
+                    status_code=status.HTTP_200_OK)
 async def forgot_password(request: Request, email: EmailStr, user_service: user_service_dependency):
     user, reset_token = await user_service.request_password_reset(email)
     await user_events_publisher.publish_password_reset_request(email=user.email, reset_token=reset_token, user_id=user.id)
-    return JSONResponse(
-        content=ForgotPasswordResponse(
-            detail="Password reset email has been sent!",
-            email=user.email,
-        ),
-        status_code=status.HTTP_200_OK,
+    return ForgotPasswordResponse(
+        detail="Password reset email has been sent!",
+        email=user.email,
     )
 
 
@@ -80,94 +79,85 @@ async def forgot_password(request: Request, email: EmailStr, user_service: user_
 @user_routes.post("/password-reset/{token}",
                     summary="Reset password with token",
                     response_model=PasswordUpdateResponse,
-                    response_description="Password reset successfully")
+                    response_description="Password reset successfully",
+                    status_code=status.HTTP_200_OK)
 async def reset_password(request: Request, token: str, data: ResetPasswordRequest, user_service: user_service_dependency):
     """Reset password using token"""
     user = await user_service.reset_password_with_token(token=token, new_password=data.new_password)
     await user_events_publisher.publish_password_reset_success(email=user.email, user_id=user.id)
-    return JSONResponse(
-        content=PasswordUpdateResponse(
-            detail="Password reset successfully", email=user.email
-        ),
-        status_code=status.HTTP_200_OK,
+    return PasswordUpdateResponse(
+        detail="Password reset successfully", email=user.email
     )
 
 @user_routes.post("/login",
                     summary="User login",
                     response_model=UserLoginDetails,
-                    response_description="User logged in successfully")
+                    response_description="User logged in successfully",
+                    status_code=status.HTTP_200_OK)
 async def login(request: Request,
                 form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
                 user_service: user_service_dependency):
     user, access_token, access_expiry, refresh_token, refresh_expiry = await user_service.login_user(form_data)
     await user_events_publisher.publish_user_logged_in(email=user.email, user_id=user.id)
-    return JSONResponse(
-        content=UserLoginDetails(
-            access_token=access_token,
-            token_type=settings.TOKEN_TYPE,
-            token_expiry=access_expiry,
-            refresh_token=refresh_token,
-            refresh_token_expiry=refresh_expiry,
-            user_id=user.id,
-            user_email=user.email,
-            user_role=user.role,
-        ),
-        status_code=status.HTTP_200_OK,
+    return UserLoginDetails(
+        access_token=access_token,
+        token_type=settings.TOKEN_TYPE,
+        token_expiry=access_expiry,
+        refresh_token=refresh_token,
+        refresh_token_expiry=refresh_expiry,
+        user_id=user.id,
+        user_email=user.email,
+        user_role=user.role,
     )
 
 
 @user_routes.post("/google-login",
                   summary="Login or register with Google",
                   response_model=UserLoginDetails,
-                  response_description="Authenticated successfully via Google")
+                  response_description="Authenticated successfully via Google",
+                  status_code=status.HTTP_200_OK)
 async def google_login(request: Request,
                        data: GoogleLoginRequest,
                        user_service: user_service_dependency):
     user, access_token, access_expiry, refresh_token, refresh_expiry = await user_service.login_or_register_google_user(data.id_token)
-    return JSONResponse(
-        content=UserLoginDetails(
-            access_token=access_token,
-            token_type=settings.TOKEN_TYPE,
-            token_expiry=access_expiry,
-            refresh_token=refresh_token,
-            refresh_token_expiry=refresh_expiry,
-            user_id=user.id,
-            user_email=user.email,
-            user_role=user.role,
-        ),
-        status_code=status.HTTP_200_OK,
+    return UserLoginDetails(
+        access_token=access_token,
+        token_type=settings.TOKEN_TYPE,
+        token_expiry=access_expiry,
+        refresh_token=refresh_token,
+        refresh_token_expiry=refresh_expiry,
+        user_id=user.id,
+        user_email=user.email,
+        user_role=user.role,
     )
 
 @user_routes.post("/refresh",
                   summary="Refresh access token",
                   response_model=RefreshTokenResponse,
-                  response_description="New access token issued")
+                  response_description="New access token issued",
+                  status_code=status.HTTP_200_OK)
 async def refresh_token(request: Request,
                         data: RefreshTokenRequest,
                         user_service: user_service_dependency):
     access_token, expiry = await user_service.refresh_access_token(data.refresh_token)
-    return JSONResponse(
-        content=RefreshTokenResponse(
-            access_token=access_token,
-            token_type=settings.TOKEN_TYPE,
-            token_expiry=expiry,
-        ),
-        status_code=status.HTTP_200_OK,
+    return RefreshTokenResponse(
+        access_token=access_token,
+        token_type=settings.TOKEN_TYPE,
+        token_expiry=expiry,
     )
 
 @user_routes.post("/logout",
                   summary="Logout and revoke refresh token",
-                  response_description="Logged out successfully")
+                  response_description="Logged out successfully",
+                  response_model=dict[str, str],
+                  status_code=status.HTTP_200_OK)
 async def logout(request: Request,
                  data: RefreshTokenRequest,
                  user_service: user_service_dependency):
     await user_service.logout_user(data.refresh_token)
-    return JSONResponse(
-        content={"detail": "Logged out successfully"},
-        status_code=status.HTTP_200_OK,
-    )
+    return {"detail": "Logged out successfully"}
 
-@user_routes.get("/me")
+@user_routes.get("/me", response_model=CurrentUserInfo, status_code=status.HTTP_200_OK)
 async def get_me(current_user: current_user_dependency):
     return current_user
 
@@ -180,12 +170,13 @@ async def get_me(current_user: current_user_dependency):
     "/users/{user_id}",
     summary="Get user by id",
     response_description="User data retrieved successfully",
-    response_model=UserInfo)
+    response_model=UserInfo,
+    status_code=status.HTTP_200_OK)
 async def get_user_by_user_id(request: Request,
                               user_id: UUID,
                               user_service: user_service_dependency):
     user = await user_service.get_user_by_id(user_id=user_id)
-    return JSONResponse(content=user, status_code=status.HTTP_200_OK)
+    return user
 
 
 @user_routes.get(
@@ -193,6 +184,7 @@ async def get_user_by_user_id(request: Request,
     summary="Get all users",
     response_description="List of all users retrieved successfully",
     response_model=list[UserInfo],
+    status_code=status.HTTP_200_OK,
 )
 async def get_all_users(
     request: Request,
@@ -200,7 +192,7 @@ async def get_all_users(
     filters_query: Annotated[UsersFilterParams, Query()],
 ):
     users = await user_service.get_all_users(filters=filters_query)
-    return JSONResponse(content=users, status_code=status.HTTP_200_OK)
+    return users
 
 
 @user_routes.patch(
@@ -208,6 +200,7 @@ async def get_all_users(
     summary="Update user by ID",
     response_description="User updated successfully",
     response_model=UserInfo,
+    status_code=status.HTTP_200_OK,
 )
 async def update_user_by_id(
     request: Request,
@@ -218,21 +211,21 @@ async def update_user_by_id(
     updated_user = await user_service.update_user_basic_info(
         user_id=user_id, update_data=data
     )
-    return JSONResponse(content=updated_user, status_code=status.HTTP_200_OK)
+    return updated_user
 
 
 @user_routes.delete(
     "/users/{user_id}",
     summary="Delete user by ID",
     response_description="User deleted successfully",
+    response_model=dict[str, str],
+    status_code=status.HTTP_200_OK,
 )
 async def delete_user_by_id(
     request: Request, user_id: UUID, user_service: user_service_dependency
 ):
     await user_service.delete_user_by_id(user_id=user_id)
-    return JSONResponse(
-        content={"detail": "User deleted successfully"}, status_code=status.HTTP_200_OK
-    )
+    return {"detail": "User deleted successfully"}
 
 
 # -------------------------AdminJS Schema-----------------------------------
@@ -241,8 +234,8 @@ async def delete_user_by_id(
 @user_routes.get(
     "/admin/schema/users",
     summary="Get schema for AdminJS",
+    response_model=dict[str, Any],
+    status_code=status.HTTP_200_OK,
 )
 async def get_user_schema_for_admin_js(request: Request):
-    return JSONResponse(
-        content={"fields": User.get_admin_schema()}, status_code=status.HTTP_200_OK
-    )
+    return {"fields": User.get_admin_schema()}

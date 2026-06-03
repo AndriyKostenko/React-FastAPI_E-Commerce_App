@@ -157,6 +157,13 @@ class Settings(BaseSettings):
     #AdminJs
     ADMINJS_SERVICE_TOKEN: str
 
+    # OpenRouter image generation
+    OPENROUTER_API_KEY: str = ""
+    OPENROUTER_BASE_URL: str = "https://openrouter.ai/api/v1"
+    OPENROUTER_IMAGE_MODEL: str = "openai/gpt-image-1"
+    PRODUCT_IMAGE_GUEST_GENERATION_LIMIT: int = 3
+    PRODUCT_IMAGE_GUEST_GENERATION_WINDOW_HOURS: int = 24
+
     # Other
     SECRET_ROLE: str
     POLLING_INTERVAL_FROM_DB: int | float

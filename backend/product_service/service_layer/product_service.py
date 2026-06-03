@@ -105,7 +105,7 @@ class ProductService:
     async def get_all_products_without_relations(self,
                                                 filters_query: Annotated[ProductsFilterParams, Query()]) -> list[ProductBase]:
         params = self.filter_parser.parse_filter_params(filter_query=filters_query)
-        products = await self.repository.get_all(**params)
+        products: list[Product] = await self.repository.get_all(**params)
         if not products:
             raise ProductNotFoundError("No products found with the given criteria.")
         return [ProductBase.model_validate(product) for product in products]

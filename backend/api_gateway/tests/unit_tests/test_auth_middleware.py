@@ -68,6 +68,9 @@ class TestIsPublicEndpoint:
     def test_categories_get_is_public(self):
         assert self.mw.is_public_endpoint(f"{API}/categories", "GET") is True
 
+    def test_images_generations_post_is_public(self):
+        assert self.mw.is_public_endpoint(f"{API}/images/generations", "POST") is True
+
     def test_payments_webhook_post_is_public(self):
         assert self.mw.is_public_endpoint(f"{API}/payments/webhook", "POST") is True
 

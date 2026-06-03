@@ -5,7 +5,7 @@ from time import perf_counter
 
 from uvicorn import run
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, Response as PlainResponse
+from fastapi.responses import JSONResponse, ORJSONResponse, Response as PlainResponse
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.staticfiles import StaticFiles
 from pydantic import ValidationError
@@ -63,7 +63,7 @@ app = FastAPI(
     title="product-service",
     description="This is a user service for managing products.",
     version="0.0.1",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
 setup_tracing(app, service_name="product-service")

@@ -1,9 +1,8 @@
 from decimal import Decimal
-from typing import Annotated, Optional
+from typing import Annotated, Any, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, File, Form, Query, Request, UploadFile, status
-from shared.utils.customized_json_response import JSONResponse
 
 from dependencies.dependencies import (
     product_service_dependency,
@@ -23,13 +22,14 @@ product_routes = APIRouter(tags=["products"])
 @product_routes.post(
     "/products",
     response_model=ProductBase,
+    status_code=status.HTTP_201_CREATED,
     summary="Create product (JSON)",
     response_description="New product created",
 )
 async def create_product_json(
     request: Request,
     product_service: product_service_dependency,
-    product_data: CreateProduct) -> JSONResponse:
+    product_data: CreateProduct) -> ProductBase:
     """
     Create a new product using JSON payload.
     Used by AdminJS and API clients. (without images uploads for now)
@@ -37,12 +37,13 @@ async def create_product_json(
     created_product = await product_service.create_product_item(
         product_data=product_data
     )
-    return JSONResponse(content=created_product, status_code=status.HTTP_201_CREATED)
+    return created_product
 
 
 @product_routes.post(
     "/products/upload",
     response_model=ProductBase,
+    status_code=status.HTTP_201_CREATED,
     summary="Create product with FormData",
 )
 async def create_product_with_images(
@@ -58,7 +59,7 @@ async def create_product_with_images(
     images: list[UploadFile] = File(...),
     image_colors: list[str] = Form(...),
     image_color_codes: list[str] = Form(...),
-) -> JSONResponse:
+) -> ProductBase:
     """
     Create a new product with optional image uploads.
     Used by frontend forms that need to upload files.
@@ -78,70 +79,76 @@ async def create_product_with_images(
         image_colors=image_colors,
         image_color_codes=image_color_codes,
     )
-    return JSONResponse(content=created_product, status_code=status.HTTP_201_CREATED)
+    return created_product
 
 
 @product_routes.get(
-    "/products", response_model=list[ProductBase], response_description="All products"
+    "/products",
+    response_model=list[ProductBase],
+    response_description="All products",
+    status_code=status.HTTP_200_OK,
 )
 async def get_all_products(
     request: Request,
     product_service: product_service_dependency,
     filters_query: Annotated[ProductsFilterParams, Query()],
-) -> JSONResponse:
+) -> list[ProductBase]:
     products = await product_service.get_all_products_without_relations(
         filters_query=filters_query
     )
-    return JSONResponse(content=products, status_code=status.HTTP_200_OK)
+    return products
 
 
 @product_routes.get(
     "/products/detailed",
     response_model=list[ProductSchema],
     response_description="All products with relations",
+    status_code=status.HTTP_200_OK
 )
 async def get_all_products_detailed(
     request: Request,
     product_service: product_service_dependency,
     filters_query: Annotated[ProductsFilterParams, Query()],
-) -> JSONResponse:
-    product_with_relations = await product_service.get_all_products_with_relations(
+) -> list[ProductSchema]:
+    return await product_service.get_all_products_with_relations(
         filters_query=filters_query
     )
-    return JSONResponse(content=product_with_relations, status_code=status.HTTP_200_OK)
 
 
 @product_routes.get(
     "/products/{product_id}",
     response_model=ProductBase,
     response_description="Product by ID",
+    status_code=status.HTTP_200_OK,
 )
 async def get_product_by_id(
     request: Request, product_id: UUID, product_service: product_service_dependency
-) -> JSONResponse:
+) -> ProductBase:
     product = await product_service.get_product_by_id_without_relations(
         product_id=product_id
     )
-    return JSONResponse(content=product, status_code=status.HTTP_200_OK)
+    return product
 
 
 @product_routes.get(
     "/products/{product_id}/detailed",
     response_model=ProductBase,
     response_description="Product by ID",
+    status_code=status.HTTP_200_OK,
 )
 async def get_product_by_id_detailed(
     request: Request, product_id: UUID, product_service: product_service_dependency
-) -> JSONResponse:
+) -> ProductBase:
     product = await product_service.get_product_by_id_with_relations(
         product_id=product_id
     )
-    return JSONResponse(content=product, status_code=status.HTTP_200_OK)
+    return product
 
 
 @product_routes.patch(
     "/products/{product_id}",
     response_model=ProductBase,
+    status_code=status.HTTP_200_OK,
     summary="Update product (JSON)",
     response_description="Product updated",
 )
@@ -150,7 +157,7 @@ async def update_product_json(
     product_id: UUID,
     product_service: product_service_dependency,
     product_data: UpdateProduct,
-) -> JSONResponse:
+) -> ProductBase:
     """
     Update a product using JSON payload.
     Used by AdminJS and API clients. (without images uploads for now)
@@ -158,12 +165,13 @@ async def update_product_json(
     product = await product_service.update_product(
         product_id=product_id, product_data=product_data
     )
-    return JSONResponse(content=product, status_code=status.HTTP_200_OK)
+    return product
 
 
 @product_routes.delete(
     "/products/{product_id}",
     response_description="Product deleted",
+    response_model=None,
     status_code=status.HTTP_204_NO_CONTENT,
 )
 async def delete_product_by_id(
@@ -176,6 +184,7 @@ async def delete_product_by_id(
 @product_routes.patch(
     "/products/{product_id}/upload",
     response_model=ProductBase,
+    status_code=status.HTTP_200_OK,
     summary="Update product with images (FormData)",
     response_description="Product updated with images",
 )
@@ -191,7 +200,7 @@ async def update_product_with_images(
     price: Optional[Decimal] = Form(None),
     in_stock: Optional[bool] = Form(None),
     images: Optional[list[UploadFile]] = File(None),
-) -> JSONResponse:
+) -> ProductBase:
     """
     Update a product with optional image uploads.
     Used by frontend forms that need to upload files.
@@ -209,11 +218,14 @@ async def update_product_with_images(
         product_id=product_id,
         product_data=product_data,
     )
-    return JSONResponse(content=product, status_code=status.HTTP_200_OK)
+    return product
 
 
-@product_routes.get("/admin/schema/products", summary="Schema for AdminJS")
+@product_routes.get(
+    "/admin/schema/products",
+    summary="Schema for AdminJS",
+    response_model=dict[str, Any],
+    status_code=status.HTTP_200_OK,
+)
 async def get_product_schema_for_admin_js(request: Request):
-    return JSONResponse(
-        content={"fields": Product.get_admin_schema()}, status_code=status.HTTP_200_OK
-    )
+    return {"fields": Product.get_admin_schema()}

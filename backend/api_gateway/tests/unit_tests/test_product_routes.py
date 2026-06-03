@@ -37,6 +37,14 @@ class TestPublicProductRoutes:
         response = await client.get(f"{TEST_API}/images")
         mock_forward.assert_awaited_once()
 
+    async def test_generate_custom_image_calls_forward(self, client: AsyncClient, mock_forward: AsyncMock):
+        response = await client.post(
+            f"{TEST_API}/images/generations",
+            json={"prompt": "Neon tiger design", "style": "Streetwear"},
+        )
+        mock_forward.assert_awaited_once()
+        assert response.status_code == 200
+
     async def test_get_all_reviews_calls_forward(self, client: AsyncClient, mock_forward: AsyncMock):
         response = await client.get(f"{TEST_API}/reviews")
         mock_forward.assert_awaited_once()

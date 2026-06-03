@@ -100,6 +100,15 @@ async def get_image_by_id(request: Request,
     )
 
 
+@product_proxy.post("/images/generations", summary="Generate custom image")
+async def generate_custom_image(request: Request):
+    """PUBLIC - Guest users can generate custom images with quota limits."""
+    return await api_gateway_manager.forward_request(
+        service_name="product-service",
+        request=request,
+    )
+
+
 # Reviews
 @product_proxy.get("/reviews", summary="Get all reviews")
 async def get_all_reviews(request: Request):

@@ -4,7 +4,12 @@ from collections.abc import AsyncGenerator
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from shared.shared_instances import product_service_database_session_manager
+from shared.shared_instances import (
+    logger,
+    product_service_database_session_manager,
+    product_service_redis_manager,
+    settings,
+)
 from database_layer.category_repository import CategoryRepository
 from database_layer.product_image_repository import ProductImageRepository
 from database_layer.product_repository import ProductRepository
@@ -13,6 +18,7 @@ from service_layer.category_service import CategoryService
 from service_layer.product_image_service import ProductImageService
 from service_layer.product_service import ProductService
 from service_layer.review_service import ReviewService
+from service_layer.image_generation_service import ImageGenerationService
 
 """
 FLow Diagram for Database Session Management in FastAPI:
@@ -74,7 +80,16 @@ def get_product_service(
     return ProductService(product_repository, product_image_service)
 
 
+def get_image_generation_service() -> ImageGenerationService:
+    return ImageGenerationService(
+        settings=settings,
+        cache_manager=product_service_redis_manager,
+        logger=logger
+    )
+
+
 product_service_dependency = Annotated[ProductService, Depends(get_product_service)]
 category_service_dependency = Annotated[CategoryService, Depends(get_category_service)]
 review_service_dependency = Annotated[ReviewService, Depends(get_review_service)]
 product_image_service_dependency = Annotated[ProductImageService, Depends(get_product_image_service)]
+image_generation_service_dependency = Annotated[ImageGenerationService, Depends(get_image_generation_service)]

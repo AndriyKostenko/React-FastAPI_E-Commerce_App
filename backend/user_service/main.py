@@ -5,11 +5,11 @@ from time import perf_counter
 
 from uvicorn import run
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, Response as PlainResponse
+from fastapi.responses import JSONResponse, ORJSONResponse, Response as PlainResponse
 from fastapi import FastAPI, Request, HTTPException
 from pydantic import ValidationError
 from fastapi.exceptions import ResponseValidationError, RequestValidationError
-from prometheus_client import CollectorRegistry, generate_latest, multiprocess, REGISTRY, Histogram
+from prometheus_client import CollectorRegistry, generate_latest, multiprocess, REGISTRY
 from prometheus_fastapi_instrumentator import Instrumentator
 
 from routes.user_routes import user_routes
@@ -56,7 +56,7 @@ app = FastAPI(
     title="user-service",
     description="This is a user service for managing users, authentication, and authorization.",
     version="0.0.1",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
 # opentelemetry tracing
