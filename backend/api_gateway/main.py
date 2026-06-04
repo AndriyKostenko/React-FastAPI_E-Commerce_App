@@ -6,7 +6,8 @@ from time import perf_counter
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response as PlainResponse
 from uvicorn import run
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException
+from httpx import RequestError
 from prometheus_client import CollectorRegistry, generate_latest, multiprocess, REGISTRY, Histogram, Counter
 
 from shared.exceptions.base_exceptions import BaseAPIException
@@ -181,6 +182,40 @@ def metrics():
     return PlainResponse(
         content=generate_latest(registry),
         media_type="text/plain; version=0.0.4; charset=utf-8",
+    )
+
+
+@app.get("/media/{file_path:path}", include_in_schema=False)
+async def proxy_product_media(file_path: str):
+    """
+    Proxy product-service static media through API Gateway so frontend can use a
+    single API origin (:8000) for both JSON APIs and generated image files.
+    """
+    normalized_path = file_path.lstrip("/")
+    if not normalized_path:
+        raise HTTPException(status_code=404, detail="Media file not found")
+
+    upstream_url = f"{settings.PRODUCT_SERVICE_URL.rstrip('/')}/media/{normalized_path}"
+    try:
+        upstream_response = await api_gateway_manager.client.get(
+            upstream_url,
+            timeout=api_gateway_manager._TIMEOUT,
+        )
+    except RequestError as exc:
+        logger.error(f"Failed to fetch media from product-service ({upstream_url}): {exc!r}")
+        raise HTTPException(status_code=502, detail="Failed to fetch media file")
+
+    passthrough_headers: dict[str, str] = {}
+    for header in ("cache-control", "etag", "last-modified", "accept-ranges", "content-range"):
+        value = upstream_response.headers.get(header)
+        if value:
+            passthrough_headers[header] = value
+
+    return PlainResponse(
+        content=upstream_response.content,
+        status_code=upstream_response.status_code,
+        media_type=upstream_response.headers.get("content-type"),
+        headers=passthrough_headers,
     )
 
 

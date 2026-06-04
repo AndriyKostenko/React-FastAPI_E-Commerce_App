@@ -2,11 +2,13 @@ from typing import Any
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, File, Form, Request, Response, UploadFile, status
+from fastapi.responses import JSONResponse
 
 from dependencies.dependencies import (
     image_generation_service_dependency,
     product_image_service_dependency,
 )
+from exceptions.image_generation_exceptions import ImageGenerationLimitExceededError
 from models.product_image_models import ProductImage
 from shared.schemas.image_generation_schema import (
     GenerateImageRequest,
@@ -30,30 +32,62 @@ async def generate_image(
     image_generation_service: image_generation_service_dependency,
     generation_data: GenerateImageRequest,
 ) -> GenerateImageResponse:
-    guest_id = request.cookies.get(image_generation_service.GUEST_QUOTA_COOKIE)
+    cookie_name = image_generation_service.GUEST_QUOTA_COOKIE
+    raw_cookie = request.cookies.get(cookie_name)
 
-    new_guest_id = None
+    # Validate that the cookie value is a well-formed UUID to prevent
+    # arbitrary values from polluting Redis keys.
+    guest_id: str | None = None
+    if raw_cookie:
+        try:
+            UUID(raw_cookie)
+            guest_id = raw_cookie
+        except ValueError:
+            pass  # treat malformed cookie as no cookie
+
+    new_guest_id: str | None = None
     if not guest_id:
         new_guest_id = str(uuid4())
         guest_id = new_guest_id
 
-    generated_image = await image_generation_service.generate_image(
-        prompt=generation_data.prompt,
-        style=generation_data.style,
-        is_guest_user=True,
-        guest_id=guest_id,
-    )
-
+    # Build cookie kwargs once so we can attach them to both the success
+    # response (via injected Response) and the 429 JSONResponse below.
+    cookie_kwargs: dict | None = None
     if new_guest_id:
-        response.set_cookie(
-            key=image_generation_service.GUEST_QUOTA_COOKIE,
+        forwarded_proto = request.headers.get("x-forwarded-proto", "").split(",")[0].strip().lower()
+        is_https_request = request.url.scheme == "https" or forwarded_proto == "https"
+        cookie_kwargs = dict(
+            key=cookie_name,
             value=new_guest_id,
             httponly=True,
-            secure=image_generation_service.settings.SECURE_COOKIES,
+            secure=bool(image_generation_service.settings.SECURE_COOKIES and is_https_request),
             samesite="lax",
             max_age=image_generation_service.settings.PRODUCT_IMAGE_GUEST_GENERATION_WINDOW_HOURS
             * 3600,
         )
+
+    try:
+        generated_image = await image_generation_service.generate_image(
+            prompt=generation_data.prompt,
+            style=generation_data.style,
+            is_guest_user=True,
+            guest_id=guest_id,
+        )
+    except ImageGenerationLimitExceededError as exc:
+        # Return a JSONResponse directly so we can attach Set-Cookie.
+        # FastAPI's HTTPException handler discards the injected Response
+        # object's cookies, so we must build the response ourselves here.
+        resp = JSONResponse(
+            status_code=exc.status_code,
+            content={"detail": exc.detail},
+            headers=exc.headers or {},
+        )
+        if cookie_kwargs:
+            resp.set_cookie(**cookie_kwargs)
+        return resp
+
+    if cookie_kwargs:
+        response.set_cookie(**cookie_kwargs)
 
     return generated_image
 

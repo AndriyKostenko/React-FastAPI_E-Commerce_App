@@ -125,3 +125,39 @@ class TestForwardRequest:
         assert result.status_code == 201
         call_kwargs = mock_http_client.request.call_args.kwargs
         assert call_kwargs["json"] == override
+
+    async def test_image_generation_path_uses_extended_timeout(self):
+        req = self._make_mock_request("POST", "/api/v1/images/generations")
+        req.headers = {"content-type": "application/json"}
+        req.json = AsyncMock(return_value={"prompt": "test prompt", "style": "Streetwear"})
+
+        mock_response = MagicMock(spec=HttpxResponse)
+        mock_response.status_code = 201
+        mock_response.json.return_value = {"image_url": "/media/generated/test.png"}
+        mock_response.headers = {}
+
+        mock_http_client = AsyncMock()
+        mock_http_client.request = AsyncMock(return_value=mock_response)
+
+        with patch.object(ApiGateway, "_http_client", mock_http_client):
+            await self.gw.forward_request(request=req, service_name="product-service")
+
+        call_kwargs = mock_http_client.request.call_args.kwargs
+        assert call_kwargs["timeout"] == self.gw._IMAGE_GENERATION_TIMEOUT
+
+    async def test_regular_product_path_uses_default_timeout(self):
+        req = self._make_mock_request("GET", "/api/v1/products")
+
+        mock_response = MagicMock(spec=HttpxResponse)
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"items": []}
+        mock_response.headers = {}
+
+        mock_http_client = AsyncMock()
+        mock_http_client.request = AsyncMock(return_value=mock_response)
+
+        with patch.object(ApiGateway, "_http_client", mock_http_client):
+            await self.gw.forward_request(request=req, service_name="product-service")
+
+        call_kwargs = mock_http_client.request.call_args.kwargs
+        assert call_kwargs["timeout"] == self.gw._TIMEOUT

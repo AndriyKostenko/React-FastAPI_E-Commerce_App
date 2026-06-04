@@ -41,6 +41,9 @@ class TestIsPublicEndpoint:
     def test_docs_endpoint_is_public(self):
         assert self.mw.is_public_endpoint("/docs", "GET") is True
 
+    def test_media_prefix_is_public(self):
+        assert self.mw.is_public_endpoint("/media/generated/test.png", "GET") is True
+
     def test_register_post_is_public(self):
         assert self.mw.is_public_endpoint(f"{API}/register", "POST") is True
 
@@ -67,6 +70,9 @@ class TestIsPublicEndpoint:
 
     def test_categories_get_is_public(self):
         assert self.mw.is_public_endpoint(f"{API}/categories", "GET") is True
+
+    def test_customization_pricing_get_is_public(self):
+        assert self.mw.is_public_endpoint(f"{API}/customization/pricing", "GET") is True
 
     def test_images_generations_post_is_public(self):
         assert self.mw.is_public_endpoint(f"{API}/images/generations", "POST") is True

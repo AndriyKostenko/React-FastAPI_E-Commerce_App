@@ -14,6 +14,9 @@ type HeroBottomBarProps = {
   setPlacement: Dispatch<SetStateAction<string>>;
   quantity: number;
   setQuantity: Dispatch<SetStateAction<number>>;
+  finalPrice: number;
+  currency: string;
+  isPriceLoading: boolean;
   onAddToCart: () => void;
 };
 
@@ -162,14 +165,32 @@ const QuantitySelector = ({
   </div>
 );
 
-const AddToCartButton = ({ onAddToCart }: Pick<HeroBottomBarProps, "onAddToCart">) => (
-  <button
-    onClick={onAddToCart}
-    className="flex-shrink-0 bg-brand-lime text-primary py-3 px-8 rounded-2xl font-label-bold hover:shadow-xl transition-all active:scale-95"
-  >
-    Add to Cart
-  </button>
-);
+const AddToCartButton = ({
+  onAddToCart,
+  finalPrice,
+  currency,
+  isPriceLoading,
+}: Pick<HeroBottomBarProps, "onAddToCart" | "finalPrice" | "currency" | "isPriceLoading">) => {
+  const normalizedCurrency = currency?.trim() || "USD";
+  const formattedPrice = new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: normalizedCurrency,
+  }).format(finalPrice);
+
+  return (
+    <div className="flex-shrink-0 flex flex-col items-center gap-2">
+      <span className="inline-flex items-center justify-center min-w-[54px] h-5 px-4 rounded-full bg-primary text-white font-label-bold text-sm shadow-md">
+        {isPriceLoading ? "..." : formattedPrice}
+      </span>
+      <button
+        onClick={onAddToCart}
+        className="bg-brand-lime text-primary py-3 px-8 rounded-2xl font-label-bold hover:shadow-xl transition-all active:scale-95"
+      >
+        Add to Cart
+      </button>
+    </div>
+  );
+};
 
 const HeroBottomBar = ({
   garmentColor,
@@ -182,6 +203,9 @@ const HeroBottomBar = ({
   setPlacement,
   quantity,
   setQuantity,
+  finalPrice,
+  currency,
+  isPriceLoading,
   onAddToCart,
 }: HeroBottomBarProps) => {
   return (
@@ -196,7 +220,12 @@ const HeroBottomBar = ({
       <Divider />
       <QuantitySelector quantity={quantity} setQuantity={setQuantity} />
       <Divider />
-      <AddToCartButton onAddToCart={onAddToCart} />
+      <AddToCartButton
+        onAddToCart={onAddToCart}
+        finalPrice={finalPrice}
+        currency={currency}
+        isPriceLoading={isPriceLoading}
+      />
     </div>
   );
 };

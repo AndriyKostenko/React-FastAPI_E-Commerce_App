@@ -1,5 +1,6 @@
 from fastapi import status
 from httpx import AsyncClient
+from uuid import uuid4
 
 from exceptions.image_generation_exceptions import ImageGenerationLimitExceededError
 from tests.conftest import TEST_API
@@ -31,7 +32,7 @@ class TestGenerateImageEndpoint:
         response = await client_for_unit_testing.post(
             f"{TEST_API}/images/generations",
             json=self._payload,
-            cookies={"guest_generation_id": "existing-guest-id"},
+            cookies={"guest_generation_id": str(uuid4())},
         )
 
         assert response.status_code == status.HTTP_201_CREATED
@@ -49,7 +50,23 @@ class TestGenerateImageEndpoint:
         response = await client_for_unit_testing.post(
             f"{TEST_API}/images/generations",
             json=self._payload,
-            cookies={"guest_generation_id": "existing-guest-id"},
+            cookies={"guest_generation_id": str(uuid4())},
         )
 
         assert response.status_code == status.HTTP_429_TOO_MANY_REQUESTS
+
+    async def test_guest_cookie_not_marked_secure_on_http(
+        self,
+        client_for_unit_testing: AsyncClient,
+        mock_route_image_generation_service,
+    ):
+        mock_route_image_generation_service.settings.SECURE_COOKIES = True
+        response = await client_for_unit_testing.post(
+            f"{TEST_API}/images/generations",
+            json=self._payload,
+        )
+
+        set_cookie_header = response.headers.get("set-cookie", "")
+        assert response.status_code == status.HTTP_201_CREATED
+        assert "guest_generation_id=" in set_cookie_header
+        assert "Secure" not in set_cookie_header

@@ -1,11 +1,16 @@
+from asyncio import TimeoutError
 import base64
+import json
 from logging import Logger
 import os
 from pathlib import Path
+from typing import override
 from uuid import uuid4
+from abc import ABC, abstractmethod
 
 import aiofiles
-import aiohttp
+from aiohttp import ClientTimeout, ClientSession, ClientError
+from pydantic import BaseModel
 
 from shared.settings import Settings
 from shared.managers.cache_manager import CacheManager
@@ -16,15 +21,24 @@ from exceptions.image_generation_exceptions import (
     ImageGenerationProviderError,
 )
 
+class ImageGenerationInterface(ABC):
+    @abstractmethod
+    async def generate_image(self,  prompt: str, style: str, is_guest_user: bool, guest_id: str | None) -> BaseModel:
+        """Generating an image"""
+        ...
+    @abstractmethod
+    async def save_image(self, b64_image: str) -> str:
+        """Saving the generated image"""
+        ...
 
-class ImageGenerationService:
-    """
 
-    """
+class ImageGenerationService(ImageGenerationInterface):
     def __init__(self, settings: Settings, cache_manager: CacheManager, logger: Logger):
-        self.settings = settings
-        self.cache_manager = cache_manager
-        self.logger = logger
+        self.settings: Settings = settings
+        self.cache_manager: CacheManager = cache_manager
+        self.logger: Logger = logger
+        self.timeout: ClientTimeout = ClientTimeout(total=90)
+        self.GUEST_QUOTA_COOKIE: str = settings.GUEST_QUOTA_COOKIE
 
     async def _consume_guest_quota(self, guest_id: str) -> int:
         key = f"{self.cache_manager.service_prefix}:image-generation:guest:{guest_id}"
@@ -34,6 +48,11 @@ class ImageGenerationService:
         current_count = await self.cache_manager.redis.incr(key)
         if current_count == 1:
             await self.cache_manager.redis.expire(key, window_seconds)
+        else:
+            ttl = await self.cache_manager.redis.ttl(key)
+            if ttl == -1:
+                # Key exists but has no TTL (expire was lost between calls) — restore it.
+                await self.cache_manager.redis.expire(key, window_seconds)
 
         ttl = await self.cache_manager.redis.ttl(key)
         retry_after = max(ttl, 1)
@@ -43,22 +62,85 @@ class ImageGenerationService:
 
         return max(limit - current_count, 0)
 
-    async def _save_generated_image(self, b64_image: str) -> str:
-        media_root = Path(os.environ.get("MEDIA_ROOT", "/media"))
-        generated_dir = media_root / "generated"
-        generated_dir.mkdir(parents=True, exist_ok=True)
+    @override
+    async def save_image(self, b64_image: str) -> str:
+        try:
+            media_root = Path(os.environ.get("MEDIA_ROOT", "/media"))
+            generated_dir = media_root / "generated"
+            generated_dir.mkdir(parents=True, exist_ok=True)
 
-        filename = f"{uuid4().hex}.png"
-        output_file = generated_dir / filename
-        image_bytes = base64.b64decode(b64_image)
+            filename = f"{uuid4().hex}.png"
+            output_file = generated_dir / filename
+            image_payload = b64_image.strip()
+            if image_payload.startswith("data:"):
+                _, separator, image_payload = image_payload.partition(",")
+                if not separator or not image_payload:
+                    raise ValueError("Invalid image data URL")
+            image_bytes = base64.b64decode(image_payload, validate=True)
 
-        async with aiofiles.open(output_file, "wb") as file:
-            await file.write(image_bytes)
+            async with aiofiles.open(output_file, "wb") as file:
+                await file.write(image_bytes)
 
-        return f"/media/generated/{filename}"
+            return f"/media/generated/{filename}"
+        except (ValueError, OSError) as error:
+            self.logger.error(f"Failed to save generated image: {error}")
+            raise ImageGenerationProviderError("Failed to save generated image to disk")
 
     def _build_prompt(self, prompt: str, style: str) -> str:
         return f"{prompt.strip()}\n\nStyle reference: {style.strip()}"
+
+    def _resolve_image_model(self) -> str:
+        configured_model = self.settings.OPENROUTER_IMAGE_MODEL.strip()
+        if configured_model in {"", "openai/gpt-5-image-mini"}:
+            return "google/gemini-3.1-flash-image-preview"
+        return configured_model
+
+    def _build_openrouter_payload(self, model: str, prompt: str, style: str) -> dict:
+        payload = {
+            "model": model,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": self._build_prompt(prompt, style),
+                }
+            ],
+            "stream": False,
+        }
+
+        is_google_image_model = model.startswith("google/")
+        payload["modalities"] = ["image", "text"] if is_google_image_model else ["image"]
+
+        if not is_google_image_model:
+            image_config = {}
+            image_size = self.settings.OPENROUTER_IMAGE_SIZE.strip()
+            aspect_ratio = self.settings.OPENROUTER_IMAGE_ASPECT_RATIO.strip()
+            if image_size:
+                image_config["image_size"] = image_size
+            if aspect_ratio:
+                image_config["aspect_ratio"] = aspect_ratio
+            if image_config:
+                payload["image_config"] = image_config
+
+        return payload
+
+    def _extract_image_payload(self, body: dict) -> str:
+        choices = body.get("choices")
+        if not isinstance(choices, list) or not choices:
+            raise ImageGenerationProviderError("No image returned from provider")
+
+        first_choice = choices[0]
+        message = first_choice.get("message", {}) if isinstance(first_choice, dict) else {}
+        images = message.get("images", []) if isinstance(message, dict) else []
+        if not isinstance(images, list) or not images:
+            raise ImageGenerationProviderError("No image returned from provider")
+
+        first_image = images[0]
+        image_url = first_image.get("image_url", {}) if isinstance(first_image, dict) else {}
+        payload = image_url.get("url") if isinstance(image_url, dict) else None
+        if not isinstance(payload, str) or not payload.strip():
+            raise ImageGenerationProviderError("Unsupported provider response format")
+
+        return payload
 
     def _validate_configuration(self) -> None:
         if not self.settings.OPENROUTER_API_KEY:
@@ -66,6 +148,7 @@ class ImageGenerationService:
                 "OPENROUTER_API_KEY is missing in service configuration"
             )
 
+    @override
     async def generate_image(
         self,
         prompt: str,
@@ -81,51 +164,44 @@ class ImageGenerationService:
                 raise ImageGenerationProviderError("Guest id is required for guest generation")
             remaining_generations = await self._consume_guest_quota(guest_id)
 
-        payload = {
-            "model": self.settings.OPENROUTER_IMAGE_MODEL,
-            "prompt": self._build_prompt(prompt, style),
-            "n": 1,
-            "size": "1024x1024",
-        }
+        model = self._resolve_image_model()
+        payload = self._build_openrouter_payload(model=model, prompt=prompt, style=style)
         headers = {
             "Authorization": f"Bearer {self.settings.OPENROUTER_API_KEY}",
             "Content-Type": "application/json",
             "HTTP-Referer": self.settings.FRONTEND_URL,
-            "X-Title": "react-fastapi-ecommerce",
+            "X-OpenRouter-Title": "react-fastapi-ecommerce",
         }
-        endpoint = f"{self.settings.OPENROUTER_BASE_URL.rstrip('/')}/images/generations"
+        endpoint = f"{self.settings.OPENROUTER_BASE_URL.rstrip('/')}/chat/completions"
 
-        timeout = aiohttp.ClientTimeout(total=90)
         try:
-            async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with ClientSession(timeout=self.timeout) as session:
                 async with session.post(endpoint, headers=headers, json=payload) as response:
-                    body = await response.json(content_type=None)
+                    raw = await response.text()
+                    try:
+                        body = json.loads(raw) if raw.strip() else {}
+                    except json.JSONDecodeError:
+                        body = {"raw": raw}
                     if response.status >= 400:
-                        self.logger.error(f"OpenRouter generation failed: {body}")
+                        self.logger.error(
+                            f"OpenRouter generation failed (HTTP {response.status}): {body or raw!r}"
+                        )
                         raise ImageGenerationProviderError(
                             f"OpenRouter request failed with status {response.status}"
                         )
         except ImageGenerationProviderError:
             raise
-        except aiohttp.ClientError as error:
+        except (ClientError, TimeoutError) as error:
             self.logger.error(f"OpenRouter connection failure: {error}")
             raise ImageGenerationProviderError("Failed to connect to image generation provider")
 
-        data = body.get("data", [])
-        if not data:
-            raise ImageGenerationProviderError("No image returned from provider")
-
-        first_result = data[0]
-        image_url = first_result.get("url")
-        if not image_url and first_result.get("b64_json"):
-            image_url = await self._save_generated_image(first_result["b64_json"])
-
-        if not image_url:
-            raise ImageGenerationProviderError("Unsupported provider response format")
+        image_payload = self._extract_image_payload(body)
+        image_url = await self.save_image(image_payload)
+        self.logger.debug(f"Image is generated and saved : {image_url}")
 
         return GenerateImageResponse(
             image_url=image_url,
-            model=self.settings.OPENROUTER_IMAGE_MODEL,
+            model=model,
             remaining_generations=remaining_generations,
             guest_limit=self.settings.PRODUCT_IMAGE_GUEST_GENERATION_LIMIT
             if is_guest_user

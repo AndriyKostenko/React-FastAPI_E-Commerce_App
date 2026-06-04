@@ -100,6 +100,7 @@ class ApiGateway:
 
     # Upstream timeout configuration (seconds).
     _TIMEOUT: Timeout = Timeout(connect=5.0, read=30.0, write=10.0, pool=5.0)
+    _IMAGE_GENERATION_TIMEOUT: Timeout = Timeout(connect=5.0, read=120.0, write=10.0, pool=5.0)
 
     # Connection pool limits.
     _LIMITS: Limits = Limits(max_connections=100, max_keepalive_connections=20, keepalive_expiry=30)
@@ -238,6 +239,15 @@ class ApiGateway:
 
         return filtered_headers
 
+    def _resolve_timeout(self, service_name: str, service_path: str) -> Timeout:
+        """
+        Use a longer read timeout for AI image generation, which is expected to
+        take longer than typical CRUD API calls.
+        """
+        if service_name == "product-service" and service_path.startswith("/images/generations"):
+            return self._IMAGE_GENERATION_TIMEOUT
+        return self._TIMEOUT
+
     # Circuit breaker is intentionally disabled: the per-service decorator caused
     # all services to trip when a single downstream service failed.
     # Re-enable once isolated per-service breakers are implemented.
@@ -271,43 +281,53 @@ class ApiGateway:
 
         # Prepare headers
         headers = self._prepare_headers(request_headers=request.headers, new_content_type=content_type)
+        timeout = self._resolve_timeout(service_name=service_name, service_path=service_path)
 
-        self.logger.info(f"Forwarding request to: {url} with method: {request.method}, Service path: {service_path}, Body type: {type(prepared_body)}, Content-Type: {content_type}, Headers: {headers}")
+        self.logger.info(
+            f"Forwarding request to: {url} with method: {request.method}, "
+            f"Service path: {service_path}, Body type: {type(prepared_body)}, "
+            f"Content-Type: {content_type}, Headers: {headers}"
+        )
 
         try:
             if prepared_body is None:
                 response = await self.client.request(
                     method=request.method,
                     url=url,
-                    headers=headers
+                    headers=headers,
+                    timeout=timeout,
                 )
             elif content_type == "application/json":
                 response = await self.client.request(
                     method=request.method,
                     url=url,
                     json=prepared_body,
-                    headers={k: v for k, v in headers.items() if k.lower() != "content-type"}
+                    headers={k: v for k, v in headers.items() if k.lower() != "content-type"},
+                    timeout=timeout,
                 )
             elif content_type == "application/x-www-form-urlencoded":
                 response = await self.client.request(
                     method=request.method,
                     url=url,
                     data=prepared_body,
-                    headers={k: v for k, v in headers.items() if k.lower() != "content-type"}
+                    headers={k: v for k, v in headers.items() if k.lower() != "content-type"},
+                    timeout=timeout,
                 )
             elif content_type == "multipart/form-data":
                 response = await self.client.request(
                     method=request.method,
                     url=url,
                     files=prepared_body,
-                    headers={k: v for k, v in headers.items() if k.lower() != "content-type"}
+                    headers={k: v for k, v in headers.items() if k.lower() != "content-type"},
+                    timeout=timeout,
                 )
             else:
                 response = await self.client.request(
                     method=request.method,
                     url=url,
                     content=prepared_body,
-                    headers=headers
+                    headers=headers,
+                    timeout=timeout,
                 )
 
             # Parse response
@@ -328,7 +348,10 @@ class ApiGateway:
             self.logger.error(f"HTTP error occurred: {e}")
             raise HTTPException(status_code=e.response.status_code, detail=str(e))
         except RequestError as e:
-            self.logger.error(f"Request error occurred: {e}")
+            self.logger.error(
+                f"Request error occurred while forwarding to {service_name} "
+                f"({service_path}): {e!r}"
+            )
             raise HTTPException(status_code=500, detail="Internal Server Error")
         except Exception as e:
             self.logger.error(f"Unexpected error: {e}")

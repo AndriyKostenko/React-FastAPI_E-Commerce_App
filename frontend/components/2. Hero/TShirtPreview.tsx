@@ -7,6 +7,7 @@ import {
   SHIRT_PATH_BACK,
   SHIRT_PATH_FRONT,
 } from "@/utils/constants";
+import { resolveImageUrl } from "@/utils/resolveImageUrl";
 
 export default function TShirtPreview({
   color,
@@ -18,6 +19,7 @@ export default function TShirtPreview({
   const zone    = PLACEMENT_ZONES[placement] ?? PLACEMENT_ZONES["Center Chest"];
   const isBack  = zone.back === true;
   const isBlack = color === "bg-black";
+  const previewImageUrl = designUrl ? resolveImageUrl(designUrl) : "";
 
   const shirtPath   = isBack ? SHIRT_PATH_BACK : SHIRT_PATH_FRONT;
   const collarFront = "M 160,80 C 175,112 225,112 240,80";
@@ -31,7 +33,7 @@ export default function TShirtPreview({
     <svg
       viewBox="-67 -80 534 640"
       xmlns="http://www.w3.org/2000/svg"
-      className="w-full h-full"
+      className="w-full h-full scale-[1.5] origin-center"
       aria-label={isBack ? "T-shirt back preview" : "T-shirt front preview"}
     >
       <defs>
@@ -84,7 +86,7 @@ export default function TShirtPreview({
       <path d="M 44,202 L 6,188"    fill="none" stroke={c.seam} strokeWidth="2" />
       <path d="M 356,202 L 394,188" fill="none" stroke={c.seam} strokeWidth="2" />
 
-      {designUrl && (
+      {previewImageUrl && (
         <g
           clipPath="url(#shirtClip)"
           style={{
@@ -93,7 +95,7 @@ export default function TShirtPreview({
           }}
         >
           <image
-            href={designUrl}
+            href={previewImageUrl}
             x={zone.x}
             y={zone.y}
             width={zone.w}

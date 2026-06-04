@@ -8,7 +8,9 @@ from dependencies.dependencies import (
     product_service_dependency,
 )
 from models.product_models import Product
+from shared.shared_instances import settings
 from shared.schemas.product_schemas import (
+    CustomTshirtPricingResponse,
     CreateProduct,
     ProductBase,
     ProductSchema,
@@ -17,6 +19,21 @@ from shared.schemas.product_schemas import (
 )
 
 product_routes = APIRouter(tags=["products"])
+
+
+
+
+@product_routes.get(
+    "/customization/pricing",
+    response_model=CustomTshirtPricingResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Get custom T-shirt base pricing",
+)
+async def get_custom_tshirt_pricing(request: Request) -> CustomTshirtPricingResponse:
+    return CustomTshirtPricingResponse(
+        base_price=settings.CUSTOM_TSHIRT_BASE_PRICE,
+        currency="USD",
+    )
 
 
 @product_routes.post(

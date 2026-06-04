@@ -17,6 +17,7 @@ class AuthMiddleware(metaclass=SingletonMetaClass):
         self.PUBLIC_ENDPOINTS: dict[str, list[str] | None] = {
             "/health": None,
             "/metrics": None,
+            "/media": None,
             "/docs": None,
             "/redoc": None,
             "/openapi.json": None,
@@ -30,6 +31,7 @@ class AuthMiddleware(metaclass=SingletonMetaClass):
             f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/password-reset/": ['POST'],
             f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/products": ['GET'],
             f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/categories": ['GET'],
+            f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/customization/pricing": ['GET'],
             f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/images/generations": ['POST'],
             f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/admin/schema/users": ['GET'],
             f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/admin/schema/products": ['GET'],

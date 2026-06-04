@@ -96,6 +96,19 @@ class TestGetAllProductsEndpoint:
 
 
 # ===========================================================================
+# GET /api/v1/customization/pricing
+# ===========================================================================
+
+class TestGetCustomTshirtPricingEndpoint:
+    async def test_returns_base_price_and_currency(self, client_for_unit_testing: AsyncClient):
+        response = await client_for_unit_testing.get(f"{TEST_API}/customization/pricing")
+        assert response.status_code == status.HTTP_200_OK
+        body = response.json()
+        assert body["base_price"] == 19
+        assert body["currency"] == "USD"
+
+
+# ===========================================================================
 # GET /api/v1/products/{product_id}
 # ===========================================================================
 

@@ -29,7 +29,7 @@ class Settings(BaseSettings):
 
     # Application configuration
     APP_HOST: str
-    FRONTEND_URL: str = "http://localhost:3000"
+    FRONTEND_URL: str
 
     API_GATEWAY_SERVICE_APP_PORT: int
     USER_SERVICE_APP_PORT: int
@@ -160,13 +160,17 @@ class Settings(BaseSettings):
     # OpenRouter image generation
     OPENROUTER_API_KEY: str = ""
     OPENROUTER_BASE_URL: str = "https://openrouter.ai/api/v1"
-    OPENROUTER_IMAGE_MODEL: str = "openai/gpt-image-1"
+    OPENROUTER_IMAGE_MODEL: str = "google/gemini-3.1-flash-image-preview"
+    OPENROUTER_IMAGE_SIZE: str = "0.5K"
+    OPENROUTER_IMAGE_ASPECT_RATIO: str = "1:1"
     PRODUCT_IMAGE_GUEST_GENERATION_LIMIT: int = 3
     PRODUCT_IMAGE_GUEST_GENERATION_WINDOW_HOURS: int = 24
+    GUEST_QUOTA_COOKIE: str = "guest_generation_id"
 
     # Other
     SECRET_ROLE: str
     POLLING_INTERVAL_FROM_DB: int | float
+    CUSTOM_TSHIRT_BASE_PRICE: float
 
 
     #--------------RABBITMQ-----------------------

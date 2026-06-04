@@ -11,34 +11,34 @@ const TshirtMeasurement = ({ size }: TshirtMeasurementProps) => {
       width="100%"
       height="100%"
       viewBox="0 0 300 340"
-      preserveAspectRatio="xMidYMid meet"
+      preserveAspectRatio="none"
     >
       {/* ---------- WIDTH ---------- */}
 
       {/* Main horizontal line */}
       <line
-        x1="70"
-        y1="55"
-        x2="230"
-        y2="55"
+        x1="14"
+        y1="12"
+        x2="276"
+        y2="12"
         stroke="#000"
         strokeWidth="1"
       />
 
       {/* Short end caps */}
       <line
-        x1="70"
-        y1="48"
-        x2="70"
-        y2="62"
+        x1="14"
+        y1="5"
+        x2="14"
+        y2="19"
         stroke="#000"
         strokeWidth="1"
       />
       <line
-        x1="230"
-        y1="48"
-        x2="230"
-        y2="62"
+        x1="276"
+        y1="5"
+        x2="276"
+        y2="19"
         stroke="#000"
         strokeWidth="1"
       />
@@ -46,9 +46,9 @@ const TshirtMeasurement = ({ size }: TshirtMeasurementProps) => {
       {/* Width label */}
       <rect
         x="120"
-        y="45"
+        y="2"
         width="60"
-        height="18"
+        height="16"
         rx="9"
         fill="#111"
         opacity="0.95"
@@ -56,7 +56,7 @@ const TshirtMeasurement = ({ size }: TshirtMeasurementProps) => {
 
       <text
         x="150"
-        y="55"
+        y="10"
         textAnchor="middle"
         dominantBaseline="central"
         alignmentBaseline="middle"
@@ -71,38 +71,38 @@ const TshirtMeasurement = ({ size }: TshirtMeasurementProps) => {
 
       {/* Main vertical line */}
       <line
-        x1="265"
-        y1="85"
-        x2="265"
-        y2="275"
+        x1="285"
+        y1="22"
+        x2="285"
+        y2="328"
         stroke="#000"
         strokeWidth="1"
       />
 
       {/* Short top/bottom caps */}
       <line
-        x1="258"
-        y1="85"
-        x2="272"
-        y2="85"
+        x1="290"
+        y1="22"
+        x2="278"
+        y2="22"
         stroke="#000"
         strokeWidth="1"
       />
 
       <line
-        x1="258"
-        y1="275"
-        x2="272"
-        y2="275"
+        x1="290"
+        y1="328"
+        x2="278"
+        y2="328"
         stroke="#000"
         strokeWidth="1"
       />
 
       {/* Height label */}
       <rect
-        x="256"
-        y="150"
-        width="18"
+        x="277"
+        y="140"
+        width="16"
         height="60"
         rx="9"
         fill="#111"
@@ -110,14 +110,14 @@ const TshirtMeasurement = ({ size }: TshirtMeasurementProps) => {
       />
 
       <text
-        x="260"
-        y="185"
+        x="286"
+        y="174"
         textAnchor="middle"
         dominantBaseline="middle"
         fontSize="8"
         fill="#fff"
         fontWeight="700"
-        transform="rotate(90 265 185)"
+        transform="rotate(90 288 170)"
       >
         {SIZE_MEASUREMENTS[size]?.height} cm
       </text>

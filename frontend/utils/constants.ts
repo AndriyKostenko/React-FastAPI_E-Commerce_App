@@ -11,6 +11,17 @@ export const SIZE_MEASUREMENTS = {
 
 }
 
+export const TSHIRT_SIZE_PRICE_MULTIPLIERS: Record<keyof typeof SIZE_MEASUREMENTS, number> = {
+  S: 1,
+  M: 1.12,
+  L: 1.25,
+};
+
+export const TSHIRT_PLACEMENT_SURCHARGES: Record<string, number> = {
+  "Oversized Center": 6,
+  "Full Back": 8,
+};
+
 export interface HowItWorksStep {
   icon: IconType;
   step: string;

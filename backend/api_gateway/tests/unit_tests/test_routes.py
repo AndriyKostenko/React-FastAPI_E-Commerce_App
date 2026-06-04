@@ -1,11 +1,13 @@
 """Unit tests for order, notification, and payment proxy routes."""
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 import pytest
 from fastapi.responses import JSONResponse
+from httpx import Response as HttpxResponse
 from httpx import AsyncClient
 
+from gateway.apigateway import ApiGateway
 from tests.constants import (
     TEST_ORDER_ID, TEST_NOTIFICATION_ID, TEST_PAYMENT_ID,
     TEST_USER_ID, TEST_API,
@@ -193,4 +195,26 @@ class TestHealthCheck:
         data = response.json()
         assert data["status"] == "ok"
         assert data["service"] == "api-gateway"
+        mock_forward.assert_not_awaited()
+
+
+class TestMediaProxy:
+    async def test_media_proxy_returns_binary_from_product_service(
+        self, client: AsyncClient, mock_forward: AsyncMock
+    ):
+        mock_http_client = AsyncMock()
+        mock_http_client.get = AsyncMock(
+            return_value=HttpxResponse(
+                status_code=200,
+                content=b"image-bytes",
+                headers={"content-type": "image/png"},
+            )
+        )
+
+        with patch.object(ApiGateway, "_http_client", mock_http_client):
+            response = await client.get("/media/generated/test.png")
+
+        assert response.status_code == 200
+        assert response.content == b"image-bytes"
+        assert response.headers["content-type"].startswith("image/png")
         mock_forward.assert_not_awaited()

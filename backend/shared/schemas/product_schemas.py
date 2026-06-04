@@ -157,3 +157,8 @@ class ProductsFilterParams(BaseFilters):
             except ValueError:
                 return None
         return value
+
+
+class CustomTshirtPricingResponse(BaseModel):
+    base_price: float = Field(..., ge=0)
+    currency: str = Field(default="USD", min_length=3, max_length=3)

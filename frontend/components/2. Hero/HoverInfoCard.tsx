@@ -2,15 +2,39 @@ import { STYLE_PREVIEWS } from "@/utils/constants";
 
 type HoverInfoCardProps = {
   currentDesign: (typeof STYLE_PREVIEWS)[keyof typeof STYLE_PREVIEWS];
+  selectedPrompt: string;
+  selectedStyle: string;
+  finalPrice: number;
+  currency: string;
+  isPriceLoading: boolean;
   onBuyNow: () => void;
 };
 
-const HoverInfoCard = ({ currentDesign, onBuyNow }: HoverInfoCardProps) => {
+const HoverInfoCard = ({
+  currentDesign,
+  selectedPrompt,
+  selectedStyle,
+  finalPrice,
+  currency,
+  isPriceLoading,
+  onBuyNow,
+}: HoverInfoCardProps) => {
+  const normalizedCurrency = currency?.trim() || "USD";
+  const formattedPrice = new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: normalizedCurrency,
+  }).format(finalPrice);
+
+  const promptLabel = selectedPrompt.trim() || currentDesign.title;
+
   return (
-    <div className="absolute h-[60px] bottom-6 left-6 right-6 glass-card p-5 flex justify-between items-center transform translate-y-3 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300">
+    <div className="absolute bottom-6 left-6 right-6 glass-card p-4 flex justify-between items-center gap-4 transform translate-y-3 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300">
       <div>
-        <p className="font-label-bold text-primary">{currentDesign.title}</p>
-        <p className="text-sm text-secondary">${currentDesign.price.toFixed(2)} CAD</p>
+        <p className="font-label-bold text-primary line-clamp-1">{promptLabel}</p>
+        <p className="text-xs text-secondary">Style: {selectedStyle}</p>
+        <p className="text-sm text-secondary">
+          {isPriceLoading ? "Loading price..." : formattedPrice}
+        </p>
       </div>
       <button
         onClick={onBuyNow}

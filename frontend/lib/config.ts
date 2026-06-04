@@ -22,7 +22,7 @@ export const env = createEnv({
 class AppSettings {
 	// ── Defaults ────────────────────────────────────────────────────────────
 	private static readonly DEFAULT_APP_URL = "http://localhost:30000";
-	private static readonly DEFAULT_API_ORIGIN = "http://127.0.0.1:8000";
+	private static readonly DEFAULT_API_ORIGIN = "http://localhost:8000";
 	private static readonly DEFAULT_API_VERSION = "v1";
 
 	// ── Helpers ─────────────────────────────────────────────────────────────
@@ -32,6 +32,14 @@ class AppSettings {
 
 	private static joinUrl(base: string, path: string): string {
 		return `${AppSettings.normalizeUrl(base)}/${path.replace(/^\/+/, "")}`;
+	}
+
+	private static inferBrowserApiOrigin(): string | undefined {
+		if (typeof window === "undefined") {
+			return undefined;
+		}
+		const { protocol, hostname } = window.location;
+		return `${protocol}//${hostname}:8000`;
 	}
 
 	// ── Public shape ─────────────────────────────────────────────────────────
@@ -55,8 +63,10 @@ class AppSettings {
 			activate: (token: string) => string;
 			me: string;
 			categories: string;
+			customizationPricing: string;
 			productsDetailed: string;
 			productDetailed: (productId: string) => string;
+			imageGenerations: string;
 			orders: string;
 			orderById: (orderId: string) => string;
 			cancelOrder: (orderId: string) => string;
@@ -79,7 +89,7 @@ class AppSettings {
 	public readonly stripe: {publishableKey: string;};
 
 	constructor() {
-		const origin  = env.NEXT_PUBLIC_API_ORIGIN  ?? AppSettings.DEFAULT_API_ORIGIN;
+		const origin  = env.NEXT_PUBLIC_API_ORIGIN  ?? AppSettings.inferBrowserApiOrigin() ?? AppSettings.DEFAULT_API_ORIGIN;
 		const version = env.NEXT_PUBLIC_API_VERSION ?? AppSettings.DEFAULT_API_VERSION;
 		const baseUrl = AppSettings.joinUrl(origin, `api/${version}`);
 
@@ -100,8 +110,10 @@ class AppSettings {
 			activate:             (token: string) => AppSettings.joinUrl(baseUrl, `activate/${token}`),
 			me:                   AppSettings.joinUrl(baseUrl, "me"),
 			categories:           AppSettings.joinUrl(baseUrl, "categories"),
+			customizationPricing: AppSettings.joinUrl(baseUrl, "customization/pricing"),
 			productsDetailed:     AppSettings.joinUrl(baseUrl, "products/detailed"),
 			productDetailed:      (productId: string) => AppSettings.joinUrl(baseUrl, `products/${productId}/detailed`),
+			imageGenerations:     AppSettings.joinUrl(baseUrl, "images/generations"),
 			orders:               AppSettings.joinUrl(baseUrl, "orders"),
 			orderById:            (orderId: string)   => AppSettings.joinUrl(baseUrl, `orders/${orderId}`),
 			cancelOrder:          (orderId: string)   => AppSettings.joinUrl(baseUrl, `orders/${orderId}/cancel`),

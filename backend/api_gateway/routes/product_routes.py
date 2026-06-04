@@ -71,6 +71,15 @@ async def get_category_by_id(request: Request,
     )
 
 
+@product_proxy.get("/customization/pricing", summary="Get custom T-shirt base pricing")
+async def get_custom_tshirt_pricing(request: Request):
+    """PUBLIC - Anyone can fetch custom T-shirt base pricing"""
+    return await api_gateway_manager.forward_request(
+        service_name="product-service",
+        request=request,
+    )
+
+
 # Product Images
 @product_proxy.get("/images",
                    summary="Get all products images")
@@ -101,6 +110,7 @@ async def get_image_by_id(request: Request,
 
 
 @product_proxy.post("/images/generations", summary="Generate custom image")
+@api_gateway_rate_limit_manager.ratelimiter(times=10, seconds=60)
 async def generate_custom_image(request: Request):
     """PUBLIC - Guest users can generate custom images with quota limits."""
     return await api_gateway_manager.forward_request(
