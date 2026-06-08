@@ -77,6 +77,20 @@ class TestIsPublicEndpoint:
     def test_images_generations_post_is_public(self):
         assert self.mw.is_public_endpoint(f"{API}/images/generations", "POST") is True
 
+    def test_images_generations_status_get_is_public(self):
+        from uuid import uuid4
+        job_id = str(uuid4())
+        assert self.mw.is_public_endpoint(f"{API}/images/generations/{job_id}/status", "GET") is True
+
+    def test_images_generations_status_post_is_not_public(self):
+        from uuid import uuid4
+        job_id = str(uuid4())
+        assert self.mw.is_public_endpoint(f"{API}/images/generations/{job_id}/status", "POST") is False
+
+    def test_images_generations_get_is_not_public(self):
+        """GET on the base generations path (without job id) should NOT be public."""
+        assert self.mw.is_public_endpoint(f"{API}/images/generations", "GET") is False
+
     def test_payments_webhook_post_is_public(self):
         assert self.mw.is_public_endpoint(f"{API}/payments/webhook", "POST") is True
 

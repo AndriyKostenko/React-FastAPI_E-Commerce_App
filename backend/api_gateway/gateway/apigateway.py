@@ -241,11 +241,9 @@ class ApiGateway:
 
     def _resolve_timeout(self, service_name: str, service_path: str) -> Timeout:
         """
-        Use a longer read timeout for AI image generation, which is expected to
-        take longer than typical CRUD API calls.
+        All product-service paths now use the standard timeout. The image-generation
+        POST returns immediately (202) since generation runs as a background task.
         """
-        if service_name == "product-service" and service_path.startswith("/images/generations"):
-            return self._IMAGE_GENERATION_TIMEOUT
         return self._TIMEOUT
 
     # Circuit breaker is intentionally disabled: the per-service decorator caused

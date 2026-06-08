@@ -1,15 +1,17 @@
 from asyncio import TimeoutError
 import base64
 import json
+import time
 from logging import Logger
 import os
 from pathlib import Path
-from typing import override
+from typing import Any, override
 from uuid import uuid4
 from abc import ABC, abstractmethod
 
 import aiofiles
 from aiohttp import ClientTimeout, ClientSession, ClientError
+from orjson import loads as orjson_loads, dumps as orjson_dumps
 from pydantic import BaseModel
 
 from shared.settings import Settings
@@ -17,6 +19,7 @@ from shared.managers.cache_manager import CacheManager
 from shared.schemas.image_generation_schema import GenerateImageResponse
 from exceptions.image_generation_exceptions import (
     ImageGenerationConfigurationError,
+    ImageGenerationJobNotFoundError,
     ImageGenerationLimitExceededError,
     ImageGenerationProviderError,
 )
@@ -30,15 +33,33 @@ class ImageGenerationInterface(ABC):
     async def save_image(self, b64_image: str) -> str:
         """Saving the generated image"""
         ...
+    @abstractmethod
+    async def submit_job(self, job_id: str, prompt: str, style: str, is_guest_user: bool, guest_id: str | None) -> int | None:
+        """Validate, consume quota, and persist a pending job in Redis."""
+        ...
+    @abstractmethod
+    async def run_job(self, job_id: str, prompt: str, style: str) -> None:
+        """Execute generation in the background and update job state in Redis."""
+        ...
+    @abstractmethod
+    async def get_job(self, job_id: str) -> dict:
+        """Return job state from Redis or raise ImageGenerationJobNotFoundError."""
+        ...
 
 
 class ImageGenerationService(ImageGenerationInterface):
+
+    # TTL for background-job state keys in Redis.
+    _JOB_TTL: int = 3600  # 1 hour
+
     def __init__(self, settings: Settings, cache_manager: CacheManager, logger: Logger):
         self.settings: Settings = settings
         self.cache_manager: CacheManager = cache_manager
         self.logger: Logger = logger
-        self.timeout: ClientTimeout = ClientTimeout(total=90)
+        self.timeout: ClientTimeout = ClientTimeout(total=45)
         self.GUEST_QUOTA_COOKIE: str = settings.GUEST_QUOTA_COOKIE
+
+    # ---- guest quota ----
 
     async def _consume_guest_quota(self, guest_id: str) -> int:
         key = f"{self.cache_manager.service_prefix}:image-generation:guest:{guest_id}"
@@ -61,6 +82,8 @@ class ImageGenerationService(ImageGenerationInterface):
             raise ImageGenerationLimitExceededError(retry_after=retry_after, limit=limit)
 
         return max(limit - current_count, 0)
+
+    # ---- image persistence ----
 
     @override
     async def save_image(self, b64_image: str) -> str:
@@ -85,6 +108,8 @@ class ImageGenerationService(ImageGenerationInterface):
         except (ValueError, OSError) as error:
             self.logger.error(f"Failed to save generated image: {error}")
             raise ImageGenerationProviderError("Failed to save generated image to disk")
+
+    # ---- request building ----
 
     def _build_prompt(self, prompt: str, style: str) -> str:
         return f"{prompt.strip()}\n\nStyle reference: {style.strip()}"
@@ -123,7 +148,7 @@ class ImageGenerationService(ImageGenerationInterface):
 
         return payload
 
-    def _extract_image_payload(self, body: dict) -> str:
+    def _extract_image_payload(self, body: dict[str, Any]) -> str:
         choices = body.get("choices")
         if not isinstance(choices, list) or not choices:
             raise ImageGenerationProviderError("No image returned from provider")
@@ -148,22 +173,13 @@ class ImageGenerationService(ImageGenerationInterface):
                 "OPENROUTER_API_KEY is missing in service configuration"
             )
 
-    @override
-    async def generate_image(
-        self,
-        prompt: str,
-        style: str,
-        is_guest_user: bool,
-        guest_id: str | None = None,
-    ) -> GenerateImageResponse:
-        self._validate_configuration()
+    # ---- core HTTP call ----
 
-        remaining_generations = None
-        if is_guest_user:
-            if not guest_id:
-                raise ImageGenerationProviderError("Guest id is required for guest generation")
-            remaining_generations = await self._consume_guest_quota(guest_id)
-
+    async def _call_openrouter(self, prompt: str, style: str) -> tuple[str, str]:
+        """
+        Send a generation request to OpenRouter and return (image_b64_payload, model_name).
+        Raises ImageGenerationProviderError on any network or upstream failure.
+        """
         model = self._resolve_image_model()
         payload = self._build_openrouter_payload(model=model, prompt=prompt, style=style)
         headers = {
@@ -195,9 +211,29 @@ class ImageGenerationService(ImageGenerationInterface):
             self.logger.error(f"OpenRouter connection failure: {error}")
             raise ImageGenerationProviderError("Failed to connect to image generation provider")
 
-        image_payload = self._extract_image_payload(body)
+        return self._extract_image_payload(body), model
+
+    # ---- synchronous (legacy) generation ----
+
+    @override
+    async def generate_image(
+        self,
+        prompt: str,
+        style: str,
+        is_guest_user: bool,
+        guest_id: str | None = None,
+    ) -> GenerateImageResponse:
+        self._validate_configuration()
+
+        remaining_generations = None
+        if is_guest_user:
+            if not guest_id:
+                raise ImageGenerationProviderError("Guest id is required for guest generation")
+            remaining_generations = await self._consume_guest_quota(guest_id)
+
+        image_payload, model = await self._call_openrouter(prompt, style)
         image_url = await self.save_image(image_payload)
-        self.logger.debug(f"Image is generated and saved : {image_url}")
+        self.logger.debug(f"Image is generated and saved: {image_url}")
 
         return GenerateImageResponse(
             image_url=image_url,
@@ -207,3 +243,79 @@ class ImageGenerationService(ImageGenerationInterface):
             if is_guest_user
             else None,
         )
+
+    # ---- background-job pattern ----
+
+    def _job_key(self, job_id: str) -> str:
+        return f"{self.cache_manager.service_prefix}:image-job:{job_id}"
+
+    @override
+    async def submit_job(
+        self,
+        job_id: str,
+        prompt: str,
+        style: str,
+        is_guest_user: bool,
+        guest_id: str | None,
+    ) -> int | None:
+        """
+        Validate the request, consume guest quota (fails-fast on 429), and
+        write a ``pending`` job record to Redis.  Returns remaining_generations.
+
+        Note: BackgroundTasks runs within the same worker process — job state
+        is lost if the worker restarts before run_job completes.
+        """
+        self._validate_configuration()
+
+        remaining_generations = None
+        if is_guest_user:
+            if not guest_id:
+                raise ImageGenerationProviderError("Guest id is required for guest generation")
+            remaining_generations = await self._consume_guest_quota(guest_id)
+
+        job_data: dict[str, Any] = {
+            "status": "pending",
+            "submitted_at": time.time(),
+        }
+        await self.cache_manager.redis.setex(
+            name=self._job_key(job_id),
+            time=self._JOB_TTL,
+            value=orjson_dumps(job_data),
+        )
+        return remaining_generations
+
+    @override
+    async def run_job(self, job_id: str, prompt: str, style: str) -> None:
+        """
+        Execute image generation as a background task and update Redis job state.
+        Called by FastAPI BackgroundTasks after the 202 response is sent.
+        """
+        key = self._job_key(job_id)
+
+        async def _update(updates: dict) -> None:
+            raw = await self.cache_manager.redis.get(key)
+            data = orjson_loads(raw) if raw else {}
+            data.update(updates)
+            await self.cache_manager.redis.setex(name=key, time=self._JOB_TTL, value=orjson_dumps(data))
+
+        await _update({"status": "running"})
+        try:
+            image_payload, model = await self._call_openrouter(prompt, style)
+            image_url = await self.save_image(image_payload)
+            await _update({"status": "completed", "image_url": image_url, "model": model})
+            self.logger.debug(f"Job {job_id} completed: {image_url}")
+        except Exception as exc:
+            self.logger.error(f"Job {job_id} failed: {exc}")
+            # Store a sanitised error — never leak raw provider messages to the client.
+            await _update({"status": "failed", "error": "Image generation failed"})
+
+    @override
+    async def get_job(self, job_id: str) -> dict:
+        """
+        Return the current job state dict.
+        Raises ImageGenerationJobNotFoundError if the key is missing or expired.
+        """
+        raw = await self.cache_manager.redis.get(self._job_key(job_id))
+        if not raw:
+            raise ImageGenerationJobNotFoundError()
+        return orjson_loads(raw)

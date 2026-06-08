@@ -192,15 +192,15 @@ class TestOrderEventHandlerCreated:
 
 
 class TestOrderEventHandlerConfirmed:
-    async def test_sends_confirmed_email_and_saves(self):
+    async def test_dispatches_confirmed_email_task_and_saves(self):
         handler = _make_handler(OrderEventHandler)
         msg = _order_msg("order.confirmed")
 
-        with patch(f"{TASK_MODULE}.order_notification_email_service") as mock_email:
-            mock_email.send_order_confirmed_notification = AsyncMock()
+        with patch(f"{TASK_MODULE}.send_order_confirmed_email") as mock_task:
+            mock_task.kiq = AsyncMock()
             await handler.handle(msg)
 
-        mock_email.send_order_confirmed_notification.assert_awaited_once()
+        mock_task.kiq.assert_awaited_once_with(msg)
         handler._save_notification.assert_awaited_once()
         handler._mark_processed.assert_awaited_once()
 
@@ -209,24 +209,36 @@ class TestOrderEventHandlerConfirmed:
         handler._try_claim = AsyncMock(return_value=False)
         msg = _order_msg("order.confirmed")
 
-        with patch(f"{TASK_MODULE}.order_notification_email_service") as mock_email:
-            mock_email.send_order_confirmed_notification = AsyncMock()
+        with patch(f"{TASK_MODULE}.send_order_confirmed_email") as mock_task:
+            mock_task.kiq = AsyncMock()
             await handler.handle(msg)
 
-        mock_email.send_order_confirmed_notification.assert_not_awaited()
+        mock_task.kiq.assert_not_awaited()
         handler._save_notification.assert_not_awaited()
+
+    async def test_releases_claim_on_exception(self):
+        handler = _make_handler(OrderEventHandler)
+        msg = _order_msg("order.confirmed")
+
+        with patch(f"{TASK_MODULE}.send_order_confirmed_email") as mock_task:
+            mock_task.kiq = AsyncMock(side_effect=RuntimeError("broker down"))
+            with pytest.raises(RuntimeError):
+                await handler.handle(msg)
+
+        handler._release_claim.assert_awaited_once()
+        handler._mark_processed.assert_not_awaited()
 
 
 class TestOrderEventHandlerCancelled:
-    async def test_sends_cancelled_email_and_saves(self):
+    async def test_dispatches_cancelled_email_task_and_saves(self):
         handler = _make_handler(OrderEventHandler)
         msg = _order_msg("order.cancelled")
 
-        with patch(f"{TASK_MODULE}.order_notification_email_service") as mock_email:
-            mock_email.send_order_cancelled_notification = AsyncMock()
+        with patch(f"{TASK_MODULE}.send_order_cancelled_email") as mock_task:
+            mock_task.kiq = AsyncMock()
             await handler.handle(msg)
 
-        mock_email.send_order_cancelled_notification.assert_awaited_once()
+        mock_task.kiq.assert_awaited_once_with(msg)
         handler._save_notification.assert_awaited_once()
         handler._mark_processed.assert_awaited_once()
 

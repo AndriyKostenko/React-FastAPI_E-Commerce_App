@@ -21,3 +21,8 @@ class ImageGenerationLimitExceededError(BaseAPIException):
             },
             headers={"Retry-After": str(retry_after)},
         )
+
+
+class ImageGenerationJobNotFoundError(BaseAPIException):
+    def __init__(self):
+        super().__init__(status_code=404, detail="Image generation job not found or expired")

@@ -27,6 +27,7 @@ from shared.shared_instances import (product_event_idempotency_service, product_
                                     base_event_publisher)
 from helpers.internal_access_helper import internal_access_helper
 from helpers.request_helper import request_metrics_helper
+from tasks.broker import taskiq_broker
 
 
 @asynccontextmanager
@@ -44,7 +45,9 @@ async def lifespan(app: FastAPI): # pyright: ignore[reportUnusedParameter]
     logger.info("Product service DB session is started.")
     await base_event_publisher.start()
     logger.info("RabbitMQ Event publisher is started.")
-    logger.info("Product DB session is started.")
+    if not taskiq_broker.is_worker_process:
+        await taskiq_broker.startup()
+        logger.info("TaskIQ broker started successfully.")
     logger.info('Server startup complete!')
 
     yield
@@ -55,6 +58,9 @@ async def lifespan(app: FastAPI): # pyright: ignore[reportUnusedParameter]
     logger.warning("Redis Cache connection closed on shutdown!")
     await base_event_publisher.stop()
     logger.warning("RabbitMQ connection is closed")
+    if not taskiq_broker.is_worker_process:
+        await taskiq_broker.shutdown()
+        logger.info("TaskIQ broker shut down successfully.")
     logger.warning(f"Server has shut down !")
 
 

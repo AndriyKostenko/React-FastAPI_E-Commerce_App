@@ -8,13 +8,19 @@ from dependencies.dependencies import (
     image_generation_service_dependency,
     product_image_service_dependency,
 )
-from exceptions.image_generation_exceptions import ImageGenerationLimitExceededError
+from exceptions.image_generation_exceptions import (
+    ImageGenerationJobNotFoundError,
+    ImageGenerationLimitExceededError,
+)
 from models.product_image_models import ProductImage
 from shared.schemas.image_generation_schema import (
     GenerateImageRequest,
-    GenerateImageResponse,
+    ImageGenerationJobSubmitResponse,
+    ImageGenerationJobStatusResponse,
+    ImageJobStatus,
 )
 from shared.schemas.product_image_schema import ProductImageSchema
+from tasks.image_tasks import generate_image_task
 
 
 product_images_routes = APIRouter(tags=["product_images"])
@@ -22,16 +28,16 @@ product_images_routes = APIRouter(tags=["product_images"])
 
 @product_images_routes.post(
     "/images/generations",
-    response_model=GenerateImageResponse,
-    response_description="Generate image with OpenRouter",
-    status_code=status.HTTP_201_CREATED,
+    response_model=ImageGenerationJobSubmitResponse,
+    response_description="Submit image generation job",
+    status_code=status.HTTP_202_ACCEPTED,
 )
 async def generate_image(
     request: Request,
     response: Response,
     image_generation_service: image_generation_service_dependency,
-    generation_data: GenerateImageRequest,
-) -> GenerateImageResponse:
+    generation_data: GenerateImageRequest) -> ImageGenerationJobSubmitResponse:
+    
     cookie_name = image_generation_service.GUEST_QUOTA_COOKIE
     raw_cookie = request.cookies.get(cookie_name)
 
@@ -66,8 +72,11 @@ async def generate_image(
             * 3600,
         )
 
+    job_id = str(uuid4())
+
     try:
-        generated_image = await image_generation_service.generate_image(
+        remaining_generations = await image_generation_service.submit_job(
+            job_id=job_id,
             prompt=generation_data.prompt,
             style=generation_data.style,
             is_guest_user=True,
@@ -75,8 +84,6 @@ async def generate_image(
         )
     except ImageGenerationLimitExceededError as exc:
         # Return a JSONResponse directly so we can attach Set-Cookie.
-        # FastAPI's HTTPException handler discards the injected Response
-        # object's cookies, so we must build the response ourselves here.
         resp = JSONResponse(
             status_code=exc.status_code,
             content={"detail": exc.detail},
@@ -86,10 +93,41 @@ async def generate_image(
             resp.set_cookie(**cookie_kwargs)
         return resp
 
+    await generate_image_task.kiq(job_id, generation_data.prompt, generation_data.style)
+
     if cookie_kwargs:
         response.set_cookie(**cookie_kwargs)
 
-    return generated_image
+    # Point the client at the status-poll endpoint.
+    response.headers["Location"] = f"{request.url.path}/{job_id}/status"
+
+    return ImageGenerationJobSubmitResponse(
+        job_id=job_id,
+        status=ImageJobStatus.pending,
+        remaining_generations=remaining_generations,
+        guest_limit=image_generation_service.settings.PRODUCT_IMAGE_GUEST_GENERATION_LIMIT,
+    )
+
+
+@product_images_routes.get(
+    "/images/generations/{job_id}/status",
+    response_model=ImageGenerationJobStatusResponse,
+    response_description="Poll background image generation job status",
+    status_code=status.HTTP_200_OK,
+)
+async def get_generation_job_status(
+    request: Request,
+    job_id: str,
+    image_generation_service: image_generation_service_dependency,
+) -> ImageGenerationJobStatusResponse:
+    job_data = await image_generation_service.get_job(job_id)
+    return ImageGenerationJobStatusResponse(
+        job_id=job_id,
+        status=ImageJobStatus(job_data["status"]),
+        image_url=job_data.get("image_url"),
+        model=job_data.get("model"),
+        error=job_data.get("error"),
+    )
 
 
 @product_images_routes.post(

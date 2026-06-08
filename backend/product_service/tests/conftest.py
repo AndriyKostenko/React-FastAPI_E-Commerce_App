@@ -28,7 +28,7 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from decimal import Decimal
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID
 
 import pytest
@@ -59,7 +59,7 @@ from shared.schemas.product_schemas import ProductBase, ProductSchema
 from shared.schemas.category_schema import CategorySchema
 from shared.schemas.review_schemas import ReviewSchema
 from shared.schemas.product_image_schema import ImageType
-from shared.schemas.image_generation_schema import GenerateImageResponse
+from shared.schemas.image_generation_schema import GenerateImageResponse, ImageGenerationJobStatusResponse
 
 
 # ---------------------------------------------------------------------------
@@ -273,6 +273,7 @@ def mock_route_image_generation_service() -> MagicMock:
     svc.settings = MagicMock()
     svc.settings.SECURE_COOKIES = False
     svc.settings.PRODUCT_IMAGE_GUEST_GENERATION_WINDOW_HOURS = 24
+    svc.settings.PRODUCT_IMAGE_GUEST_GENERATION_LIMIT = 3
     svc.generate_image = AsyncMock(
         return_value=GenerateImageResponse(
             image_url="/media/generated/fake-image.png",
@@ -281,6 +282,14 @@ def mock_route_image_generation_service() -> MagicMock:
             guest_limit=3,
         )
     )
+    # background-job API
+    svc.submit_job = AsyncMock(return_value=2)  # returns remaining_generations
+    svc.run_job = AsyncMock(return_value=None)
+    svc.get_job = AsyncMock(return_value={
+        "status": "completed",
+        "image_url": "/media/generated/fake-image.png",
+        "model": "google/gemini-3.1-flash-image-preview",
+    })
     return svc
 
 
@@ -312,8 +321,11 @@ async def client_for_unit_testing(
     app.dependency_overrides[get_review_service] = lambda: mock_route_review_service
     app.dependency_overrides[get_image_generation_service] = lambda: mock_route_image_generation_service
 
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://localhost") as async_client:
-        yield async_client
+    with patch("routes.product_image_routes.generate_image_task") as mock_task:
+        mock_task.kiq = AsyncMock()
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://localhost") as async_client:
+            async_client.app_mock_generate_image_task = mock_task
+            yield async_client
 
     app.dependency_overrides.clear()
     app.router.lifespan_context = original_lifespan

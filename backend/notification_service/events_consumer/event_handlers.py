@@ -8,17 +8,8 @@ from shared.shared_instances import (
     logger,
     notification_idempotency_service,
     notification_service_database_session_manager,
-    user_notification_email_service,
-    order_notification_email_service,
 )
 from shared.schemas.event_schemas import (
-    EmailVerificationEvent,
-    UserRegisteredEvent,
-    PasswordResetRequestedEvent,
-    UserLoginEvent,
-    PasswordResetSuccessEvent,
-    OrderConfirmedEvent,
-    OrderCancelledEvent,
     PaymentSucceededEvent,
     PaymentFailedEvent,
     PaymentRefundedEvent,
@@ -33,6 +24,8 @@ from tasks.email_tasks import (
     send_login_notification,
     send_password_reset_email,
     send_password_reset_success,
+    send_order_confirmed_email,
+    send_order_cancelled_email,
 )
 
 """
@@ -164,12 +157,10 @@ class OrderEventHandler(BaseEventHandler):
                     await self._mark_processed(event_id=event_id, event_type=event_type, order_id=order_id, result="skipped")
                     return
                 case OrderEvents.ORDER_CONFIRMED:
-                    event = OrderConfirmedEvent(**message)
-                    await order_notification_email_service.send_order_confirmed_notification(event)
+                    await send_order_confirmed_email.kiq(message)
                     notification_message = f"Your order #{order_id} has been confirmed."
                 case OrderEvents.ORDER_CANCELLED:
-                    event = OrderCancelledEvent(**message)
-                    await order_notification_email_service.send_order_cancelled_notification(event)
+                    await send_order_cancelled_email.kiq(message)
                     notification_message = f"Your order #{order_id} has been cancelled."
                 case _:
                     self._logger.warning(f"Unhandled order event type: {event_type}")

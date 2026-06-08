@@ -67,6 +67,7 @@ class AppSettings {
 			productsDetailed: string;
 			productDetailed: (productId: string) => string;
 			imageGenerations: string;
+			imageGenerationsStatus: (jobId: string) => string;
 			orders: string;
 			orderById: (orderId: string) => string;
 			cancelOrder: (orderId: string) => string;
@@ -113,7 +114,8 @@ class AppSettings {
 			customizationPricing: AppSettings.joinUrl(baseUrl, "customization/pricing"),
 			productsDetailed:     AppSettings.joinUrl(baseUrl, "products/detailed"),
 			productDetailed:      (productId: string) => AppSettings.joinUrl(baseUrl, `products/${productId}/detailed`),
-			imageGenerations:     AppSettings.joinUrl(baseUrl, "images/generations"),
+			imageGenerations: AppSettings.joinUrl(baseUrl, "images/generations"),
+			imageGenerationsStatus: (jobId: string) => AppSettings.joinUrl(baseUrl, `images/generations/${jobId}/status`),
 			orders:               AppSettings.joinUrl(baseUrl, "orders"),
 			orderById:            (orderId: string)   => AppSettings.joinUrl(baseUrl, `orders/${orderId}`),
 			cancelOrder:          (orderId: string)   => AppSettings.joinUrl(baseUrl, `orders/${orderId}/cancel`),

@@ -138,6 +138,60 @@ export const STYLE_PREVIEWS = {
   },
 };
 
+export const DEFAULT_GUEST_GENERATION_LIMIT = 3;
+export const GENERATION_COUNTER_STORAGE_KEY = "guest-image-generation-counter";
+export const GENERATION_STATE_STORAGE_KEY = "guest-image-generation-state";
+
+export const PRESET_PROMPTS: Array<{
+  prompt: string;
+  style: "None" | keyof typeof STYLE_PREVIEWS;
+}> = [
+  {
+    prompt: "Brutalist typography layout containing clean cyber-glitch effects",
+    style: "Typography",
+  },
+  {
+    prompt: "Minimal line-art koi fish circling a red sun with Japanese ink texture",
+    style: "Minimal",
+  },
+  {
+    prompt: "Retro racing emblem with roaring tiger and checkered flags, 90s print vibe",
+    style: "Vintage",
+  },
+  {
+    prompt: "Anime mecha helmet with neon reflections and dynamic speed lines",
+    style: "Anime",
+  },
+  {
+    prompt: "Streetwear graffiti skull with chrome drips and bold sticker collage",
+    style: "Streetwear",
+  },
+  {
+    prompt: "Abstract liquid marble waves in cobalt, lime, and matte black",
+    style: "Abstract",
+  },
+  {
+    prompt: "Old-school varsity crest for AIGEN with laurel leaves and stars",
+    style: "Vintage",
+  },
+  {
+    prompt: "Minimal geometric mountain horizon with tiny moon and grain texture",
+    style: "Minimal",
+  },
+  {
+    prompt: "Cyber samurai mask built from shattered glass shards and ultraviolet glow",
+    style: "Streetwear",
+  },
+  {
+    prompt: "Hand-drawn manga dragon wrapping around bold kanji style lettering",
+    style: "Anime",
+  },
+  {
+    prompt: "Experimental typography poster saying FUTURE//NOW with layered distortions",
+    style: "Typography",
+  },
+];
+
 export const COLOR_MAP: Record<
   string,
   {

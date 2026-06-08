@@ -35,6 +35,12 @@ class CacheManager(RedisBase):
         ("/reviews", 300),
     ]
 
+    # Paths whose responses must never be cached (monitoring + dynamic job-status polls).
+    _SKIP_CACHE_PATHS: list[str] = [
+        "/health", "/metrics", "/ping", "/ready", "/live",
+        "/images/generations/",  # job status poll — result changes between requests
+    ]
+
     DEFAULT_TTL: int = 300
 
     def __init__(self, service_api_version: str, **kwargs):
@@ -141,8 +147,7 @@ class CacheManager(RedisBase):
         response whose body_iterator must be consumed at the middleware level).
         Default TTL is 5 minutes.
         """
-        monitoring_patterns = ["/health", "/metrics", "/status", "/ping", "/ready", "/live"]
-        if any(request.url.path.startswith(p) for p in monitoring_patterns):
+        if any(p in request.url.path for p in self._SKIP_CACHE_PATHS):
             return
 
         if request.method != "GET" or not (200 <= status_code < 300):
@@ -189,6 +194,10 @@ class CacheManager(RedisBase):
         """
         if request.method != "GET":
             self.logger.info("Skipping cache lookup: non-GET request.")
+            return None
+
+        # Never serve stale responses for dynamic paths (e.g. job-status polls).
+        if any(p in request.url.path for p in self._SKIP_CACHE_PATHS):
             return None
 
         if not is_public:

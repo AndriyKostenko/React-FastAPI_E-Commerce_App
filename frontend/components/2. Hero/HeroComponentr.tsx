@@ -11,10 +11,10 @@ import {
   TSHIRT_SIZE_PRICE_MULTIPLIERS,
 } from "@/utils/constants";
 import type { ProductProps } from "@/types/product";
+import type { GeneratedDesignPayload, StyleOption } from "@/types/generation";
 import TShirtPreview from "./TShirtPreview";
 import HeroText from "./HeroText";
 import GenerationPanel from "./GenerationPanel";
-import type { GeneratedDesignPayload, StyleOption } from "./GenerationPanel";
 import TshirtMeasurement from "./TshirtMeasurement";
 import HoverInfoCard from "./HoverInfoCard";
 import HeroBottomBar from "./HeroBottomBar";

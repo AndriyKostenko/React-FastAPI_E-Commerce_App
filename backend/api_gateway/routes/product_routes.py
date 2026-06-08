@@ -112,7 +112,16 @@ async def get_image_by_id(request: Request,
 @product_proxy.post("/images/generations", summary="Generate custom image")
 @api_gateway_rate_limit_manager.ratelimiter(times=10, seconds=60)
 async def generate_custom_image(request: Request):
-    """PUBLIC - Guest users can generate custom images with quota limits."""
+    """PUBLIC - Submit a background image-generation job (returns 202 immediately)."""
+    return await api_gateway_manager.forward_request(
+        service_name="product-service",
+        request=request,
+    )
+
+
+@product_proxy.get("/images/generations/{job_id}/status", summary="Poll image generation job status")
+async def get_image_generation_status(request: Request, job_id: str):
+    """PUBLIC - Poll the status of a background image-generation job."""
     return await api_gateway_manager.forward_request(
         service_name="product-service",
         request=request,

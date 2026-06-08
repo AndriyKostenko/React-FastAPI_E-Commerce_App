@@ -50,6 +50,13 @@ class TestPublicProductRoutes:
         mock_forward.assert_awaited_once()
         assert response.status_code == 200
 
+    async def test_get_image_generation_status_calls_forward(self, client: AsyncClient, mock_forward: AsyncMock):
+        from uuid import uuid4
+        job_id = str(uuid4())
+        response = await client.get(f"{TEST_API}/images/generations/{job_id}/status")
+        mock_forward.assert_awaited_once()
+        assert response.status_code == 200
+
     async def test_get_all_reviews_calls_forward(self, client: AsyncClient, mock_forward: AsyncMock):
         response = await client.get(f"{TEST_API}/reviews")
         mock_forward.assert_awaited_once()

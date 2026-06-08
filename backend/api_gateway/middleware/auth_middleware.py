@@ -32,6 +32,7 @@ class AuthMiddleware(metaclass=SingletonMetaClass):
             f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/products": ['GET'],
             f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/categories": ['GET'],
             f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/customization/pricing": ['GET'],
+            f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/images/generations/": ['GET'],  # job status poll
             f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/images/generations": ['POST'],
             f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/admin/schema/users": ['GET'],
             f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/admin/schema/products": ['GET'],

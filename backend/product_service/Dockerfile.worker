@@ -27,11 +27,31 @@ RUN apt-get update && apt-get install -y --no-install-recommends libpq5 gosu \
     && chown -R taskiq_user:taskiq_group /media \
     && chmod -R 755 /media
 
-# Copy entrypoint script (must be before USER change so we can run it as root)
-COPY entrypoint-worker.sh /app/entrypoint-worker.sh
-RUN chmod +x /app/entrypoint-worker.sh
+# Copy venv from builder
+COPY --from=builder /app/.venv /app/.venv
+ENV PATH="/app/.venv/bin:$PATH"
 
 COPY --chown=taskiq_user:taskiq_group . .
+
+# Create and make entrypoint script executable (after COPY so it doesn't get overwritten)
+RUN cat > /app/entrypoint-worker.sh << 'EOF'
+#!/bin/bash
+set -e
+
+# Create media directories if they don't exist
+mkdir -p /media/generated
+mkdir -p /media/images
+mkdir -p /media/icons
+
+# Fix permissions for taskiq_user (uid 1008)
+# This runs AFTER volume mount, so it will fix any permission issues from the volume
+chmod -R 755 /media
+chown -R 1008:1008 /media
+
+# Switch to taskiq_user and exec the command
+exec gosu 1008:1008 "$@"
+EOF
+RUN chmod +x /app/entrypoint-worker.sh
 
 # Don't set USER here - let entrypoint run as root to fix permissions
 # Then entrypoint will exec taskiq as the proper user

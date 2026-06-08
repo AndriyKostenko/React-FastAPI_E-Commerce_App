@@ -1,95 +1,28 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { MdAutoAwesome, MdRefresh, MdElectricBolt } from "react-icons/md";
-import { STYLE_PREVIEWS } from "@/utils/constants";
+import {
+  DEFAULT_GUEST_GENERATION_LIMIT,
+  GENERATION_COUNTER_STORAGE_KEY,
+  GENERATION_STATE_STORAGE_KEY,
+  PRESET_PROMPTS,
+  STYLE_PREVIEWS,
+} from "@/utils/constants";
+import type { GeneratedDesignPayload, StyleOption } from "@/types/generation";
+import type {
+  GenerationHistoryState,
+  GenerationPanelProps,
+  GenerationPhase,
+  ParsedGenerationCounter,
+  ParsedGenerationState,
+} from "@/types/generation-panel";
 import generateImage from "@/actions/generateImage";
-
 import toast from "react-hot-toast";
 
-type StyleKey = keyof typeof STYLE_PREVIEWS;
-export type StyleOption = "None" | StyleKey;
 
-const DEFAULT_GUEST_GENERATION_LIMIT = 3;
-const GENERATION_COUNTER_STORAGE_KEY = "guest-image-generation-counter";
-const GENERATION_STATE_STORAGE_KEY = "guest-image-generation-state";
-const PRESET_PROMPTS: Array<{ prompt: string; style: StyleOption }> = [
-  {
-    prompt: "Brutalist typography layout containing clean cyber-glitch effects",
-    style: "Typography",
-  },
-  {
-    prompt: "Minimal line-art koi fish circling a red sun with Japanese ink texture",
-    style: "Minimal",
-  },
-  {
-    prompt: "Retro racing emblem with roaring tiger and checkered flags, 90s print vibe",
-    style: "Vintage",
-  },
-  {
-    prompt: "Anime mecha helmet with neon reflections and dynamic speed lines",
-    style: "Anime",
-  },
-  {
-    prompt: "Streetwear graffiti skull with chrome drips and bold sticker collage",
-    style: "Streetwear",
-  },
-  {
-    prompt: "Abstract liquid marble waves in cobalt, lime, and matte black",
-    style: "Abstract",
-  },
-  {
-    prompt: "Old-school varsity crest for AIGEN with laurel leaves and stars",
-    style: "Vintage",
-  },
-  {
-    prompt: "Minimal geometric mountain horizon with tiny moon and grain texture",
-    style: "Minimal",
-  },
-  {
-    prompt: "Cyber samurai mask built from shattered glass shards and ultraviolet glow",
-    style: "Streetwear",
-  },
-  {
-    prompt: "Hand-drawn manga dragon wrapping around bold kanji style lettering",
-    style: "Anime",
-  },
-  {
-    prompt: "Experimental typography poster saying FUTURE//NOW with layered distortions",
-    style: "Typography",
-  },
-];
 
-export type GeneratedDesignPayload = {
-  design: (typeof STYLE_PREVIEWS)[StyleKey];
-  prompt: string;
-  style: StyleOption;
-};
-
-const isStyleOption = (value: unknown): value is StyleOption =>
-  typeof value === "string" && (value === "None" || value in STYLE_PREVIEWS);
-
-const isGeneratedDesignPayload = (value: unknown): value is GeneratedDesignPayload => {
-  if (!value || typeof value !== "object") {
-    return false;
-  }
-  const payload = value as GeneratedDesignPayload;
-  return (
-    typeof payload.prompt === "string" &&
-    isStyleOption(payload.style) &&
-    !!payload.design &&
-    typeof payload.design.title === "string" &&
-    typeof payload.design.image === "string" &&
-    typeof payload.design.price === "number"
-  );
-};
-
-type GenerationPanelProps = {
-  isGenerating: boolean;
-  setIsGenerating: (value: boolean) => void;
-  onDesignGenerated: (payload: GeneratedDesignPayload) => void;
-};
 
 const GenerationPanel = ({
   isGenerating,
@@ -98,14 +31,13 @@ const GenerationPanel = ({
 }: GenerationPanelProps) => {
   const [prompt, setPrompt] = useState("");
   const [style, setStyle] = useState<StyleOption>("None");
+  const [generationPhase, setGenerationPhase] = useState<GenerationPhase>("idle");
+  const abortControllerRef = useRef<AbortController | null>(null);
   const [generationCounter, setGenerationCounter] = useState({
     used: 0,
     limit: DEFAULT_GUEST_GENERATION_LIMIT,
   });
-  const [generationHistory, setGenerationHistory] = useState<{
-    entries: GeneratedDesignPayload[];
-    index: number;
-  }>({
+  const [generationHistory, setGenerationHistory] = useState<GenerationHistoryState>({
     entries: [],
     index: -1,
   });
@@ -115,6 +47,24 @@ const GenerationPanel = ({
     generationCounter.limit > 0 && generationCounter.used >= generationCounter.limit;
   const remainingGenerations = Math.max(generationCounter.limit - generationCounter.used, 0);
   const shouldShowLastAttemptHint = !isGenerationLimitReached && remainingGenerations === 1;
+
+  const isStyleOption = (value: unknown): value is StyleOption =>
+    typeof value === "string" && (value === "None" || value in STYLE_PREVIEWS);
+
+  const isGeneratedDesignPayload = (value: unknown): value is GeneratedDesignPayload => {
+    if (!value || typeof value !== "object") {
+      return false;
+    }
+    const payload = value as GeneratedDesignPayload;
+    return (
+      typeof payload.prompt === "string" &&
+      isStyleOption(payload.style) &&
+      !!payload.design &&
+      typeof payload.design.title === "string" &&
+      typeof payload.design.image === "string" &&
+      typeof payload.design.price === "number"
+    );
+  };
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -127,10 +77,7 @@ const GenerationPanel = ({
     }
 
     try {
-      const parsed = JSON.parse(storedCounter) as {
-        used?: unknown;
-        limit?: unknown;
-      };
+      const parsed = JSON.parse(storedCounter) as ParsedGenerationCounter;
       if (
         typeof parsed.used === "number" &&
         Number.isFinite(parsed.used) &&
@@ -160,12 +107,7 @@ const GenerationPanel = ({
     }
 
     try {
-      const parsed = JSON.parse(storedState) as {
-        prompt?: unknown;
-        style?: unknown;
-        historyEntries?: unknown;
-        historyIndex?: unknown;
-      };
+      const parsed = JSON.parse(storedState) as ParsedGenerationState;
 
       if (typeof parsed.prompt === "string") {
         setPrompt(parsed.prompt);
@@ -223,6 +165,11 @@ const GenerationPanel = ({
     );
   }, [generationHistory.entries, generationHistory.index, prompt, style]);
 
+  // Abort any in-flight generation when the component unmounts.
+  useEffect(() => {
+    return () => { abortControllerRef.current?.abort(); };
+  }, []);
+
   const applyGeneratedState = (payload: GeneratedDesignPayload) => {
     onDesignGenerated(payload);
     setPrompt(payload.prompt);
@@ -273,14 +220,19 @@ const GenerationPanel = ({
       return;
     }
 
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     setIsGenerating(true);
+    setGenerationPhase("pending");
     const targetStyle = style;
 
     try {
-      const generated = await generateImage({
-        prompt: prompt.trim(),
-        style: targetStyle,
-      });
+      const generated = await generateImage(
+        { prompt: prompt.trim(), style: targetStyle },
+        controller.signal,
+        setGenerationPhase,
+      );
 
       const trimmedPrompt = prompt.trim();
       const styleTemplate =
@@ -317,6 +269,9 @@ const GenerationPanel = ({
 
       toast.success("Design generated successfully!");
     } catch (error) {
+      // Swallow abort errors — user navigated away or component unmounted.
+      if (error instanceof DOMException && error.name === "AbortError") return;
+
       const message =
         error instanceof Error && error.message.trim()
           ? error.message
@@ -335,6 +290,7 @@ const GenerationPanel = ({
       toast.error(message);
     } finally {
       setIsGenerating(false);
+      setGenerationPhase("idle");
     }
   };
 
@@ -381,7 +337,9 @@ const GenerationPanel = ({
                       <MdAutoAwesome className={`text-lg ${isGenerating ? "animate-spin" : ""}`} />
                       {isGenerationLimitReached
                         ? "Generation limit reached - Please Login to continue"
-                        : isGenerating
+                        : generationPhase === "pending"
+                        ? "Queued..."
+                        : generationPhase === "running"
                         ? "Generating..."
                         : "Generate Now"}
                     </button>

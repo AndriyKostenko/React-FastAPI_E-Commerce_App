@@ -1,7 +1,6 @@
 from decimal import Decimal
 from functools import lru_cache
 from pathlib import Path
-from typing import override
 from uuid import UUID, uuid4
 from datetime import datetime
 
@@ -158,9 +157,9 @@ class Settings(BaseSettings):
     ADMINJS_SERVICE_TOKEN: str
 
     # OpenRouter image generation
-    OPENROUTER_API_KEY: str = ""
-    OPENROUTER_BASE_URL: str = "https://openrouter.ai/api/v1"
-    OPENROUTER_IMAGE_MODEL: str = "google/gemini-3.1-flash-image-preview"
+    OPENROUTER_API_KEY: str 
+    OPENROUTER_BASE_URL: str 
+    OPENROUTER_IMAGE_MODEL: str 
     OPENROUTER_IMAGE_SIZE: str = "0.5K"
     OPENROUTER_IMAGE_ASPECT_RATIO: str = "1:1"
     PRODUCT_IMAGE_GUEST_GENERATION_LIMIT: int = 3
