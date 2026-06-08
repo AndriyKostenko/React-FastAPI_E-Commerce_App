@@ -25,8 +25,12 @@ const FALLBACK_SIZE_PRICE_MULTIPLIERS: Record<keyof typeof SIZE_MEASUREMENTS, nu
   L: 1,
 };
 
+type HeroSectionProps = {
+  isRegisteredUser: boolean;
+  currentUserJWT?: string | null;
+};
 
-const HeroSection = () => {
+const HeroSection = ({ isRegisteredUser, currentUserJWT }: HeroSectionProps) => {
   type GarmentColor = "bg-white" | "bg-gray" | "bg-black";
   const { handleAddProductToCart } = useCart();
 
@@ -151,6 +155,8 @@ const HeroSection = () => {
           isGenerating={isGenerating}
           setIsGenerating={setIsGenerating}
           onDesignGenerated={handleDesignGenerated}
+          isRegisteredUser={isRegisteredUser}
+          currentUserJWT={currentUserJWT}
         />
       </div>
       {/* ── Right col: t-shirt mockup (grid-stretch makes it match left col height) ── */}

@@ -26,7 +26,7 @@ from exceptions.image_generation_exceptions import (
 
 class ImageGenerationInterface(ABC):
     @abstractmethod
-    async def generate_image(self,  prompt: str, style: str, is_guest_user: bool, guest_id: str | None) -> BaseModel:
+    async def generate_image(self,  prompt: str, style: str, is_guest_user: bool, guest_id: str | None = None, user_id: str | None = None, remove_background: bool = False) -> BaseModel:
         """Generating an image"""
         ...
     @abstractmethod
@@ -34,11 +34,11 @@ class ImageGenerationInterface(ABC):
         """Saving the generated image"""
         ...
     @abstractmethod
-    async def submit_job(self, job_id: str, prompt: str, style: str, is_guest_user: bool, guest_id: str | None) -> int | None:
+    async def submit_job(self, job_id: str, prompt: str, style: str, is_guest_user: bool, guest_id: str | None = None, user_id: str | None = None) -> int | None:
         """Validate, consume quota, and persist a pending job in Redis."""
         ...
     @abstractmethod
-    async def run_job(self, job_id: str, prompt: str, style: str) -> None:
+    async def run_job(self, job_id: str, prompt: str, style: str, remove_background: bool = False) -> None:
         """Execute generation in the background and update job state in Redis."""
         ...
     @abstractmethod
@@ -64,6 +64,28 @@ class ImageGenerationService(ImageGenerationInterface):
     async def _consume_guest_quota(self, guest_id: str) -> int:
         key = f"{self.cache_manager.service_prefix}:image-generation:guest:{guest_id}"
         limit = self.settings.PRODUCT_IMAGE_GUEST_GENERATION_LIMIT
+        window_seconds = self.settings.PRODUCT_IMAGE_GUEST_GENERATION_WINDOW_HOURS * 3600
+
+        current_count = await self.cache_manager.redis.incr(key)
+        if current_count == 1:
+            await self.cache_manager.redis.expire(key, window_seconds)
+        else:
+            ttl = await self.cache_manager.redis.ttl(key)
+            if ttl == -1:
+                # Key exists but has no TTL (expire was lost between calls) — restore it.
+                await self.cache_manager.redis.expire(key, window_seconds)
+
+        ttl = await self.cache_manager.redis.ttl(key)
+        retry_after = max(ttl, 1)
+
+        if current_count > limit:
+            raise ImageGenerationLimitExceededError(retry_after=retry_after, limit=limit)
+
+        return max(limit - current_count, 0)
+
+    async def _consume_registered_quota(self, user_id: str) -> int:
+        key = f"{self.cache_manager.service_prefix}:image-generation:registered:{user_id}"
+        limit = self.settings.PRODUCT_IMAGE_REGISTERED_GENERATION_LIMIT
         window_seconds = self.settings.PRODUCT_IMAGE_GUEST_GENERATION_WINDOW_HOURS * 3600
 
         current_count = await self.cache_manager.redis.incr(key)
@@ -111,8 +133,14 @@ class ImageGenerationService(ImageGenerationInterface):
 
     # ---- request building ----
 
-    def _build_prompt(self, prompt: str, style: str) -> str:
-        return f"{prompt.strip()}\n\nStyle reference: {style.strip()}"
+    def _build_prompt(self, prompt: str, style: str, remove_background: bool = False) -> str:
+        base_prompt = f"{prompt.strip()}\n\nStyle reference: {style.strip()}"
+        if not remove_background:
+            return base_prompt
+        return (
+            f"{base_prompt}\n\n"
+            "Background instruction: Remove the background completely and return a transparent background."
+        )
 
     def _resolve_image_model(self) -> str:
         configured_model = self.settings.OPENROUTER_IMAGE_MODEL.strip()
@@ -120,13 +148,13 @@ class ImageGenerationService(ImageGenerationInterface):
             return "google/gemini-3.1-flash-image-preview"
         return configured_model
 
-    def _build_openrouter_payload(self, model: str, prompt: str, style: str) -> dict:
+    def _build_openrouter_payload(self, model: str, prompt: str, style: str, remove_background: bool = False) -> dict:
         payload = {
             "model": model,
             "messages": [
                 {
                     "role": "user",
-                    "content": self._build_prompt(prompt, style),
+                    "content": self._build_prompt(prompt, style, remove_background),
                 }
             ],
             "stream": False,
@@ -175,13 +203,18 @@ class ImageGenerationService(ImageGenerationInterface):
 
     # ---- core HTTP call ----
 
-    async def _call_openrouter(self, prompt: str, style: str) -> tuple[str, str]:
+    async def _call_openrouter(self, prompt: str, style: str, remove_background: bool = False) -> tuple[str, str]:
         """
         Send a generation request to OpenRouter and return (image_b64_payload, model_name).
         Raises ImageGenerationProviderError on any network or upstream failure.
         """
         model = self._resolve_image_model()
-        payload = self._build_openrouter_payload(model=model, prompt=prompt, style=style)
+        payload = self._build_openrouter_payload(
+            model=model,
+            prompt=prompt,
+            style=style,
+            remove_background=remove_background,
+        )
         headers = {
             "Authorization": f"Bearer {self.settings.OPENROUTER_API_KEY}",
             "Content-Type": "application/json",
@@ -222,16 +255,26 @@ class ImageGenerationService(ImageGenerationInterface):
         style: str,
         is_guest_user: bool,
         guest_id: str | None = None,
+        user_id: str | None = None,
+        remove_background: bool = False,
     ) -> GenerateImageResponse:
         self._validate_configuration()
 
         remaining_generations = None
+        guest_limit = None
+        
         if is_guest_user:
             if not guest_id:
                 raise ImageGenerationProviderError("Guest id is required for guest generation")
             remaining_generations = await self._consume_guest_quota(guest_id)
+            guest_limit = self.settings.PRODUCT_IMAGE_GUEST_GENERATION_LIMIT
+        else:
+            if not user_id:
+                raise ImageGenerationProviderError("User id is required for registered user generation")
+            remaining_generations = await self._consume_registered_quota(user_id)
+            guest_limit = self.settings.PRODUCT_IMAGE_REGISTERED_GENERATION_LIMIT
 
-        image_payload, model = await self._call_openrouter(prompt, style)
+        image_payload, model = await self._call_openrouter(prompt, style, remove_background)
         image_url = await self.save_image(image_payload)
         self.logger.debug(f"Image is generated and saved: {image_url}")
 
@@ -239,9 +282,7 @@ class ImageGenerationService(ImageGenerationInterface):
             image_url=image_url,
             model=model,
             remaining_generations=remaining_generations,
-            guest_limit=self.settings.PRODUCT_IMAGE_GUEST_GENERATION_LIMIT
-            if is_guest_user
-            else None,
+            guest_limit=guest_limit,
         )
 
     # ---- background-job pattern ----
@@ -256,7 +297,8 @@ class ImageGenerationService(ImageGenerationInterface):
         prompt: str,
         style: str,
         is_guest_user: bool,
-        guest_id: str | None,
+        guest_id: str | None = None,
+        user_id: str | None = None,
     ) -> int | None:
         """
         Validate the request, consume guest quota (fails-fast on 429), and
@@ -272,6 +314,10 @@ class ImageGenerationService(ImageGenerationInterface):
             if not guest_id:
                 raise ImageGenerationProviderError("Guest id is required for guest generation")
             remaining_generations = await self._consume_guest_quota(guest_id)
+        else:
+            if not user_id:
+                raise ImageGenerationProviderError("User id is required for registered user generation")
+            remaining_generations = await self._consume_registered_quota(user_id)
 
         job_data: dict[str, Any] = {
             "status": "pending",
@@ -285,7 +331,7 @@ class ImageGenerationService(ImageGenerationInterface):
         return remaining_generations
 
     @override
-    async def run_job(self, job_id: str, prompt: str, style: str) -> None:
+    async def run_job(self, job_id: str, prompt: str, style: str, remove_background: bool = False) -> None:
         """
         Execute image generation as a background task and update Redis job state.
         Called by FastAPI BackgroundTasks after the 202 response is sent.
@@ -300,7 +346,7 @@ class ImageGenerationService(ImageGenerationInterface):
 
         await _update({"status": "running"})
         try:
-            image_payload, model = await self._call_openrouter(prompt, style)
+            image_payload, model = await self._call_openrouter(prompt, style, remove_background)
             image_url = await self.save_image(image_payload)
             await _update({"status": "completed", "image_url": image_url, "model": model})
             self.logger.debug(f"Job {job_id} completed: {image_url}")

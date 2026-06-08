@@ -139,6 +139,7 @@ export const STYLE_PREVIEWS = {
 };
 
 export const DEFAULT_GUEST_GENERATION_LIMIT = 3;
+export const DEFAULT_REGISTERED_GENERATION_LIMIT = 10;
 export const GENERATION_COUNTER_STORAGE_KEY = "guest-image-generation-counter";
 export const GENERATION_STATE_STORAGE_KEY = "guest-image-generation-state";
 

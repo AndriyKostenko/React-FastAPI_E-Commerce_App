@@ -52,6 +52,7 @@ def image_generation_settings() -> MagicMock:
     settings.OPENROUTER_IMAGE_SIZE = "0.5K"
     settings.OPENROUTER_IMAGE_ASPECT_RATIO = "1:1"
     settings.PRODUCT_IMAGE_GUEST_GENERATION_LIMIT = 3
+    settings.PRODUCT_IMAGE_REGISTERED_GENERATION_LIMIT = 10
     settings.PRODUCT_IMAGE_GUEST_GENERATION_WINDOW_HOURS = 24
     settings.GUEST_QUOTA_COOKIE = "guest_generation_id"
     settings.FRONTEND_URL = "https://example.com"
@@ -119,6 +120,7 @@ class TestGenerateImage:
                 style="Streetwear",
                 is_guest_user=True,
                 guest_id=str(uuid4()),
+                remove_background=True,
             )
 
         assert request_log["endpoint"] == "https://openrouter.ai/api/v1/chat/completions"
@@ -128,6 +130,7 @@ class TestGenerateImage:
         assert request_log["payload"]["stream"] is False
         assert request_log["payload"]["messages"][0]["role"] == "user"
         assert "Style reference: Streetwear" in request_log["payload"]["messages"][0]["content"]
+        assert "Remove the background completely" in request_log["payload"]["messages"][0]["content"]
         assert request_log["headers"]["X-OpenRouter-Title"] == "react-fastapi-ecommerce"
         image_generation_service_unit.save_image.assert_awaited_once_with(
             "data:image/png;base64,aGVsbG8="
@@ -153,6 +156,7 @@ class TestGenerateImage:
                     prompt="Create a neon logo",
                     style="Streetwear",
                     is_guest_user=False,
+                    user_id=str(uuid4()),
                 )
 
 

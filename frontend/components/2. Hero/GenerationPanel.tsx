@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import { MdAutoAwesome, MdRefresh, MdElectricBolt } from "react-icons/md";
 import {
   DEFAULT_GUEST_GENERATION_LIMIT,
+  DEFAULT_REGISTERED_GENERATION_LIMIT,
   GENERATION_COUNTER_STORAGE_KEY,
   GENERATION_STATE_STORAGE_KEY,
   PRESET_PROMPTS,
@@ -28,14 +28,21 @@ const GenerationPanel = ({
   isGenerating,
   setIsGenerating,
   onDesignGenerated,
+  isRegisteredUser,
+  currentUserJWT,
 }: GenerationPanelProps) => {
+  const initialLimit = isRegisteredUser
+    ? DEFAULT_REGISTERED_GENERATION_LIMIT
+    : DEFAULT_GUEST_GENERATION_LIMIT;
+  
   const [prompt, setPrompt] = useState("");
   const [style, setStyle] = useState<StyleOption>("None");
+  const [removeBackground, setRemoveBackground] = useState(false);
   const [generationPhase, setGenerationPhase] = useState<GenerationPhase>("idle");
   const abortControllerRef = useRef<AbortController | null>(null);
   const [generationCounter, setGenerationCounter] = useState({
     used: 0,
-    limit: DEFAULT_GUEST_GENERATION_LIMIT,
+    limit: initialLimit,
   });
   const [generationHistory, setGenerationHistory] = useState<GenerationHistoryState>({
     entries: [],
@@ -47,6 +54,9 @@ const GenerationPanel = ({
     generationCounter.limit > 0 && generationCounter.used >= generationCounter.limit;
   const remainingGenerations = Math.max(generationCounter.limit - generationCounter.used, 0);
   const shouldShowLastAttemptHint = !isGenerationLimitReached && remainingGenerations === 1;
+  const generationLimitMessage = isRegisteredUser
+    ? "Generation limit reached for today"
+    : "Generation limit reached - Please Login to continue";
 
   const isStyleOption = (value: unknown): value is StyleOption =>
     typeof value === "string" && (value === "None" || value in STYLE_PREVIEWS);
@@ -73,6 +83,11 @@ const GenerationPanel = ({
 
     const storedCounter = window.localStorage.getItem(GENERATION_COUNTER_STORAGE_KEY);
     if (!storedCounter) {
+      // Initialize with the correct limit based on authentication status
+      setGenerationCounter({
+        used: 0,
+        limit: initialLimit,
+      });
       return;
     }
 
@@ -86,15 +101,25 @@ const GenerationPanel = ({
         Number.isFinite(parsed.limit) &&
         parsed.limit > 0
       ) {
+        // Use the parsed limit if it matches current auth status, otherwise reset
+        const expectedLimit = isRegisteredUser
+          ? DEFAULT_REGISTERED_GENERATION_LIMIT
+          : DEFAULT_GUEST_GENERATION_LIMIT;
+        const shouldUseStoredCounter = parsed.limit === expectedLimit;
+        
         setGenerationCounter({
-          used: Math.min(Math.floor(parsed.used), Math.floor(parsed.limit)),
-          limit: Math.floor(parsed.limit),
+          used: shouldUseStoredCounter ? Math.min(Math.floor(parsed.used), Math.floor(parsed.limit)) : 0,
+          limit: expectedLimit,
         });
       }
     } catch {
-      // Ignore malformed local storage and continue with defaults.
+      // Ignore malformed local storage and initialize with correct limit
+      setGenerationCounter({
+        used: 0,
+        limit: initialLimit,
+      });
     }
-  }, []);
+  }, [isRegisteredUser, initialLimit]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -114,6 +139,9 @@ const GenerationPanel = ({
       }
       if (isStyleOption(parsed.style)) {
         setStyle(parsed.style);
+      }
+      if (typeof parsed.removeBackground === "boolean") {
+        setRemoveBackground(parsed.removeBackground);
       }
 
       const parsedEntries = Array.isArray(parsed.historyEntries)
@@ -159,11 +187,12 @@ const GenerationPanel = ({
       JSON.stringify({
         prompt,
         style,
+        removeBackground,
         historyEntries: generationHistory.entries,
         historyIndex: generationHistory.index,
       })
     );
-  }, [generationHistory.entries, generationHistory.index, prompt, style]);
+  }, [generationHistory.entries, generationHistory.index, prompt, removeBackground, style]);
 
   // Abort any in-flight generation when the component unmounts.
   useEffect(() => {
@@ -216,7 +245,7 @@ const GenerationPanel = ({
     }
 
     if (isGenerationLimitReached) {
-      toast.error(`Guest image generation limit (${generationCounter.limit}) reached`);
+      toast.error(generationLimitMessage);
       return;
     }
 
@@ -229,7 +258,12 @@ const GenerationPanel = ({
 
     try {
       const generated = await generateImage(
-        { prompt: prompt.trim(), style: targetStyle },
+        {
+          prompt: prompt.trim(),
+          style: targetStyle,
+          removeBackground,
+          authToken: currentUserJWT ?? null,
+        },
         controller.signal,
         setGenerationPhase,
       );
@@ -286,6 +320,8 @@ const GenerationPanel = ({
         } else {
           setGenerationCounter((prev) => ({ ...prev, used: prev.limit }));
         }
+        toast.error(generationLimitMessage);
+        return;
       }
       toast.error(message);
     } finally {
@@ -297,14 +333,14 @@ const GenerationPanel = ({
   return (
             <div className="flex-1 min-h-0 rounded-[2rem] overflow-hidden isolate flex flex-col">
               <div className="liquid-glass h-full flex flex-col min-h-0">
-                <div className="relative z-10 flex flex-col flex-1 p-8 space-y-6 min-h-0">
-                <div className="grid grid-cols-[minmax(0,1fr)_220px] gap-6 items-start">
+                <div className="relative z-10 flex flex-col flex-1 p-6 md:p-8 space-y-4 md:space-y-6 min-h-0 overflow-y-auto">
+                <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_220px] gap-4 md:gap-6 items-start">
                   <div className="space-y-2">
                     <label className="font-label-bold text-label-bold text-primary">Prompt</label>
                     <textarea
                       value={prompt}
                       onChange={(e) => setPrompt(e.target.value)}
-                      className="w-full bg-white/40 border-none rounded-2xl p-4 font-body-md focus:ring-2 focus:ring-brand-lime min-h-[100px] resize-none text-primary placeholder:text-secondary"
+                      className="w-full bg-white/40 border-none rounded-2xl p-4 font-body-md focus:ring-2 focus:ring-brand-lime min-h-[88px] md:min-h-[100px] resize-none text-primary placeholder:text-secondary"
                       placeholder="A futuristic cyberpunk samurai mask made of translucent glass shards, neon indigo lighting, minimalist vector style..."
                     />
                   </div>
@@ -324,10 +360,19 @@ const GenerationPanel = ({
                       <option value="Abstract">Abstract</option>
                       <option value="Typography">Typography</option>
                     </select>
+                    <label className="inline-flex items-center gap-2 pt-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={removeBackground}
+                        onChange={(e) => setRemoveBackground(e.target.checked)}
+                        className="h-4 w-4 rounded border-primary/30 text-primary focus:ring-brand-lime"
+                      />
+                      <span className="font-label-bold text-sm text-primary">Remove the background</span>
+                    </label>
                   </div>
                 </div>
 
-                <div className="flex flex-wrap sm:flex-nowrap items-center gap-3 pt-2 w-full">
+                <div className="flex flex-wrap items-center gap-3 pt-1 md:pt-2 w-full">
                   <div className="relative flex-1 min-w-[220px]">
                     <button
                       onClick={handleGenerate}
@@ -336,7 +381,7 @@ const GenerationPanel = ({
                     >
                       <MdAutoAwesome className={`text-lg ${isGenerating ? "animate-spin" : ""}`} />
                       {isGenerationLimitReached
-                        ? "Generation limit reached - Please Login to continue"
+                        ? generationLimitMessage
                         : generationPhase === "pending"
                         ? "Queued..."
                         : generationPhase === "running"
@@ -364,34 +409,42 @@ const GenerationPanel = ({
                   </button>
                 </div>
 
-                {shouldShowLastAttemptHint && (
+                {/*{shouldShowLastAttemptHint && (
                   <p className="text-xs font-label-bold text-primary/80">
-                    1 free generation left before sign in is required.
+                    {isRegisteredUser
+                      ? "1 generation left before daily limit is reached."
+                      : "1 free generation left before sign in is required."}
                   </p>
-                )}
+                )}*/}
 
-                {isGenerationLimitReached && (
+                {/*{isGenerationLimitReached && (
                   <div className="rounded-2xl border border-primary/20 bg-white/60 p-4 flex flex-col gap-3">
-                    <p className="font-label-bold text-primary">Free guest limit reached</p>
-                    <p className="text-sm text-secondary">
-                      Sign in or create an account to continue generating designs.
+                    <p className="font-label-bold text-primary">
+                      {isRegisteredUser ? "Daily generation limit reached" : "Free guest limit reached"}
                     </p>
-                    <div className="flex items-center gap-2">
-                      <Link
-                        href="/login"
-                        className="inline-flex items-center justify-center rounded-xl bg-primary text-white px-4 py-2 text-sm font-label-bold hover:opacity-90 transition-opacity"
-                      >
-                        Log in
-                      </Link>
-                      <Link
-                        href="/register"
-                        className="inline-flex items-center justify-center rounded-xl border border-primary/20 bg-white text-primary px-4 py-2 text-sm font-label-bold hover:bg-white/80 transition-colors"
-                      >
-                        Create account
-                      </Link>
-                    </div>
+                    <p className="text-sm text-secondary">
+                      {isRegisteredUser
+                        ? "You've reached your daily generation limit. Try again tomorrow!"
+                        : "Sign in or create an account to continue generating designs."}
+                    </p>
+                    {!isRegisteredUser && (
+                      <div className="flex items-center gap-2">
+                        <Link
+                          href="/login"
+                          className="inline-flex items-center justify-center rounded-xl bg-primary text-white px-4 py-2 text-sm font-label-bold hover:opacity-90 transition-opacity"
+                        >
+                          Log in
+                        </Link>
+                        <Link
+                          href="/register"
+                          className="inline-flex items-center justify-center rounded-xl border border-primary/20 bg-white text-primary px-4 py-2 text-sm font-label-bold hover:bg-white/80 transition-colors"
+                        >
+                          Create account
+                        </Link>
+                      </div>
+                    )}
                   </div>
-                )}
+                )}*/}
               </div>
             </div>
           </div>

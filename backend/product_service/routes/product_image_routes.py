@@ -1,7 +1,7 @@
 from typing import Any
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, File, Form, Request, Response, UploadFile, status
+from fastapi import APIRouter, File, Form, HTTPException, Request, Response, UploadFile, status
 from fastapi.responses import JSONResponse
 
 from dependencies.dependencies import (
@@ -21,9 +21,26 @@ from shared.schemas.image_generation_schema import (
 )
 from shared.schemas.product_image_schema import ProductImageSchema
 from tasks.image_tasks import generate_image_task
+from shared.shared_instances import token_manager
 
 
 product_images_routes = APIRouter(tags=["product_images"])
+
+def _get_optional_authenticated_user_id(request: Request) -> str | None:
+    token = request.cookies.get("access_token")
+    if not token:
+        auth_header = request.headers.get("Authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            token = auth_header.split(" ", 1)[1].strip()
+
+    if not token:
+        return None
+
+    try:
+        decoded = token_manager.decode_token(token)
+        return str(decoded.id)
+    except HTTPException:
+        return None
 
 
 @product_images_routes.post(
@@ -38,13 +55,16 @@ async def generate_image(
     image_generation_service: image_generation_service_dependency,
     generation_data: GenerateImageRequest) -> ImageGenerationJobSubmitResponse:
     
+    user_id = _get_optional_authenticated_user_id(request)
+    is_guest_user = user_id is None
+    
     cookie_name = image_generation_service.GUEST_QUOTA_COOKIE
     raw_cookie = request.cookies.get(cookie_name)
 
     # Validate that the cookie value is a well-formed UUID to prevent
     # arbitrary values from polluting Redis keys.
     guest_id: str | None = None
-    if raw_cookie:
+    if raw_cookie and is_guest_user:
         try:
             UUID(raw_cookie)
             guest_id = raw_cookie
@@ -52,7 +72,7 @@ async def generate_image(
             pass  # treat malformed cookie as no cookie
 
     new_guest_id: str | None = None
-    if not guest_id:
+    if not guest_id and is_guest_user:
         new_guest_id = str(uuid4())
         guest_id = new_guest_id
 
@@ -79,8 +99,9 @@ async def generate_image(
             job_id=job_id,
             prompt=generation_data.prompt,
             style=generation_data.style,
-            is_guest_user=True,
+            is_guest_user=is_guest_user,
             guest_id=guest_id,
+            user_id=user_id,
         )
     except ImageGenerationLimitExceededError as exc:
         # Return a JSONResponse directly so we can attach Set-Cookie.
@@ -93,7 +114,12 @@ async def generate_image(
             resp.set_cookie(**cookie_kwargs)
         return resp
 
-    await generate_image_task.kiq(job_id, generation_data.prompt, generation_data.style)
+    await generate_image_task.kiq(
+        job_id,
+        generation_data.prompt,
+        generation_data.style,
+        generation_data.remove_background,
+    )
 
     if cookie_kwargs:
         response.set_cookie(**cookie_kwargs)
@@ -101,11 +127,17 @@ async def generate_image(
     # Point the client at the status-poll endpoint.
     response.headers["Location"] = f"{request.url.path}/{job_id}/status"
 
+    guest_limit = (
+        image_generation_service.settings.PRODUCT_IMAGE_GUEST_GENERATION_LIMIT
+        if is_guest_user
+        else image_generation_service.settings.PRODUCT_IMAGE_REGISTERED_GENERATION_LIMIT
+    )
+
     return ImageGenerationJobSubmitResponse(
         job_id=job_id,
         status=ImageJobStatus.pending,
         remaining_generations=remaining_generations,
-        guest_limit=image_generation_service.settings.PRODUCT_IMAGE_GUEST_GENERATION_LIMIT,
+        guest_limit=guest_limit,
     )
 
 

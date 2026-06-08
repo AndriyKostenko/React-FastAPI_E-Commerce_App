@@ -6,6 +6,8 @@ import { resolveImageUrl } from "@/utils/resolveImageUrl";
 type GenerateImageRequest = {
   prompt: string;
   style: string;
+  removeBackground?: boolean;
+  authToken?: string | null;
 };
 
 type JobStatus = "pending" | "running" | "completed" | "failed";
@@ -66,17 +68,26 @@ const getErrorMessage = (payload: ErrorResponsePayload | null): string => {
 // ── Main action ──────────────────────────────────────────────────────────────
 
 const generateImage = async (
-  { prompt, style }: GenerateImageRequest,
+  { prompt, style, removeBackground = false, authToken }: GenerateImageRequest,
   signal?: AbortSignal,
   onPhaseChange?: (phase: "pending" | "running") => void,
 ): Promise<GenerateImageResult> => {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (authToken?.trim()) {
+    headers.Authorization = `Bearer ${authToken.trim()}`;
+  }
+
   // 1. Submit job → 202 Accepted
   const submitRes = await fetch(settings.api.endpoints.imageGenerations, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     credentials: "include",
     cache: "no-store",
-    body: JSON.stringify({ prompt, style }),
+    body: JSON.stringify({
+      prompt,
+      style,
+      remove_background: removeBackground,
+    }),
     signal,
   });
 

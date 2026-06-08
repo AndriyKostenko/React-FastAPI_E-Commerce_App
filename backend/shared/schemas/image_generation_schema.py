@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 class GenerateImageRequest(BaseModel):
     prompt: str = Field(..., min_length=5, max_length=1000)
     style: str = Field(..., min_length=2, max_length=100)
+    remove_background: bool = False
 
 
 class GenerateImageResponse(BaseModel):

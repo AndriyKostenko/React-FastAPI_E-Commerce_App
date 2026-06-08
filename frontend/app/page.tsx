@@ -5,6 +5,7 @@ import NullData from "@/components/ui/NullData";
 import fetchProductsFromBackend from "../actions/getProducts";
 import { Params, SearchParams } from "../types/params";
 import HeroSection from "@/components/2. Hero/HeroComponentr";
+import { sessionManagaer } from "@/actions/getCurrentUser";
 
 
 export default async function Home(props: {params: Params, searchParams: SearchParams}) {
@@ -16,6 +17,7 @@ export default async function Home(props: {params: Params, searchParams: SearchP
 	console.log("searchParams", searchParams)
 
   const products = await fetchProductsFromBackend(category, searchTerm);
+  const currentUserJWT = await sessionManagaer.getCurrentUserJWT();
   console.log(products)
 
 	if (!products || products.length === 0) {
@@ -24,7 +26,10 @@ export default async function Home(props: {params: Params, searchParams: SearchP
 
 	return (
 		<div className="space-y-8">
-			<HeroSection />
+			<HeroSection
+        isRegisteredUser={Boolean(currentUserJWT)}
+        currentUserJWT={currentUserJWT}
+      />
 			<CommunityGallery />
 			<FeaturedCollection products={products} />
 			<Testimonials />

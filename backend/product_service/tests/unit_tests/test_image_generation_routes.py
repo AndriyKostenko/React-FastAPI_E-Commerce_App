@@ -118,6 +118,7 @@ class TestGenerateImageEndpoint:
         call_args = mock_task.kiq.call_args
         assert call_args.args[1] == self._payload["prompt"]
         assert call_args.args[2] == self._payload["style"]
+        assert call_args.args[3] is False
 
 
     async def test_returns_completed_job(

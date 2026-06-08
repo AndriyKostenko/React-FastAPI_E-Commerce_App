@@ -20,7 +20,7 @@ type HeroBottomBarProps = {
   onAddToCart: () => void;
 };
 
-const Divider = () => <div className="hidden sm:block h-10 w-px bg-black/10 flex-shrink-0" />;
+const Divider = () => <div className="hidden xl:block h-10 w-px bg-black/10 flex-shrink-0" />;
 
 const ColorSelector = ({
   garmentColor,
@@ -100,7 +100,7 @@ const PlacementSelector = ({
   placement,
   setPlacement,
 }: Pick<HeroBottomBarProps, "placement" | "setPlacement">) => (
-  <div className="space-y-2 flex-grow max-w-sm">
+  <div className="space-y-2 w-full sm:min-w-[220px] sm:flex-1 xl:max-w-sm">
     <h3 className="font-label-bold text-sm text-primary">Print Placement</h3>
     <div className="relative">
       <select
@@ -178,13 +178,13 @@ const AddToCartButton = ({
   }).format(finalPrice);
 
   return (
-    <div className="flex-shrink-0 flex flex-col items-center gap-2">
+    <div className="flex-shrink-0 flex flex-col items-center gap-2 min-w-[150px] max-w-full">
       <span className="inline-flex items-center justify-center min-w-[54px] h-5 px-4 rounded-full bg-primary text-white font-label-bold text-sm shadow-md">
         {isPriceLoading ? "..." : formattedPrice}
       </span>
       <button
         onClick={onAddToCart}
-        className="bg-brand-lime text-primary py-3 px-8 rounded-2xl font-label-bold hover:shadow-xl transition-all active:scale-95"
+        className="w-auto max-w-full whitespace-nowrap bg-brand-lime text-primary py-3 px-6 sm:px-8 rounded-2xl font-label-bold hover:shadow-xl transition-all active:scale-95"
       >
         Add to Cart
       </button>
@@ -209,7 +209,7 @@ const HeroBottomBar = ({
   onAddToCart,
 }: HeroBottomBarProps) => {
   return (
-    <div className="lg:col-span-2 glass-card p-6 flex flex-col sm:flex-row items-center gap-6">
+    <div className="lg:col-span-2 glass-card p-6 flex flex-col sm:flex-row sm:flex-wrap xl:flex-nowrap items-center sm:items-end gap-6">
       <ColorSelector garmentColor={garmentColor} setGarmentColor={setGarmentColor} />
       <Divider />
       <SizeSelector size={size} setSize={setSize} />
