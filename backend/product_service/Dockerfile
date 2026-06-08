@@ -67,9 +67,11 @@ RUN apt-get update \
     && mkdir -p /app/logs \
     && mkdir -p /media/images \
     && mkdir -p /media/icons \
+    && mkdir -p /media/generated \
     && mkdir -p /app/logs /tmp/prometheus_multiproc/product-service \
     && chown -R productuser:productgroup /app \
     && chown -R productuser:productgroup /media \
+    && chmod -R 755 /media \
     && chown -R productuser:productgroup /app /tmp/prometheus_multiproc
 
 # Copy dependencies from builder
@@ -125,9 +127,11 @@ RUN apt-get update \
     && mkdir -p /app/logs \
     && mkdir -p /media/images \
     && mkdir -p /media/icons \
+    && mkdir -p /media/generated \
     && mkdir -p /tmp/prometheus_multiproc \
     && chown -R productuser:productgroup /app \
     && chown -R productuser:productgroup /media \
+    && chmod -R 755 /media \
     && chown -R productuser:productgroup /tmp/prometheus_multiproc
 
 # Copy venv with dev deps (pytest, httpx, etc.) from test-builder
