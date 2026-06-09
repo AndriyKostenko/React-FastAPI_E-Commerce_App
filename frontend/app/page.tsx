@@ -10,29 +10,29 @@ import { sessionManagaer } from "@/actions/getCurrentUser";
 
 export default async function Home(props: {params: Params, searchParams: SearchParams}) {
 
-	const searchParams = await props.searchParams
-	const searchTerm = searchParams['searchTerm'] as string | undefined;
-	const category = searchParams['category'] as string | undefined;
+    const searchParams = await props.searchParams
+    const searchTerm = searchParams['searchTerm'] as string | undefined;
+    const category = searchParams['category'] as string | undefined;
 
-	console.log("searchParams", searchParams)
+    console.log("searchParams", searchParams)
 
   const products = await fetchProductsFromBackend(category, searchTerm);
   const currentUserJWT = await sessionManagaer.getCurrentUserJWT();
   console.log(products)
 
-	if (!products || products.length === 0) {
-		return <NullData title="No products!!!"/>
-	}
+    if (!products || products.length === 0) {
+        return <NullData title="No products!!!"/>
+    }
 
-	return (
-		<div className="space-y-8">
-			<HeroSection
+    return (
+        <div className="space-y-8">
+            <HeroSection
         isRegisteredUser={Boolean(currentUserJWT)}
         currentUserJWT={currentUserJWT}
       />
-			<CommunityGallery />
-			<FeaturedCollection products={products} />
-			<Testimonials />
-		</div>
-	)
+            <CommunityGallery />
+            <FeaturedCollection products={products} />
+            <Testimonials />
+        </div>
+    )
 };

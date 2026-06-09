@@ -12,22 +12,22 @@ const Orders = async () => {
   const currentUserToken = await sessionManagaer.getCurrentUserJWT();
   const expiryToken = await sessionManagaer.getCurrentUserTokenExpiry();
 
-	if (!currentUser) {
-		return <NullData title="Oops ! Access denied!"></NullData>
-	}
+    if (!currentUser) {
+        return <NullData title="Oops ! Access denied!"></NullData>
+    }
 
     const orders = await fetchOrderByUserId(currentUser.id, currentUserToken);
 
-	if (!orders) {
-		return <NullData title="No orders yet" />
-	}
+    if (!orders) {
+        return <NullData title="No orders yet" />
+    }
 
 
     return (
         <div className="pt-8">
-			<Container>
-				<OrdersClient userOrders={orders} token={currentUserToken} expiryToken={expiryToken}/>
-			</Container>
+            <Container>
+                <OrdersClient userOrders={orders} token={currentUserToken} expiryToken={expiryToken}/>
+            </Container>
 
         </div>
      );

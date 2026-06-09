@@ -1,11 +1,19 @@
-'use client';
+"use client";
 
 import { TextAreaProps } from "@/types/inputs";
 
-const TextArea: React.FC<TextAreaProps> = ({id, label, disabled, required, register, errors}) => {
+const TextArea: React.FC<TextAreaProps> = ({
+    id,
+    label,
+    disabled,
+    required,
+    register,
+    errors,
+}) => {
     return (
-        <div className='w-full relative'>
-            <textarea className={`peer
+        <div className="w-full relative">
+            <textarea
+                className={`peer
                                 w-full
                                 p-4
                                 pt-6
@@ -19,14 +27,16 @@ const TextArea: React.FC<TextAreaProps> = ({id, label, disabled, required, regis
                                 transition
                                 disabled:opacity-70
                                 disabled:cursor-not-allowed
-                                ${errors[id] ? 'border-rose-400' : 'border-outline-variant'}
-                                ${errors[id] ? 'focus:border-rose-400' : 'focus:border-primary'}`}
-                                id={id}
-                                disabled={disabled}
-                                {...register(id, {required})}
-                                placeholder=''
-                                />
-                <label htmlFor={id} className={`absolute
+                                ${errors[id] ? "border-rose-400" : "border-outline-variant"}
+                                ${errors[id] ? "focus:border-rose-400" : "focus:border-primary"}`}
+                id={id}
+                disabled={disabled}
+                {...register(id, { required })}
+                placeholder=""
+            />
+            <label
+                htmlFor={id}
+                className={`absolute
                                                  cursor-text
                                                  text-md
                                                  duration-150
@@ -40,11 +50,12 @@ const TextArea: React.FC<TextAreaProps> = ({id, label, disabled, required, regis
                                                  peer-placeholder-shown:translate-y-0
                                                  peer-focus:scale-75
                                                  peer-focus:-translate-y-4
-                                                 ${errors[id] ? 'text-rose-500' : 'text-secondary'}`}>
-                    {label}
-                </label>
+                                                 ${errors[id] ? "text-rose-500" : "text-secondary"}`}
+            >
+                {label}
+            </label>
         </div>
-     );
-}
- 
+    );
+};
+
 export default TextArea;

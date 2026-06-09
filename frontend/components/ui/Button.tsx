@@ -1,19 +1,20 @@
-'use client';
+"use client";
 
 import { ButtonProps } from "@/types/components";
 
 const Button: React.FC<ButtonProps> = ({
-                                        label,
-                                        disabled,
-                                        outline,
-                                        small,
-                                        custom,
-                                        icon: Icon,
-                                        type,
-                                        onClick
-                                    }) => {
+    label,
+    disabled,
+    outline,
+    small,
+    custom,
+    icon: Icon,
+    type,
+    onClick,
+}) => {
     return (
-        <button className={`disabled:opacity-70
+        <button
+            className={`disabled:opacity-70
                             disabled:cursor-not-allowed
                             rounded-md
                             hover:opacity-80
@@ -29,13 +30,14 @@ const Button: React.FC<ButtonProps> = ({
                             ${small ? "text-sm font-light" : "text-md font-semibold"}
                             ${small ? "py-1 px-2 border-[1px]" : "py-3 px-4 border-2"}
                             ${custom ? custom : ""}`}
-                type={type}
-                disabled={disabled}
-                onClick={onClick}>
-            {Icon && <Icon size={24}/>}
+            type={type}
+            disabled={disabled}
+            onClick={onClick}
+        >
+            {Icon && <Icon size={24} />}
             {label}
         </button>
-     );
-}
- 
+    );
+};
+
 export default Button;

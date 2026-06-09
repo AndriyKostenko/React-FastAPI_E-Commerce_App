@@ -22,11 +22,15 @@ const Categories: React.FC<CategoriesProps> = ({ categories }) => {
             <Container>
                 <div className="py-3 flex flex-row items-center justify-between overflow-x-auto no-scrollbar">
                     {categories.map((item) => (
-                        <Category key={item.id}
+                        <Category
+                            key={item.id}
                             id={item.id}
                             name={item.name}
                             image_url={resolveImageUrl(item.image_url)}
-                            selected={category === item.name || (category === null && item.name === 'All')}
+                            selected={
+                                category === item.name ||
+                                (category === null && item.name === "All")
+                            }
                         />
                     ))}
                 </div>

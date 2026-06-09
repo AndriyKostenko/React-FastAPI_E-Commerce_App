@@ -1,19 +1,28 @@
-'use client';
+"use client";
 
 import { SetColorProps } from "@/types/product";
 
-const SetColor: React.FC<SetColorProps> = ({images, cartProduct, handleColorSelect}) => {
+const SetColor: React.FC<SetColorProps> = ({
+    images,
+    cartProduct,
+    handleColorSelect,
+}) => {
     return (
         <div>
-            <div className="flex
+            <div
+                className="flex
                             gap-4
-                            items-center">
+                            items-center"
+            >
                 <span className="font-semibold">COLOR:</span>
-                <div className="flex
-                                gap-1">{
-                    images.map((image) => {
+                <div
+                    className="flex
+                                gap-1"
+                >
+                    {images.map((image) => {
                         return (
-                            <div key={image.image_color}
+                            <div
+                                key={image.image_color}
                                 onClick={() => handleColorSelect(image)}
                                 className={`h-7
                                              w-7
@@ -22,21 +31,26 @@ const SetColor: React.FC<SetColorProps> = ({images, cartProduct, handleColorSele
                                              flex
                                              items-center
                                              justify-center
-                                             ${cartProduct.selected_image.image_color === image.image_color ? 'border-[1.5px]' : 'border-none'}`}>
-                                <div style={{background: image.image_color_code}} className="h-5
+                                             ${cartProduct.selected_image.image_color === image.image_color ? "border-[1.5px]" : "border-none"}`}
+                            >
+                                <div
+                                    style={{
+                                        background: image.image_color_code,
+                                    }}
+                                    className="h-5
                                                                                       w-5
                                                                                       rounded-full
                                                                                       border-[1.2px]
                                                                                        border-slate-300
-                                                                                      cursor-pointer"></div>
+                                                                                      cursor-pointer"
+                                ></div>
                             </div>
-                        )
-                    })
-                    }
-                    </div>
+                        );
+                    })}
+                </div>
             </div>
         </div>
     );
-}
- 
+};
+
 export default SetColor;

@@ -66,55 +66,51 @@ class AuthMiddleware(metaclass=SingletonMetaClass):
         Main middleware function to authenticate requests using JWT tokens.
         Checks `access_token` **cookie first**, falls back to `Authorization: Bearer` header (so Swagger UI keeps working)
         """
-        path = request.url.path
-        method = request.method
+        path, method = request.url.path, request.method
         self.logger.info(f"🔍 Auth middleware processing: {method} {path}")
-
         # Always pass OPTIONS (CORS preflight) through — CORSMiddleware handles it
         if method == "OPTIONS":
             return await call_next(request)
-
-        # 1. Skip authentication for public endpoints
+        # 1. Check if this is a public endpoint
         is_public = self.is_public_endpoint(path, method)
         self.logger.info(f"🔍 Is path: '{path}' public?  - {is_public}")
-
-        if is_public:
-            self.logger.info(f"Path: {path} is public, skipping auth")
-            return await call_next(request)
-
-        self.logger.info(f"Path {path} requires authentication")
-
         # 2. Extract token: prefer HttpOnly cookie, fall back to Authorization header
         token = request.cookies.get("access_token")
         if not token:
             auth_header = request.headers.get("Authorization")
             self.logger.info(f"🔍 Authorization header present: {auth_header is not None}")
-            if not auth_header or not auth_header.startswith("Bearer "):
-                self.logger.warning("Missing or invalid Authorization header and no access_token cookie")
-                return JSONResponse(
-                    status_code=401,
-                    content={"detail": "Missing or invalid Authorization header",
-                             "error": "missing_authorization_header"}
-                )
-            token = auth_header.split(" ")[1]
-        self.logger.info(f"🔍 Extracted token (first 20 chars): {token[:20]}...")
-
-        # 3. Validate token using token_manager
-        try:
-            user_data = token_manager.decode_token(token)
-            # Attach user data to request state for downstream access
-            request.state.current_user = user_data
-            self.logger.info(f"Token is validated for: {user_data.email}")
-        except HTTPException as exc:
-            return JSONResponse(
-                status_code=exc.status_code,
-                content={"detail": exc.detail, "error": "invalid_token"}
-            )
-        except Exception:
+            if auth_header and auth_header.startswith("Bearer "):
+                token = auth_header.split(" ")[1]
+        # 3. Try to validate token if present (required for protected endpoints, optional for public)
+        if token:
+            try:
+                user_data = token_manager.decode_token(token)
+                request.state.current_user = user_data
+                self.logger.info(f"Token is validated for: {user_data.email}")
+            except HTTPException as exc:
+                if not is_public:
+                    return JSONResponse(
+                        status_code=exc.status_code,
+                        content={"detail": exc.detail, "error": "invalid_token"}
+                    )
+                self.logger.warning(f"Token validation failed for public endpoint: {exc.detail}")
+            except Exception:
+                if not is_public:
+                    return JSONResponse(
+                        status_code=401,
+                        content={"detail": "Token validation failed", "error": "invalid_token"}
+                    )
+                self.logger.warning("Token validation failed for public endpoint")
+        elif not is_public:
+            # Token is required for protected endpoints
+            self.logger.warning("Missing or invalid Authorization header and no access_token cookie")
             return JSONResponse(
                 status_code=401,
-                content={"detail": "Token validation failed", "error": "invalid_token"}
+                content={"detail": "Missing or invalid Authorization header",
+                         "error": "missing_authorization_header"}
             )
+        else:
+            self.logger.info(f"Path: {path} is public, no token provided")
 
         return await call_next(request)
 

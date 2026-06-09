@@ -5,9 +5,14 @@ import { useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useSearchParams } from "next/navigation";
 import queryString from "query-string";
-import Image from 'next/image';
+import Image from "next/image";
 
-const Category: React.FC<NavCategoryProps> = ({ id, name, image_url, selected }) => {
+const Category: React.FC<NavCategoryProps> = ({
+    id,
+    name,
+    image_url,
+    selected,
+}) => {
     const router = useRouter();
 
     const params = useSearchParams();
@@ -34,7 +39,7 @@ const Category: React.FC<NavCategoryProps> = ({ id, name, image_url, selected })
                 },
                 {
                     skipNull: true,
-                }
+                },
             );
 
             router.push(url);
@@ -45,7 +50,9 @@ const Category: React.FC<NavCategoryProps> = ({ id, name, image_url, selected })
         <div
             onClick={handleClick}
             className={`flex items-center justify-center text-center gap-1 p-2 border-b-2 hover:text-primary transition cursor-pointer ${
-                selected ? "border-b-primary text-primary font-semibold" : "border-transparent text-secondary"
+                selected
+                    ? "border-b-primary text-primary font-semibold"
+                    : "border-transparent text-secondary"
             }`}
         >
             <Image src={image_url} width={50} height={50} alt={name} />

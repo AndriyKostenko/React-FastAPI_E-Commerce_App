@@ -19,6 +19,8 @@ from service_layer.product_image_service import ProductImageService
 from service_layer.product_service import ProductService
 from service_layer.review_service import ReviewService
 from service_layer.image_generation_service import ImageGenerationService
+from helpers.user_context_resolver import UserContextResolver
+
 
 """
 FLow Diagram for Database Session Management in FastAPI:
@@ -88,8 +90,19 @@ def get_image_generation_service() -> ImageGenerationService:
     )
 
 
+def get_user_context_resolver(
+    image_generation_service: ImageGenerationService = Depends(get_image_generation_service)
+) -> UserContextResolver:
+    """Dependency to provide UserContextResolver for resolving authenticated/guest user context."""
+    return UserContextResolver(
+        guest_quota_cookie_name=image_generation_service.GUEST_QUOTA_COOKIE,
+        settings=settings
+    )
+
+
 product_service_dependency = Annotated[ProductService, Depends(get_product_service)]
 category_service_dependency = Annotated[CategoryService, Depends(get_category_service)]
 review_service_dependency = Annotated[ReviewService, Depends(get_review_service)]
 product_image_service_dependency = Annotated[ProductImageService, Depends(get_product_image_service)]
 image_generation_service_dependency = Annotated[ImageGenerationService, Depends(get_image_generation_service)]
+user_context_resolver_dependency = Annotated[UserContextResolver, Depends(get_user_context_resolver)]

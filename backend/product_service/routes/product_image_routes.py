@@ -1,15 +1,15 @@
 from typing import Any
-from uuid import UUID, uuid4
+from uuid import uuid4
 
-from fastapi import APIRouter, File, Form, HTTPException, Request, Response, UploadFile, status
+from fastapi import APIRouter, File, Form, Request, Response, UploadFile, status
 from fastapi.responses import JSONResponse
 
 from dependencies.dependencies import (
     image_generation_service_dependency,
     product_image_service_dependency,
+    user_context_resolver_dependency,
 )
 from exceptions.image_generation_exceptions import (
-    ImageGenerationJobNotFoundError,
     ImageGenerationLimitExceededError,
 )
 from models.product_image_models import ProductImage
@@ -21,26 +21,9 @@ from shared.schemas.image_generation_schema import (
 )
 from shared.schemas.product_image_schema import ProductImageSchema
 from tasks.image_tasks import generate_image_task
-from shared.shared_instances import token_manager
 
 
 product_images_routes = APIRouter(tags=["product_images"])
-
-def _get_optional_authenticated_user_id(request: Request) -> str | None:
-    token = request.cookies.get("access_token")
-    if not token:
-        auth_header = request.headers.get("Authorization")
-        if auth_header and auth_header.startswith("Bearer "):
-            token = auth_header.split(" ", 1)[1].strip()
-
-    if not token:
-        return None
-
-    try:
-        decoded = token_manager.decode_token(token)
-        return str(decoded.id)
-    except HTTPException:
-        return None
 
 
 @product_images_routes.post(
@@ -53,65 +36,30 @@ async def generate_image(
     request: Request,
     response: Response,
     image_generation_service: image_generation_service_dependency,
-    generation_data: GenerateImageRequest) -> ImageGenerationJobSubmitResponse:
-    
-    user_id = _get_optional_authenticated_user_id(request)
-    is_guest_user = user_id is None
-    
-    cookie_name = image_generation_service.GUEST_QUOTA_COOKIE
-    raw_cookie = request.cookies.get(cookie_name)
-
-    # Validate that the cookie value is a well-formed UUID to prevent
-    # arbitrary values from polluting Redis keys.
-    guest_id: str | None = None
-    if raw_cookie and is_guest_user:
-        try:
-            UUID(raw_cookie)
-            guest_id = raw_cookie
-        except ValueError:
-            pass  # treat malformed cookie as no cookie
-
-    new_guest_id: str | None = None
-    if not guest_id and is_guest_user:
-        new_guest_id = str(uuid4())
-        guest_id = new_guest_id
-
-    # Build cookie kwargs once so we can attach them to both the success
-    # response (via injected Response) and the 429 JSONResponse below.
-    cookie_kwargs: dict | None = None
-    if new_guest_id:
-        forwarded_proto = request.headers.get("x-forwarded-proto", "").split(",")[0].strip().lower()
-        is_https_request = request.url.scheme == "https" or forwarded_proto == "https"
-        cookie_kwargs = dict(
-            key=cookie_name,
-            value=new_guest_id,
-            httponly=True,
-            secure=bool(image_generation_service.settings.SECURE_COOKIES and is_https_request),
-            samesite="lax",
-            max_age=image_generation_service.settings.PRODUCT_IMAGE_GUEST_GENERATION_WINDOW_HOURS
-            * 3600,
-        )
-
+    user_context_resolver: user_context_resolver_dependency,
+    generation_data: GenerateImageRequest,
+) -> ImageGenerationJobSubmitResponse | JSONResponse:
+    # Resolve user context (authenticated user or guest with quota tracking)
+    context = await user_context_resolver.resolve(request)
     job_id = str(uuid4())
-
     try:
         remaining_generations = await image_generation_service.submit_job(
             job_id=job_id,
             prompt=generation_data.prompt,
             style=generation_data.style,
-            is_guest_user=is_guest_user,
-            guest_id=guest_id,
-            user_id=user_id,
+            is_guest_user=context.is_guest_user,
+            guest_id=context.guest_id,
+            user_id=context.user_id,
         )
     except ImageGenerationLimitExceededError as exc:
-        # Return a JSONResponse directly so we can attach Set-Cookie.
+        # Return a JSONResponse directly so we can attach Set-Cookie
         resp = JSONResponse(
             status_code=exc.status_code,
             content={"detail": exc.detail},
             headers=exc.headers or {},
         )
-        if cookie_kwargs:
-            resp.set_cookie(**cookie_kwargs)
+        if context.cookie_kwargs:
+            resp.set_cookie(**{**context.cookie_kwargs, "value": context.new_guest_id})
         return resp
 
     await generate_image_task.kiq(
@@ -121,15 +69,15 @@ async def generate_image(
         generation_data.remove_background,
     )
 
-    if cookie_kwargs:
-        response.set_cookie(**cookie_kwargs)
+    if context.cookie_kwargs:
+        response.set_cookie(**{**context.cookie_kwargs, "value": context.new_guest_id})
 
-    # Point the client at the status-poll endpoint.
+    # Point the client at the status-poll endpoint
     response.headers["Location"] = f"{request.url.path}/{job_id}/status"
 
     guest_limit = (
         image_generation_service.settings.PRODUCT_IMAGE_GUEST_GENERATION_LIMIT
-        if is_guest_user
+        if context.is_guest_user
         else image_generation_service.settings.PRODUCT_IMAGE_REGISTERED_GENERATION_LIMIT
     )
 

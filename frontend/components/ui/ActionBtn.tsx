@@ -1,10 +1,15 @@
 import { ActionBtnProps } from "@/types/components";
 
-const ActionBtn: React.FC<ActionBtnProps> = ({icon: Icon, onClick, disabled}) => {
+const ActionBtn: React.FC<ActionBtnProps> = ({
+    icon: Icon,
+    onClick,
+    disabled,
+}) => {
     return (
-        <button onClick={onClick}
-                disabled={disabled}
-                className={`flex
+        <button
+            onClick={onClick}
+            disabled={disabled}
+            className={`flex
                             items-center
                             justify-center
                             rounded
@@ -16,10 +21,11 @@ const ActionBtn: React.FC<ActionBtnProps> = ({icon: Icon, onClick, disabled}) =>
                             border-outline-variant
                             hover:bg-surface-container-low
                             transition-colors
-                            ${disabled && 'opacity-50 cursor-not-allowed'}`}>
+                            ${disabled && "opacity-50 cursor-not-allowed"}`}
+        >
             <Icon size={18} />
         </button>
-    )
-}
+    );
+};
 
 export default ActionBtn;

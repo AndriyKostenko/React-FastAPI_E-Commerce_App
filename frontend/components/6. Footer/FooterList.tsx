@@ -1,8 +1,9 @@
 import { FooterListProps } from "@/types/navbar";
 
-const FooterList: React.FC<FooterListProps> = ({children}) => {
+const FooterList: React.FC<FooterListProps> = ({ children }) => {
     return (
-        <div className="w-full
+        <div
+            className="w-full
                         sm:w-1/2
                         md:w-1/4
                         lg:w-1/6
@@ -10,10 +11,11 @@ const FooterList: React.FC<FooterListProps> = ({children}) => {
                         flex
                         flex-col
                         gap-2
-                        ">
+                        "
+        >
             {children}
         </div>
     );
-}
- 
+};
+
 export default FooterList;

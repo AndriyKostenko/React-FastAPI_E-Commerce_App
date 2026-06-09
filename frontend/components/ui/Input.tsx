@@ -1,11 +1,21 @@
-'use client';
+"use client";
 
 import { InputProps } from "@/types/inputs";
 
-const Input: React.FC<InputProps> = ({id, label, type, disabled, required, register, errors, validationRules, glass}) => {
+const Input: React.FC<InputProps> = ({
+    id,
+    label,
+    type,
+    disabled,
+    required,
+    register,
+    errors,
+    validationRules,
+    glass,
+}) => {
     if (glass) {
         return (
-            <div className='w-full relative'>
+            <div className="w-full relative">
                 <input
                     className={`peer
                                 w-full
@@ -22,12 +32,12 @@ const Input: React.FC<InputProps> = ({id, label, type, disabled, required, regis
                                 focus:ring-2
                                 focus:ring-brand-lime
                                 focus:ring-offset-0
-                                ${errors[id] ? 'border-rose-400 focus:ring-rose-400' : 'border-white/30 focus:border-transparent'}`}
-                    autoComplete='off'
+                                ${errors[id] ? "border-rose-400 focus:ring-rose-400" : "border-white/30 focus:border-transparent"}`}
+                    autoComplete="off"
                     id={id}
                     disabled={disabled}
-                    {...register(id, {required, ...validationRules})}
-                    placeholder=''
+                    {...register(id, { required, ...validationRules })}
+                    placeholder=""
                     type={type}
                 />
                 <label
@@ -46,7 +56,7 @@ const Input: React.FC<InputProps> = ({id, label, type, disabled, required, regis
                                 peer-placeholder-shown:translate-y-0
                                 peer-focus:scale-75
                                 peer-focus:-translate-y-4
-                                ${errors[id] ? 'text-rose-500' : 'text-secondary'}`}
+                                ${errors[id] ? "text-rose-500" : "text-secondary"}`}
                 >
                     {label}
                 </label>
@@ -55,8 +65,9 @@ const Input: React.FC<InputProps> = ({id, label, type, disabled, required, regis
     }
 
     return (
-        <div className='w-full relative'>
-             <input className={`peer
+        <div className="w-full relative">
+            <input
+                className={`peer
                                 w-full
                                 p-4
                                 pt-6
@@ -68,16 +79,18 @@ const Input: React.FC<InputProps> = ({id, label, type, disabled, required, regis
                                 transition
                                 disabled:opacity-70
                                 disabled:cursor-not-allowed
-                                ${errors[id] ? 'border-rose-400' : 'border-outline-variant'}
-                                ${errors[id] ? 'focus:border-rose-400' : 'focus:border-primary'}`}
-                                autoComplete='off'
-                                id={id}
-                                disabled={disabled}
-                                {...register(id, {required, ...validationRules})}
-                                placeholder=''
-                                type={type}
-                                />
-                <label htmlFor={id} className={`absolute
+                                ${errors[id] ? "border-rose-400" : "border-outline-variant"}
+                                ${errors[id] ? "focus:border-rose-400" : "focus:border-primary"}`}
+                autoComplete="off"
+                id={id}
+                disabled={disabled}
+                {...register(id, { required, ...validationRules })}
+                placeholder=""
+                type={type}
+            />
+            <label
+                htmlFor={id}
+                className={`absolute
                                                 cursor-text
                                                 text-md
                                                 duration-150
@@ -91,11 +104,12 @@ const Input: React.FC<InputProps> = ({id, label, type, disabled, required, regis
                                                 peer-placeholder-shown:translate-y-0
                                                 peer-focus:scale-75
                                                 peer-focus:-translate-y-4
-                                                ${errors[id] ? 'text-rose-500' : 'text-secondary'}`}>
-                    {label}
-                </label>
+                                                ${errors[id] ? "text-rose-500" : "text-secondary"}`}
+            >
+                {label}
+            </label>
         </div>
-     );
-}
- 
+    );
+};
+
 export default Input;
