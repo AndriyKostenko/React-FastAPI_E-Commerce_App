@@ -198,23 +198,23 @@ export default function TShirtPreview({
             </div>
 
             {/* Zoom Controls */}
-            <div className="absolute bottom-6 left-6 right-6 glass-card p-4 flex justify-between items-center gap-4 transform translate-y-3 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300">
-                <div className="flex gap-2">
+            <div className="fixed bottom-6 left-6 z-50 glass-card p-2 flex justify-between items-center gap-2 transition-all duration-300">
+                <div className="flex gap-1">
                     <button
                         onClick={handleZoomOut}
                         disabled={zoom <= MIN_ZOOM}
-                        className="h-10 px-3 rounded-xl font-label-bold text-sm bg-white/60 text-primary border border-white/20 hover:bg-white/80 transition-all hover:scale-110 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="h-8 px-2 rounded-lg font-label-bold text-xs bg-white/60 text-primary border border-white/20 hover:bg-white/80 transition-all hover:scale-110 disabled:opacity-50 disabled:cursor-not-allowed"
                         title="Zoom Out"
                     >
                         −
                     </button>
-                    <span className="px-4 py-2 text-sm font-label-bold text-primary min-w-[50px] text-center">
+                    <span className="px-2 py-1.5 text-xs font-label-bold text-primary min-w-[40px] text-center">
                         {Math.round(zoom * 100)}%
                     </span>
                     <button
                         onClick={handleZoomIn}
                         disabled={zoom >= MAX_ZOOM}
-                        className="h-10 px-3 rounded-xl font-label-bold text-sm bg-white/60 text-primary border border-white/20 hover:bg-white/80 transition-all hover:scale-110 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="h-8 px-2 rounded-lg font-label-bold text-xs bg-white/60 text-primary border border-white/20 hover:bg-white/80 transition-all hover:scale-110 disabled:opacity-50 disabled:cursor-not-allowed"
                         title="Zoom In"
                     >
                         +
@@ -222,7 +222,7 @@ export default function TShirtPreview({
                 </div>
                 <button
                     onClick={handleResetZoom}
-                    className="bg-brand-lime text-primary px-6 py-2 rounded-full font-label-bold hover:shadow-md transition-all active:scale-95"
+                    className="bg-brand-lime text-primary px-3 py-1 rounded-full font-label-bold text-xs hover:shadow-md transition-all active:scale-95"
                     title="Reset Zoom"
                 >
                     Reset
