@@ -16,7 +16,6 @@ import TShirtPreview from "./TShirtPreview";
 import HeroText from "./HeroText";
 import GenerationPanel from "./GenerationPanel";
 import TshirtMeasurement from "./TshirtMeasurement";
-import HoverInfoCard from "./HoverInfoCard";
 import HeroBottomBar from "./HeroBottomBar";
 
 const FALLBACK_SIZE_PRICE_MULTIPLIERS: Record<
@@ -33,10 +32,7 @@ type HeroSectionProps = {
     currentUserJWT?: string | null;
 };
 
-const HeroSection = ({
-    isRegisteredUser,
-    currentUserJWT,
-}: HeroSectionProps) => {
+const HeroSection = ({isRegisteredUser, currentUserJWT}: HeroSectionProps) => {
     type GarmentColor = "bg-white" | "bg-gray" | "bg-black";
     const { handleAddProductToCart } = useCart();
 
@@ -191,16 +187,6 @@ const HeroSection = ({
                     {/* SVG measurement lines */}
                     <TshirtMeasurement size={size} />
                 </div>
-                {/* Hover info card */}
-                <HoverInfoCard
-                    currentDesign={currentDesign}
-                    selectedPrompt={selectedPrompt}
-                    selectedStyle={selectedStyle}
-                    finalPrice={finalPrice}
-                    currency={currency}
-                    isPriceLoading={isPriceLoading}
-                    onBuyNow={handleAddToCart}
-                />
             </div>
             {/* ── Bottom bar (full width): color + placement + CTA ── */}
             <HeroBottomBar

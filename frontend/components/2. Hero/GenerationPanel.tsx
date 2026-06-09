@@ -185,12 +185,12 @@ const GenerationPanel = ({isGenerating, setIsGenerating, onDesignGenerated, isRe
             JSON.stringify({
                 prompt,
                 style,
-                removeBackground,
+                //removeBackground,
                 historyEntries: generationHistory.entries,
                 historyIndex: generationHistory.index,
             }),
         );
-    	}, [generationHistory.entries, generationHistory.index, prompt, removeBackground, style]
+    	}, [generationHistory.entries, generationHistory.index, prompt, style]
 	);
 
     // Abort any in-flight generation when the component unmounts.

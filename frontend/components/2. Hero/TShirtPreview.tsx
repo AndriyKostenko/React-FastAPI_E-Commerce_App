@@ -49,36 +49,6 @@ export default function TShirtPreview({
 
     return (
         <div className="relative w-full h-full flex flex-col">
-            {/* Zoom Controls */}
-            <div className="absolute top-4 left-4 z-10 flex gap-2 bg-white/80 backdrop-blur-sm rounded-lg p-2 shadow-md">
-                <button
-                    onClick={handleZoomOut}
-                    disabled={zoom <= MIN_ZOOM}
-                    className="px-3 py-1.5 bg-neutral-200 hover:bg-neutral-300 disabled:opacity-50 disabled:cursor-not-allowed rounded text-sm font-medium transition-colors"
-                    title="Zoom Out"
-                >
-                    −
-                </button>
-                <span className="px-3 py-1.5 text-sm font-medium text-neutral-700 min-w-[50px] text-center">
-                    {Math.round(zoom * 100)}%
-                </span>
-                <button
-                    onClick={handleZoomIn}
-                    disabled={zoom >= MAX_ZOOM}
-                    className="px-3 py-1.5 bg-neutral-200 hover:bg-neutral-300 disabled:opacity-50 disabled:cursor-not-allowed rounded text-sm font-medium transition-colors"
-                    title="Zoom In"
-                >
-                    +
-                </button>
-                <button
-                    onClick={handleResetZoom}
-                    className="px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded text-sm font-medium transition-colors"
-                    title="Reset Zoom"
-                >
-                    Reset
-                </button>
-            </div>
-
             {/* T-shirt SVG Container */}
             <div className="flex-1 flex items-center justify-center overflow-auto">
                 <div
@@ -225,6 +195,38 @@ export default function TShirtPreview({
             )}
         </svg>
                 </div>
+            </div>
+
+            {/* Zoom Controls */}
+            <div className="absolute bottom-6 left-6 right-6 glass-card p-4 flex justify-between items-center gap-4 transform translate-y-3 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300">
+                <div className="flex gap-2">
+                    <button
+                        onClick={handleZoomOut}
+                        disabled={zoom <= MIN_ZOOM}
+                        className="h-10 px-3 rounded-xl font-label-bold text-sm bg-white/60 text-primary border border-white/20 hover:bg-white/80 transition-all hover:scale-110 disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="Zoom Out"
+                    >
+                        −
+                    </button>
+                    <span className="px-4 py-2 text-sm font-label-bold text-primary min-w-[50px] text-center">
+                        {Math.round(zoom * 100)}%
+                    </span>
+                    <button
+                        onClick={handleZoomIn}
+                        disabled={zoom >= MAX_ZOOM}
+                        className="h-10 px-3 rounded-xl font-label-bold text-sm bg-white/60 text-primary border border-white/20 hover:bg-white/80 transition-all hover:scale-110 disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="Zoom In"
+                    >
+                        +
+                    </button>
+                </div>
+                <button
+                    onClick={handleResetZoom}
+                    className="bg-brand-lime text-primary px-6 py-2 rounded-full font-label-bold hover:shadow-md transition-all active:scale-95"
+                    title="Reset Zoom"
+                >
+                    Reset
+                </button>
             </div>
         </div>
     );
