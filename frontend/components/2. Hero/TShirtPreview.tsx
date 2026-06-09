@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { TShirtPreviewProps } from "@/types/banner";
 import {
     COLOR_MAP,
@@ -15,6 +16,23 @@ export default function TShirtPreview({
     designUrl,
     isGenerating = false,
 }: TShirtPreviewProps) {
+    const [zoom, setZoom] = useState(1);
+    const MIN_ZOOM = 0.5;
+    const MAX_ZOOM = 3;
+    const ZOOM_STEP = 0.1;
+
+    const handleZoomIn = () => {
+        setZoom((prev) => Math.min(prev + ZOOM_STEP, MAX_ZOOM));
+    };
+
+    const handleZoomOut = () => {
+        setZoom((prev) => Math.max(prev - ZOOM_STEP, MIN_ZOOM));
+    };
+
+    const handleResetZoom = () => {
+        setZoom(1);
+    };
+
     const c = COLOR_MAP[color] ?? COLOR_MAP["bg-white"];
     const zone = PLACEMENT_ZONES[placement] ?? PLACEMENT_ZONES["Center Chest"];
     const isBack = zone.back === true;
@@ -30,14 +48,56 @@ export default function TShirtPreview({
     const sheenPath = isBack ? sheenBack : sheenFront;
 
     return (
-        <svg
-            viewBox="-67 -80 534 640"
-            xmlns="http://www.w3.org/2000/svg"
-            className="w-full h-full scale-[1.5] origin-center"
-            aria-label={
-                isBack ? "T-shirt back preview" : "T-shirt front preview"
-            }
-        >
+        <div className="relative w-full h-full flex flex-col">
+            {/* Zoom Controls */}
+            <div className="absolute top-4 left-4 z-10 flex gap-2 bg-white/80 backdrop-blur-sm rounded-lg p-2 shadow-md">
+                <button
+                    onClick={handleZoomOut}
+                    disabled={zoom <= MIN_ZOOM}
+                    className="px-3 py-1.5 bg-neutral-200 hover:bg-neutral-300 disabled:opacity-50 disabled:cursor-not-allowed rounded text-sm font-medium transition-colors"
+                    title="Zoom Out"
+                >
+                    −
+                </button>
+                <span className="px-3 py-1.5 text-sm font-medium text-neutral-700 min-w-[50px] text-center">
+                    {Math.round(zoom * 100)}%
+                </span>
+                <button
+                    onClick={handleZoomIn}
+                    disabled={zoom >= MAX_ZOOM}
+                    className="px-3 py-1.5 bg-neutral-200 hover:bg-neutral-300 disabled:opacity-50 disabled:cursor-not-allowed rounded text-sm font-medium transition-colors"
+                    title="Zoom In"
+                >
+                    +
+                </button>
+                <button
+                    onClick={handleResetZoom}
+                    className="px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded text-sm font-medium transition-colors"
+                    title="Reset Zoom"
+                >
+                    Reset
+                </button>
+            </div>
+
+            {/* T-shirt SVG Container */}
+            <div className="flex-1 flex items-center justify-center overflow-auto">
+                <div
+                    style={{
+                        transform: `scale(${zoom})`,
+                        transformOrigin: "center center",
+                        transition: "transform 0.2s ease-out",
+                    }}
+                >
+                    <svg
+                        viewBox="-67 -80 534 640"
+                        xmlns="http://www.w3.org/2000/svg"
+                        className="w-full h-full scale-[1.5] origin-center"
+                        aria-label={
+                            isBack
+                                ? "T-shirt back preview"
+                                : "T-shirt front preview"
+                        }
+                    >
             <defs>
                 <filter
                     id="shirtShadow"
@@ -164,5 +224,8 @@ export default function TShirtPreview({
                 />
             )}
         </svg>
+                </div>
+            </div>
+        </div>
     );
 }
