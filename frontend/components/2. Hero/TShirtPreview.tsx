@@ -198,7 +198,7 @@ export default function TShirtPreview({
             </div>
 
             {/* Zoom Controls */}
-            <div className="fixed bottom-6 left-6 z-50 glass-card p-2 flex justify-between items-center gap-2 transition-all duration-300">
+            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 glass-card p-2 flex justify-between items-center gap-2 transition-all duration-300">
                 <div className="flex gap-1">
                     <button
                         onClick={handleZoomOut}
