@@ -24,9 +24,7 @@ import toast from "react-hot-toast";
 
 
 const GenerationPanel = ({isGenerating, setIsGenerating, onDesignGenerated, isRegisteredUser,currentUserJWT}: GenerationPanelProps) => {
-    const initialLimit = isRegisteredUser
-        ? DEFAULT_REGISTERED_GENERATION_LIMIT
-        : DEFAULT_GUEST_GENERATION_LIMIT;
+    const initialLimit = isRegisteredUser ? DEFAULT_REGISTERED_GENERATION_LIMIT : DEFAULT_GUEST_GENERATION_LIMIT;
 
     const [prompt, setPrompt] = useState("");
     const [style, setStyle] = useState<StyleOption>("None");
