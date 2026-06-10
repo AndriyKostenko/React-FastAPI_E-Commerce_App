@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     )
 
     # Application configuration
+    WEBSITE_NAME: str
     APP_HOST: str
     FRONTEND_URL: str
 
@@ -157,10 +158,10 @@ class Settings(BaseSettings):
     ADMINJS_SERVICE_TOKEN: str
 
     # OpenRouter image generation
-    OPENROUTER_API_KEY: str 
-    OPENROUTER_BASE_URL: str 
-    OPENROUTER_IMAGE_MODEL: str 
-    OPENROUTER_IMAGE_SIZE: str = "0.5K"
+    OPENROUTER_API_KEY: str
+    OPENROUTER_BASE_URL: str
+    OPENROUTER_IMAGE_MODEL: str
+    OPENROUTER_IMAGE_SIZE: str = "1024x1024"
     OPENROUTER_IMAGE_ASPECT_RATIO: str = "1:1"
     PRODUCT_IMAGE_GUEST_GENERATION_LIMIT: int = 3
     PRODUCT_IMAGE_REGISTERED_GENERATION_LIMIT: int = 10
@@ -468,7 +469,7 @@ class TestSettings(BaseSettings):
 
     # ── Auth request payload helpers ─────────────────────────────────────────
     REGISTER_PAYLOAD: dict = {"name": "Test User", "email": "test@example.com", "password": "secret123"}
-    LOGIN_DATA: dict = {"username": "test@example.com", "password": "secret123"}
+    LOGIN_DATA: dict[str, str] = {"username": "test@example.com", "password": "secret123"}
 
 
 
