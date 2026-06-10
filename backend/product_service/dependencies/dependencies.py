@@ -1,7 +1,8 @@
 from typing import Annotated
 from collections.abc import AsyncGenerator
 
-from fastapi import Depends
+from aiohttp import ClientSession
+from fastapi import Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.shared_instances import (
@@ -19,6 +20,10 @@ from service_layer.product_image_service import ProductImageService
 from service_layer.product_service import ProductService
 from service_layer.review_service import ReviewService
 from service_layer.image_generation_service import ImageGenerationService
+from service_layer.image_generation_quota import GenerationQuotaService
+from service_layer.image_job_store import ImageJobStore
+from service_layer.openrouter_client import OpenRouterClient
+from service_layer.image_storage_service import ImageStorageService
 from helpers.user_context_resolver import UserContextResolver
 
 
@@ -82,21 +87,61 @@ def get_product_service(
     return ProductService(product_repository, product_image_service)
 
 
-def get_image_generation_service() -> ImageGenerationService:
-    return ImageGenerationService(
-        settings=settings,
+# ── image-generation dependency chain ─────────────────────────────────────────
+
+def get_http_session(request: Request) -> ClientSession:
+    """Return the shared aiohttp ClientSession stored on app.state during lifespan."""
+    return request.app.state.http_session
+
+
+def get_openrouter_client(
+    session: ClientSession = Depends(get_http_session),
+) -> OpenRouterClient:
+    return OpenRouterClient(session=session, settings=settings, logger=logger)
+
+
+def get_generation_quota_service() -> GenerationQuotaService:
+    return GenerationQuotaService(
         cache_manager=product_service_redis_manager,
-        logger=logger
+        settings=settings,
+        logger=logger,
+    )
+
+
+def get_image_job_store() -> ImageJobStore:
+    return ImageJobStore(
+        cache_manager=product_service_redis_manager,
+        logger=logger,
+    )
+
+
+def get_image_storage_service() -> ImageStorageService:
+    return ImageStorageService(logger=logger)
+
+
+def get_image_generation_service(
+    openrouter_client: OpenRouterClient = Depends(get_openrouter_client),
+    quota_service: GenerationQuotaService = Depends(get_generation_quota_service),
+    job_store: ImageJobStore = Depends(get_image_job_store),
+    storage_service: ImageStorageService = Depends(get_image_storage_service),
+) -> ImageGenerationService:
+    return ImageGenerationService(
+        openrouter_client=openrouter_client,
+        quota_service=quota_service,
+        job_store=job_store,
+        storage_service=storage_service,
+        settings=settings,
+        logger=logger,
     )
 
 
 def get_user_context_resolver(
-    image_generation_service: ImageGenerationService = Depends(get_image_generation_service)
+    image_generation_service: ImageGenerationService = Depends(get_image_generation_service),
 ) -> UserContextResolver:
     """Dependency to provide UserContextResolver for resolving authenticated/guest user context."""
     return UserContextResolver(
         guest_quota_cookie_name=image_generation_service.GUEST_QUOTA_COOKIE,
-        settings=settings
+        settings=settings,
     )
 
 

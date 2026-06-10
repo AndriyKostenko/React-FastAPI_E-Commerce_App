@@ -3,6 +3,7 @@ from datetime import datetime
 from contextlib import asynccontextmanager
 from time import perf_counter
 
+from aiohttp import ClientSession
 from uvicorn import run
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, ORJSONResponse, Response as PlainResponse
@@ -48,6 +49,10 @@ async def lifespan(app: FastAPI): # pyright: ignore[reportUnusedParameter]
     if not taskiq_broker.is_worker_process:
         await taskiq_broker.startup()
         logger.info("TaskIQ broker started successfully.")
+
+    app.state.http_session = ClientSession()
+    logger.info("Shared HTTP client session created.")
+
     logger.info('Server startup complete!')
 
     yield
@@ -61,6 +66,8 @@ async def lifespan(app: FastAPI): # pyright: ignore[reportUnusedParameter]
     if not taskiq_broker.is_worker_process:
         await taskiq_broker.shutdown()
         logger.info("TaskIQ broker shut down successfully.")
+    await app.state.http_session.close()
+    logger.warning("Shared HTTP client session closed.")
     logger.warning(f"Server has shut down !")
 
 
