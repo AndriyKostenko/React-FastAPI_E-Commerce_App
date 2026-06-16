@@ -21,19 +21,19 @@ type HeroBottomBarProps = {
 };
 
 const Divider = () => (
-    <div className="hidden xl:block h-10 w-px bg-black/10 flex-shrink-0" />
+    <div className="hidden lg:block h-8 w-px bg-black/10 flex-shrink-0" />
 );
 
 const ColorSelector = ({
     garmentColor,
     setGarmentColor,
 }: Pick<HeroBottomBarProps, "garmentColor" | "setGarmentColor">) => (
-    <div className="space-y-2 flex-shrink-0">
-        <h3 className="font-label-bold text-sm text-primary">T-Shirt Color</h3>
-        <div className="flex gap-3">
+    <div className="space-y-1 flex-shrink-0">
+        <h3 className="font-label-bold text-xs text-primary">T-Shirt Color</h3>
+        <div className="flex gap-1.5 md:gap-2">
             <button
                 onClick={() => setGarmentColor("bg-white")}
-                className={`w-10 h-10 rounded-full bg-white border-2 transition-all hover:scale-110 ${
+                className={`w-7 h-7 md:w-8 md:h-8 rounded-full bg-white border-2 transition-all hover:scale-110 ${
                     garmentColor === "bg-white"
                         ? "border-brand-lime ring-2 ring-white ring-offset-2"
                         : "border-white/20"
@@ -42,7 +42,7 @@ const ColorSelector = ({
             />
             <button
                 onClick={() => setGarmentColor("bg-black")}
-                className={`w-10 h-10 rounded-full bg-black transition-all hover:scale-110 ${
+                className={`w-7 h-7 md:w-8 md:h-8 rounded-full bg-black transition-all hover:scale-110 ${
                     garmentColor === "bg-black"
                         ? "border-2 border-brand-lime ring-2 ring-white ring-offset-2"
                         : "border border-white/20"
@@ -57,14 +57,14 @@ const SizeSelector = ({
     size,
     setSize,
 }: Pick<HeroBottomBarProps, "size" | "setSize">) => (
-    <div className="space-y-2 flex-shrink-0">
-        <h3 className="font-label-bold text-sm text-primary">Size</h3>
-        <div className="flex gap-2">
+    <div className="space-y-1 flex-shrink-0">
+        <h3 className="font-label-bold text-xs text-primary">Size</h3>
+        <div className="flex gap-1.5 md:gap-2">
             {(["S", "M", "L"] as const).map((value) => (
                 <button
                     key={value}
                     onClick={() => setSize(value)}
-                    className={`w-10 h-10 rounded-xl font-label-bold text-sm transition-all hover:scale-110 ${
+                    className={`w-7 h-7 md:w-8 md:h-8 rounded-xl font-label-bold text-xs transition-all hover:scale-110 ${
                         size === value
                             ? "bg-brand-lime text-primary ring-2 ring-white ring-offset-2"
                             : "bg-white/60 text-primary border border-white/20 hover:bg-white/80"
@@ -81,14 +81,14 @@ const GenderSelector = ({
     gender,
     setGender,
 }: Pick<HeroBottomBarProps, "gender" | "setGender">) => (
-    <div className="space-y-2 flex-shrink-0">
-        <h3 className="font-label-bold text-sm text-primary">Gender</h3>
-        <div className="flex gap-2">
+    <div className="space-y-1 flex-shrink-0">
+        <h3 className="font-label-bold text-xs text-primary">Gender</h3>
+        <div className="flex gap-1.5 md:gap-2">
             {["Male", "Female", "X"].map((value) => (
                 <button
                     key={value}
                     onClick={() => setGender(value)}
-                    className={`h-10 px-3 rounded-xl font-label-bold text-sm transition-all hover:scale-110 ${
+                    className={`h-7 md:h-8 px-1.5 md:px-2 rounded-xl font-label-bold text-xs transition-all hover:scale-110 ${
                         gender === value
                             ? "bg-brand-lime text-primary ring-2 ring-white ring-offset-2"
                             : "bg-white/60 text-primary border border-white/20 hover:bg-white/80"
@@ -105,15 +105,15 @@ const PlacementSelector = ({
     placement,
     setPlacement,
 }: Pick<HeroBottomBarProps, "placement" | "setPlacement">) => (
-    <div className="space-y-2 w-full sm:min-w-[220px] sm:flex-1 xl:max-w-sm">
-        <h3 className="font-label-bold text-sm text-primary">
+    <div className="space-y-1 flex-1 min-w-[120px] md:min-w-[160px]">
+        <h3 className="font-label-bold text-xs text-primary">
             Print Placement
         </h3>
         <div className="relative">
             <select
                 value={placement}
                 onChange={(e) => setPlacement(e.target.value)}
-                className="w-full bg-white/60 border-none rounded-2xl p-3 font-label-bold appearance-none pr-10 text-primary cursor-pointer focus:ring-2 focus:ring-brand-lime"
+                className="w-full bg-white/60 border-none rounded-2xl p-1.5 md:p-2.5 font-label-bold appearance-none pr-8 md:pr-10 text-xs text-primary cursor-pointer focus:ring-2 focus:ring-brand-lime"
             >
                 <optgroup label="Front">
                     <option>Center Chest</option>
@@ -151,13 +151,13 @@ const QuantitySelector = ({
     quantity,
     setQuantity,
 }: Pick<HeroBottomBarProps, "quantity" | "setQuantity">) => (
-    <div className="space-y-2 flex-shrink-0">
-        <h3 className="font-label-bold text-sm text-primary">Quantity</h3>
+    <div className="space-y-1 flex-shrink-0">
+        <h3 className="font-label-bold text-xs text-primary">Quantity</h3>
         <div className="relative">
             <select
                 value={quantity}
                 onChange={(e) => setQuantity(Number(e.target.value))}
-                className="w-full min-w-[96px] bg-white/60 border-none rounded-2xl p-3 font-label-bold appearance-none pr-10 text-primary cursor-pointer focus:ring-2 focus:ring-brand-lime"
+                className="w-full min-w-[48px] md:min-w-[56px] bg-white/60 border-none rounded-2xl p-1.5 md:p-2.5 font-label-bold appearance-none pr-8 md:pr-10 text-xs text-primary cursor-pointer focus:ring-2 focus:ring-brand-lime"
             >
                 {Array.from({ length: 10 }, (_, index) => index + 1).map(
                     (value) => (
@@ -200,13 +200,13 @@ const AddToCartButton = ({
     }).format(finalPrice);
 
     return (
-        <div className="flex-shrink-0 flex flex-col items-center gap-2 min-w-[150px] max-w-full">
-            <span className="inline-flex items-center justify-center min-w-[54px] h-5 px-4 rounded-full bg-primary text-white font-label-bold text-sm shadow-md">
+        <div className="flex-1 min-w-[100px] md:min-w-[120px] max-w-full flex flex-col items-center gap-1 md:gap-2">
+            <span className="inline-flex items-center justify-center min-w-[48px] md:min-w-[54px] h-4 md:h-5 px-1.5 md:px-4 rounded-full bg-primary text-white font-label-bold text-xs shadow-md">
                 {isPriceLoading ? "..." : formattedPrice}
             </span>
             <button
                 onClick={onAddToCart}
-                className="w-auto max-w-full whitespace-nowrap bg-brand-lime text-primary py-3 px-6 sm:px-8 rounded-2xl font-label-bold hover:shadow-xl transition-all active:scale-95"
+                className="w-full max-w-full whitespace-nowrap bg-brand-lime text-primary py-1.5 md:py-2 px-2 md:px-4 rounded-2xl font-label-bold text-xs hover:shadow-xl transition-all active:scale-95"
             >
                 Add to Cart
             </button>
@@ -231,7 +231,7 @@ const HeroBottomBar = ({
     onAddToCart,
 }: HeroBottomBarProps) => {
     return (
-        <div className="lg:col-span-2 glass-card p-6 flex flex-col sm:flex-row sm:flex-wrap xl:flex-nowrap items-center sm:items-end gap-6">
+        <div className="lg:col-span-2 glass-card p-6 flex flex-col sm:flex-row sm:flex-nowrap items-center sm:items-end gap-2 lg:gap-4">
             <ColorSelector
                 garmentColor={garmentColor}
                 setGarmentColor={setGarmentColor}

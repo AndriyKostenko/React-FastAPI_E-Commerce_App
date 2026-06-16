@@ -12,22 +12,17 @@ import { useGenerationSession } from "@/hooks/useGenerationSession";
 import generateImage from "@/actions/generateImage";
 import toast from "react-hot-toast";
 
-const GenerationPanel = ({
-    isGenerating,
-    setIsGenerating,
-    onDesignGenerated,
-    isRegisteredUser,
-    currentUserJWT,
-}: GenerationPanelProps) => {
+
+const GenerationPanel = ({ isGenerating,
+							setIsGenerating,
+							onDesignGenerated,
+							isRegisteredUser,
+							currentUserJWT }: GenerationPanelProps) => {
     const { session, abortControllerRef, actions } = useGenerationSession(isRegisteredUser);
 
     const canCycleGeneratedStates = session.generationHistory.entries.length > 1;
-    const isGenerationLimitReached =
-        session.generationCounter.limit > 0 &&
-        session.generationCounter.used >= session.generationCounter.limit;
-    const generationLimitMessage = isRegisteredUser
-        ? "Generation limit reached for today"
-        : "Generation limit reached - Please Login to continue";
+    const isGenerationLimitReached = session.generationCounter.limit > 0 && session.generationCounter.used >= session.generationCounter.limit;
+    const generationLimitMessage = isRegisteredUser ? "Generation limit reached for today" : "Generation limit reached - Please Login to continue";
 
     const handleSelectPreviousState = () => {
         if (!canCycleGeneratedStates) {
@@ -178,9 +173,9 @@ const GenerationPanel = ({
     return (
         <div className="flex-1 min-h-0 rounded-[2rem] overflow-hidden isolate flex flex-col">
             <div className="liquid-glass h-full flex flex-col min-h-0">
-                <div className="relative z-10 flex flex-col flex-1 p-6 md:p-8 space-y-4 md:space-y-6 min-h-0 overflow-y-auto">
-                    <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_220px] gap-4 md:gap-6 items-start">
-                        <div className="space-y-2">
+                <div className="relative z-10 flex flex-col flex-1 p-4 md:p-5 lg:p-6 space-y-3 md:space-y-4 min-h-0 overflow-hidden">
+                    <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_180px] gap-3 md:gap-4 items-start min-h-0 flex-1">
+                        <div className="flex flex-col space-y-1.5 min-h-0">
                             <label className="font-label-bold text-label-bold text-primary">
                                 Prompt
                             </label>
@@ -189,12 +184,12 @@ const GenerationPanel = ({
                                 onChange={(e) =>
                                     actions.setPrompt(e.target.value)
                                 }
-                                className="w-full bg-white/40 border-none rounded-2xl p-4 font-body-md focus:ring-2 focus:ring-brand-lime min-h-[88px] md:min-h-[100px] resize-none text-primary placeholder:text-secondary"
+                                className="w-full bg-white/40 border-none rounded-2xl p-3 font-body-md focus:ring-2 focus:ring-brand-lime min-h-[48px] md:min-h-[56px] flex-1 resize-none overflow-y-auto text-primary placeholder:text-secondary"
                                 placeholder="A futuristic cyberpunk samurai mask made of translucent glass shards, neon indigo lighting, minimalist vector style..."
                             />
                         </div>
 
-                        <div className="space-y-2">
+                        <div className="flex flex-col space-y-1.5">
                             <label className="font-label-bold text-label-bold text-primary">
                                 Style
                             </label>
@@ -203,7 +198,7 @@ const GenerationPanel = ({
                                 onChange={(e) =>
                                     actions.setStyle(e.target.value as StyleOption)
                                 }
-                                className="w-full bg-white/40 border-none rounded-2xl p-3 font-label-bold appearance-none text-primary cursor-pointer focus:ring-2 focus:ring-brand-lime"
+                                className="w-full bg-white/40 border-none rounded-2xl p-2.5 font-label-bold appearance-none text-primary cursor-pointer focus:ring-2 focus:ring-brand-lime"
                             >
                                 {GENERATION_STYLES.map((style, index) => (
                                     <option key={index} value={style}>
@@ -214,17 +209,17 @@ const GenerationPanel = ({
                         </div>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-3 pt-1 md:pt-2 w-full">
+                    <div className="flex flex-wrap items-center gap-2.5 pt-1 w-full flex-shrink-0">
                         <div className="relative flex-1 min-w-[220px]">
                             <button
                                 onClick={handleGenerate}
                                 disabled={
                                     isGenerating || isGenerationLimitReached
                                 }
-                                className="w-full bg-brand-lime text-primary py-4 pl-8 pr-16 rounded-2xl font-label-bold flex items-center justify-center gap-3 hover:shadow-xl transition-all active:scale-95 disabled:opacity-75"
+                                className="w-full bg-brand-lime text-primary py-2.5 pl-6 pr-12 rounded-2xl font-label-bold flex items-center justify-center gap-2 hover:shadow-xl transition-all active:scale-95 disabled:opacity-75"
                             >
                                 <MdAutoAwesome
-                                    className={`text-lg ${isGenerating ? "animate-spin" : ""}`}
+                                    className={`text-base ${isGenerating ? "animate-spin" : ""}`}
                                 />
                                 {isGenerationLimitReached
                                     ? generationLimitMessage
@@ -242,17 +237,17 @@ const GenerationPanel = ({
                         <button
                             onClick={handleSelectPreviousState}
                             disabled={isGenerating || !canCycleGeneratedStates}
-                            className="border border-primary/20 text-primary p-4 rounded-2xl font-label-bold hover:bg-white/40 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="border border-primary/20 text-primary p-2.5 rounded-2xl font-label-bold hover:bg-white/40 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                             title="Browse generated states"
                         >
-                            <MdRefresh className="text-xl" />
+                            <MdRefresh className="text-lg" />
                         </button>
                         <button
                             onClick={handleRandomPresetPrompt}
-                            className="border border-primary/20 text-primary p-4 rounded-2xl font-label-bold hover:bg-white/40 transition-all active:scale-95"
+                            className="border border-primary/20 text-primary p-2.5 rounded-2xl font-label-bold hover:bg-white/40 transition-all active:scale-95"
                             title="Random Prompt"
                         >
-                            <MdElectricBolt className="text-xl" />
+                            <MdElectricBolt className="text-lg" />
                         </button>
                     </div>
                 </div>
