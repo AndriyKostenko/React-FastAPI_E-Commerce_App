@@ -10,12 +10,9 @@ import {
 } from "@/utils/constants";
 import { resolveImageUrl } from "@/utils/resolveImageUrl";
 
-export default function TShirtPreview({
-    color,
-    placement,
-    designUrl,
-    isGenerating = false,
-}: TShirtPreviewProps) {
+
+
+export default function TShirtPreview({color,placement,designUrl,isGenerating = false}: TShirtPreviewProps) {
     const [zoom, setZoom] = useState(1);
     const MIN_ZOOM = 0.5;
     const MAX_ZOOM = 3;
@@ -45,9 +42,12 @@ export default function TShirtPreview({
     const collarPath = isBack ? collarBack : collarFront;
     const sheenFront = "M 163,83 C 178,110 222,110 237,83";
     const sheenBack = "M 163,80 Q 200,71 237,80";
-    const sheenPath = isBack ? sheenBack : sheenFront;
+	const sheenPath = isBack ? sheenBack : sheenFront;
 
-    return (
+	console.log("designUrl:", designUrl);
+	console.log("previewImageUrl:", previewImageUrl);
+
+	return (
         <div className="relative w-full h-full flex flex-col">
             {/* T-shirt SVG Container */}
             <div className="flex-1 flex items-center justify-center overflow-auto">

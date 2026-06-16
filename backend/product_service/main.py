@@ -6,7 +6,7 @@ from time import perf_counter
 from aiohttp import ClientSession
 from uvicorn import run
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, ORJSONResponse, Response as PlainResponse
+from fastapi.responses import JSONResponse, Response as PlainResponse
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.staticfiles import StaticFiles
 from pydantic import ValidationError
@@ -32,14 +32,14 @@ from tasks.broker import taskiq_broker
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI): # pyright: ignore[reportUnusedParameter]
+async def lifespan(app: FastAPI):
     """
     This is a context manager that will run the startup and shutdown
     events of a FastAPI application.
     """
-    request_metrics_helper.initialize()
 
     logger.info(f"Server is starting up on {settings.APP_HOST}:{settings.PRODUCT_SERVICE_APP_PORT}...")
+    request_metrics_helper.initialize()
     await product_service_redis_manager.connect()
     await product_event_idempotency_service.connect()
     await product_service_database_session_manager.init_db()
@@ -49,10 +49,10 @@ async def lifespan(app: FastAPI): # pyright: ignore[reportUnusedParameter]
     if not taskiq_broker.is_worker_process:
         await taskiq_broker.startup()
         logger.info("TaskIQ broker started successfully.")
-
+	# adding the client session for workers
+	# one instance for the whole proces
     app.state.http_session = ClientSession()
     logger.info("Shared HTTP client session created.")
-
     logger.info('Server startup complete!')
 
     yield

@@ -1,6 +1,7 @@
 from logging import Logger
 from abc import ABC, abstractmethod
-from typing import override
+from typing import Any, override
+from uuid import UUID
 
 from pydantic import BaseModel
 
@@ -15,15 +16,12 @@ from service_layer.image_storage_service import ImageStorageService
 
 class ImageGenerationInterface(ABC):
     @abstractmethod
-    async def generate_image(
-        self,
-        prompt: str,
-        style: str,
-        is_guest_user: bool,
-        remove_background: bool = False,
-        guest_id: str | None = None,
-        user_id: str | None = None,
-    ) -> BaseModel:
+    async def generate_image(self,
+					        prompt: str,
+					        style: str,
+					        is_guest_user: bool,
+					        guest_id: UUID | None = None,
+					        user_id: UUID | None = None) -> BaseModel:
         """Generate an image synchronously and return the result."""
         ...
 
@@ -33,22 +31,18 @@ class ImageGenerationInterface(ABC):
         ...
 
     @abstractmethod
-    async def submit_job(
-        self,
-        job_id: str,
-        prompt: str,
-        style: str,
-        is_guest_user: bool,
-        guest_id: str | None = None,
-        user_id: str | None = None,
-    ) -> int | None:
+    async def submit_job(self,
+        				job_id: str,
+            			prompt: str,
+				        style: str,
+				        is_guest_user: bool,
+				        guest_id: UUID | None = None,
+				        user_id: UUID | None = None) -> int | None:
         """Consume quota and persist a pending job in Redis."""
         ...
 
     @abstractmethod
-    async def run_job(
-        self, job_id: str, prompt: str, style: str, remove_background: bool = False
-    ) -> None:
+    async def run_job(self, job_id: str, prompt: str, style: str) -> None:
         """Execute generation in the background and update job state in Redis."""
         ...
 
@@ -70,31 +64,24 @@ class ImageGenerationService(ImageGenerationInterface):
       - ImageStorageService     → base64 decode + disk persistence
     """
 
-    def __init__(
-        self,
-        quota_service: GenerationQuotaService,
-        job_store: ImageJobStore,
-        openrouter_client: OpenRouterClient,
-        storage_service: ImageStorageService,
-        settings: Settings,
-        logger: Logger,
-    ) -> None:
-        self.settings = settings
-        self.GUEST_QUOTA_COOKIE: str = settings.GUEST_QUOTA_COOKIE
-        self._logger = logger
-        self._quota_service = quota_service
-        self._job_store = job_store
-        self._openrouter_client = openrouter_client
-        self._storage_service = storage_service
+    def __init__(self,
+		        quota_service: GenerationQuotaService,
+		        job_store: ImageJobStore,
+		        openrouter_client: OpenRouterClient,
+		        storage_service: ImageStorageService,
+		        settings: Settings,
+		        logger: Logger) -> None:
+        self.settings: Settings = settings
+        self._logger: Logger = logger
+        self._quota_service: GenerationQuotaService = quota_service
+        self._job_store: ImageJobStore = job_store
+        self._openrouter_client: OpenRouterClient = openrouter_client
+        self._storage_service: ImageStorageService = storage_service
 
-    # ── quota helper ────────────────────────────────────────────────────────
-
-    async def _consume_quota(
-        self,
-        is_guest_user: bool,
-        guest_id: str | None,
-        user_id: str | None,
-    ) -> int:
+    async def _consume_quota(self,
+					        is_guest_user: bool,
+					        guest_id: UUID | None,
+					        user_id: UUID | None) -> int:
         if is_guest_user:
             if not guest_id:
                 raise ImageGenerationProviderError("Guest id is required for guest generation")
@@ -106,28 +93,19 @@ class ImageGenerationService(ImageGenerationInterface):
                 )
             return await self._quota_service.consume(user_id, is_guest=False)
 
-    # ── image persistence ───────────────────────────────────────────────────
-
     @override
     async def save_image(self, b64_image: str) -> str:
         return await self._storage_service.save(b64_image)
 
-    # ── synchronous generation ──────────────────────────────────────────────
-
     @override
-    async def generate_image(
-        self,
-        prompt: str,
-        style: str,
-        is_guest_user: bool,
-        remove_background: bool = False,
-        guest_id: str | None = None,
-        user_id: str | None = None,
-    ) -> GenerateImageResponse:
+    async def generate_image(self,
+					        prompt: str,
+					        style: str,
+					        is_guest_user: bool,
+					        guest_id: UUID | None = None,
+					        user_id: UUID | None = None) -> GenerateImageResponse:
         remaining_generations = await self._consume_quota(is_guest_user, guest_id, user_id)
-        image_payload, model = await self._openrouter_client.generate(
-            prompt, style, remove_background
-        )
+        image_payload, model = await self._openrouter_client.generate(prompt, style)
         image_url = await self._storage_service.save(image_payload)
         self._logger.debug(f"Image generated and saved: {image_url}")
 
@@ -146,37 +124,31 @@ class ImageGenerationService(ImageGenerationInterface):
     # ── background-job pattern ──────────────────────────────────────────────
 
     @override
-    async def submit_job(
-        self,
-        job_id: str,
-        prompt: str,
-        style: str,
-        is_guest_user: bool,
-        guest_id: str | None = None,
-        user_id: str | None = None,
-    ) -> int | None:
+    async def submit_job(self,
+				        job_id: str,
+				        prompt: str,
+				        style: str,
+				        is_guest_user: bool,
+				        guest_id: UUID | None = None,
+				        user_id: UUID | None = None) -> int | None:
         remaining_generations = await self._consume_quota(is_guest_user, guest_id, user_id)
         await self._job_store.create(job_id)
         return remaining_generations
 
     @override
-    async def run_job(
-        self, job_id: str, prompt: str, style: str, remove_background: bool = False
-    ) -> None:
+    async def run_job(self, job_id: str, prompt: str, style: str) -> None:
         await self._job_store.set_state(job_id, "running")
         try:
-            image_payload, model = await self._openrouter_client.generate(
-                prompt, style, remove_background
-            )
+            image_payload, model = await self._openrouter_client.generate(prompt, style)
             image_url = await self._storage_service.save(image_payload)
-            await self._job_store.set_state(
-                job_id, "completed", {"image_url": image_url, "model": model}
-            )
+            await self._job_store.set_state(job_id,
+            								"completed",
+                    						{"image_url": image_url, "model": model})
             self._logger.debug(f"Job {job_id} completed: {image_url}")
         except Exception as exc:
             self._logger.error(f"Job {job_id} failed: {exc}")
             await self._job_store.set_state(job_id, "failed", {"error": "Image generation failed"})
 
     @override
-    async def get_job(self, job_id: str) -> dict:
+    async def get_job(self, job_id: str) -> dict[str, Any]:
         return await self._job_store.get(job_id)

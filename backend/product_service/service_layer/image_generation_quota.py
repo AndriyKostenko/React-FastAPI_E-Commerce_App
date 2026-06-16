@@ -1,4 +1,5 @@
 from logging import Logger
+from uuid import UUID
 
 from shared.settings import Settings
 from shared.managers.cache_manager import CacheManager
@@ -18,11 +19,11 @@ class GenerationQuotaService:
         self._settings = settings
         self._logger = logger
 
-    def _quota_key(self, entity_id: str, is_guest: bool) -> str:
+    def _quota_key(self, entity_id: UUID, is_guest: bool) -> str:
         user_type = "guest" if is_guest else "registered"
         return f"{self._cache_manager.service_prefix}:image-generation:{user_type}:{entity_id}"
 
-    async def consume(self, entity_id: str, is_guest: bool) -> int:
+    async def consume(self, entity_id: UUID, is_guest: bool) -> int:
         """
         Atomically increment the usage counter and enforce the rate limit.
 

@@ -1,4 +1,4 @@
-import type { GeneratedDesignPayload } from "@/types/generation";
+import type { GeneratedDesignPayload, StyleOption } from "@/types/generation";
 
 export interface GenerationPanelProps {
   isGenerating: boolean;
@@ -8,7 +8,20 @@ export interface GenerationPanelProps {
   currentUserJWT?: string | null;
 }
 
+export interface GenerationSession {
+  prompt: string;
+  style: StyleOption;
+  generationHistory: GenerationHistoryState;
+  generationCounter: GenerationCounter;
+  phase: GenerationPhase;
+}
+
 export type GenerationPhase = "idle" | "pending" | "running";
+
+export interface GenerationCounter {
+  used: number;
+  limit: number;
+}
 
 export interface GenerationHistoryState {
   entries: GeneratedDesignPayload[];

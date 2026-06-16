@@ -1,7 +1,7 @@
 import { Dispatch, SetStateAction } from "react";
 import { SIZE_MEASUREMENTS } from "@/utils/constants";
 
-type GarmentColor = "bg-white" | "bg-gray" | "bg-black";
+type GarmentColor = "bg-white" | "bg-black";
 
 type HeroBottomBarProps = {
     garmentColor: GarmentColor;
@@ -39,15 +39,6 @@ const ColorSelector = ({
                         : "border-white/20"
                 }`}
                 title="White"
-            />
-            <button
-                onClick={() => setGarmentColor("bg-gray")}
-                className={`w-10 h-10 rounded-full bg-neutral-300 transition-all hover:scale-110 ${
-                    garmentColor === "bg-gray"
-                        ? "border-2 border-brand-lime ring-2 ring-white ring-offset-2"
-                        : "border border-white/20"
-                }`}
-                title="Grey"
             />
             <button
                 onClick={() => setGarmentColor("bg-black")}

@@ -1,14 +1,14 @@
 import { GalleryItem, Testimonial } from "@/types/sections";
 import { IconType } from "react-icons";
 import { MdInventory, MdPsychology, MdTune } from "react-icons/md";
+import defaultImage from '../public/default_image.webp'
 
-export const DEFAULT_PLACEHOLDER_IMAGE = "https://placehold.co/800x600.png?text=No+Image";
+export const DEFAULT_PLACEHOLDER_IMAGE = { title: "Default Design", image: defaultImage.src};
 
 export const SIZE_MEASUREMENTS = {
     S: { width: 48, height: "62-65" },
     M: { width: 50, height: "64-67" },
     L: { width: 55, height: "69-72" },
-
 }
 
 export const TSHIRT_SIZE_PRICE_MULTIPLIERS: Record<keyof typeof SIZE_MEASUREMENTS, number> = {
@@ -17,18 +17,26 @@ export const TSHIRT_SIZE_PRICE_MULTIPLIERS: Record<keyof typeof SIZE_MEASUREMENT
   L: 1.25,
 };
 
-export const TSHIRT_PLACEMENT_SURCHARGES: Record<string, number> = {
-  "Oversized Center": 6,
-  "Full Back": 8,
+export const FALLBACK_SIZE_PRICE_MULTIPLIERS: Record<keyof typeof SIZE_MEASUREMENTS, number> = {
+  S: 1,
+  M: 1,
+  L: 1,
 };
 
-export interface HowItWorksStep {
-  icon: IconType;
-  step: string;
-  description: string;
-}
+export const TSHIRT_PLACEMENT_SURCHARGES: Record<string, number> = {
+  "Center Chest": 0,
+  "Left Top Chest": 0,
+  "Right Top Chest": 0,
+  "Left Bottom": 0,
+  "Right Bottom": 0,
+  "Center Bottom": 0,
+  "Oversized Center": 2,
+  "Full Back": 3,
+  "Back Upper": 2,
+  "Back Lower": 2,
+};
 
-export const HOW_IT_WORKS: HowItWorksStep[] = [
+export const HOW_IT_WORKS = [
   {
     icon: MdPsychology,
     step: "1. Generate",
@@ -138,15 +146,13 @@ export const STYLE_PREVIEWS = {
   },
 };
 
+export const GENERATION_STYLES = ["None", "Minimal", "Vintage", "Anime", "Streetwear", "Abstract", "Typography"]
 export const DEFAULT_GUEST_GENERATION_LIMIT = 3;
 export const DEFAULT_REGISTERED_GENERATION_LIMIT = 10;
 export const GENERATION_COUNTER_STORAGE_KEY = "guest-image-generation-counter";
 export const GENERATION_STATE_STORAGE_KEY = "guest-image-generation-state";
 
-export const PRESET_PROMPTS: Array<{
-  prompt: string;
-  style: "None" | keyof typeof STYLE_PREVIEWS;
-}> = [
+export const PRESET_PROMPTS: Array<{prompt: string; style: "None" | keyof typeof STYLE_PREVIEWS;}> = [
   {
     prompt: "Brutalist typography layout containing clean cyber-glitch effects",
     style: "Typography",
@@ -193,26 +199,15 @@ export const PRESET_PROMPTS: Array<{
   },
 ];
 
-export const COLOR_MAP: Record<
-  string,
-  {
-    base: string;
-    seam: string;
-    collarBand: string;
-    collarSheen: string;
-  }
-> = {
+export const COLOR_MAP: Record<string,{ base: string;
+									    seam: string;
+									    collarBand: string;
+									    collarSheen: string;}> = {
   "bg-white": {
     base: "#F4F4F4",
     seam: "rgba(0,0,0,0.07)",
     collarBand: "rgba(0,0,0,0.09)",
     collarSheen: "rgba(255,255,255,0.80)",
-  },
-  "bg-gray": {
-    base: "#C8C8C8",
-    seam: "rgba(0,0,0,0.10)",
-    collarBand: "rgba(0,0,0,0.13)",
-    collarSheen: "rgba(255,255,255,0.45)",
   },
   "bg-black": {
     base: "#1A1A1A",
@@ -222,10 +217,7 @@ export const COLOR_MAP: Record<
   },
 };
 
-export const PLACEMENT_ZONES: Record<
-  string,
-  { x: number; y: number; w: number; h: number; back?: boolean }
-> = {
+export const PLACEMENT_ZONES: Record<string, { x: number; y: number; w: number; h: number; back?: boolean }> = {
   "Center Chest": { x: 128, y: 182, w: 144, h: 120 },
   "Left Top Chest": { x: 96, y: 182, w: 78, h: 78 },
   "Right Top Chest": { x: 226, y: 182, w: 78, h: 78 },

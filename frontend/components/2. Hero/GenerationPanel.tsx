@@ -1,208 +1,33 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
 import { MdAutoAwesome, MdRefresh, MdElectricBolt } from "react-icons/md";
 import {
-    DEFAULT_GUEST_GENERATION_LIMIT,
-    DEFAULT_REGISTERED_GENERATION_LIMIT,
-    GENERATION_COUNTER_STORAGE_KEY,
-    GENERATION_STATE_STORAGE_KEY,
     PRESET_PROMPTS,
     STYLE_PREVIEWS,
+    GENERATION_STYLES,
 } from "@/utils/constants";
 import type { GeneratedDesignPayload, StyleOption } from "@/types/generation";
-import type {
-    GenerationHistoryState,
-    GenerationPanelProps,
-    GenerationPhase,
-    ParsedGenerationCounter,
-    ParsedGenerationState,
-} from "@/types/generation-panel";
+import type { GenerationPanelProps } from "@/types/generation-panel";
+import { useGenerationSession } from "@/hooks/useGenerationSession";
 import generateImage from "@/actions/generateImage";
 import toast from "react-hot-toast";
 
+const GenerationPanel = ({
+    isGenerating,
+    setIsGenerating,
+    onDesignGenerated,
+    isRegisteredUser,
+    currentUserJWT,
+}: GenerationPanelProps) => {
+    const { session, abortControllerRef, actions } = useGenerationSession(isRegisteredUser);
 
-
-const GenerationPanel = ({isGenerating, setIsGenerating, onDesignGenerated, isRegisteredUser,currentUserJWT}: GenerationPanelProps) => {
-    const initialLimit = isRegisteredUser ? DEFAULT_REGISTERED_GENERATION_LIMIT : DEFAULT_GUEST_GENERATION_LIMIT;
-
-    const [prompt, setPrompt] = useState("");
-    const [style, setStyle] = useState<StyleOption>("None");
-    //const [removeBackground, setRemoveBackground] = useState(false);
-    const [generationPhase, setGenerationPhase] = useState<GenerationPhase>("idle");
-    const abortControllerRef = useRef<AbortController | null>(null);
-    const [generationCounter, setGenerationCounter] = useState({used: 0,limit: initialLimit});
-    const [generationHistory, setGenerationHistory] = useState<GenerationHistoryState>({entries: [], index: -1});
-
-    const canCycleGeneratedStates = generationHistory.entries.length > 1;
-    const isGenerationLimitReached = generationCounter.limit > 0 && generationCounter.used >= generationCounter.limit;
-    const remainingGenerations = Math.max(generationCounter.limit - generationCounter.used, 0);
-    const shouldShowLastAttemptHint = !isGenerationLimitReached && remainingGenerations === 1;
-    const generationLimitMessage = isRegisteredUser ? "Generation limit reached for today" : "Generation limit reached - Please Login to continue";
-
-    const isStyleOption = (value: unknown): value is StyleOption =>
-        typeof value === "string" &&
-        (value === "None" || value in STYLE_PREVIEWS);
-
-    const isGeneratedDesignPayload = (value: unknown): value is GeneratedDesignPayload => {
-        if (!value || typeof value !== "object") {
-            return false;
-        }
-        const payload = value as GeneratedDesignPayload;
-        return (
-            typeof payload.prompt === "string" &&
-            isStyleOption(payload.style) &&
-            !!payload.design &&
-            typeof payload.design.title === "string" &&
-            typeof payload.design.image === "string" &&
-            typeof payload.design.price === "number"
-        );
-    };
-
-    useEffect(() => {
-        if (typeof window === "undefined") {
-            return;
-        }
-
-        const storedCounter = window.localStorage.getItem(
-            GENERATION_COUNTER_STORAGE_KEY,
-        );
-        if (!storedCounter) {
-            // Initialize with the correct limit based on authentication status
-            setGenerationCounter({
-                used: 0,
-                limit: initialLimit,
-            });
-            return;
-        }
-
-        try {
-            const parsed = JSON.parse(storedCounter) as ParsedGenerationCounter;
-            if (
-                typeof parsed.used === "number" &&
-                Number.isFinite(parsed.used) &&
-                parsed.used >= 0 &&
-                typeof parsed.limit === "number" &&
-                Number.isFinite(parsed.limit) &&
-                parsed.limit > 0
-            ) {
-                // Use the parsed limit if it matches current auth status, otherwise reset
-                const expectedLimit = isRegisteredUser
-                    ? DEFAULT_REGISTERED_GENERATION_LIMIT
-                    : DEFAULT_GUEST_GENERATION_LIMIT;
-                const shouldUseStoredCounter = parsed.limit === expectedLimit;
-
-                setGenerationCounter({
-                    used: shouldUseStoredCounter
-                        ? Math.min(
-                              Math.floor(parsed.used),
-                              Math.floor(parsed.limit),
-                          )
-                        : 0,
-                    limit: expectedLimit,
-                });
-            }
-        } catch {
-            // Ignore malformed local storage and initialize with correct limit
-            setGenerationCounter({
-                used: 0,
-                limit: initialLimit,
-            });
-        }
-    }, [isRegisteredUser, initialLimit]);
-
-    useEffect(() => {
-        if (typeof window === "undefined") {
-            return;
-        }
-
-        const storedState = window.localStorage.getItem(
-            GENERATION_STATE_STORAGE_KEY,
-        );
-        if (!storedState) {
-            return;
-        }
-
-        try {
-            const parsed = JSON.parse(storedState) as ParsedGenerationState;
-
-            if (typeof parsed.prompt === "string") {
-                setPrompt(parsed.prompt);
-            }
-            if (isStyleOption(parsed.style)) {
-                setStyle(parsed.style);
-            }
-            if (typeof parsed.removeBackground === "boolean") {
-                setRemoveBackground(parsed.removeBackground);
-            }
-
-            const parsedEntries = Array.isArray(parsed.historyEntries)
-                ? parsed.historyEntries.filter(isGeneratedDesignPayload)
-                : [];
-
-            if (parsedEntries.length > 0) {
-                const requestedIndex =
-                    typeof parsed.historyIndex === "number" &&
-                    Number.isFinite(parsed.historyIndex)
-                        ? Math.floor(parsed.historyIndex)
-                        : parsedEntries.length - 1;
-                const safeIndex = Math.min(
-                    Math.max(requestedIndex, 0),
-                    parsedEntries.length - 1,
-                );
-                setGenerationHistory({
-                    entries: parsedEntries,
-                    index: safeIndex,
-                });
-                applyGeneratedState(parsedEntries[safeIndex]);
-            }
-        } catch {
-            // Ignore malformed local storage and continue with defaults.
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
-
-    useEffect(() => {
-        if (typeof window === "undefined") {
-            return;
-        }
-
-        window.localStorage.setItem(
-            GENERATION_COUNTER_STORAGE_KEY,
-            JSON.stringify(generationCounter),
-        );
-    }, [generationCounter]);
-
-    useEffect(() => {
-        if (typeof window === "undefined") {
-            return;
-        }
-
-        window.localStorage.setItem(
-            GENERATION_STATE_STORAGE_KEY,
-            JSON.stringify({
-                prompt,
-                style,
-                //removeBackground,
-                historyEntries: generationHistory.entries,
-                historyIndex: generationHistory.index,
-            }),
-        );
-    	}, [generationHistory.entries, generationHistory.index, prompt, style]
-	);
-
-    // Abort any in-flight generation when the component unmounts.
-    useEffect(() => {
-        return () => {
-            abortControllerRef.current?.abort();
-        };
-    }, []);
-
-    const applyGeneratedState = (payload: GeneratedDesignPayload) => {
-        onDesignGenerated(payload);
-        setPrompt(payload.prompt);
-        setStyle(payload.style);
-    };
+    const canCycleGeneratedStates = session.generationHistory.entries.length > 1;
+    const isGenerationLimitReached =
+        session.generationCounter.limit > 0 &&
+        session.generationCounter.used >= session.generationCounter.limit;
+    const generationLimitMessage = isRegisteredUser
+        ? "Generation limit reached for today"
+        : "Generation limit reached - Please Login to continue";
 
     const handleSelectPreviousState = () => {
         if (!canCycleGeneratedStates) {
@@ -210,13 +35,12 @@ const GenerationPanel = ({isGenerating, setIsGenerating, onDesignGenerated, isRe
             return;
         }
 
-        const nextIndex =
-            generationHistory.index <= 0
-                ? generationHistory.entries.length - 1
-                : generationHistory.index - 1;
-        const previousState = generationHistory.entries[nextIndex];
-        applyGeneratedState(previousState);
-        setGenerationHistory((prev) => ({ ...prev, index: nextIndex }));
+        const { entries, index } = session.generationHistory;
+        const nextIndex = index <= 0 ? entries.length - 1 : index - 1;
+        const previousState = entries[nextIndex];
+
+        onDesignGenerated(previousState);
+        actions.selectHistoryEntry(nextIndex);
     };
 
     const handleRandomPresetPrompt = () => {
@@ -226,7 +50,10 @@ const GenerationPanel = ({isGenerating, setIsGenerating, onDesignGenerated, isRe
 
         let selected =
             PRESET_PROMPTS[Math.floor(Math.random() * PRESET_PROMPTS.length)];
-        if (PRESET_PROMPTS.length > 1 && selected.prompt === prompt.trim()) {
+        if (
+            PRESET_PROMPTS.length > 1 &&
+            selected.prompt === session.prompt.trim()
+        ) {
             selected =
                 PRESET_PROMPTS[
                     (PRESET_PROMPTS.indexOf(selected) + 1) %
@@ -234,12 +61,12 @@ const GenerationPanel = ({isGenerating, setIsGenerating, onDesignGenerated, isRe
                 ];
         }
 
-        setPrompt(selected.prompt);
-        setStyle(selected.style);
+        actions.setPrompt(selected.prompt);
+        actions.setStyle(selected.style);
     };
 
     const handleGenerate = async () => {
-        if (!prompt.trim()) {
+        if (!session.prompt.trim()) {
             toast.error("Please enter a description for your design!");
             return;
         }
@@ -257,22 +84,21 @@ const GenerationPanel = ({isGenerating, setIsGenerating, onDesignGenerated, isRe
         abortControllerRef.current = controller;
 
         setIsGenerating(true);
-        setGenerationPhase("pending");
-        const targetStyle = style;
+        actions.setPhase("pending");
+        const targetStyle = session.style;
 
         try {
             const generated = await generateImage(
                 {
-                    prompt: prompt.trim(),
+                    prompt: session.prompt.trim(),
                     style: targetStyle,
-                    //removeBackground,
                     authToken: currentUserJWT ?? null,
                 },
                 controller.signal,
-                setGenerationPhase,
+                actions.setPhase,
             );
 
-            const trimmedPrompt = prompt.trim();
+            const trimmedPrompt = session.prompt.trim();
             const styleTemplate =
                 targetStyle === "None"
                     ? STYLE_PREVIEWS.Streetwear
@@ -290,20 +116,17 @@ const GenerationPanel = ({isGenerating, setIsGenerating, onDesignGenerated, isRe
                 prompt: trimmedPrompt,
                 style: targetStyle,
             };
-            applyGeneratedState(generatedPayload);
-            setGenerationHistory((prev) => {
-                const nextEntries = [...prev.entries, generatedPayload];
-                return {
-                    entries: nextEntries,
-                    index: nextEntries.length - 1,
-                };
-            });
+
+            onDesignGenerated(generatedPayload);
+            actions.setPrompt(trimmedPrompt);
+            actions.setStyle(targetStyle);
+            actions.appendHistory(generatedPayload);
 
             if (
                 generated.remainingGenerations !== null &&
                 generated.guestLimit !== null
             ) {
-                setGenerationCounter({
+                actions.setCounter({
                     used: Math.max(
                         generated.guestLimit - generated.remainingGenerations,
                         0,
@@ -334,10 +157,10 @@ const GenerationPanel = ({isGenerating, setIsGenerating, onDesignGenerated, isRe
                 if (match) {
                     const limit = Number(match[1]);
                     if (Number.isFinite(limit) && limit > 0) {
-                        setGenerationCounter({ used: limit, limit });
+                        actions.setCounter({ used: limit, limit });
                     }
                 } else {
-                    setGenerationCounter((prev) => ({
+                    actions.setCounter((prev) => ({
                         ...prev,
                         used: prev.limit,
                     }));
@@ -348,7 +171,7 @@ const GenerationPanel = ({isGenerating, setIsGenerating, onDesignGenerated, isRe
             toast.error(message);
         } finally {
             setIsGenerating(false);
-            setGenerationPhase("idle");
+            actions.setPhase("idle");
         }
     };
 
@@ -362,8 +185,10 @@ const GenerationPanel = ({isGenerating, setIsGenerating, onDesignGenerated, isRe
                                 Prompt
                             </label>
                             <textarea
-                                value={prompt}
-                                onChange={(e) => setPrompt(e.target.value)}
+                                value={session.prompt}
+                                onChange={(e) =>
+                                    actions.setPrompt(e.target.value)
+                                }
                                 className="w-full bg-white/40 border-none rounded-2xl p-4 font-body-md focus:ring-2 focus:ring-brand-lime min-h-[88px] md:min-h-[100px] resize-none text-primary placeholder:text-secondary"
                                 placeholder="A futuristic cyberpunk samurai mask made of translucent glass shards, neon indigo lighting, minimalist vector style..."
                             />
@@ -374,34 +199,18 @@ const GenerationPanel = ({isGenerating, setIsGenerating, onDesignGenerated, isRe
                                 Style
                             </label>
                             <select
-                                value={style}
+                                value={session.style}
                                 onChange={(e) =>
-                                    setStyle(e.target.value as StyleOption)
+                                    actions.setStyle(e.target.value as StyleOption)
                                 }
                                 className="w-full bg-white/40 border-none rounded-2xl p-3 font-label-bold appearance-none text-primary cursor-pointer focus:ring-2 focus:ring-brand-lime"
-							>
-								{}
-                                <option value="None">None</option>
-                                <option value="Minimal">Minimal</option>
-                                <option value="Vintage">Vintage</option>
-                                <option value="Anime">Anime</option>
-                                <option value="Streetwear">Streetwear</option>
-                                <option value="Abstract">Abstract</option>
-                                <option value="Typography">Typography</option>
+                            >
+                                {GENERATION_STYLES.map((style, index) => (
+                                    <option key={index} value={style}>
+                                        {style}
+                                    </option>
+                                ))}
                             </select>
-                            {/*<label className="inline-flex items-center gap-2 pt-2 cursor-pointer">
-                                <input
-                                    type="checkbox"
-                                    checked={removeBackground}
-                                    onChange={(e) =>
-                                        setRemoveBackground(e.target.checked)
-                                    }
-                                    className="h-4 w-4 rounded border-primary/30 text-primary focus:ring-brand-lime"
-                                />
-                                <span className="font-label-bold text-sm text-primary">
-                                    Remove the background
-                                </span>
-                            </label>*/}
                         </div>
                     </div>
 
@@ -419,15 +228,15 @@ const GenerationPanel = ({isGenerating, setIsGenerating, onDesignGenerated, isRe
                                 />
                                 {isGenerationLimitReached
                                     ? generationLimitMessage
-                                    : generationPhase === "pending"
+                                    : session.phase === "pending"
                                       ? "Queued..."
-                                      : generationPhase === "running"
+                                      : session.phase === "running"
                                         ? "Generating..."
                                         : "Generate Now"}
                             </button>
                             <span className="pointer-events-none absolute -top-2 -right-2 z-20 inline-flex min-w-11 items-center justify-center rounded-full bg-primary px-2.5 py-1 text-[11px] leading-none text-white shadow-md ring-2 ring-white/90">
-                                {generationCounter.used}/
-                                {generationCounter.limit}
+                                {session.generationCounter.used}/
+                                {session.generationCounter.limit}
                             </span>
                         </div>
                         <button

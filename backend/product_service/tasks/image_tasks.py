@@ -9,9 +9,9 @@ from .broker import taskiq_broker
 
 
 @taskiq_broker.task
-async def generate_image_task(
-    job_id: str, prompt: str, style: str, remove_background: bool = False
-) -> None:
+async def generate_image_task(job_id: str,
+							  prompt: str,
+							  style: str) -> None:
     """
     Execute image generation for a submitted job.
 
@@ -46,6 +46,5 @@ async def generate_image_task(
         await service.run_job(
             job_id=job_id,
             prompt=prompt,
-            style=style,
-            remove_background=remove_background,
+            style=style
         )

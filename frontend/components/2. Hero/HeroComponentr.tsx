@@ -8,7 +8,9 @@ import {
     STYLE_PREVIEWS,
     SIZE_MEASUREMENTS,
     TSHIRT_PLACEMENT_SURCHARGES,
-    TSHIRT_SIZE_PRICE_MULTIPLIERS,
+	TSHIRT_SIZE_PRICE_MULTIPLIERS,
+	FALLBACK_SIZE_PRICE_MULTIPLIERS,
+	DEFAULT_PLACEHOLDER_IMAGE
 } from "@/utils/constants";
 import type { ProductProps } from "@/types/product";
 import type { GeneratedDesignPayload, StyleOption } from "@/types/generation";
@@ -18,32 +20,21 @@ import GenerationPanel from "./GenerationPanel";
 import TshirtMeasurement from "./TshirtMeasurement";
 import HeroBottomBar from "./HeroBottomBar";
 
-const FALLBACK_SIZE_PRICE_MULTIPLIERS: Record<
-    keyof typeof SIZE_MEASUREMENTS,
-    number
-> = {
-    S: 1,
-    M: 1,
-    L: 1,
-};
 
 type HeroSectionProps = {
     isRegisteredUser: boolean;
     currentUserJWT?: string | null;
 };
+type GarmentColor = "bg-white" | "bg-black";
+type Design = { title: string, image: string}
 
 const HeroSection = ({isRegisteredUser, currentUserJWT}: HeroSectionProps) => {
-    type GarmentColor = "bg-white" | "bg-gray" | "bg-black";
-    const { handleAddProductToCart } = useCart();
-
+	const { handleAddProductToCart } = useCart();
     const [placement, setPlacement] = useState("Center Chest");
     const [isGenerating, setIsGenerating] = useState(false);
-    const [currentDesign, setCurrentDesign] = useState(
-        STYLE_PREVIEWS.Streetwear,
-    );
-    const [selectedPrompt, setSelectedPrompt] = useState("");
+    const [currentDesign, setCurrentDesign] = useState<Design>(DEFAULT_PLACEHOLDER_IMAGE);
+	const [selectedPrompt, setSelectedPrompt] = useState("");
     const [selectedStyle, setSelectedStyle] = useState<StyleOption>("None");
-
     const [garmentColor, setGarmentColor] = useState<GarmentColor>("bg-white");
     const [size, setSize] = useState<keyof typeof SIZE_MEASUREMENTS>("M");
     const [gender, setGender] = useState("Male");
@@ -52,9 +43,9 @@ const HeroSection = ({isRegisteredUser, currentUserJWT}: HeroSectionProps) => {
     const [currency, setCurrency] = useState("USD");
     const [isPriceLoading, setIsPriceLoading] = useState(true);
 
-    useEffect(() => {
-        let isMounted = true;
 
+	useEffect(() => {
+        let isMounted = true;
         const fetchBasePricing = async () => {
             try {
                 const pricing = await getCustomTshirtPricing();
@@ -119,11 +110,7 @@ const HeroSection = ({isRegisteredUser, currentUserJWT}: HeroSectionProps) => {
             image_url: currentDesign.image,
             image_color: garmentColor.replace("bg-", ""),
             image_color_code:
-                garmentColor === "bg-black"
-                    ? "#000000"
-                    : garmentColor === "bg-gray"
-                      ? "#c0c0c0"
-                      : "#ffffff",
+                garmentColor === "bg-black" ? "#000000" : "#ffffff",
         };
 
         const customCartProduct: ProductProps = {
@@ -147,15 +134,11 @@ const HeroSection = ({isRegisteredUser, currentUserJWT}: HeroSectionProps) => {
         handleAddProductToCart(customCartProduct);
     };
 
-    const handleDesignGenerated = ({
-        design,
-        prompt,
-        style,
-    }: GeneratedDesignPayload) => {
+    const handleDesignGenerated = ({design,prompt,style}: GeneratedDesignPayload) => {
         setCurrentDesign(design);
         setSelectedPrompt(prompt);
         setSelectedStyle(style);
-    };
+	};
 
     return (
         <section className="glass-card p-6 md:p-8 grid grid-cols-1 lg:grid-cols-2 lg:grid-rows-[minmax(0,1fr)_auto] gap-6 lg:h-[calc(100vh-12rem)] overflow-hidden">
