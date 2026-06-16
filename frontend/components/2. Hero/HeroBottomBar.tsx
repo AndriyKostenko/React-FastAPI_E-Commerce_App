@@ -105,7 +105,7 @@ const PlacementSelector = ({
     placement,
     setPlacement,
 }: Pick<HeroBottomBarProps, "placement" | "setPlacement">) => (
-    <div className="space-y-1 flex-1 min-w-[120px] md:min-w-[160px]">
+    <div className="space-y-1 flex-shrink-0 min-w-[120px] md:min-w-[160px]">
         <h3 className="font-label-bold text-xs text-primary">
             Print Placement
         </h3>
@@ -200,7 +200,7 @@ const AddToCartButton = ({
     }).format(finalPrice);
 
     return (
-        <div className="flex-1 min-w-[100px] md:min-w-[120px] max-w-full flex flex-col items-center gap-1 md:gap-2">
+        <div className="flex-shrink-0 w-full md:w-auto flex flex-col items-center gap-1 md:gap-2">
             <span className="inline-flex items-center justify-center min-w-[48px] md:min-w-[54px] h-4 md:h-5 px-1.5 md:px-4 rounded-full bg-primary text-white font-label-bold text-xs shadow-md">
                 {isPriceLoading ? "..." : formattedPrice}
             </span>
@@ -231,7 +231,7 @@ const HeroBottomBar = ({
     onAddToCart,
 }: HeroBottomBarProps) => {
     return (
-        <div className="lg:col-span-2 glass-card p-6 flex flex-col sm:flex-row sm:flex-nowrap items-center sm:items-end gap-2 lg:gap-4">
+        <div className="lg:col-span-2 glass-card p-6 flex flex-row flex-wrap items-end justify-center gap-3 md:gap-4">
             <ColorSelector
                 garmentColor={garmentColor}
                 setGarmentColor={setGarmentColor}
