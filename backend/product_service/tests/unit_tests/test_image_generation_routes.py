@@ -7,6 +7,7 @@ from exceptions.image_generation_exceptions import (
     ImageGenerationLimitExceededError,
 )
 from tests.conftest import TEST_API
+from shared.shared_instances import settings
 
 
 class TestGenerateImageEndpoint:
@@ -40,17 +41,19 @@ class TestGenerateImageEndpoint:
 
         assert response.status_code == status.HTTP_202_ACCEPTED
         assert response.json()["remaining_generations"] == 2
-        assert "guest_generation_id=" in response.headers.get("set-cookie", "")
+        assert f"{settings.GUEST_QUOTA_COOKIE}=" in response.headers.get("set-cookie", "")
 
     async def test_existing_guest_cookie_reused_without_setting_new_cookie(
         self,
         client_for_unit_testing: AsyncClient,
     ):
+        guest_id = str(uuid4())
+        client_for_unit_testing.cookies.set(settings.GUEST_QUOTA_COOKIE, guest_id)
         response = await client_for_unit_testing.post(
             f"{TEST_API}/images/generations",
             json=self._payload,
-            cookies={"guest_generation_id": str(uuid4())},
         )
+        client_for_unit_testing.cookies.delete(settings.GUEST_QUOTA_COOKIE)
 
         assert response.status_code == status.HTTP_202_ACCEPTED
         assert response.json()["guest_limit"] == 3
@@ -64,11 +67,13 @@ class TestGenerateImageEndpoint:
         mock_route_image_generation_service.submit_job.side_effect = (
             ImageGenerationLimitExceededError(retry_after=3600, limit=3)
         )
+        guest_id = str(uuid4())
+        client_for_unit_testing.cookies.set(settings.GUEST_QUOTA_COOKIE, guest_id)
         response = await client_for_unit_testing.post(
             f"{TEST_API}/images/generations",
             json=self._payload,
-            cookies={"guest_generation_id": str(uuid4())},
         )
+        client_for_unit_testing.cookies.delete(settings.GUEST_QUOTA_COOKIE)
 
         assert response.status_code == status.HTTP_429_TOO_MANY_REQUESTS
 
@@ -85,7 +90,7 @@ class TestGenerateImageEndpoint:
 
         set_cookie_header = response.headers.get("set-cookie", "")
         assert response.status_code == status.HTTP_202_ACCEPTED
-        assert "guest_generation_id=" in set_cookie_header
+        assert f"{settings.GUEST_QUOTA_COOKIE}=" in set_cookie_header
         assert "Secure" not in set_cookie_header
 
     async def test_location_header_points_to_status_endpoint(

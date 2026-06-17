@@ -1,9 +1,8 @@
-from datetime import datetime
 from uuid import UUID
 from typing import Generic, Optional, TypeVar, Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import func, select, update, asc, desc, or_
+from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
 from shared.exceptions.base_exceptions import NoFieldInTheModelError
@@ -14,20 +13,11 @@ from shared.models.models_base_class import Base
 ModelType = TypeVar("ModelType", bound=Base)
 
 
-# TODO: make simplification of a base class to only methods like ????:
-# get_by_id
-# get_by_field
-# create
-# update
-# delete
 class BaseRepository(Generic[ModelType]):
     """
-    A database service layer.
-    Generic repository for CRUD operations.
+    Generic repository for basic CRUD operations.
     Can be used with any SQLAlchemy model.
     """
-    # list of fields that must always use equality, even if string type
-    EQUAL_ONLY_FIELDS: list[str] = ["sku", "id", "uuid", "email", "phone_number"]
 
     def __init__(self, session: AsyncSession, model: type[ModelType]):
         self.session: AsyncSession = session
@@ -63,109 +53,24 @@ class BaseRepository(Generic[ModelType]):
         result = await self.session.execute(query)
         return result.scalar_one_or_none()
 
-    async def get_by_id_with_lock(self, item_id: UUID) -> ModelType | None:
-        """Get a record by ID with a row-level exclusive lock (SELECT FOR UPDATE).
-
-        Use inside an open transaction when you need to read-then-write without
-        another concurrent transaction being able to modify the row in between.
-        Prefer atomic_update_by_id for simple numeric adjustments.
-        """
-        query = (
-            select(self.model)
-            .where(self.model.id == item_id)
-            .with_for_update()
-        )
-        result = await self.session.execute(query)
-        return result.scalar_one_or_none()
-
     async def get_all(self,
                       filters: dict[str, Any] | None = None,
                       sort_by: Optional[str] = None,
                       sort_order: Optional[str] = "asc",
                       limit: Optional[int] = 50,
-                      offset: Optional[int] = None,
-                      date_filters: Optional[dict[str, datetime]] = None,
-                      search_term: Optional[str] = None,
-                      search_fields: Optional[list[str]] = None,
-                      load_relations: Optional[list[str]] = None,
-                      range_filters: Optional[dict[str, tuple]] = None) -> list[ModelType]:
-        """
-        Universal 'get all' method with:
-        - Dynamic filters
-        - Optional search (on multiple fields)
-        - Sorting, pagination
-        - Relationship loading
-        """
+                      offset: Optional[int] = None) -> list[ModelType]:
+        """Get all records with optional equality filters, sorting and pagination."""
         query = select(self.model)
 
-        # Relationship loading
-        if load_relations:
-            for relation in load_relations:
-                if hasattr(self.model, relation):
-                    query = query.options(selectinload(getattr(self.model, relation)))
-
-        # Filters
         if filters:
             for key, value in filters.items():
-                if not hasattr(self.model, key):
-                    continue
-                # Determine if equality or LIKE should be used
-                column = getattr(self.model, key)
-                if isinstance(value, str) and key not in self.EQUAL_ONLY_FIELDS:
-                    # Use case-insensitive LIKE for string fields (except those in EQUAL_ONLY_FIELDS)
-                    query = query.where(column.ilike(f"%{value}%"))
-                else:
-                    query = query.where(column == value)
+                if hasattr(self.model, key):
+                    query = query.where(getattr(self.model, key) == value)
 
-        # Range filters (for price, quantity, etc)
-        if range_filters:
-            for field_name, (min_value, max_value) in range_filters.items():
-                if not hasattr(self.model, field_name):
-                    continue
-                column = getattr(self.model, field_name)
-                if min_value is not None and max_value is not None:
-                    query = query.where(column.between(min_value, max_value))
-                elif min_value is not None:
-                    query = query.where(column >= min_value)
-                elif max_value is not None:
-                    query = query.where(column <= max_value)
-
-        # Search across multiply fields
-        if search_term and search_fields:
-            conditions = [
-                getattr(self.model, field).ilike(f"%{search_term}%")
-                for field in search_fields
-                if hasattr(self.model, field)
-            ]
-            if conditions:
-                query = query.where(or_(*conditions))
-
-
-        # Date range filters
-        if date_filters:
-            range_map = {
-                "date_created": ("date_created_from", "date_created_to"),
-                "date_updated": ("date_updated_from", "date_updated_to")
-            }
-            for column_name, (from_key, to_key) in range_map.items():
-                column = getattr(self.model, column_name, None)
-                if column is None:
-                    continue
-                start = date_filters.get(from_key)
-                end = date_filters.get(to_key)
-                if start and end:
-                    query = query.where(column.between(start, end))
-                elif start:
-                    query = query.where(column >= start)
-                elif end:
-                    query = query.where(column <= end)
-
-        # Sorting
         if sort_by and hasattr(self.model, sort_by):
-            order_func = asc if sort_order == "asc" else desc
-            query = query.order_by(order_func(getattr(self.model, sort_by)))
+            order_clause = getattr(self.model, sort_by).asc() if sort_order == "asc" else getattr(self.model, sort_by).desc()
+            query = query.order_by(order_clause)
 
-        # Pagination
         if offset is not None:
             query = query.offset(offset)
         if limit:
@@ -190,33 +95,6 @@ class BaseRepository(Generic[ModelType]):
         result = await self.session.execute(
             select(self.model).where(getattr(self.model, field_name) == value).limit(limit)
         )
-        return list(result.scalars().all())
-
-    async def get_many_by_field_with_lock(
-        self,
-        field_name: str,
-        value: str | UUID | bool,
-        limit: int = 50,
-    ) -> list[ModelType]:
-        """Get multiple records by field value with a row-level exclusive lock.
-
-        Uses ``SELECT … FOR UPDATE SKIP LOCKED`` so that concurrent callers
-        (e.g. multiple outbox poller workers) each receive a *disjoint* set of
-        rows.  Rows already locked by another transaction are silently skipped
-        rather than causing the query to block or fail.
-
-        Must be called inside an open transaction — the lock is held until the
-        transaction commits or rolls back.
-        """
-        if not hasattr(self.model, field_name):
-            raise NoFieldInTheModelError(field_name=field_name, model_name=self.model.__name__)
-        query = (
-            select(self.model)
-            .where(getattr(self.model, field_name) == value)
-            .limit(limit)
-            .with_for_update(skip_locked=True)
-        )
-        result = await self.session.execute(query)
         return list(result.scalars().all())
 
     async def filter_by(self, **kwargs) -> list[ModelType]:
@@ -246,60 +124,6 @@ class BaseRepository(Generic[ModelType]):
         await self.session.flush()
         await self.session.refresh(obj)
         return obj
-
-    async def atomic_decrement_quantity(self, item_id: UUID, requested: int) -> ModelType | None:
-        """Atomically decrement `quantity` by *requested* only if sufficient stock exists.
-
-        Issues a single ``UPDATE … WHERE quantity >= requested AND in_stock = TRUE``
-        statement so the check and the decrement happen in one atomic DB operation.
-        No separate SELECT is needed, which eliminates the TOCTOU race condition
-        that arises from the classic read-check-write pattern.
-
-        Returns the updated model instance on success, or ``None`` when the row
-        was not found or did not have enough stock (0 rows affected).
-        """
-        if not hasattr(self.model, "quantity") or not hasattr(self.model, "in_stock"):
-            raise AttributeError(f"Model {self.model.__name__} does not have 'quantity'/'in_stock' fields")
-
-        stmt = (
-            update(self.model)
-            .where(
-                self.model.id == item_id,
-                self.model.quantity >= requested,
-                self.model.in_stock == True,  
-            )
-            .values(
-                quantity=self.model.quantity - requested,
-                in_stock=self.model.quantity - requested > 0,
-            )
-            .returning(self.model)
-        )
-        result = await self.session.execute(stmt)
-        row = result.scalar_one_or_none()
-        return row
-
-    async def atomic_increment_quantity(self, item_id: UUID, amount: int) -> Optional[ModelType]:
-        """Atomically increment ``quantity`` by *amount* and mark the product in-stock.
-
-        Used for inventory release (SAGA compensation). Single UPDATE statement
-        avoids the read-then-write race that ``release_inventory`` previously had.
-
-        Returns the updated model instance, or ``None`` if the row was not found.
-        """
-        if not hasattr(self.model, "quantity") or not hasattr(self.model, "in_stock"):
-            raise AttributeError(f"Model {self.model.__name__} does not have 'quantity'/'in_stock' fields")
-
-        stmt = (
-            update(self.model)
-            .where(self.model.id == item_id)
-            .values(
-                quantity=self.model.quantity + amount,
-                in_stock=True,
-            )
-            .returning(self.model)
-        )
-        result = await self.session.execute(stmt)
-        return result.scalar_one_or_none()
 
     async def update_by_field(self, field_name: str, value: str, **kwargs) -> ModelType | None:
         """Update a record by field value with new values"""

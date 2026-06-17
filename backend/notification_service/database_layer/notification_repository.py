@@ -6,10 +6,11 @@ from sqlalchemy import update
 
 from models.notification_models import Notification
 from shared.database_layer.database_layer import BaseRepository
+from shared.database_layer.repository_mixins import AdvancedQueryMixin
 
 
-class NotificationRepository(BaseRepository[Notification]):
-    """Extends BaseRepository with notification-specific query methods."""
+class NotificationRepository(AdvancedQueryMixin[Notification], BaseRepository[Notification]):
+    """Repository for notification-specific database operations."""
 
     def __init__(self, session: AsyncSession):
         super().__init__(session, Notification)

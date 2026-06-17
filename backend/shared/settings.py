@@ -166,7 +166,7 @@ class Settings(BaseSettings):
     PRODUCT_IMAGE_GUEST_GENERATION_LIMIT: int = 3
     PRODUCT_IMAGE_REGISTERED_GENERATION_LIMIT: int = 10
     PRODUCT_IMAGE_GUEST_GENERATION_WINDOW_HOURS: int = 24
-    GUEST_QUOTA_COOKIE: str = "guest_generation_id"
+    GUEST_QUOTA_COOKIE: str
 
     # Other
     SECRET_ROLE: str
@@ -468,7 +468,7 @@ class TestSettings(BaseSettings):
     MOCK_UPSTREAM_RESPONSE_BODY: dict = {"status": "ok", "data": "upstream_result"}
 
     # ── Auth request payload helpers ─────────────────────────────────────────
-    REGISTER_PAYLOAD: dict = {"name": "Test User", "email": "test@example.com", "password": "secret123"}
+    REGISTER_PAYLOAD: dict = {"name": "Test User", "email": "test@example.com", "password": "Password123!"}
     LOGIN_DATA: dict[str, str] = {"username": "test@example.com", "password": "secret123"}
 
 

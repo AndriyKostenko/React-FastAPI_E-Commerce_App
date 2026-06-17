@@ -717,29 +717,51 @@ Redis Idempotency Flow:
 
 
 ## Pytest
- 1. uv run pytest
- 2. uv run pytest tests/test_user_service
- 3. # Run all tests (unit + integration)
- docker compose --profile test run --rm user-service-test
- 
- # Run only integration tests
- docker compose --profile test run --rm user-service-test \
-   python -m pytest tests/ -v -k integration
- 
- # Run only unit tests (no DB needed, but works here too)
- docker compose --profile test run --rm user-service-test \
-   python -m pytest tests/ -v -k "not integration"
 
-4. docker compose \
-  -f docker-compose.yml \
-  -f docker-compose.test.yml \
-  run --rm --build user-service-test - for runnig the tests into a separate container
+### Local development (fast feedback)
 
-5. docker compose -f docker-compose.yml -f docker-compose.test.yml --profile test up --build --abort-on-container-exit
+```bash
+# Unit tests only — no Docker/DB required
+cd backend/<service_name>
 
-6. cd backend
-./run_tests.sh --build   # first time (builds images)
-./run_tests.sh           # subsequent runs (faster, no rebuild)
+# run tests
+uv run pytest tests/ -v -k "not integration"
+```
+
+### Full test suite in Docker (unit + integration)
+
+```bash
+cd backend
+
+# First run / after dependency or Dockerfile changes
+./run_tests.sh --build
+
+# Subsequent runs (reuses images)
+./run_tests.sh
+```
+
+### One service only
+
+```bash
+cd backend
+docker compose -f docker-compose.yml -f docker-compose.test.yml run --rm --build user-service-test
+```
+
+### Filter by test type inside a container
+
+```bash
+cd backend
+
+# Integration only
+docker compose -f docker-compose.yml -f docker-compose.test.yml run --rm user-service-test \
+  python -m pytest tests/ -v -k integration
+
+# Unit only
+docker compose -f docker-compose.yml -f docker-compose.test.yml run --rm user-service-test \
+  python -m pytest tests/ -v -k "not integration"
+```
+
+> **Note:** Integration tests require the Docker infrastructure (`db`, `redis`, `rabbitmq`) and use the real PostgreSQL test database defined in `.env`.
 
 
 ## k6 - load testing

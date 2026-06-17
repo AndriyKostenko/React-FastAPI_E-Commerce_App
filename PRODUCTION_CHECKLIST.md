@@ -20,7 +20,7 @@ This checklist covers all essential and advanced items to get your FastAPI micro
 - [ ] Strong request/response validation (Pydantic models)
 - [ ] Sensible HTTP status codes for all responses
 - [ ] Proper use of response models (no leaking sensitive info)
-- [ ] Rate limiting Redis / ([slowapi](https://pypi.org/project/slowapi/), API gateway) 
+- [ ] Rate limiting Redis / API gateway 
 - [ ] CORS securely configured
 - [ ] HTTPS enforced (SSL/TLS)
 - [✅] Authentication (JWT/OAuth2, external IdP, or internal)

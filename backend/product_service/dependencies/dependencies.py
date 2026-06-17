@@ -135,12 +135,10 @@ def get_image_generation_service(
     )
 
 
-def get_user_context_resolver(
-    image_generation_service: ImageGenerationService = Depends(get_image_generation_service),
-) -> UserContextResolver:
+def get_user_context_resolver() -> UserContextResolver:
     """Dependency to provide UserContextResolver for resolving authenticated/guest user context."""
     return UserContextResolver(
-        guest_quota_cookie_name=image_generation_service.GUEST_QUOTA_COOKIE,
+        guest_quota_cookie_name=settings.GUEST_QUOTA_COOKIE,
         settings=settings,
     )
 

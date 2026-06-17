@@ -84,12 +84,12 @@ class TestGetUnprocessedEvents:
         mock_outbox_repository: MagicMock,
     ) -> None:
         events = [_make_outbox_orm(), _make_outbox_orm()]
-        mock_outbox_repository.get_many_by_field.return_value = events
+        mock_outbox_repository.get_many_by_field_with_lock.return_value = events
 
         result = await mock_outbox_event_service.get_unprocessed_events()
 
         assert len(result) == 2
-        mock_outbox_repository.get_many_by_field.assert_awaited_once_with(
+        mock_outbox_repository.get_many_by_field_with_lock.assert_awaited_once_with(
             field_name="processed", value=False, limit=50
         )
 
@@ -98,11 +98,11 @@ class TestGetUnprocessedEvents:
         mock_outbox_event_service,
         mock_outbox_repository: MagicMock,
     ) -> None:
-        mock_outbox_repository.get_many_by_field.return_value = [_make_outbox_orm()]
+        mock_outbox_repository.get_many_by_field_with_lock.return_value = [_make_outbox_orm()]
 
         await mock_outbox_event_service.get_unprocessed_events(limit=10)
 
-        mock_outbox_repository.get_many_by_field.assert_awaited_once_with(
+        mock_outbox_repository.get_many_by_field_with_lock.assert_awaited_once_with(
             field_name="processed", value=False, limit=10
         )
 
@@ -111,7 +111,7 @@ class TestGetUnprocessedEvents:
         mock_outbox_event_service,
         mock_outbox_repository: MagicMock,
     ) -> None:
-        mock_outbox_repository.get_many_by_field.return_value = None
+        mock_outbox_repository.get_many_by_field_with_lock.return_value = []
 
         with pytest.raises(OutboxEventNotFoundError):
             await mock_outbox_event_service.get_unprocessed_events()

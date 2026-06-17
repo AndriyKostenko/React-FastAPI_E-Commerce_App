@@ -3,20 +3,21 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.user_models import User
 from shared.database_layer.database_layer import BaseRepository
+from shared.database_layer.repository_mixins import AdvancedQueryMixin
 
 
-class UserRepository(BaseRepository[User]):
+class UserRepository(AdvancedQueryMixin[User], BaseRepository[User]):
     """
-    This class extends BaseRepository to provide specific methods
-    for managing users in the database.
+    Repository for user-specific database operations.
     """
+
+    # String fields that must use equality rather than ILIKE in get_all().
+    EQUAL_ONLY_FIELDS: list[str] = ["id", "uuid", "email", "phone_number"]
 
     def __init__(self, session: AsyncSession):
         super().__init__(session, User)
         self.search_fields: list[str] = User.get_search_fields()
 
-
-    # TODO: make this repository more specific to user and make BaseRepository simplier for basic CRUD operations
     async def search(self,
                     filters: dict[str, Any],
                     search_term: str | None,

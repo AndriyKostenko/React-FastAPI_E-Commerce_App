@@ -26,7 +26,7 @@ from dependencies.dependencies import get_db_session, get_payment_service, get_o
 from service_layer.payment_service import PaymentService
 from service_layer.outbox_event_service import OutboxEventService
 from shared.database_layer.outbox_repository import OutboxRepository
-from shared.shared_instances import test_payment_service_database_session_manager
+from shared.shared_instances import settings, test_payment_service_database_session_manager
 from shared.schemas.payment_schemas import PaymentSchema
 from shared.enums.status_enums import PaymentStatus
 from tests.constants import (
@@ -42,6 +42,19 @@ from tests.constants import (
     TEST_API,
     MOCK_PAYMENT_INTENT_RESULT,
 )
+
+
+from shared.testing.helpers import allow_testserver_host
+
+
+# ---------------------------------------------------------------------------
+# Host-validation bypass for ASGI test client
+# ---------------------------------------------------------------------------
+
+@pytest.fixture(autouse=True)
+def _allow_testserver_host() -> None:
+    """Make the default httpx/TestClient host ('testserver') pass host checks."""
+    allow_testserver_host()
 
 
 # ---------------------------------------------------------------------------
@@ -90,7 +103,7 @@ def mock_outbox_repository() -> MagicMock:
     """Mock OutboxRepository — all async methods are AsyncMock instances."""
     repo = MagicMock()
     repo.create = AsyncMock()
-    repo.get_many_by_field = AsyncMock()
+    repo.get_many_by_field_with_lock = AsyncMock()
     repo.update_by_id = AsyncMock()
     return repo
 
@@ -215,12 +228,16 @@ async def client_for_unit_testing(
     mock_idempotency.mark_event_as_processed = AsyncMock(return_value=None)
     mock_idempotency.release_claim = AsyncMock(return_value=None)
 
+    original_debug_mode = settings.DEBUG_MODE
+    settings.DEBUG_MODE = True
+
     with patch("routes.payment_routes.idempotency_service", mock_idempotency):
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as async_client:
             yield async_client
 
     app.dependency_overrides.clear()
     app.router.lifespan_context = original_lifespan
+    settings.DEBUG_MODE = original_debug_mode
 
 
 # ---------------------------------------------------------------------------
@@ -286,6 +303,9 @@ async def integration_client() -> AsyncGenerator[AsyncClient, Any]:
         svc._stripe = stripe_mock
         return svc
 
+    original_debug_mode = settings.DEBUG_MODE
+    settings.DEBUG_MODE = True
+
     original_lifespan = app.router.lifespan_context
     app.router.lifespan_context = _noop_lifespan
 
@@ -304,5 +324,6 @@ async def integration_client() -> AsyncGenerator[AsyncClient, Any]:
 
     app.dependency_overrides.clear()
     app.router.lifespan_context = original_lifespan
+    settings.DEBUG_MODE = original_debug_mode
 
     await test_payment_service_database_session_manager.truncate_all_tables()

@@ -1,4 +1,5 @@
 "use client";
+import Button from "@/components/ui/Button";
 
 import { MdAutoAwesome, MdRefresh, MdElectricBolt } from "react-icons/md";
 import {
@@ -211,12 +212,11 @@ const GenerationPanel = ({ isGenerating,
 
                     <div className="flex flex-wrap items-center gap-2.5 pt-1 w-full flex-shrink-0">
                         <div className="relative flex-1 min-w-[220px]">
-                            <button
+                            <Button
                                 onClick={handleGenerate}
-                                disabled={
-                                    isGenerating || isGenerationLimitReached
-                                }
-                                className="w-full bg-brand-lime text-primary py-2.5 pl-6 pr-12 rounded-2xl font-label-bold flex items-center justify-center gap-2 hover:shadow-xl transition-all active:scale-95 disabled:opacity-75"
+                                disabled={isGenerating || isGenerationLimitReached}
+                                variant="keyboard"
+                                custom="w-full py-2.5 pl-6 pr-12"
                             >
                                 <MdAutoAwesome
                                     className={`text-base ${isGenerating ? "animate-spin" : ""}`}
@@ -228,27 +228,27 @@ const GenerationPanel = ({ isGenerating,
                                       : session.phase === "running"
                                         ? "Generating..."
                                         : "Generate Now"}
-                            </button>
+                            </Button>
                             <span className="pointer-events-none absolute -top-2 -right-2 z-20 inline-flex min-w-11 items-center justify-center rounded-full bg-primary px-2.5 py-1 text-[11px] leading-none text-white shadow-md ring-2 ring-white/90">
                                 {session.generationCounter.used}/
                                 {session.generationCounter.limit}
                             </span>
                         </div>
-                        <button
+                        <Button
                             onClick={handleSelectPreviousState}
                             disabled={isGenerating || !canCycleGeneratedStates}
-                            className="border border-primary/20 text-primary p-2.5 rounded-2xl font-label-bold hover:bg-white/40 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                            variant="secondary"
                             title="Browse generated states"
                         >
                             <MdRefresh className="text-lg" />
-                        </button>
-                        <button
+                        </Button>
+                        <Button
                             onClick={handleRandomPresetPrompt}
-                            className="border border-primary/20 text-primary p-2.5 rounded-2xl font-label-bold hover:bg-white/40 transition-all active:scale-95"
+                            variant="secondary"
                             title="Random Prompt"
                         >
                             <MdElectricBolt className="text-lg" />
-                        </button>
+                        </Button>
                     </div>
                 </div>
             </div>

@@ -21,7 +21,8 @@ class ImageGenerationInterface(ABC):
 					        style: str,
 					        is_guest_user: bool,
 					        guest_id: UUID | None = None,
-					        user_id: UUID | None = None) -> BaseModel:
+					        user_id: UUID | None = None,
+                            remove_background: bool = False) -> BaseModel:
         """Generate an image synchronously and return the result."""
         ...
 
@@ -42,7 +43,7 @@ class ImageGenerationInterface(ABC):
         ...
 
     @abstractmethod
-    async def run_job(self, job_id: str, prompt: str, style: str) -> None:
+    async def run_job(self, job_id: str, prompt: str, style: str, remove_background: bool = False) -> None:
         """Execute generation in the background and update job state in Redis."""
         ...
 
@@ -103,9 +104,10 @@ class ImageGenerationService(ImageGenerationInterface):
 					        style: str,
 					        is_guest_user: bool,
 					        guest_id: UUID | None = None,
-					        user_id: UUID | None = None) -> GenerateImageResponse:
+					        user_id: UUID | None = None,
+                            remove_background: bool = False) -> GenerateImageResponse:
         remaining_generations = await self._consume_quota(is_guest_user, guest_id, user_id)
-        image_payload, model = await self._openrouter_client.generate(prompt, style)
+        image_payload, model = await self._openrouter_client.generate(prompt, style, remove_background)
         image_url = await self._storage_service.save(image_payload)
         self._logger.debug(f"Image generated and saved: {image_url}")
 
@@ -136,10 +138,10 @@ class ImageGenerationService(ImageGenerationInterface):
         return remaining_generations
 
     @override
-    async def run_job(self, job_id: str, prompt: str, style: str) -> None:
+    async def run_job(self, job_id: str, prompt: str, style: str, remove_background: bool = False) -> None:
         await self._job_store.set_state(job_id, "running")
         try:
-            image_payload, model = await self._openrouter_client.generate(prompt, style)
+            image_payload, model = await self._openrouter_client.generate(prompt, style, remove_background)
             image_url = await self._storage_service.save(image_payload)
             await self._job_store.set_state(job_id,
             								"completed",

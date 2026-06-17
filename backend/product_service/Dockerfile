@@ -128,7 +128,7 @@ RUN apt-get update \
     && mkdir -p /media/images \
     && mkdir -p /media/icons \
     && mkdir -p /media/generated \
-    && mkdir -p /tmp/prometheus_multiproc \
+    && mkdir -p /tmp/prometheus_multiproc/product-service \
     && chown -R productuser:productgroup /app \
     && chown -R productuser:productgroup /media \
     && chmod -R 755 /media \

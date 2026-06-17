@@ -149,13 +149,13 @@ async def get_product_by_id(
 
 @product_routes.get(
     "/products/{product_id}/detailed",
-    response_model=ProductBase,
-    response_description="Product by ID",
+    response_model=ProductSchema,
+    response_description="Product by ID with relations",
     status_code=status.HTTP_200_OK,
 )
 async def get_product_by_id_detailed(
     request: Request, product_id: UUID, product_service: product_service_dependency
-) -> ProductBase:
+) -> ProductSchema:
     product = await product_service.get_product_by_id_with_relations(
         product_id=product_id
     )

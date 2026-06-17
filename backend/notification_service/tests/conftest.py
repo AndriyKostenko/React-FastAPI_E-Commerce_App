@@ -21,7 +21,7 @@ from main import app
 from database_layer.notification_repository import NotificationRepository
 from dependencies.dependencies import get_db_session, get_notification_service
 from service_layer.notification_service import NotificationService
-from shared.shared_instances import test_notification_service_database_session_manager, test_settings
+from shared.shared_instances import settings, test_notification_service_database_session_manager, test_settings
 from shared.schemas.notifications_schemas import NotificationInfo
 from tests.constants import (
     TEST_NOTIFICATION_ID,
@@ -31,6 +31,19 @@ from tests.constants import (
     TEST_DATETIME,
     MOCK_NOTIFICATION_RESULT,
 )
+
+
+from shared.testing.helpers import allow_testserver_host
+
+
+# ---------------------------------------------------------------------------
+# Host-validation bypass for ASGI test client
+# ---------------------------------------------------------------------------
+
+@pytest.fixture(autouse=True)
+def _allow_testserver_host() -> None:
+    """Make the default httpx/TestClient host ('testserver') pass host checks."""
+    allow_testserver_host()
 
 
 # ---------------------------------------------------------------------------
@@ -115,6 +128,9 @@ async def client_for_unit_testing(
     Async HTTP test client for route-level unit tests.
     Replaces the FastAPI lifespan with a no-op and overrides the notification service.
     """
+    original_debug_mode = settings.DEBUG_MODE
+    settings.DEBUG_MODE = True
+
     original_lifespan = app.router.lifespan_context
     app.router.lifespan_context = _noop_lifespan
     app.dependency_overrides[get_notification_service] = lambda: mock_route_notification_service
@@ -124,6 +140,7 @@ async def client_for_unit_testing(
 
     app.dependency_overrides.clear()
     app.router.lifespan_context = original_lifespan
+    settings.DEBUG_MODE = original_debug_mode
 
 
 # ---------------------------------------------------------------------------
@@ -157,6 +174,9 @@ async def integration_client() -> AsyncGenerator[AsyncClient, Any]:
     ) -> NotificationService:
         return NotificationService(repository=NotificationRepository(session=session))
 
+    original_debug_mode = settings.DEBUG_MODE
+    settings.DEBUG_MODE = True
+
     original_lifespan = app.router.lifespan_context
     app.router.lifespan_context = _noop_lifespan
 
@@ -168,5 +188,6 @@ async def integration_client() -> AsyncGenerator[AsyncClient, Any]:
 
     app.dependency_overrides.clear()
     app.router.lifespan_context = original_lifespan
+    settings.DEBUG_MODE = original_debug_mode
 
     await test_notification_service_database_session_manager.truncate_all_tables()

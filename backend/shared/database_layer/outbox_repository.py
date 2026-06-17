@@ -1,10 +1,11 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from shared.database_layer.database_layer import BaseRepository
+from shared.database_layer.repository_mixins import LockableRepositoryMixin
 from shared.models.outbox_events import OutboxEvent
-from .database_layer import BaseRepository
 
 
-class OutboxRepository(BaseRepository[OutboxEvent]):
+class OutboxRepository(BaseRepository[OutboxEvent], LockableRepositoryMixin[OutboxEvent]):
     """
     This class extends BaseRepository to provide specific methods
     for managing outbox events in the database.

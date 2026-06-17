@@ -21,7 +21,7 @@ from httpx import AsyncClient, ASGITransport
 from main import app
 from middleware.auth_middleware import auth_middleware
 from gateway.apigateway import api_gateway_manager
-from shared.shared_instances import api_gateway_cache_manager, api_gateway_rate_limit_manager, test_settings
+from shared.shared_instances import api_gateway_cache_manager, api_gateway_rate_limit_manager, settings, test_settings
 from shared.schemas.user_schemas import CurrentUserInfo
 from tests.constants import (
     TEST_USER_ID,
@@ -32,6 +32,19 @@ from tests.constants import (
     TEST_ADMIN_ROLE,
     MOCK_UPSTREAM_RESPONSE_BODY,
 )
+
+
+from shared.testing.helpers import allow_testserver_host
+
+
+# ---------------------------------------------------------------------------
+# Host-validation bypass for ASGI test client
+# ---------------------------------------------------------------------------
+
+@pytest.fixture(autouse=True)
+def _allow_testserver_host() -> None:
+    """Make the default httpx/TestClient host ('testserver') pass host checks."""
+    allow_testserver_host()
 
 
 # ---------------------------------------------------------------------------
@@ -70,6 +83,9 @@ def mock_forward() -> AsyncMock:
 def _make_client(current_user: CurrentUserInfo, mock_forward: AsyncMock):
     """Context manager returning an AsyncClient with all gateway dependencies mocked."""
 
+    original_debug_mode = settings.DEBUG_MODE
+    settings.DEBUG_MODE = True
+
     original_lifespan = app.router.lifespan_context
     app.router.lifespan_context = _noop_lifespan
 
@@ -101,6 +117,7 @@ def _make_client(current_user: CurrentUserInfo, mock_forward: AsyncMock):
             for p in reversed(patches):
                 p.stop()
             app.router.lifespan_context = original_lifespan
+            settings.DEBUG_MODE = original_debug_mode
 
     return _ClientContextManager()
 

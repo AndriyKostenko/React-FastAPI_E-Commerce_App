@@ -3,6 +3,8 @@
 
 # environment variables
 .env
+.env.ci
+.env 2
 /backend/.env
 /backend/admin-js-service/.env
 /backend/user_service/.env

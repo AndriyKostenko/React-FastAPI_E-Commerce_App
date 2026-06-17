@@ -87,6 +87,19 @@ async def stripe_webhook(
 
 
 @payment_routes.get(
+    "/payments",
+    summary="List all payments (admin)",
+    response_model=list[PaymentResponse],
+    status_code=status.HTTP_200_OK,
+)
+async def get_payments(
+    request: Request,
+    payment_service: payment_service_dependency,
+) -> list[PaymentResponse]:
+    return await payment_service.get_payments()
+
+
+@payment_routes.get(
     "/payments/{payment_id}",
     summary="Get payment by ID",
     response_model=PaymentResponse,
@@ -98,16 +111,3 @@ async def get_payment_by_id(
     payment_service: payment_service_dependency,
 ) -> PaymentResponse:
     return await payment_service.get_payment_by_id(payment_id)
-
-
-@payment_routes.get(
-    "/payments",
-    summary="List all payments (admin)",
-    response_model=list[PaymentResponse],
-    status_code=status.HTTP_200_OK,
-)
-async def get_payments(
-    request: Request,
-    payment_service: payment_service_dependency,
-) -> list[PaymentResponse]:
-    return await payment_service.get_payments()

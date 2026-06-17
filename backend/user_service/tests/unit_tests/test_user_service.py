@@ -329,7 +329,7 @@ class TestVerifyEmail:
         mock_token_manager.decode_token.return_value = decoded
         mock_repository.update_by_field.return_value = mock_user_orm
 
-        result = await user_service.verify_email("verification_token")
+        result, access_token, token_expiry = await user_service.verify_email("verification_token")
 
         assert result.email == "test@example.com"
         mock_token_manager.decode_token.assert_called_once_with(

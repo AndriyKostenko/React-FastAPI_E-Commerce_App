@@ -34,7 +34,7 @@ from service_layer.order_item_service import OrderItemService
 from service_layer.order_address_service import OrderAddressService
 from service_layer.outbox_event_service import OutboxEventService
 from shared.database_layer.outbox_repository import OutboxRepository
-from shared.shared_instances import test_order_service_database_session_manager
+from shared.shared_instances import settings, test_order_service_database_session_manager
 from shared.enums.status_enums import OrderStatus, OrderDeliveryStatus
 from tests.constants import (
     TEST_ORDER_ID,
@@ -49,6 +49,19 @@ from tests.constants import (
     TEST_CURRENCY,
     MOCK_ORDER_RESULT,
 )
+
+
+from shared.testing.helpers import allow_testserver_host
+
+
+# ---------------------------------------------------------------------------
+# Host-validation bypass for ASGI test client
+# ---------------------------------------------------------------------------
+
+@pytest.fixture(autouse=True)
+def _allow_testserver_host() -> None:
+    """Make the default httpx/TestClient host ('testserver') pass host checks."""
+    allow_testserver_host()
 
 
 # ---------------------------------------------------------------------------
@@ -293,6 +306,9 @@ async def integration_client() -> AsyncGenerator[AsyncClient, Any]:
             outbox_event_service=outbox_event_service,
         )
 
+    original_debug_mode = settings.DEBUG_MODE
+    settings.DEBUG_MODE = True
+
     original_lifespan = app.router.lifespan_context
     app.router.lifespan_context = _noop_lifespan
 
@@ -307,5 +323,6 @@ async def integration_client() -> AsyncGenerator[AsyncClient, Any]:
 
     app.dependency_overrides.clear()
     app.router.lifespan_context = original_lifespan
+    settings.DEBUG_MODE = original_debug_mode
 
     await test_order_service_database_session_manager.truncate_all_tables()

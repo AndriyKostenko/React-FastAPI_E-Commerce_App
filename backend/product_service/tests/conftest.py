@@ -54,12 +54,25 @@ from service_layer.product_service import ProductService
 from service_layer.review_service import ReviewService
 from service_layer.product_image_service import ProductImageService
 from service_layer.image_generation_service import ImageGenerationService
-from shared.shared_instances import test_product_service_database_session_manager, test_settings
+from shared.shared_instances import settings, test_product_service_database_session_manager, test_settings
 from shared.schemas.product_schemas import ProductBase, ProductSchema
 from shared.schemas.category_schema import CategorySchema
 from shared.schemas.review_schemas import ReviewSchema
 from shared.schemas.product_image_schema import ImageType
 from shared.schemas.image_generation_schema import GenerateImageResponse, ImageGenerationJobStatusResponse
+
+
+from shared.testing.helpers import allow_testserver_host
+
+
+# ---------------------------------------------------------------------------
+# Host-validation bypass for ASGI test client
+# ---------------------------------------------------------------------------
+
+@pytest.fixture(autouse=True)
+def _allow_testserver_host() -> None:
+    """Make the default httpx/TestClient host ('testserver') pass host checks."""
+    allow_testserver_host()
 
 
 # ---------------------------------------------------------------------------
@@ -269,7 +282,6 @@ def mock_route_review_service() -> MagicMock:
 @pytest.fixture
 def mock_route_image_generation_service() -> MagicMock:
     svc = MagicMock(spec=ImageGenerationService)
-    svc.GUEST_QUOTA_COOKIE = "guest_generation_id"
     svc.settings = MagicMock()
     svc.settings.SECURE_COOKIES = False
     svc.settings.PRODUCT_IMAGE_GUEST_GENERATION_WINDOW_HOURS = 24
@@ -313,6 +325,9 @@ async def client_for_unit_testing(
       attempt live connections.
     - Overrides all service dependencies so no real DB is needed.
     """
+    original_debug_mode = settings.DEBUG_MODE
+    settings.DEBUG_MODE = True
+
     original_lifespan = app.router.lifespan_context
     app.router.lifespan_context = _noop_lifespan
 
@@ -329,6 +344,7 @@ async def client_for_unit_testing(
 
     app.dependency_overrides.clear()
     app.router.lifespan_context = original_lifespan
+    settings.DEBUG_MODE = original_debug_mode
 
 
 # ---------------------------------------------------------------------------
@@ -382,6 +398,9 @@ async def integration_client() -> AsyncGenerator[AsyncClient, Any]:
         return ProductService(ProductRepository(session=session), product_image_service)
 
     # ── 3. Replace the app lifespan so no live infra connections are made ───
+    original_debug_mode = settings.DEBUG_MODE
+    settings.DEBUG_MODE = True
+
     original_lifespan = app.router.lifespan_context
     app.router.lifespan_context = _noop_lifespan
 
@@ -396,6 +415,7 @@ async def integration_client() -> AsyncGenerator[AsyncClient, Any]:
 
     app.dependency_overrides.clear()
     app.router.lifespan_context = original_lifespan
+    settings.DEBUG_MODE = original_debug_mode
 
     # ── 4. Wipe all rows so the next test starts with an empty database ─────
     await test_product_service_database_session_manager.truncate_all_tables()

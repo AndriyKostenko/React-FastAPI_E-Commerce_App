@@ -24,6 +24,19 @@ from shared.managers.token_manager import TokenManager
 from shared.managers.password_manager import PasswordManager
 
 
+from shared.testing.helpers import allow_testserver_host
+
+
+# ---------------------------------------------------------------------------
+# Host-validation bypass for ASGI test client
+# ---------------------------------------------------------------------------
+
+@pytest.fixture(autouse=True)
+def _allow_testserver_host() -> None:
+    """Make the default httpx/TestClient host ('testserver') pass host checks."""
+    allow_testserver_host()
+
+
 # ---------------------------------------------------------------------------
 # ORM / DB fixtures
 # ---------------------------------------------------------------------------
@@ -119,7 +132,7 @@ def user_service(
         repository=mock_repository,
         password_manager=mock_password_manager,
         token_manager=mock_token_manager,
-        redis_manager=mock_redis_manager)
+        cache_manager=mock_redis_manager)
 
 #---------------------------------------------------------------------------
 # Helpers
@@ -141,7 +154,7 @@ def mock_route_service() -> MagicMock:
     """Full mock of UserService for use via app.dependency_overrides in route tests."""
     svc = MagicMock()
     svc.create_user = AsyncMock(return_value=(test_settings.USER_INFO, "verification_token_abc"))
-    svc.verify_email = AsyncMock(return_value=test_settings.USER_INFO)
+    svc.verify_email = AsyncMock(return_value=(test_settings.USER_INFO, "access_tok", 9_999_999_999))
     svc.request_password_reset = AsyncMock(return_value=(test_settings.USER_INFO, "reset_token_abc"))
     svc.reset_password_with_token = AsyncMock(return_value=test_settings.USER_INFO)
     svc.login_user = AsyncMock(
@@ -178,7 +191,11 @@ async def client_for_unit_testing(mock_route_service: MagicMock) -> AsyncGenerat
       attempt live connections to PostgreSQL, Redis, or RabbitMQ.
     - Overrides the get_user_service and get_current_user FastAPI dependencies.
     - Patches user_events_publisher so events are not published to RabbitMQ.
+    - Bypasses host validation middleware so tests can use the default testserver host.
     """
+
+    original_debug_mode = settings.DEBUG_MODE
+    settings.DEBUG_MODE = True
 
     original_lifespan = app.router.lifespan_context
     app.router.lifespan_context = _noop_lifespan
@@ -199,6 +216,7 @@ async def client_for_unit_testing(mock_route_service: MagicMock) -> AsyncGenerat
         app.dependency_overrides.clear()
 
     app.router.lifespan_context = original_lifespan
+    settings.DEBUG_MODE = original_debug_mode
 
 # ---------------------------------------------------------------------------
 # Integration-test fixtures  (real DB + real service + mock Redis/events)
@@ -279,10 +297,13 @@ async def integration_client(mock_user_events_publisher) -> AsyncGenerator[Async
             repository=UserRepository(session=session),
             password_manager=real_password_manager,
             token_manager=real_token_manager,
-            redis_manager=_mock_redis_manager,
+            cache_manager=_mock_redis_manager,
         )
 
     # ── 5. Replace the app lifespan so no live infra connections are made ───
+    original_debug_mode = settings.DEBUG_MODE
+    settings.DEBUG_MODE = True
+
     original_lifespan = app.router.lifespan_context
     app.router.lifespan_context = _noop_lifespan
 
@@ -294,6 +315,7 @@ async def integration_client(mock_user_events_publisher) -> AsyncGenerator[Async
 
     app.dependency_overrides.clear()
     app.router.lifespan_context = original_lifespan
+    settings.DEBUG_MODE = original_debug_mode
 
     # ── 6. Wipe all rows so the next test starts with an empty database ─────
     await test_user_service_database_session_manager.truncate_all_tables()

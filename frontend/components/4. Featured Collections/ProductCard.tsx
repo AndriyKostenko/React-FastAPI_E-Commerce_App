@@ -1,4 +1,5 @@
 "use client";
+import Button from "@/components/ui/Button";
 
 import { ProductCardProps } from "@/types/product";
 import { formatPrice } from "@/utils/formatPrice";
@@ -30,12 +31,12 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
                     className="object-cover transition-transform duration-500 group-hover:scale-105"
                 />
                 <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                    <button
+                    <Button
+                        label="Quick Add"
                         onClick={handleQuickAdd}
-                        className="bg-brand-lime text-primary px-8 py-3 rounded-full font-label-bold transform translate-y-4 group-hover:translate-y-0 transition-transform select-none active:scale-95"
-                    >
-                        Quick Add
-                    </button>
+                        variant="keyboard"
+                        custom="transform translate-y-4 group-hover:translate-y-0 select-none"
+                    />
                 </div>
             </div>
 

@@ -1,7 +1,15 @@
+import { settings } from "@/lib/config";
+
 export const resolveImageUrl = (url: string): string => {
     if (!url) return "";
-    // Already absolute (generated images) or root-relative (/_next/static/...)
-    if (url.startsWith("http") || url.startsWith("/")) return url;
+    // Already absolute (e.g. Firebase Storage, external CDN)
+    if (url.startsWith("http")) return url;
+    // Generated images are served by the backend at /media/...
+    if (url.startsWith("/media/")) {
+        return `${settings.api.origin}${url}`;
+    }
+    // Root-relative Next.js static assets (e.g. /_next/static/...)
+    if (url.startsWith("/")) return url;
     // Bare relative path only
-    return `${process.env.NEXT_PUBLIC_API_URL}/media/${url}`;
+    return `${settings.api.origin}/media/${url}`;
 };

@@ -5,11 +5,13 @@ All services and infrastructure (DB, Stripe, Redis) are replaced with mocks.
 Tests exercise the HTTP layer: request validation, status codes, and response shape.
 """
 import json
+from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 import pytest
 
+from shared.schemas.payment_schemas import PaymentResponse
 from tests.constants import TEST_PAYMENT_ID, TEST_ORDER_ID, TEST_USER_ID, TEST_EMAIL
 from tests.constants import TEST_STRIPE_INTENT_ID, TEST_CLIENT_SECRET, TEST_AMOUNT, TEST_CURRENCY
 from tests.constants import TEST_API, MOCK_PAYMENT_INTENT_RESULT
@@ -197,11 +199,17 @@ class TestGetPaymentByIdEndpoint:
     async def test_get_payment_returns_200(
         self, client_for_unit_testing, mock_route_payment_service: MagicMock
     ) -> None:
-        mock_payment = MagicMock()
-        mock_payment.id = TEST_PAYMENT_ID
-        mock_payment.order_id = TEST_ORDER_ID
-        mock_payment.status = "pending"
-        mock_route_payment_service.get_payment_by_id.return_value = mock_payment
+        mock_route_payment_service.get_payment_by_id.return_value = PaymentResponse.model_construct(
+            id=TEST_PAYMENT_ID,
+            order_id=TEST_ORDER_ID,
+            user_id=TEST_USER_ID,
+            user_email=TEST_EMAIL,
+            stripe_payment_intent_id="pi_test",
+            amount=9999,
+            currency="usd",
+            status="pending",
+            date_created=datetime.now(),
+        )
 
         response = await client_for_unit_testing.get(
             f"{TEST_API}/payments/{TEST_PAYMENT_ID}"
@@ -229,8 +237,17 @@ class TestGetAllPaymentsEndpoint:
     async def test_get_payments_returns_200(
         self, client_for_unit_testing, mock_route_payment_service: MagicMock
     ) -> None:
-        mock_payment = MagicMock()
-        mock_payment.id = TEST_PAYMENT_ID
+        mock_payment = PaymentResponse.model_construct(
+            id=TEST_PAYMENT_ID,
+            order_id=TEST_ORDER_ID,
+            user_id=TEST_USER_ID,
+            user_email=TEST_EMAIL,
+            stripe_payment_intent_id="pi_test",
+            amount=9999,
+            currency="usd",
+            status="pending",
+            date_created=datetime.now(),
+        )
         mock_route_payment_service.get_payments.return_value = [mock_payment]
 
         response = await client_for_unit_testing.get(f"{TEST_API}/payments")

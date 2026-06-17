@@ -1,3 +1,5 @@
+"use client";
+import Button from "@/components/ui/Button";
 import { Dispatch, SetStateAction } from "react";
 import { SIZE_MEASUREMENTS } from "@/utils/constants";
 
@@ -204,12 +206,11 @@ const AddToCartButton = ({
             <span className="inline-flex items-center justify-center min-w-[48px] md:min-w-[54px] h-4 md:h-5 px-1.5 md:px-4 rounded-full bg-primary text-white font-label-bold text-xs shadow-md">
                 {isPriceLoading ? "..." : formattedPrice}
             </span>
-            <button
+            <Button
+                label="Add to Cart"
                 onClick={onAddToCart}
-                className="w-full max-w-full whitespace-nowrap bg-brand-lime text-primary py-1.5 md:py-2 px-2 md:px-4 rounded-2xl font-label-bold text-xs hover:shadow-xl transition-all active:scale-95"
-            >
-                Add to Cart
-            </button>
+                variant="keyboard"
+            />
         </div>
     );
 };

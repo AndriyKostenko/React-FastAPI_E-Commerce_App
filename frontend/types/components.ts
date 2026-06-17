@@ -16,8 +16,9 @@ export interface AvatarProps {
 
 export interface ActionBtnProps {
     icon: IconType;
-    onClick: (event: MouseEvent<HTMLButtonElement>) => void;
-    disabled?: boolean;
+    
+    variant?: "default" | "keyboard" | "secondary";
+    
 }
 
 export interface StatusProps {
@@ -31,15 +32,19 @@ export interface NullDataProps {
     title: string;
 }
 
-export interface ButtonProps {
-    label: string;
-    disabled?: boolean;
+import type { ButtonHTMLAttributes } from "react";
+
+export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+    label?: string;
+    children?: ReactNode;
+    
     outline?: boolean;
     small?: boolean;
     custom?: string;
     icon?: IconType;
-    type?: "submit" | "button" | "reset";
-    onClick: (event: MouseEvent<HTMLButtonElement>) => void;
+    
+    
+    variant?: "default" | "keyboard" | "secondary";
 }
 
 export interface CartProviderProps {
