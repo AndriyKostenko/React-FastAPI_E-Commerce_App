@@ -31,6 +31,11 @@ class ProductEventsQueue(StrEnum):
     PRODUCT_EVENTS_DEAD_LETTER_QUEUE = "product.events.dlq"
 
 
+class CartEventsQueue(StrEnum):
+    CART_ORDER_EVENTS_QUEUE = "cart.order.events.queue"
+    CART_ORDER_EVENTS_DEAD_LETTER_QUEUE = "cart.order.events.dlq"
+
+
 class UserEvents(StrEnum):
     USER_REGISTERED = "user.registered"
     USER_REGISTRATION_FAILED = "user.registration.failed"

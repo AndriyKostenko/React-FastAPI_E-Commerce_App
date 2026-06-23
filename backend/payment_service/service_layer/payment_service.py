@@ -29,6 +29,7 @@ from shared.schemas.event_schemas import (
 from shared.enums.event_enums import PaymentEvents
 from shared.enums.status_enums import PaymentStatus
 from shared.enums.services_enums import Services
+from shared.schemas.payment_schemas import PaymentResponse
 from shared.settings import Settings
 
 
@@ -58,8 +59,7 @@ class PaymentService:
         user_id: UUID,
         user_email: str,
         amount: int,
-        currency: str,
-    ) -> Any:
+        currency: str) -> Any:
         return self._stripe.v1.payment_intents.create(
             {
                 "amount": amount,
@@ -388,4 +388,4 @@ class PaymentService:
         payments = await self.repository.get_all()
         if not payments:
             raise PaymentsNotFoundError()
-        return payments
+        return [PaymentResponse.model_validate(payment) for payment ]

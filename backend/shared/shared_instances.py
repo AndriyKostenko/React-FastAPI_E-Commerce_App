@@ -39,6 +39,9 @@ user_exchange = RabbitExchange(name="user.events.exchange", durable=True, type=E
 order_exchange = RabbitExchange(name="order.events.exchange", durable=True, type=ExchangeType.TOPIC)
 inventory_exchange = RabbitExchange(name="inventory.events.exchange", durable=True, type=ExchangeType.TOPIC)
 payment_exchange = RabbitExchange(name="payment.events.exchange", durable=True, type=ExchangeType.TOPIC)
+cart_exchange = RabbitExchange(name="cart.events.exchange", durable=True, type=ExchangeType.TOPIC)
+shipping_exchange = RabbitExchange(name="shipping.events.exchange", durable=True, type=ExchangeType.TOPIC)
+wishlist_exchange = RabbitExchange(name="wishlist.events.exchange", durable=True, type=ExchangeType.TOPIC)
 
 
 
@@ -83,6 +86,18 @@ payment_service_redis_manager = CacheManager(service_prefix="payment-service",
                                             redis_url=settings.PAYMENT_SERVICE_REDIS_URL,
                                             logger=logger,
                                             service_api_version=settings.PAYMENT_SERVICE_URL_API_VERSION)
+cart_service_redis_manager = CacheManager(service_prefix="cart-service",
+                                          redis_url=settings.CART_SERVICE_REDIS_URL,
+                                          logger=logger,
+                                          service_api_version=settings.CART_SERVICE_URL_API_VERSION)
+shipping_service_redis_manager = CacheManager(service_prefix="shipping-service",
+                                              redis_url=settings.SHIPPING_SERVICE_REDIS_URL,
+                                              logger=logger,
+                                              service_api_version=settings.SHIPPING_SERVICE_URL_API_VERSION)
+wishlist_service_redis_manager = CacheManager(service_prefix="wishlist-service",
+                                              redis_url=settings.WISHLIST_SERVICE_REDIS_URL,
+                                              logger=logger,
+                                              service_api_version=settings.WISHLIST_SERVICE_URL_API_VERSION)
 
 # Redis idempotency managers
 product_event_idempotency_service = IdempotencyEventService(service_prefix="product-service",
@@ -99,6 +114,21 @@ payment_event_idempotency_service = IdempotencyEventService(service_prefix="paym
                                                             redis_url=settings.PAYMENT_SERVICE_REDIS_URL,
                                                             service_api_version=settings.PAYMENT_SERVICE_URL_API_VERSION,
                                                             ttl_hours=settings.IDEMPOTENCY_EVENT_SERVICE_HOURS)
+cart_event_idempotency_service = IdempotencyEventService(service_prefix="cart-service",
+                                                         logger=logger,
+                                                         redis_url=settings.CART_SERVICE_REDIS_URL,
+                                                         service_api_version=settings.CART_SERVICE_URL_API_VERSION,
+                                                         ttl_hours=settings.IDEMPOTENCY_EVENT_SERVICE_HOURS)
+shipping_event_idempotency_service = IdempotencyEventService(service_prefix="shipping-service",
+                                                             logger=logger,
+                                                             redis_url=settings.SHIPPING_SERVICE_REDIS_URL,
+                                                             service_api_version=settings.SHIPPING_SERVICE_URL_API_VERSION,
+                                                             ttl_hours=settings.IDEMPOTENCY_EVENT_SERVICE_HOURS)
+wishlist_event_idempotency_service = IdempotencyEventService(service_prefix="wishlist-service",
+                                                             logger=logger,
+                                                             redis_url=settings.WISHLIST_SERVICE_REDIS_URL,
+                                                             service_api_version=settings.WISHLIST_SERVICE_URL_API_VERSION,
+                                                             ttl_hours=settings.IDEMPOTENCY_EVENT_SERVICE_HOURS)
 
 #------------------------------------DB-Managers-----------------------------------------------
 
@@ -147,6 +177,30 @@ payment_service_database_session_manager = DatabaseSessionManager(
     reserved_connections=settings.PG_RESERVED_CONNECTIONS,
     num_db_services=settings.PG_DB_SERVICES_COUNT,
 )
+cart_service_database_session_manager = DatabaseSessionManager(
+    database_url=settings.CART_SERVICE_DATABASE_URL,
+    logger=logger,
+    echo=settings.DEBUG_MODE,
+    pg_max_connections=settings.PG_MAX_CONNECTIONS,
+    reserved_connections=settings.PG_RESERVED_CONNECTIONS,
+    num_db_services=settings.PG_DB_SERVICES_COUNT,
+)
+shipping_service_database_session_manager = DatabaseSessionManager(
+    database_url=settings.SHIPPING_SERVICE_DATABASE_URL,
+    logger=logger,
+    echo=settings.DEBUG_MODE,
+    pg_max_connections=settings.PG_MAX_CONNECTIONS,
+    reserved_connections=settings.PG_RESERVED_CONNECTIONS,
+    num_db_services=settings.PG_DB_SERVICES_COUNT,
+)
+wishlist_service_database_session_manager = DatabaseSessionManager(
+    database_url=settings.WISHLIST_SERVICE_DATABASE_URL,
+    logger=logger,
+    echo=settings.DEBUG_MODE,
+    pg_max_connections=settings.PG_MAX_CONNECTIONS,
+    reserved_connections=settings.PG_RESERVED_CONNECTIONS,
+    num_db_services=settings.PG_DB_SERVICES_COUNT,
+)
 
 test_user_service_database_session_manager = TestDatabaseSessionManager(
     database_url=settings.USER_SERVICE_TEST_DATABASE_URL,
@@ -170,5 +224,17 @@ test_order_service_database_session_manager = TestDatabaseSessionManager(
 
 test_notification_service_database_session_manager = TestDatabaseSessionManager(
     database_url=settings.NOTIFICATION_SERVICE_TEST_DATABASE_URL,
+    logger=logger,
+)
+test_cart_service_database_session_manager = TestDatabaseSessionManager(
+    database_url=settings.CART_SERVICE_TEST_DATABASE_URL,
+    logger=logger,
+)
+test_shipping_service_database_session_manager = TestDatabaseSessionManager(
+    database_url=settings.SHIPPING_SERVICE_TEST_DATABASE_URL,
+    logger=logger,
+)
+test_wishlist_service_database_session_manager = TestDatabaseSessionManager(
+    database_url=settings.WISHLIST_SERVICE_TEST_DATABASE_URL,
     logger=logger,
 )

@@ -23,6 +23,9 @@ class CacheManager(RedisBase):
         ("/images", ["images", "products"]),            # image change → stale embedded product data
         ("/reviews", ["reviews", "products"]),          # review change → stale embedded product data
         ("/orders", ["orders"]),
+        ("/carts", ["carts"]),
+        ("/wishlists", ["wishlists"]),
+        ("/shipping", ["shipping"]),
         ("/users", ["users"]),
         ("/notifications", ["notifications"]),
     ]
@@ -33,6 +36,9 @@ class CacheManager(RedisBase):
         ("/categories", 300),
         ("/images", 300),
         ("/reviews", 300),
+        ("/carts", 300),
+        ("/wishlists", 300),
+        ("/shipping", 300),
     ]
 
     # Paths whose responses must never be cached (monitoring + dynamic job-status polls).
@@ -49,7 +55,8 @@ class CacheManager(RedisBase):
         self.http_methods: list[str] = ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"]
         self.namespaces: list[str] = [
             "users", "products", "categories", "orders",
-            "reviews", "images", "notifications",
+            "reviews", "images", "notifications", "carts",
+            "wishlists", "shipping",
         ]
 
     # ---- key generation ----

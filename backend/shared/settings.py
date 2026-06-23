@@ -38,6 +38,9 @@ class Settings(BaseSettings):
     NOTIFICATION_CONSUMER_SERVICE_APP_PORT: int
     ORDER_SERVICE_APP_PORT: int
     PAYMENT_SERVICE_APP_PORT: int
+    CART_SERVICE_APP_PORT: int
+    SHIPPING_SERVICE_APP_PORT: int
+    WISHLIST_SERVICE_APP_PORT: int
 
     DEBUG_MODE: bool
     SECURE_COOKIES: bool # Set True in production (requires HTTPS)
@@ -45,7 +48,7 @@ class Settings(BaseSettings):
     # PostgreSQL connection pool tuning — used by PoolSettingsCalculator
     PG_MAX_CONNECTIONS: int = 100       # must match postgresql.conf max_connections
     PG_RESERVED_CONNECTIONS: int = 5    # reserved for superuser / admin / monitoring
-    PG_DB_SERVICES_COUNT: int = 5       # number of microservices sharing the same Postgres instance
+    PG_DB_SERVICES_COUNT: int = 8       # number of microservices sharing the same Postgres instance
     ALLOWED_HOSTS: list[str]
 
     # Service URLs
@@ -56,6 +59,9 @@ class Settings(BaseSettings):
     NOTIFICATION_CONSUMER_SERVICE_URL: str
     ORDER_SERVICE_URL: str
     PAYMENT_SERVICE_URL: str
+    CART_SERVICE_URL: str
+    SHIPPING_SERVICE_URL: str
+    WISHLIST_SERVICE_URL: str
 
     API_GATEWAY_SERVICE_URL_API_VERSION: str
     USER_SERVICE_URL_API_VERSION: str
@@ -64,6 +70,9 @@ class Settings(BaseSettings):
     NOTIFICATION_CONSUMER_SERVICE_URL_API_VERSION: str
     ORDER_SERVICE_URL_API_VERSION: str
     PAYMENT_SERVICE_URL_API_VERSION: str
+    CART_SERVICE_URL_API_VERSION: str
+    SHIPPING_SERVICE_URL_API_VERSION: str
+    WISHLIST_SERVICE_URL_API_VERSION: str
 
     # Shared Database configuration
     POSTGRES_USER: str
@@ -76,12 +85,18 @@ class Settings(BaseSettings):
     NOTIFICATION_SERVICE_DB: str
     ORDER_SERVICE_DB: str
     PAYMENT_SERVICE_DB: str
+    CART_SERVICE_DB: str
+    SHIPPING_SERVICE_DB: str
+    WISHLIST_SERVICE_DB: str
 
     USER_SERVICE_TEST_DB: str
     PRODUCT_SERVICE_TEST_DB: str
     NOTIFICATION_SERVICE_TEST_DB: str
     ORDER_SERVICE_TEST_DB: str
     PAYMENT_SERVICE_TEST_DB: str
+    CART_SERVICE_TEST_DB: str
+    SHIPPING_SERVICE_TEST_DB: str
+    WISHLIST_SERVICE_TEST_DB: str
 
     # pgAdmin
     PGADMIN_DEFAULT_EMAIL: str
@@ -104,6 +119,9 @@ class Settings(BaseSettings):
     NOTIFICATION_SERVICE_REDIS_DB: int
     ORDER_SERVICE_REDIS_DB: int
     PAYMENT_SERVICE_REDIS_DB: int
+    CART_SERVICE_REDIS_DB: int
+    SHIPPING_SERVICE_REDIS_DB: int
+    WISHLIST_SERVICE_REDIS_DB: int
 
     NOTIFICATION_SERVICE_REDIS_BACKEND_RESULT_DB: int
 
@@ -113,6 +131,9 @@ class Settings(BaseSettings):
     NOTIFICATION_SERVICE_REDIS_PREFIX: str
     ORDER_SERVICE_REDIS_PREFIX: str
     PAYMENT_SERVICE_REDIS_PREFIX: str
+    CART_SERVICE_REDIS_PREFIX: str
+    SHIPPING_SERVICE_REDIS_PREFIX: str
+    WISHLIST_SERVICE_REDIS_PREFIX: str
 
     IDEMPOTENCY_EVENT_SERVICE_HOURS: int
 
@@ -297,6 +318,63 @@ class Settings(BaseSettings):
     @property
     def FULL_STRIPE_WEBHOOK_ENDPOINT(self) -> str:
         return f"https://{self.APP_HOST}{self.PAYMENT_SERVICE_URL_API_VERSION}/payments/webhook"
+
+
+    #---------------CART-SERVICE-------------------
+
+    @property
+    def CART_SERVICE_DATABASE_URL(self) -> str:
+        return f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.CART_SERVICE_DB}"
+
+    @property
+    def CART_SERVICE_TEST_DATABASE_URL(self) -> str:
+        return f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.CART_SERVICE_TEST_DB}"
+
+    @property
+    def CART_SERVICE_REDIS_URL(self) -> str:
+        return f"redis://:{self.REDIS_PASSWORD}@{self.REDIS_HOST}:{self.REDIS_PORT}/{self.CART_SERVICE_REDIS_DB}"
+
+    @property
+    def FULL_CART_SERVICE_URL(self) -> str:
+        return f"{self.CART_SERVICE_URL}{self.CART_SERVICE_URL_API_VERSION}"
+
+
+    #---------------SHIPPING-SERVICE-------------------
+
+    @property
+    def SHIPPING_SERVICE_DATABASE_URL(self) -> str:
+        return f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.SHIPPING_SERVICE_DB}"
+
+    @property
+    def SHIPPING_SERVICE_TEST_DATABASE_URL(self) -> str:
+        return f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.SHIPPING_SERVICE_TEST_DB}"
+
+    @property
+    def SHIPPING_SERVICE_REDIS_URL(self) -> str:
+        return f"redis://:{self.REDIS_PASSWORD}@{self.REDIS_HOST}:{self.REDIS_PORT}/{self.SHIPPING_SERVICE_REDIS_DB}"
+
+    @property
+    def FULL_SHIPPING_SERVICE_URL(self) -> str:
+        return f"{self.SHIPPING_SERVICE_URL}{self.SHIPPING_SERVICE_URL_API_VERSION}"
+
+
+    #---------------WISHLIST-SERVICE-------------------
+
+    @property
+    def WISHLIST_SERVICE_DATABASE_URL(self) -> str:
+        return f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.WISHLIST_SERVICE_DB}"
+
+    @property
+    def WISHLIST_SERVICE_TEST_DATABASE_URL(self) -> str:
+        return f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.WISHLIST_SERVICE_TEST_DB}"
+
+    @property
+    def WISHLIST_SERVICE_REDIS_URL(self) -> str:
+        return f"redis://:{self.REDIS_PASSWORD}@{self.REDIS_HOST}:{self.REDIS_PORT}/{self.WISHLIST_SERVICE_REDIS_DB}"
+
+    @property
+    def FULL_WISHLIST_SERVICE_URL(self) -> str:
+        return f"{self.WISHLIST_SERVICE_URL}{self.WISHLIST_SERVICE_URL_API_VERSION}"
 
 
 class TestSettings(BaseSettings):

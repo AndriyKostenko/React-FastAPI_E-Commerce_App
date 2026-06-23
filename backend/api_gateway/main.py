@@ -18,6 +18,7 @@ from routes.product_routes import product_proxy
 from routes.order_routes import order_proxy
 from routes.notification_routes import notification_proxy
 from routes.payment_routes import payment_proxy
+from routes.cart_routes import cart_proxy
 from shared.shared_instances import (api_gateway_cache_manager,
                                      api_gateway_rate_limit_manager,
                                      logger,
@@ -245,6 +246,7 @@ app.include_router(product_proxy, prefix=settings.API_GATEWAY_SERVICE_URL_API_VE
 app.include_router(order_proxy, prefix=settings.API_GATEWAY_SERVICE_URL_API_VERSION, tags=["Order Service Proxy"])
 app.include_router(notification_proxy, prefix=settings.API_GATEWAY_SERVICE_URL_API_VERSION, tags=["Notification Service Proxy"])
 app.include_router(payment_proxy, prefix=settings.API_GATEWAY_SERVICE_URL_API_VERSION, tags=["Payment Service Proxy"])
+app.include_router(cart_proxy, prefix=settings.API_GATEWAY_SERVICE_URL_API_VERSION, tags=["Cart Service Proxy"])
 
 if __name__ == "__main__":
     run("main:app",
