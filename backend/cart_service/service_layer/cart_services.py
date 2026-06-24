@@ -72,10 +72,8 @@ class CartService:
             quantity=item_data.quantity,
             price_snapshot=item_data.price_snapshot
         )
-        updated_cart = await self.repository.get_cart_by_user_id(user_id)
-        if updated_cart is None:
-            raise CartNotFoundError(user_id)
-        return CartSchema.model_validate(updated_cart)
+        await self.repository.session.refresh(cart)
+        return CartSchema.model_validate(cart)
 
     async def update_item_quantity(self, user_id: UUID, item_id: UUID, item_data: UpdateCartItem) -> CartSchema:
         cart = await self.repository.get_cart_by_user_id(user_id)
@@ -86,10 +84,8 @@ class CartService:
         if not item:
             raise CartItemNotFoundError(item_id)
 
-        updated_cart = await self.repository.get_cart_by_user_id(user_id)
-        if updated_cart is None:
-            raise CartNotFoundError(user_id)
-        return CartSchema.model_validate(updated_cart)
+        await self.repository.session.refresh(cart)
+        return CartSchema.model_validate(cart)
 
     async def remove_item_from_cart(self, user_id: UUID, item_id: UUID) -> CartSchema:
         cart = await self.repository.get_cart_by_user_id(user_id)
@@ -100,10 +96,8 @@ class CartService:
         if not success:
             raise CartItemNotFoundError(item_id)
 
-        updated_cart = await self.repository.get_cart_by_user_id(user_id)
-        if updated_cart is None:
-            raise CartNotFoundError(user_id)
-        return CartSchema.model_validate(updated_cart)
+        await self.repository.session.refresh(cart)
+        return CartSchema.model_validate(cart)
 
     async def clear_cart(self, user_id: UUID) -> None:
         cart = await self.repository.get_cart_by_user_id(user_id)

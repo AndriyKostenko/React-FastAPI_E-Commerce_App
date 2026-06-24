@@ -426,6 +426,11 @@ class TestSettings(BaseSettings):
     TEST_MESSAGE: str = "Welcome! Please verify your email address."
     TEST_EVENT_ID: str = str(uuid4())
 
+    # ── Cart ─────────────────────────────────────────────────────────────────
+    TEST_CART_ID: UUID = uuid4()
+    TEST_CART_ITEM_ID: UUID = uuid4()
+    TEST_CART_PRICE_SNAPSHOT: Decimal = Decimal("9.99")
+
     # ── User schema objects ──────────────────────────────────────────────────
     USER_INFO: UserInfo = UserInfo(
         id=TEST_USER_ID,
@@ -541,6 +546,24 @@ class TestSettings(BaseSettings):
         "stripe_payment_intent_id": TEST_STRIPE_INTENT_ID,
         "payment_id": str(TEST_PAYMENT_ID),
         "order_id": str(TEST_ORDER_ID),
+    }
+
+    MOCK_CART_RESULT: dict = {
+        "id": str(TEST_CART_ID),
+        "user_id": str(TEST_USER_ID),
+        "items": [],
+        "date_created": TEST_DATETIME.isoformat(),
+        "date_updated": None,
+    }
+
+    MOCK_CART_ITEM_RESULT: dict = {
+        "id": str(TEST_CART_ITEM_ID),
+        "cart_id": str(TEST_CART_ID),
+        "product_id": str(TEST_PRODUCT_ID),
+        "quantity": 2,
+        "price_snapshot": "9.99",
+        "date_created": TEST_DATETIME.isoformat(),
+        "date_updated": None,
     }
 
     MOCK_UPSTREAM_RESPONSE_BODY: dict = {"status": "ok", "data": "upstream_result"}

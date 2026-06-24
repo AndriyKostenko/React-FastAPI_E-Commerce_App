@@ -37,6 +37,7 @@ TEST_SERVICES=(
   user-service-test
   product-service-test
   payment-service-test
+  cart-service-test
   order-service-test
   notification-service-test
   api-gateway-test
