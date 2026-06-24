@@ -41,6 +41,9 @@ class AuthMiddleware(metaclass=SingletonMetaClass):
             f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/admin/schema/reviews": ['GET'],
             f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/admin/schema/orders": ['GET'],
             f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/payments/webhook": ['POST'],
+            f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/shipping/methods": ['GET'],
+            f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/shipping/methods/": ['GET'],
+            f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/shipping/rates": ['POST'],
 
         }
 

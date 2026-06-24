@@ -431,6 +431,10 @@ class TestSettings(BaseSettings):
     TEST_CART_ITEM_ID: UUID = uuid4()
     TEST_CART_PRICE_SNAPSHOT: Decimal = Decimal("9.99")
 
+    # ── Shipping ─────────────────────────────────────────────────────────────
+    TEST_SHIPPING_METHOD_ID: UUID = uuid4()
+    TEST_SHIPMENT_ID: UUID = uuid4()
+
     # ── User schema objects ──────────────────────────────────────────────────
     USER_INFO: UserInfo = UserInfo(
         id=TEST_USER_ID,
@@ -562,6 +566,31 @@ class TestSettings(BaseSettings):
         "product_id": str(TEST_PRODUCT_ID),
         "quantity": 2,
         "price_snapshot": "9.99",
+        "date_created": TEST_DATETIME.isoformat(),
+        "date_updated": None,
+    }
+
+    MOCK_SHIPPING_METHOD_RESULT: dict = {
+        "id": str(TEST_SHIPPING_METHOD_ID),
+        "name": "Standard Shipping",
+        "carrier": "FedEx",
+        "base_cost": "5.99",
+        "estimated_days": 5,
+        "is_active": True,
+        "date_created": TEST_DATETIME.isoformat(),
+        "date_updated": None,
+    }
+
+    MOCK_SHIPMENT_RESULT: dict = {
+        "id": str(TEST_SHIPMENT_ID),
+        "order_id": str(TEST_ORDER_ID),
+        "user_id": str(TEST_USER_ID),
+        "method_id": str(TEST_SHIPPING_METHOD_ID),
+        "tracking_number": None,
+        "status": "pending",
+        "estimated_delivery": None,
+        "shipped_at": None,
+        "delivered_at": None,
         "date_created": TEST_DATETIME.isoformat(),
         "date_updated": None,
     }

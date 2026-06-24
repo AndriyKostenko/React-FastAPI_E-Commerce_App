@@ -149,6 +149,10 @@ class OrderService:
         updated_db_order = await self.repository.update_by_id(order_id, data={"status": order_status})
         return OrderSchema.model_validate(updated_db_order)
 
+    async def update_delivery_status(self, order_id: UUID, delivery_status: str) -> OrderSchema:
+        updated_db_order = await self.repository.update_by_id(order_id, data={"delivery_status": delivery_status})
+        return OrderSchema.model_validate(updated_db_order)
+
     async def create_order_item(self, order_id: UUID, order_data: CreateOrder) -> list[OrderItemBase]:
         """Delegate to OrderItemService to create items for an existing order."""
         return await self.order_item_service.create_order_items(order_id, order_data)

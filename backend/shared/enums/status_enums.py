@@ -9,7 +9,8 @@ class OrderStatus(StrEnum):
 
 class OrderDeliveryStatus(StrEnum):
     PENDING = "pending"
-    CONFIRMED = "confirmed"
+    DISPATCHED = "dispatched"
+    DELIVERED = "delivered"
     CANCELLED = "cancelled"
 
 

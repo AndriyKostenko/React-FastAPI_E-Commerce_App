@@ -5,7 +5,7 @@ from pydantic import BaseModel, EmailStr, PositiveFloat, Field
 
 from shared.schemas.order_schemas import OrderItemBase
 from shared.enums.services_enums import Services
-from shared.enums.event_enums import UserEvents, OrderEvents, InventoryEvents, PaymentEvents
+from shared.enums.event_enums import UserEvents, OrderEvents, InventoryEvents, PaymentEvents, ShippingEvents
 
 class BaseEvent(BaseModel):
     """Base class for all events"""
@@ -134,4 +134,39 @@ class PaymentRefundedEvent(PaymentBaseEvent):
 class PaymentCancelledEvent(PaymentBaseEvent):
     """Event published when a Stripe payment intent is cancelled"""
     event_type: str = Field(default_factory=lambda: PaymentEvents.PAYMENT_CANCELLED)
+    reason: str
+
+
+# ============== SHIPPING SAGA EVENTS ==============
+class ShipmentBaseEvent(BaseEvent):
+    shipment_id: UUID
+    order_id: UUID
+    user_id: UUID
+    user_email: EmailStr
+    service: str = Field(default_factory=lambda: Services.SHIPPING_SERVICE)
+
+
+class ShipmentCreatedEvent(ShipmentBaseEvent):
+    """Event published when a shipment is created for an order"""
+    event_type: str = Field(default_factory=lambda: ShippingEvents.SHIPMENT_CREATED)
+    method_id: UUID
+    estimated_delivery: str
+
+
+class ShipmentShippedEvent(ShipmentBaseEvent):
+    """Event published when a shipment is handed to the carrier"""
+    event_type: str = Field(default_factory=lambda: ShippingEvents.SHIPMENT_SHIPPED)
+    tracking_number: str
+    shipped_at: str
+
+
+class ShipmentDeliveredEvent(ShipmentBaseEvent):
+    """Event published when a shipment is delivered"""
+    event_type: str = Field(default_factory=lambda: ShippingEvents.SHIPMENT_DELIVERED)
+    delivered_at: str
+
+
+class ShipmentCancelledEvent(ShipmentBaseEvent):
+    """Event published when a shipment is cancelled"""
+    event_type: str = Field(default_factory=lambda: ShippingEvents.SHIPMENT_CANCELLED)
     reason: str

@@ -3,9 +3,9 @@ from typing import Any
 from faststream import FastStream
 from faststream.rabbit import RabbitQueue
 
-from shared.shared_instances import rabbitmq_broker, inventory_exchange, payment_exchange
+from shared.shared_instances import rabbitmq_broker, inventory_exchange, payment_exchange, shipping_exchange
 from events_consumer.order_event_consumer import order_event_consumer
-from shared.enums.event_enums import OrderSagaResponseQueue
+from shared.enums.event_enums import OrderSagaResponseQueue, ShippingEventsQueue
 
 
 # Create the FastStream app
@@ -49,6 +49,17 @@ async def handle_order_saga_responses(body: dict[str, Any]):
     await order_event_consumer.handle_order_saga_response(body)
 
 
+order_shipping_events_queue = RabbitQueue(
+    name="order.shipping.events.queue",
+    durable=True,
+    routing_key="shipping.*",
+    arguments={
+        "x-dead-letter-exchange": "dlx",
+        "x-dead-letter-routing-key": "order.shipping.events.dlq",
+    },
+)
+
+
 @rabbitmq_broker.subscriber(queue=order_payment_events_queue, exchange=payment_exchange)
 async def handle_order_payment_events(body: dict[str, Any]) -> None:
     """
@@ -57,3 +68,9 @@ async def handle_order_payment_events(body: dict[str, Any]) -> None:
     and any reserved inventory is released.
     """
     await order_event_consumer.handle_payment_event(body)
+
+
+@rabbitmq_broker.subscriber(queue=order_shipping_events_queue, exchange=shipping_exchange)
+async def handle_order_shipping_events(body: dict[str, Any]) -> None:
+    """FastStream subscriber for shipping events that affect order delivery status."""
+    await order_event_consumer.handle_shipping_event(body)

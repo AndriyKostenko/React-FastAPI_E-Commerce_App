@@ -107,6 +107,24 @@ services:
       - .env
     restart: "no"
 
+  shipping-service-test:
+    build:
+      context: ./shipping_service
+      dockerfile: Dockerfile
+      target: test
+    volumes:
+      - ./shared:/app/shared:ro
+    networks:
+      - usernet
+    profiles:
+      - test
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env
+    restart: "no"
+
   api-gateway-test:
     build:
       context: ./api_gateway

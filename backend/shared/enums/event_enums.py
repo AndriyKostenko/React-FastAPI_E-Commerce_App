@@ -36,6 +36,11 @@ class CartEventsQueue(StrEnum):
     CART_ORDER_EVENTS_DEAD_LETTER_QUEUE = "cart.order.events.dlq"
 
 
+class ShippingEventsQueue(StrEnum):
+    SHIPPING_EVENTS_QUEUE = "shipping.events.queue"
+    SHIPPING_EVENTS_DEAD_LETTER_QUEUE = "shipping.events.dlq"
+
+
 class UserEvents(StrEnum):
     USER_REGISTERED = "user.registered"
     USER_REGISTRATION_FAILED = "user.registration.failed"
@@ -65,3 +70,10 @@ class PaymentEvents(StrEnum):
     PAYMENT_FAILED = "payment.failed"
     PAYMENT_REFUNDED = "payment.refunded"
     PAYMENT_CANCELLED = "payment.cancelled"
+
+
+class ShippingEvents(StrEnum):
+    SHIPMENT_CREATED = "shipment.created"
+    SHIPMENT_SHIPPED = "shipment.shipped"
+    SHIPMENT_DELIVERED = "shipment.delivered"
+    SHIPMENT_CANCELLED = "shipment.cancelled"

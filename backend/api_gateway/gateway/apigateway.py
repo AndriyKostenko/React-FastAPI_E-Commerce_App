@@ -140,6 +140,12 @@ class ApiGateway:
                     health_check_path="/health",
                     api_version=self.settings.PAYMENT_SERVICE_URL_API_VERSION
                 ),
+                "shipping-service": ServiceConfig(
+                    name="shipping-service",
+                    instances=[self.settings.FULL_SHIPPING_SERVICE_URL],
+                    health_check_path="/health",
+                    api_version=self.settings.SHIPPING_SERVICE_URL_API_VERSION
+                ),
             }
         )
         self.url_manager: UrlManager = UrlManager(config=self.config, logger=self.logger)

@@ -130,7 +130,7 @@ class TestUpdateOrderRoute:
     async def test_update_order_returns_200(
         self, client_for_unit_testing: AsyncClient, mock_route_order_service: MagicMock
     ):
-        payload = {"delivery_status": "confirmed", "amount": TEST_AMOUNT}
+        payload = {"delivery_status": "delivered", "amount": TEST_AMOUNT}
         response = await client_for_unit_testing.patch(
             f"{TEST_API}/orders/{TEST_ORDER_ID}", json=payload
         )

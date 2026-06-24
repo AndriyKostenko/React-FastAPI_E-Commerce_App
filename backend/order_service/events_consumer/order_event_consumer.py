@@ -8,14 +8,24 @@ from shared.database_layer.outbox_repository import OutboxRepository
 from events_publisher.order_event_publisher import order_event_publisher
 from service_layer.order_address_service import OrderAddressService
 from service_layer.order_item_service import OrderItemService
-from shared.schemas.event_schemas import InventoryReserveFailed, InventoryReserveSucceeded, PaymentSucceededEvent, PaymentFailedEvent, PaymentCancelledEvent
+from shared.schemas.event_schemas import (
+    InventoryReserveFailed,
+    InventoryReserveSucceeded,
+    PaymentSucceededEvent,
+    PaymentFailedEvent,
+    PaymentCancelledEvent,
+    ShipmentCreatedEvent,
+    ShipmentShippedEvent,
+    ShipmentDeliveredEvent,
+    ShipmentCancelledEvent,
+)
 from shared.shared_instances import logger, order_service_database_session_manager
 from service_layer.order_service import OrderService
-from shared.enums.status_enums import OrderStatus
+from shared.enums.status_enums import OrderStatus, OrderDeliveryStatus
 from service_layer.outbox_event_service import OutboxEventService
 from shared.shared_instances import order_event_idempotency_service
 from shared.idempotency.idempotency_service import IdempotencyEventService
-from shared.enums.event_enums import InventoryEvents, PaymentEvents
+from shared.enums.event_enums import InventoryEvents, PaymentEvents, ShippingEvents
 from exceptions.order_exceptions import OrderNotFoundError, OrderNotCancellableError
 
 """
@@ -442,6 +452,113 @@ class OrderEventConsumer:
                 pass
             self.logger.error(f"Error handling payment.cancelled for order {message.get('order_id')}: {e}")
             raise
+
+    async def handle_shipping_event(self, message: dict[str, Any]) -> None:
+        """Route shipping events to the appropriate handler."""
+        event_type = message.get("event_type")
+        match event_type:
+            case ShippingEvents.SHIPMENT_CREATED:
+                await self.handle_shipment_created(message)
+            case ShippingEvents.SHIPMENT_SHIPPED:
+                await self.handle_shipment_shipped(message)
+            case ShippingEvents.SHIPMENT_DELIVERED:
+                await self.handle_shipment_delivered(message)
+            case ShippingEvents.SHIPMENT_CANCELLED:
+                await self.handle_shipment_cancelled(message)
+            case _:
+                self.logger.warning(f"Unhandled shipping event type in order consumer: {event_type}")
+
+    async def _update_delivery_status(self, message: dict[str, Any], status: OrderDeliveryStatus) -> None:
+        """Helper to update order delivery status from shipping events."""
+        event_type = message.get("event_type")
+        event_id = message.get("event_id")
+
+        try:
+            claimed = await self.idempotency_service.try_claim_event(
+                event_id=event_id,
+                event_type=event_type,
+            )
+            if not claimed:
+                self.logger.info(f"Skipping duplicate {event_type} event for order: {message.get('order_id')}")
+                return
+
+            result = f"delivery_status_{status}"
+            async for order_service in self._get_order_service():
+                try:
+                    current_order = await order_service.get_order_by_id(order_id=message.get("order_id"))
+                except OrderNotFoundError:
+                    self.logger.warning(f"Order {message.get('order_id')} not found for {event_type} — skipping")
+                    result = "order_not_found"
+                    break
+
+                if current_order.status == OrderStatus.CANCELLED:
+                    self.logger.info(f"Order {message.get('order_id')} is CANCELLED — skipping {event_type}")
+                    result = "order_cancelled"
+                    break
+
+                await order_service.update_delivery_status(
+                    order_id=message.get("order_id"),
+                    delivery_status=status,
+                )
+                self.logger.info(f"Updated delivery_status to {status} for order {message.get('order_id')}")
+
+            await self.idempotency_service.mark_event_as_processed(
+                event_id=event_id,
+                event_type=event_type,
+                order_id=message.get("order_id"),
+                result=result,
+            )
+
+        except Exception as e:
+            try:
+                if event_id and event_type:
+                    await self.idempotency_service.release_claim(
+                        event_id=event_id,
+                        event_type=event_type,
+                    )
+            except Exception:
+                pass
+            self.logger.error(f"Error handling {event_type} for order {message.get('order_id')}: {e}")
+            raise
+
+    async def handle_shipment_created(self, message: dict[str, Any]) -> None:
+        """Order delivery status remains PENDING when shipment is created."""
+        event = ShipmentCreatedEvent(**message)
+        # No delivery status change; just log/idempotency so we don't reprocess.
+        try:
+            claimed = await self.idempotency_service.try_claim_event(
+                event_id=event.event_id,
+                event_type=event.event_type,
+            )
+            if not claimed:
+                self.logger.info(f"Skipping duplicate shipment.created event for order: {event.order_id}")
+                return
+
+            await self.idempotency_service.mark_event_as_processed(
+                event_id=event.event_id,
+                event_type=event.event_type,
+                order_id=event.order_id,
+                result="delivery_status_pending",
+            )
+        except Exception as e:
+            await self.idempotency_service.release_claim(
+                event_id=event.event_id,
+                event_type=event.event_type,
+            )
+            self.logger.error(f"Error handling shipment.created for order {event.order_id}: {e}")
+            raise
+
+    async def handle_shipment_shipped(self, message: dict[str, Any]) -> None:
+        """Update order delivery_status to DISPATCHED."""
+        await self._update_delivery_status(message, OrderDeliveryStatus.DISPATCHED)
+
+    async def handle_shipment_delivered(self, message: dict[str, Any]) -> None:
+        """Update order delivery_status to DELIVERED."""
+        await self._update_delivery_status(message, OrderDeliveryStatus.DELIVERED)
+
+    async def handle_shipment_cancelled(self, message: dict[str, Any]) -> None:
+        """Update order delivery_status to CANCELLED."""
+        await self._update_delivery_status(message, OrderDeliveryStatus.CANCELLED)
 
 
 order_event_consumer = OrderEventConsumer(logger=logger)

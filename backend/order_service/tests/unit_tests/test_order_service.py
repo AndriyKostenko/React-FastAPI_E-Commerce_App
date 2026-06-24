@@ -320,7 +320,7 @@ class TestUpdateOrder:
         updated_orm.amount = TEST_AMOUNT
         updated_orm.currency = TEST_CURRENCY
         updated_orm.status = OrderStatus.PENDING
-        updated_orm.delivery_status = OrderDeliveryStatus.CONFIRMED
+        updated_orm.delivery_status = OrderDeliveryStatus.DELIVERED
         updated_orm.payment_intent_id = TEST_PAYMENT_INTENT_ID
         updated_orm.address_id = TEST_ORDER_ADDRESS_ID
         updated_orm.date_created = TEST_DATETIME
@@ -330,7 +330,7 @@ class TestUpdateOrder:
         svc.repository.update_by_id = AsyncMock(return_value=updated_orm)
         svc.outbox_event_service.add_outbox_event = AsyncMock(return_value=None)
 
-        order_data = UpdateOrder(delivery_status=OrderDeliveryStatus.CONFIRMED, amount=TEST_AMOUNT)
+        order_data = UpdateOrder(delivery_status=OrderDeliveryStatus.DELIVERED, amount=TEST_AMOUNT)
         result = await svc.update_order(TEST_ORDER_ID, order_data)
 
         assert isinstance(result, OrderSchema)

@@ -40,6 +40,7 @@ TEST_SERVICES=(
   cart-service-test
   order-service-test
   notification-service-test
+  shipping-service-test
   api-gateway-test
 )
 

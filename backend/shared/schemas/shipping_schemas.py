@@ -29,6 +29,22 @@ class ShippingMethodSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class CreateShippingMethod(BaseModel):
+    name: str
+    carrier: str
+    base_cost: Decimal
+    estimated_days: int
+    is_active: bool = True
+
+
+class UpdateShippingMethod(BaseModel):
+    name: Optional[str] = None
+    carrier: Optional[str] = None
+    base_cost: Optional[Decimal] = None
+    estimated_days: Optional[int] = None
+    is_active: Optional[bool] = None
+
+
 class ShipmentSchema(BaseModel):
     id: UUID
     order_id: UUID
@@ -48,6 +64,7 @@ class ShipmentSchema(BaseModel):
 class CreateShipment(BaseModel):
     order_id: UUID
     user_id: UUID
+    user_email: str = ""
     method_id: UUID
     destination: ShippingAddress
 

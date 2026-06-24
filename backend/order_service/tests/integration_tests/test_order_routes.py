@@ -127,10 +127,10 @@ class TestUpdateOrderIntegration:
 
         response = await integration_client.patch(
             f"{TEST_API}/orders/{order_id}",
-            json={"delivery_status": OrderDeliveryStatus.CONFIRMED, "amount": TEST_AMOUNT},
+            json={"delivery_status": OrderDeliveryStatus.DELIVERED, "amount": TEST_AMOUNT},
         )
         assert response.status_code == 200
-        assert response.json()["delivery_status"] == OrderDeliveryStatus.CONFIRMED
+        assert response.json()["delivery_status"] == OrderDeliveryStatus.DELIVERED
 
     async def test_update_order_status_to_confirmed(
         self, integration_client: AsyncClient
