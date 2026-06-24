@@ -224,7 +224,9 @@ async def update_user_by_id(
 async def delete_user_by_id(
     request: Request, user_id: UUID, user_service: user_service_dependency
 ):
+    user = await user_service.get_user_by_id(user_id=user_id)
     await user_service.delete_user_by_id(user_id=user_id)
+    await user_events_publisher.publish_user_deleted(email=user.email, user_id=user_id)
     return {"detail": "User deleted successfully"}
 
 

@@ -206,6 +206,7 @@ async def client_for_unit_testing(mock_route_service: MagicMock) -> AsyncGenerat
         mock_pub.publish_password_reset_request = AsyncMock()
         mock_pub.publish_password_reset_success = AsyncMock()
         mock_pub.publish_user_logged_in = AsyncMock()
+        mock_pub.publish_user_deleted = AsyncMock()
 
         app.dependency_overrides[get_user_service] = lambda: mock_route_service
         app.dependency_overrides[get_current_user] = lambda: test_settings.CURRENT_USER

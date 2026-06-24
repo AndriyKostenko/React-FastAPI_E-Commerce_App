@@ -10,7 +10,8 @@ from shared.schemas.event_schemas import (
     PasswordResetSuccessEvent,
     UserLoginEvent,
     UserRegisteredEvent,
-    EmailVerificationEvent
+    EmailVerificationEvent,
+    UserDeletedEvent,
 )
 from shared.settings import Settings
 from shared.shared_instances import rabbitmq_broker, logger, settings, user_exchange
@@ -57,6 +58,11 @@ class UserEventPublisher(BaseEventPublisher):
         event = EmailVerificationEvent(user_email=email, user_id=user_id)
         await self.publish_an_event(event=event, exchange=self.exchange, routing_key=event.event_type)
         self.logger.info(f"Published email.verified event for {email}")
+
+    async def publish_user_deleted(self, email: EmailStr, user_id: UUID | None = None):
+        event = UserDeletedEvent(user_email=email, user_id=user_id)
+        await self.publish_an_event(event=event, exchange=self.exchange, routing_key=event.event_type)
+        self.logger.info(f"Published user.deleted event for {email}")
 
 
 user_events_publisher = UserEventPublisher(logger=logger, settings=settings)

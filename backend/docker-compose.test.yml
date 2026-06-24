@@ -71,6 +71,24 @@ services:
       - .env
     restart: "no"
 
+  wishlist-service-test:
+    build:
+      context: ./wishlist_service
+      dockerfile: Dockerfile
+      target: test
+    volumes:
+      - ./shared:/app/shared:ro
+    networks:
+      - usernet
+    profiles:
+      - test
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env
+    restart: "no"
+
   order-service-test:
     build:
       context: ./order_service

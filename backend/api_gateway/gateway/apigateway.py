@@ -146,6 +146,12 @@ class ApiGateway:
                     health_check_path="/health",
                     api_version=self.settings.SHIPPING_SERVICE_URL_API_VERSION
                 ),
+                "wishlist-service": ServiceConfig(
+                    name="wishlist-service",
+                    instances=[self.settings.FULL_WISHLIST_SERVICE_URL],
+                    health_check_path="/health",
+                    api_version=self.settings.WISHLIST_SERVICE_URL_API_VERSION
+                ),
             }
         )
         self.url_manager: UrlManager = UrlManager(config=self.config, logger=self.logger)

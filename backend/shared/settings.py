@@ -435,6 +435,10 @@ class TestSettings(BaseSettings):
     TEST_SHIPPING_METHOD_ID: UUID = uuid4()
     TEST_SHIPMENT_ID: UUID = uuid4()
 
+    # ── Wishlist ─────────────────────────────────────────────────────────────
+    TEST_WISHLIST_ID: UUID = uuid4()
+    TEST_WISHLIST_ITEM_ID: UUID = uuid4()
+
     # ── User schema objects ──────────────────────────────────────────────────
     USER_INFO: UserInfo = UserInfo(
         id=TEST_USER_ID,

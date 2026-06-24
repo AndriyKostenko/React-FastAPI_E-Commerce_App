@@ -5,7 +5,7 @@ from pydantic import BaseModel, EmailStr, PositiveFloat, Field
 
 from shared.schemas.order_schemas import OrderItemBase
 from shared.enums.services_enums import Services
-from shared.enums.event_enums import UserEvents, OrderEvents, InventoryEvents, PaymentEvents, ShippingEvents
+from shared.enums.event_enums import UserEvents, OrderEvents, InventoryEvents, PaymentEvents, ShippingEvents, WishlistEvents
 
 class BaseEvent(BaseModel):
     """Base class for all events"""
@@ -51,6 +51,11 @@ class EmailVerificationRequestedEvent(UserBaseEvent):
 class EmailVerificationEvent(UserBaseEvent):
     """Event published when email verification is proceeded"""
     event_type: str = Field(default_factory=lambda: UserEvents.USER_EMAIL_VERIFIED)
+
+
+class UserDeletedEvent(UserBaseEvent):
+    """Event published when a user account is deleted"""
+    event_type: str = Field(default_factory=lambda: UserEvents.USER_DELETED)
 
 
 # ============== ORDER SAGA EVENTS ==============
@@ -170,3 +175,21 @@ class ShipmentCancelledEvent(ShipmentBaseEvent):
     """Event published when a shipment is cancelled"""
     event_type: str = Field(default_factory=lambda: ShippingEvents.SHIPMENT_CANCELLED)
     reason: str
+
+
+# ============== WISHLIST EVENTS ==============
+class WishlistItemBaseEvent(BaseEvent):
+    service: str = Field(default_factory=lambda: Services.WISHLIST_SERVICE)
+    user_id: UUID
+    wishlist_id: UUID
+    product_id: UUID
+
+
+class WishlistItemAddedEvent(WishlistItemBaseEvent):
+    """Event published when an item is added to a wishlist"""
+    event_type: str = Field(default_factory=lambda: WishlistEvents.WISHLIST_ITEM_ADDED)
+
+
+class WishlistItemRemovedEvent(WishlistItemBaseEvent):
+    """Event published when an item is removed from a wishlist"""
+    event_type: str = Field(default_factory=lambda: WishlistEvents.WISHLIST_ITEM_REMOVED)

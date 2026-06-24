@@ -41,6 +41,11 @@ class ShippingEventsQueue(StrEnum):
     SHIPPING_EVENTS_DEAD_LETTER_QUEUE = "shipping.events.dlq"
 
 
+class WishlistEventsQueue(StrEnum):
+    WISHLIST_EVENTS_QUEUE = "wishlist.events.queue"
+    WISHLIST_EVENTS_DEAD_LETTER_QUEUE = "wishlist.events.dlq"
+
+
 class UserEvents(StrEnum):
     USER_REGISTERED = "user.registered"
     USER_REGISTRATION_FAILED = "user.registration.failed"
@@ -49,6 +54,7 @@ class UserEvents(StrEnum):
     USER_LOGGED_IN = "user.logged.in"
     USER_PASSWORD_RESET_REQUEST = "user.password.reset.request"
     USER_PASSWORD_RESET_SUCCESS = "user.password.reset.success"
+    USER_DELETED = "user.deleted"
 
 
 class InventoryEvents(StrEnum):
@@ -77,3 +83,8 @@ class ShippingEvents(StrEnum):
     SHIPMENT_SHIPPED = "shipment.shipped"
     SHIPMENT_DELIVERED = "shipment.delivered"
     SHIPMENT_CANCELLED = "shipment.cancelled"
+
+
+class WishlistEvents(StrEnum):
+    WISHLIST_ITEM_ADDED = "wishlist.item.added"
+    WISHLIST_ITEM_REMOVED = "wishlist.item.removed"
