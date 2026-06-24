@@ -1,27 +1,12 @@
 from uuid import UUID
-from decimal import Decimal
-from fastapi import status
 
 from database_layer.cart_repository import CartRepository
 from models.cart_models import Cart
-from shared.schemas.cart_schemas import CartSchema, CartSummary, AddCartItem, UpdateCartItem, CartItemSchema
-from shared.exceptions.base_exceptions import BaseAPIException
+from shared.schemas.cart_schemas import CartSchema, CartSummary, AddCartItem, UpdateCartItem
+from exceptions.cart_exceptions import CartNotFoundError, CartItemNotFoundError
 
 
-class CartNotFoundError(BaseAPIException):
-    def __init__(self, user_id: UUID):
-        super().__init__(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Cart for user {user_id} not found"
-        )
 
-
-class CartItemNotFoundError(BaseAPIException):
-    def __init__(self, item_id: UUID):
-        super().__init__(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Cart item {item_id} not found in cart"
-        )
 
 
 class CartService:
@@ -48,20 +33,7 @@ class CartService:
 
     async def get_cart_summary(self, user_id: UUID) -> CartSummary:
         cart = await self._get_or_create_cart_model(user_id)
-
-        total_items = sum(item.quantity for item in cart.items)
-        total_amount = sum(
-            (Decimal(item.quantity) * item.price_snapshot for item in cart.items),
-            Decimal(0),
-        )
-
-        return CartSummary(
-            id=cart.id,
-            user_id=cart.user_id,
-            total_items=total_items,
-            total_amount=total_amount,
-            items=[CartItemSchema.model_validate(item) for item in cart.items],
-        )
+        return CartSummary.model_validate(cart)
 
     async def add_item_to_cart(self, user_id: UUID, item_data: AddCartItem) -> CartSchema:
         cart = await self._get_or_create_cart_model(user_id)

@@ -3,7 +3,7 @@ from decimal import Decimal
 from uuid import UUID
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict, PositiveInt
+from pydantic import BaseModel, ConfigDict, PositiveInt, computed_field
 
 
 class CartItemSchema(BaseModel):
@@ -41,6 +41,19 @@ class UpdateCartItem(BaseModel):
 class CartSummary(BaseModel):
     id: UUID
     user_id: UUID
-    total_items: int
-    total_amount: Decimal
     items: list[CartItemSchema]
+
+    model_config = ConfigDict(from_attributes=True)
+
+    @computed_field
+    @property
+    def total_items(self) -> int:
+        return sum(item.quantity for item in self.items)
+
+    @computed_field
+    @property
+    def total_amount(self) -> Decimal:
+        return sum(
+            (Decimal(item.quantity) * item.price_snapshot for item in self.items),
+            Decimal(0),
+        )

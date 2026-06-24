@@ -1,21 +1,14 @@
 """Unit tests for CartService business logic (all DB/IO replaced with mocks)."""
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock
-from uuid import uuid4
+from uuid import uuid4, UUID
 
 import pytest
 
 from service_layer.cart_services import CartService, CartNotFoundError, CartItemNotFoundError
 from models.cart_models import Cart, CartItem
 from shared.schemas.cart_schemas import CartSchema, CartSummary, AddCartItem, UpdateCartItem
-from tests.constants import (
-    TEST_CART_ID,
-    TEST_CART_ITEM_ID,
-    TEST_USER_ID,
-    TEST_PRODUCT_ID,
-    TEST_DATETIME,
-    TEST_PRICE_SNAPSHOT,
-)
+from shared.shared_instances import test_settings
 
 
 # ---------------------------------------------------------------------------
@@ -23,11 +16,11 @@ from tests.constants import (
 # ---------------------------------------------------------------------------
 
 def _make_cart_item_orm(
-    item_id: str = TEST_CART_ITEM_ID,
-    cart_id: str = TEST_CART_ID,
-    product_id: str = TEST_PRODUCT_ID,
+    item_id: UUID = test_settings.TEST_CART_ITEM_ID,
+    cart_id: UUID = test_settings.TEST_CART_ID,
+    product_id: UUID = test_settings.TEST_PRODUCT_ID,
     quantity: int = 2,
-    price_snapshot: Decimal = TEST_PRICE_SNAPSHOT,
+    price_snapshot: Decimal = test_settings.TEST_CART_PRICE_SNAPSHOT,
 ) -> CartItem:
     item = CartItem(
         cart_id=cart_id,
@@ -36,28 +29,28 @@ def _make_cart_item_orm(
         price_snapshot=price_snapshot,
     )
     item.id = item_id
-    item.date_created = TEST_DATETIME
-    item.date_updated = None
+    item.date_created = test_settings.TEST_DATETIME
+    item.date_updated = test_settings.TEST_DATETIME
     return item
 
 
 def _make_cart_orm(
-    cart_id: str = TEST_CART_ID,
-    user_id: str = TEST_USER_ID,
+    cart_id: UUID = test_settings.TEST_CART_ID,
+    user_id: UUID = test_settings.TEST_USER_ID,
     items: list[CartItem] | None = None,
 ) -> Cart:
     cart = Cart(user_id=user_id)
     cart.id = cart_id
-    cart.date_created = TEST_DATETIME
-    cart.date_updated = None
+    cart.date_created = test_settings.TEST_DATETIME
+    cart.date_updated = test_settings.TEST_DATETIME
     cart.items = items if items is not None else []
     return cart
 
 
 def _make_add_item_data(
-    product_id: str = TEST_PRODUCT_ID,
+    product_id: UUID = test_settings.TEST_PRODUCT_ID,
     quantity: int = 2,
-    price_snapshot: Decimal = TEST_PRICE_SNAPSHOT,
+    price_snapshot: Decimal = test_settings.TEST_CART_PRICE_SNAPSHOT,
 ) -> AddCartItem:
     return AddCartItem(
         product_id=product_id,
@@ -82,13 +75,13 @@ class TestGetOrCreateCart:
         svc = cart_service_unit
         svc.repository.get_cart_by_user_id = AsyncMock(return_value=mock_cart_orm)
 
-        result = await svc.get_or_create_cart(TEST_USER_ID)
+        result = await svc.get_or_create_cart(test_settings.TEST_USER_ID)
 
         assert isinstance(result, CartSchema)
-        assert result.id == TEST_CART_ID
-        assert result.user_id == TEST_USER_ID
+        assert result.id == test_settings.TEST_CART_ID
+        assert result.user_id == test_settings.TEST_USER_ID
         assert len(result.items) == 1
-        svc.repository.get_cart_by_user_id.assert_awaited_once_with(TEST_USER_ID)
+        svc.repository.get_cart_by_user_id.assert_awaited_once_with(test_settings.TEST_USER_ID)
         svc.repository.create.assert_not_awaited()
 
     async def test_get_or_create_cart_creates_new_cart_when_missing(
@@ -99,11 +92,11 @@ class TestGetOrCreateCart:
         svc.repository.get_cart_by_user_id = AsyncMock(side_effect=[None, empty_cart_orm])
         svc.repository.create = AsyncMock(return_value=empty_cart_orm)
 
-        result = await svc.get_or_create_cart(TEST_USER_ID)
+        result = await svc.get_or_create_cart(test_settings.TEST_USER_ID)
 
         assert isinstance(result, CartSchema)
-        assert result.id == TEST_CART_ID
-        assert result.user_id == TEST_USER_ID
+        assert result.id == test_settings.TEST_CART_ID
+        assert result.user_id == test_settings.TEST_USER_ID
         svc.repository.create.assert_awaited_once()
 
     async def test_get_or_create_cart_raises_when_create_fails_to_persist(
@@ -115,7 +108,7 @@ class TestGetOrCreateCart:
         svc.repository.create = AsyncMock(return_value=None)
 
         with pytest.raises(CartNotFoundError):
-            await svc.get_or_create_cart(TEST_USER_ID)
+            await svc.get_or_create_cart(test_settings.TEST_USER_ID)
 
 
 # ---------------------------------------------------------------------------
@@ -130,11 +123,11 @@ class TestGetCartSummary:
         svc = cart_service_unit
         svc.repository.get_cart_by_user_id = AsyncMock(return_value=mock_cart_orm)
 
-        result = await svc.get_cart_summary(TEST_USER_ID)
+        result = await svc.get_cart_summary(test_settings.TEST_USER_ID)
 
         assert isinstance(result, CartSummary)
-        assert result.id == TEST_CART_ID
-        assert result.user_id == TEST_USER_ID
+        assert result.id == test_settings.TEST_CART_ID
+        assert result.user_id == test_settings.TEST_USER_ID
         assert result.total_items == 2
         assert result.total_amount == Decimal("19.98")
         assert len(result.items) == 1
@@ -147,7 +140,7 @@ class TestGetCartSummary:
         svc.repository.get_cart_by_user_id = AsyncMock(side_effect=[None, empty_cart_orm])
         svc.repository.create = AsyncMock(return_value=empty_cart_orm)
 
-        result = await svc.get_cart_summary(TEST_USER_ID)
+        result = await svc.get_cart_summary(test_settings.TEST_USER_ID)
 
         assert result.total_items == 0
         assert result.total_amount == Decimal("0")
@@ -168,14 +161,14 @@ class TestAddItemToCart:
         svc.repository.add_item_to_cart = AsyncMock(return_value=mock_cart_orm.items[0])
 
         item_data = _make_add_item_data()
-        result = await svc.add_item_to_cart(TEST_USER_ID, item_data)
+        result = await svc.add_item_to_cart(test_settings.TEST_USER_ID, item_data)
 
         assert isinstance(result, CartSchema)
         svc.repository.add_item_to_cart.assert_awaited_once_with(
-            cart_id=TEST_CART_ID,
-            product_id=TEST_PRODUCT_ID,
+            cart_id=test_settings.TEST_CART_ID,
+            product_id=test_settings.TEST_PRODUCT_ID,
             quantity=2,
-            price_snapshot=TEST_PRICE_SNAPSHOT,
+            price_snapshot=Decimal("9.99"),
         )
         svc.repository.session.refresh.assert_awaited_once_with(mock_cart_orm)
 
@@ -189,7 +182,7 @@ class TestAddItemToCart:
         svc.repository.add_item_to_cart = AsyncMock(return_value=_make_cart_item_orm())
 
         item_data = _make_add_item_data()
-        result = await svc.add_item_to_cart(TEST_USER_ID, item_data)
+        result = await svc.add_item_to_cart(test_settings.TEST_USER_ID, item_data)
 
         assert isinstance(result, CartSchema)
         svc.repository.create.assert_awaited_once()
@@ -204,7 +197,7 @@ class TestAddItemToCart:
         svc.repository.add_item_to_cart = AsyncMock(side_effect=RuntimeError("DB error"))
 
         with pytest.raises(RuntimeError):
-            await svc.add_item_to_cart(TEST_USER_ID, _make_add_item_data())
+            await svc.add_item_to_cart(test_settings.TEST_USER_ID, _make_add_item_data())
 
 
 # ---------------------------------------------------------------------------
@@ -221,12 +214,12 @@ class TestUpdateItemQuantity:
         svc.repository.update_item_quantity = AsyncMock(return_value=mock_cart_orm.items[0])
 
         item_data = _make_update_item_data(quantity=5)
-        result = await svc.update_item_quantity(TEST_USER_ID, TEST_CART_ITEM_ID, item_data)
+        result = await svc.update_item_quantity(test_settings.TEST_USER_ID, test_settings.TEST_CART_ITEM_ID, item_data)
 
         assert isinstance(result, CartSchema)
         svc.repository.update_item_quantity.assert_awaited_once_with(
-            cart_id=TEST_CART_ID,
-            item_id=TEST_CART_ITEM_ID,
+            cart_id=test_settings.TEST_CART_ID,
+            item_id=test_settings.TEST_CART_ITEM_ID,
             quantity=5,
         )
         svc.repository.session.refresh.assert_awaited_once_with(mock_cart_orm)
@@ -239,7 +232,7 @@ class TestUpdateItemQuantity:
         svc.repository.get_cart_by_user_id = AsyncMock(return_value=None)
 
         with pytest.raises(CartNotFoundError):
-            await svc.update_item_quantity(TEST_USER_ID, TEST_CART_ITEM_ID, _make_update_item_data())
+            await svc.update_item_quantity(test_settings.TEST_USER_ID, test_settings.TEST_CART_ITEM_ID, _make_update_item_data())
 
     async def test_update_item_quantity_item_not_found(
         self, cart_service_unit: CartService, mock_cart_orm: Cart
@@ -250,7 +243,7 @@ class TestUpdateItemQuantity:
         svc.repository.update_item_quantity = AsyncMock(return_value=None)
 
         with pytest.raises(CartItemNotFoundError):
-            await svc.update_item_quantity(TEST_USER_ID, TEST_CART_ITEM_ID, _make_update_item_data())
+            await svc.update_item_quantity(test_settings.TEST_USER_ID, test_settings.TEST_CART_ITEM_ID, _make_update_item_data())
 
 
 # ---------------------------------------------------------------------------
@@ -266,12 +259,12 @@ class TestRemoveItemFromCart:
         svc.repository.get_cart_by_user_id = AsyncMock(return_value=mock_cart_orm)
         svc.repository.remove_item = AsyncMock(return_value=True)
 
-        result = await svc.remove_item_from_cart(TEST_USER_ID, TEST_CART_ITEM_ID)
+        result = await svc.remove_item_from_cart(test_settings.TEST_USER_ID, test_settings.TEST_CART_ITEM_ID)
 
         assert isinstance(result, CartSchema)
         svc.repository.remove_item.assert_awaited_once_with(
-            cart_id=TEST_CART_ID,
-            item_id=TEST_CART_ITEM_ID,
+            cart_id=test_settings.TEST_CART_ID,
+            item_id=test_settings.TEST_CART_ITEM_ID,
         )
         svc.repository.session.refresh.assert_awaited_once_with(mock_cart_orm)
 
@@ -284,7 +277,7 @@ class TestRemoveItemFromCart:
         svc.repository.remove_item = AsyncMock(return_value=False)
 
         with pytest.raises(CartItemNotFoundError):
-            await svc.remove_item_from_cart(TEST_USER_ID, TEST_CART_ITEM_ID)
+            await svc.remove_item_from_cart(test_settings.TEST_USER_ID, test_settings.TEST_CART_ITEM_ID)
 
     async def test_remove_item_from_cart_cart_not_found(
         self, cart_service_unit: CartService
@@ -294,7 +287,7 @@ class TestRemoveItemFromCart:
         svc.repository.get_cart_by_user_id = AsyncMock(return_value=None)
 
         with pytest.raises(CartNotFoundError):
-            await svc.remove_item_from_cart(TEST_USER_ID, TEST_CART_ITEM_ID)
+            await svc.remove_item_from_cart(test_settings.TEST_USER_ID, test_settings.TEST_CART_ITEM_ID)
 
 
 # ---------------------------------------------------------------------------
@@ -310,10 +303,10 @@ class TestClearCart:
         svc.repository.get_cart_by_user_id = AsyncMock(return_value=mock_cart_orm)
         svc.repository.clear_cart = AsyncMock(return_value=None)
 
-        result = await svc.clear_cart(TEST_USER_ID)
+        result = await svc.clear_cart(test_settings.TEST_USER_ID)
 
         assert result is None
-        svc.repository.clear_cart.assert_awaited_once_with(cart_id=TEST_CART_ID)
+        svc.repository.clear_cart.assert_awaited_once_with(cart_id=test_settings.TEST_CART_ID)
 
     async def test_clear_cart_missing_cart_is_noop(
         self, cart_service_unit: CartService
@@ -322,7 +315,7 @@ class TestClearCart:
         svc = cart_service_unit
         svc.repository.get_cart_by_user_id = AsyncMock(return_value=None)
 
-        result = await svc.clear_cart(TEST_USER_ID)
+        result = await svc.clear_cart(test_settings.    TEST_USER_ID)
 
         assert result is None
         svc.repository.clear_cart.assert_not_awaited()

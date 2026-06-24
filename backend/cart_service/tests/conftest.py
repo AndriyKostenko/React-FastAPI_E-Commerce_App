@@ -151,8 +151,6 @@ def mock_route_cart_service() -> MagicMock:
     summary_schema = CartSummary(
         id=test_settings.TEST_CART_ID,
         user_id=test_settings.TEST_USER_ID,
-        total_items=0,
-        total_amount=Decimal("0"),
         items=[],
     )
 
