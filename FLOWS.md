@@ -1,5 +1,6 @@
 # Flows & Diagrams
 
+```
 ┌───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
 │                                                                    USER REGISTRATION FLOW                                                     │
 └───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
@@ -160,10 +161,10 @@
      │                                │                                  │                      │                    │  Set! ✅"         │
      │                                │                                  │                      │                    │  [Go to Login]    │
 
-
+```
 
 Every request through the gateway passes this chain in order:
-
+```
 ┌─────────────────────────────────────────────────────────────────┐
 │                    MIDDLEWARE EXECUTION ORDER                    │
 │                                                                 │
@@ -188,13 +189,13 @@ Every request through the gateway passes this chain in order:
 │          ├── @circuit(5 fail → open 30s)                        │
 │          └── httpx.request() → downstream service              │
 └─────────────────────────────────────────────────────────────────┘
-
+```
 
 ## RabbitMQ Queue Topology
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                            RabbitMQ Que                                      │
+│                            RabbitMQ Queu                                    │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
 │  ┌──────────────────────────┐                                               │
@@ -641,6 +642,28 @@ Every request through the gateway passes this chain in order:
      │  HTTP 200 + cookies                      │                        │
      │<─────────────────────────────────────────│                        │
 ```
+```
+User Service (publisher)
+     │
+     │ publish UserRegisteredEvent
+     │ exchange: user.events.exchange
+     │ routing key: user.registered
+     ▼
+┌─────────────────────────┐
+│  user.events.exchange   │  <-- TOPIC exchange (router)
+│      (one exchange)     │
+└─────────────────────────┘
+     │                 │
+     │                 │
+     ▼                 ▼
+user.events.queue   wishlist.events.queue
+routing key: user.#   routing key: user.deleted
+     │                 │
+     │                 │
+     ▼                 ▼
+Notification         Wishlist
+Consumer             Consumer
+```
 
 ## Order Cancellation Flow
 
@@ -939,31 +962,31 @@ Every request through the gateway passes this chain in order:
 ┌─────────────┐     ┌─────────────────────────┐     ┌────────────────────┐     ┌─────────────┐     ┌─────────────┐
 │   RABBITMQ  │     │ NOTIFICATION-CONSUMER   │     │  IDEMPOTENCY SVC   │     │   TASKIQ    │     │  MAILSERVER │
 └──────┬──────┘     └───────────┬─────────────┘     └──────────┬─────────┘     └──────┬──────┘     └──────┬──────┘
-       │                        │                            │                    │                 │
+       │                        │                            │                        │                   │
        │  user.registered       │                            │                    │                 │
-       │  order.confirmed       │                            │                    │                 │
-       │  payment.failed etc.   │                            │                    │                 │
-       │───────────────────────>│                            │                    │                 │
-       │                        │                            │                    │                 │
-       │                        │  try_claim_event(event_id, event_type)            │                 │
-       │                        │───────────────────────────>│                    │                 │
-       │                        │                            │                    │                 │
-       │                        │  already processed?        │                    │                 │
+       │  order.confirmed        │                            │                        │                    │
+       │  payment.failed etc.   │                            │                        │                 │
+       │───────────────────────>│                            │                        │                 │
+       │                        │                            │                        │                 │
+       │                        │  try_claim_event(event_id, event_type)              |                 │
+       │                        │───────────────────────────>│                        │                 │
+       │                        │                            │                        │                 │
+       │                        │  already processed?        │                        │                 │
        │                        │  YES → skip                │                    │                 │
        │                        │  NO  → proceed             │                    │                 │
        │                        │                            │                    │                 │
        │                        │  match event type:         │                    │                 │
        │                        │  - user.registered         │                    │                 │
-       │                        │    → enqueue verification  │                    │                 │
+       │                        │    → enqueue verification   │                    │                 │
        │                        │      email task            │                    │                 │
-       │                        │───────────────────────────────────────────────>│                    │
-       │                        │  - order.confirmed         │                    │                 │
-       │                        │    → enqueue confirmation  │                    │                 │
+       │                        │───────────────────────────────────────────────> │                    │
+       │                        │  - order.confirmed          │                    │                 │
+       │                        │    → enqueue confirmation   │                    │                 │
        │                        │      email task            │                    │                 │
-       │                        │───────────────────────────────────────────────>│                    │
+       │                        │───────────────────────────────────────────────> │                    │
        │                        │                            │                    │                 │
-       │                        │  save in-app notification  │                    │                 │
-       │                        │  (notification DB)         │                    │                 │
+       │                        │  save in-app notification   │                    │                 │
+       │                        │  (notification DB)          │                    │                 │
        │                        │                            │                    │                 │
        │                        │  mark_event_as_processed() │                    │                 │
        │                        │───────────────────────────>│                    │                 │

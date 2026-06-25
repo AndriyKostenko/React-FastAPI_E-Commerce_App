@@ -78,8 +78,6 @@ class BaseEventHandler:
         return UUID(raw) if raw else None
 
 
-# User event handler
-
 class UserEventHandler(BaseEventHandler):
 
     async def handle(self, body: dict[str, Any]) -> None:
@@ -130,8 +128,6 @@ class UserEventHandler(BaseEventHandler):
             await self._release_claim(event_id=event_id, event_type=event_type)
             raise
 
-
-# Order event handler
 
 class OrderEventHandler(BaseEventHandler):
 

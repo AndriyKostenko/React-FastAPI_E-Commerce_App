@@ -43,7 +43,7 @@ async def shutdown():
 # user.# matches: user.registered, user.logged.in, user.email.verified, etc.
 # order.# matches: order.created, order.confirmed, order.cancelled
 user_events_queue = RabbitQueue(
-    UserEventsQueue.USER_EVENTS_QUEUE,
+    UserEventsQueue.USER_EVENTS_QUEUE, # declares a queue bound to user.events.exchange TOPIC
     durable=True,
     routing_key="user.#", # matches all user-related events, but we only handle user.registered, user.logged.in, and user.email.verified for notifications. password.reset.* events are ignored.
     arguments={
@@ -53,7 +53,7 @@ user_events_queue = RabbitQueue(
 )
 
 order_events_queue = RabbitQueue(
-    OrderEventsQueue.ORDER_EVENTS_QUEUE,
+    OrderEventsQueue.ORDER_EVENTS_QUEUE, # declares a queue bound to order.events.exchange TOPIC
     durable=True,
     routing_key="order.#", # matches all order-related events, but we only handle order.confirmed and order.cancelled for notifications. order.created is ignored.
     arguments={
@@ -63,7 +63,7 @@ order_events_queue = RabbitQueue(
 )
 
 payment_events_queue = RabbitQueue(
-    PaymentEventsQueue.PAYMENT_EVENTS_QUEUE,
+    PaymentEventsQueue.PAYMENT_EVENTS_QUEUE, # declares a queue bound to payment.events.exchange TOPIC
     durable=True,
     routing_key="payment.#",
     arguments={
