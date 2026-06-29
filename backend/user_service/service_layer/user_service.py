@@ -17,8 +17,17 @@ from shared.schemas.user_schemas import (
     UserBasicUpdate,
     UsersFilterParams,
 )
+from shared.schemas.event_schemas import (
+    UserRegisteredEvent,
+    UserLoginEvent,
+    PasswordResetRequestedEvent,
+    PasswordResetSuccessEvent,
+    EmailVerificationEvent,
+    UserDeletedEvent,
+)
 from shared.shared_instances import settings
 from shared.managers.cache_manager import CacheManager
+from shared.enums.event_enums import UserEvents
 from exceptions.user_exceptions import (
     UserAlreadyExistsError,
     UserNotFoundError,
@@ -27,6 +36,7 @@ from exceptions.user_exceptions import (
 from database_layer.user_repository import UserRepository
 from shared.managers.password_manager import PasswordManager
 from shared.managers.token_manager import TokenManager
+from service_layer.outbox_event_service import OutboxEventService
 
 
 class UserService:
@@ -36,17 +46,19 @@ class UserService:
     Responsibilities:
     - Business logic execution
     - Database operations via repository
-    - Event publishing for state changes
+    - Event publishing for state changes via the outbox pattern
     """
     def __init__(self,
                 repository: UserRepository,
                 password_manager: PasswordManager,
                 token_manager: TokenManager,
-                cache_manager: CacheManager):
+                cache_manager: CacheManager,
+                outbox_event_service: OutboxEventService):
         self.repository: UserRepository = repository
         self.password_manager: PasswordManager = password_manager
         self.token_manager: TokenManager = token_manager
         self.cache_manager: CacheManager = cache_manager
+        self.outbox_event_service: OutboxEventService = outbox_event_service
         self.httpx_client: AsyncClient = AsyncClient()
 
     def _refresh_key(self, token: str, prefix: str = "refresh") -> str:
@@ -54,7 +66,7 @@ class UserService:
 
     async def create_user(self, data: UserSignUp) -> tuple[UserInfo , str]:
         """
-        Create a new user and publish registration event.
+        Create a new user and publish registration event via outbox.
 
         Returns:
             tuple: (UserInfo, verification_token)
@@ -77,6 +89,16 @@ class UserService:
             role=user.role,
             expires_delta=timedelta(minutes=settings.VERIFICATION_TOKEN_EXPIRY_MINUTES),
             purpose="email_verification")
+
+        await self.outbox_event_service.add_outbox_event(
+            event_type=UserEvents.USER_REGISTERED,
+            payload=UserRegisteredEvent(
+                user_email=user.email,
+                token=verification_token,
+                user_id=user.id,
+            )
+        )
+
         return UserInfo.model_validate(user), verification_token
 
     async def verify_password(self, email: EmailStr, password: str) -> bool:
@@ -89,6 +111,15 @@ class UserService:
         current_user, access_token, access_expiry, refresh_token, refresh_expiry = await self.authenticate_user(
             email=form_data.username, password=form_data.password
         )
+
+        await self.outbox_event_service.add_outbox_event(
+            event_type=UserEvents.USER_LOGGED_IN,
+            payload=UserLoginEvent(
+                user_email=current_user.email,
+                user_id=current_user.id,
+            )
+        )
+
         return current_user, access_token, access_expiry, refresh_token, refresh_expiry
 
     async def login_or_register_google_user(self, id_token: str) -> tuple[CurrentUserInfo, str, int, str, int]:
@@ -249,12 +280,33 @@ class UserService:
             expires_delta=timedelta(minutes=settings.TOKEN_TIME_DELTA_MINUTES),
             purpose="access"
         )
+
+        await self.outbox_event_service.add_outbox_event(
+            event_type=UserEvents.USER_EMAIL_VERIFIED,
+            payload=EmailVerificationEvent(
+                user_email=updated_user.email,
+                user_id=updated_user.id,
+            )
+        )
+
         return UserInfo.model_validate(updated_user), access_token, access_expiry
 
     async def delete_user_by_id(self, user_id: UUID) -> None:
+        user = await self.repository.get_by_id(user_id)
+        if not user:
+            raise UserNotFoundError(f"User with id: {user_id} not found.")
+
         success = await self.repository.delete_by_id(user_id)
         if not success:
             raise UserNotFoundError(f"User with id: {user_id} not found.")
+
+        await self.outbox_event_service.add_outbox_event(
+            event_type=UserEvents.USER_DELETED,
+            payload=UserDeletedEvent(
+                user_email=user.email,
+                user_id=user_id,
+            )
+        )
 
     async def get_verified_users(self) -> list[UserInfo]:
         users =  await self.repository.get_verified_users()
@@ -275,6 +327,16 @@ class UserService:
             expires_delta=timedelta(minutes=settings.RESET_TOKEN_EXPIRY_MINUTES),
             purpose="password_reset"
         )
+
+        await self.outbox_event_service.add_outbox_event(
+            event_type=UserEvents.USER_PASSWORD_RESET_REQUEST,
+            payload=PasswordResetRequestedEvent(
+                user_email=user.email,
+                reset_token=reset_token,
+                user_id=user.id,
+            )
+        )
+
         return UserInfo.model_validate(user), reset_token
 
     async def reset_password_with_token(self, token: str, new_password: str) -> UserInfo:
@@ -285,6 +347,15 @@ class UserService:
                                                             hashed_password=hashed_password)
         if not updated_user:
             raise UserUpdateError("Password reset failed")
+
+        await self.outbox_event_service.add_outbox_event(
+            event_type=UserEvents.USER_PASSWORD_RESET_SUCCESS,
+            payload=PasswordResetSuccessEvent(
+                user_email=updated_user.email,
+                user_id=updated_user.id,
+            )
+        )
+
         return UserInfo.model_validate(updated_user)
 
     async def authenticate_user(self,

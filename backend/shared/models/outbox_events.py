@@ -12,7 +12,7 @@ from shared.utils.models_mixins import TimestampMixin
 
 
 class OutboxEvent(Base, TimestampMixin):
-    __tablename__: str = "payment_outbox_events"
+    __tablename__: str = "outbox_events"
     __table_args__: tuple[Index, ...] = (
         Index('idx_outbox_events_event_type', 'event_type'),
         Index('idx_outbox_events_processed', 'processed'),

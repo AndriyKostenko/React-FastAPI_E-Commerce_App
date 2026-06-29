@@ -10,10 +10,14 @@ every test function so every test starts with a fully empty users table.
 Module-level helper coroutines (_register, _activate, _login, …) keep
 test methods short and readable without tying state to fixture order.
 """
+from collections.abc import Awaitable, Callable
+from typing import Any
+
 from httpx import AsyncClient
 from fastapi import status
 
 from shared.shared_instances import test_settings
+from shared.enums.event_enums import UserEvents
 
 # ---------------------------------------------------------------------------
 # Module-level helpers — call inside test methods to compose state
@@ -30,9 +34,11 @@ async def _register(client: AsyncClient,
     )
 
 
-async def _activate(client: AsyncClient, publisher):
-    """Capture the verification token from the mocked publisher and activate."""
-    token = publisher.publish_user_registered.call_args.args[1]
+async def _activate(client: AsyncClient, get_outbox_event: Callable[[str], Awaitable[dict[str, Any] | None]]):
+    """Read the verification token from the outbox and activate the user."""
+    payload = await get_outbox_event(UserEvents.USER_REGISTERED)
+    assert payload is not None, "Expected a user.registered outbox event"
+    token = payload["token"]
     return await client.post(f"{test_settings.API}/activate/{token}")
 
 
@@ -49,27 +55,27 @@ async def _login(
 
 async def _setup_verified_user(
     client: AsyncClient,
-    publisher,
+    get_outbox_event: Callable[[str], Awaitable[dict[str, Any] | None]],
     *,
     email: str = test_settings.TEST_EMAIL,
     password: str = test_settings.TEST_PASSWORD,
     name: str = test_settings.TEST_NAME,) -> dict[str, str|int]:
     """Register + activate; returns the register response body."""
     reg = await _register(client, email=email, password=password, name=name)
-    await _activate(client, publisher)
+    await _activate(client, get_outbox_event)
     return reg.json()
 
 
 async def _setup_authenticated_user(
     client: AsyncClient,
-    publisher,
+    get_outbox_event: Callable[[str], Awaitable[dict[str, Any] | None]],
     *,
     email: str = test_settings.TEST_EMAIL,
     password: str = test_settings.TEST_PASSWORD,
     name: str = test_settings.TEST_NAME,
 ) -> dict[str, str|int]:
     """Register + activate + login; returns the login response body (tokens + user data)."""
-    await _setup_verified_user(client, publisher, email=email, password=password, name=name)
+    await _setup_verified_user(client, get_outbox_event, email=email, password=password, name=name)
     login = await _login(client, email=email, password=password)
     return login.json()
 
@@ -94,7 +100,7 @@ class TestHealthEndpoint:
 class TestUserRegister:
 
     async def test_register_new_user_returns_201_and_user_data(
-        self, integration_client: AsyncClient, mock_user_events_publisher
+        self, integration_client: AsyncClient
     ):
         response = await _register(integration_client)
         assert response.status_code == status.HTTP_201_CREATED
@@ -103,16 +109,17 @@ class TestUserRegister:
         assert body["name"] == test_settings.TEST_NAME
         assert "id" in body
 
-    async def test_register_publishes_verification_event(
-        self, integration_client: AsyncClient, mock_user_events_publisher
+    async def test_register_creates_verification_outbox_event(
+        self, integration_client: AsyncClient, get_outbox_event
     ):
         await _register(integration_client)
-        mock_user_events_publisher.publish_user_registered.assert_awaited_once()
-        # first positional arg is the email
-        assert mock_user_events_publisher.publish_user_registered.call_args.args[0] == test_settings.TEST_EMAIL
+        payload = await get_outbox_event(UserEvents.USER_REGISTERED)
+        assert payload is not None
+        assert payload["user_email"] == test_settings.TEST_EMAIL
+        assert "token" in payload
 
     async def test_register_duplicate_email_returns_409(
-        self, integration_client: AsyncClient, mock_user_events_publisher
+        self, integration_client: AsyncClient
     ):
         await _register(integration_client)
         duplicate = await _register(integration_client)
@@ -153,21 +160,23 @@ class TestUserRegister:
 
 class TestActivateEmailEndpoint:
     async def test_activate_valid_token_returns_200_and_verified_flag(
-        self, integration_client: AsyncClient, mock_user_events_publisher
+        self, integration_client: AsyncClient, get_outbox_event
     ):
         await _register(integration_client)
-        response = await _activate(integration_client, mock_user_events_publisher)
+        response = await _activate(integration_client, get_outbox_event)
         assert response.status_code == status.HTTP_200_OK
         body = response.json()
         assert body["verified"] is True
         assert body["email"] == test_settings.TEST_EMAIL
 
-    async def test_activate_publishes_email_verified_event(
-        self, integration_client: AsyncClient, mock_user_events_publisher
+    async def test_activate_creates_email_verified_outbox_event(
+        self, integration_client: AsyncClient, get_outbox_event
     ):
         await _register(integration_client)
-        await _activate(integration_client, mock_user_events_publisher)
-        mock_user_events_publisher.publish_email_verified.assert_awaited_once()
+        await _activate(integration_client, get_outbox_event)
+        payload = await get_outbox_event(UserEvents.USER_EMAIL_VERIFIED)
+        assert payload is not None
+        assert payload["user_email"] == test_settings.TEST_EMAIL
 
     async def test_activate_invalid_token_returns_401(
         self, integration_client: AsyncClient
@@ -183,9 +192,9 @@ class TestActivateEmailEndpoint:
 
 class TestLoginEndpoint:
     async def test_login_success_returns_tokens_and_user_data(
-        self, integration_client: AsyncClient, mock_user_events_publisher
+        self, integration_client: AsyncClient, get_outbox_event
     ):
-        await _setup_verified_user(integration_client, mock_user_events_publisher)
+        await _setup_verified_user(integration_client, get_outbox_event)
         response = await _login(integration_client)
         assert response.status_code == status.HTTP_200_OK
         body = response.json()
@@ -194,10 +203,19 @@ class TestLoginEndpoint:
         assert body["token_type"] == "bearer"
         assert body["user_email"] == test_settings.TEST_EMAIL
 
-    async def test_login_wrong_password_returns_401(
-        self, integration_client: AsyncClient, mock_user_events_publisher
+    async def test_login_creates_login_outbox_event(
+        self, integration_client: AsyncClient, get_outbox_event
     ):
-        await _setup_verified_user(integration_client, mock_user_events_publisher)
+        await _setup_verified_user(integration_client, get_outbox_event)
+        await _login(integration_client)
+        payload = await get_outbox_event(UserEvents.USER_LOGGED_IN)
+        assert payload is not None
+        assert payload["user_email"] == test_settings.TEST_EMAIL
+
+    async def test_login_wrong_password_returns_401(
+        self, integration_client: AsyncClient, get_outbox_event
+    ):
+        await _setup_verified_user(integration_client, get_outbox_event)
         response = await integration_client.post(
             f"{test_settings.API}/login",
             data={"username": test_settings.TEST_EMAIL, "password": "WrongPassword!"},
@@ -214,7 +232,7 @@ class TestLoginEndpoint:
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
     async def test_login_unverified_user_returns_401(
-        self, integration_client: AsyncClient, mock_user_events_publisher
+        self, integration_client: AsyncClient
     ):
         await _register(integration_client)  # register but do NOT activate
         response = await _login(integration_client)
@@ -237,9 +255,9 @@ class TestLoginEndpoint:
 
 class TestRefreshTokenEndpoint:
     async def test_refresh_returns_new_access_token(
-        self, integration_client: AsyncClient, mock_user_events_publisher
+        self, integration_client: AsyncClient, get_outbox_event
     ):
-        login_data = await _setup_authenticated_user(integration_client, mock_user_events_publisher)
+        login_data = await _setup_authenticated_user(integration_client, get_outbox_event)
         response = await integration_client.post(
             f"{test_settings.API}/refresh",
             json={"refresh_token": login_data["refresh_token"]},
@@ -266,9 +284,9 @@ class TestRefreshTokenEndpoint:
 
 class TestLogoutEndpoint:
     async def test_logout_success_returns_200(
-        self, integration_client: AsyncClient, mock_user_events_publisher
+        self, integration_client: AsyncClient, get_outbox_event
     ):
-        login_data = await _setup_authenticated_user(integration_client, mock_user_events_publisher)
+        login_data = await _setup_authenticated_user(integration_client, get_outbox_event)
         response = await integration_client.post(
             f"{test_settings.API}/logout",
             json={"refresh_token": login_data["refresh_token"]},
@@ -284,9 +302,9 @@ class TestLogoutEndpoint:
 
 class TestGetMeEndpoint:
     async def test_get_me_returns_current_user_data(
-        self, integration_client: AsyncClient, mock_user_events_publisher
+        self, integration_client: AsyncClient, get_outbox_event
     ):
-        login_data = await _setup_authenticated_user(integration_client, mock_user_events_publisher)
+        login_data = await _setup_authenticated_user(integration_client, get_outbox_event)
         response = await integration_client.get(
             f"{test_settings.API}/me",
             headers={"Authorization": f"Bearer {login_data['access_token']}"},
@@ -319,9 +337,9 @@ class TestGetMeEndpoint:
 
 class TestForgotPasswordEndpoint:
     async def test_forgot_password_known_email_returns_200(
-        self, integration_client: AsyncClient, mock_user_events_publisher
+        self, integration_client: AsyncClient, get_outbox_event
     ):
-        await _setup_verified_user(integration_client, mock_user_events_publisher)
+        await _setup_verified_user(integration_client, get_outbox_event)
         response = await integration_client.post(
             f"{test_settings.API}/forgot-password",
             params={"email": test_settings.TEST_EMAIL},
@@ -330,15 +348,18 @@ class TestForgotPasswordEndpoint:
         body = response.json()
         assert body["email"] == test_settings.TEST_EMAIL
 
-    async def test_forgot_password_publishes_reset_event(
-        self, integration_client: AsyncClient, mock_user_events_publisher
+    async def test_forgot_password_creates_reset_request_outbox_event(
+        self, integration_client: AsyncClient, get_outbox_event
     ):
-        await _setup_verified_user(integration_client, mock_user_events_publisher)
+        await _setup_verified_user(integration_client, get_outbox_event)
         await integration_client.post(
             f"{test_settings.API}/forgot-password",
             params={"email": test_settings.TEST_EMAIL},
         )
-        mock_user_events_publisher.publish_password_reset_request.assert_awaited_once()
+        payload = await get_outbox_event(UserEvents.USER_PASSWORD_RESET_REQUEST)
+        assert payload is not None
+        assert payload["user_email"] == test_settings.TEST_EMAIL
+        assert "reset_token" in payload
 
     async def test_forgot_password_unknown_email_returns_404(
         self, integration_client: AsyncClient
@@ -356,12 +377,17 @@ class TestForgotPasswordEndpoint:
 
 
 class TestResetPasswordEndpoint:
+    async def _get_reset_token(self, get_outbox_event) -> str:
+        payload = await get_outbox_event(UserEvents.USER_PASSWORD_RESET_REQUEST)
+        assert payload is not None, "Expected a password reset request outbox event"
+        return payload["reset_token"]
+
     async def test_reset_password_with_valid_token_returns_200(
-        self, integration_client: AsyncClient, mock_user_events_publisher
+        self, integration_client: AsyncClient, get_outbox_event
     ):
-        await _setup_verified_user(integration_client, mock_user_events_publisher)
+        await _setup_verified_user(integration_client, get_outbox_event)
         await integration_client.post(f"{test_settings.API}/forgot-password", params={"email": test_settings.TEST_EMAIL})
-        reset_token = mock_user_events_publisher.publish_password_reset_request.call_args.kwargs["reset_token"]
+        reset_token = await self._get_reset_token(get_outbox_event)
 
         response = await integration_client.post(
             f"{test_settings.API}/password-reset/{reset_token}",
@@ -370,13 +396,28 @@ class TestResetPasswordEndpoint:
         assert response.status_code == status.HTTP_200_OK
         assert response.json()["email"] == test_settings.TEST_EMAIL
 
+    async def test_reset_password_creates_reset_success_outbox_event(
+        self, integration_client: AsyncClient, get_outbox_event
+    ):
+        await _setup_verified_user(integration_client, get_outbox_event)
+        await integration_client.post(f"{test_settings.API}/forgot-password", params={"email": test_settings.TEST_EMAIL})
+        reset_token = await self._get_reset_token(get_outbox_event)
+
+        await integration_client.post(
+            f"{test_settings.API}/password-reset/{reset_token}",
+            json={"email": test_settings.TEST_EMAIL, "new_password": "NewPassword123!"},
+        )
+        payload = await get_outbox_event(UserEvents.USER_PASSWORD_RESET_SUCCESS)
+        assert payload is not None
+        assert payload["user_email"] == test_settings.TEST_EMAIL
+
     async def test_reset_password_new_credentials_work_on_login(
-        self, integration_client: AsyncClient, mock_user_events_publisher
+        self, integration_client: AsyncClient, get_outbox_event
     ):
         new_password = "NewPassword123!"
-        await _setup_verified_user(integration_client, mock_user_events_publisher)
+        await _setup_verified_user(integration_client, get_outbox_event)
         await integration_client.post(f"{test_settings.API}/forgot-password", params={"email": test_settings.TEST_EMAIL})
-        reset_token = mock_user_events_publisher.publish_password_reset_request.call_args.kwargs["reset_token"]
+        reset_token = await self._get_reset_token(get_outbox_event)
 
         await integration_client.post(
             f"{test_settings.API}/password-reset/{reset_token}",
@@ -386,12 +427,12 @@ class TestResetPasswordEndpoint:
         assert login_resp.status_code == status.HTTP_200_OK
 
     async def test_reset_password_old_password_no_longer_works(
-        self, integration_client: AsyncClient, mock_user_events_publisher
+        self, integration_client: AsyncClient, get_outbox_event
     ):
         new_password = "NewPassword123!"
-        await _setup_verified_user(integration_client, mock_user_events_publisher)
+        await _setup_verified_user(integration_client, get_outbox_event)
         await integration_client.post(f"{test_settings.API}/forgot-password", params={"email": test_settings.TEST_EMAIL})
-        reset_token = mock_user_events_publisher.publish_password_reset_request.call_args.kwargs["reset_token"]
+        reset_token = await self._get_reset_token(get_outbox_event)
 
         await integration_client.post(
             f"{test_settings.API}/password-reset/{reset_token}",
@@ -417,9 +458,9 @@ class TestResetPasswordEndpoint:
 
 class TestGetUserByIdEndpoint:
     async def test_get_user_by_id_returns_200_and_user_data(
-        self, integration_client: AsyncClient, mock_user_events_publisher
+        self, integration_client: AsyncClient, get_outbox_event
     ):
-        user_data = await _setup_verified_user(integration_client, mock_user_events_publisher)
+        user_data = await _setup_verified_user(integration_client, get_outbox_event)
         response = await integration_client.get(f"{test_settings.API}/users/{user_data['id']}")
         assert response.status_code == status.HTTP_200_OK
         body = response.json()
@@ -448,9 +489,9 @@ class TestGetUserByIdEndpoint:
 
 class TestGetAllUsersEndpoint:
     async def test_get_all_users_returns_list_with_one_user(
-        self, integration_client: AsyncClient, mock_user_events_publisher
+        self, integration_client: AsyncClient, get_outbox_event
     ):
-        await _setup_verified_user(integration_client, mock_user_events_publisher)
+        await _setup_verified_user(integration_client, get_outbox_event)
         response = await integration_client.get(f"{test_settings.API}/users")
         assert response.status_code == status.HTTP_200_OK
         body = response.json()
@@ -465,13 +506,13 @@ class TestGetAllUsersEndpoint:
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
     async def test_get_all_users_pagination_returns_correct_pages(
-        self, integration_client: AsyncClient, mock_user_events_publisher
+        self, integration_client: AsyncClient, get_outbox_event
     ):
         # Register and activate two separate users
         for email in ("user1@example.com", "user2@example.com"):
             await _register(integration_client, email=email)
-            token = mock_user_events_publisher.publish_user_registered.call_args.args[1]
-            await integration_client.post(f"{test_settings.API}/activate/{token}")
+            payload = await get_outbox_event(UserEvents.USER_REGISTERED)
+            await integration_client.post(f"{test_settings.API}/activate/{payload['token']}")
 
         page_1 = await integration_client.get(f"{test_settings.API}/users", params={"offset": 0, "limit": 1})
         page_2 = await integration_client.get(f"{test_settings.API}/users", params={"offset": 1, "limit": 1})
@@ -497,9 +538,9 @@ class TestGetAllUsersEndpoint:
 
 class TestUpdateUserEndpoint:
     async def test_update_user_name_returns_200_and_new_name(
-        self, integration_client: AsyncClient, mock_user_events_publisher
+        self, integration_client: AsyncClient, get_outbox_event
     ):
-        user_data = await _setup_verified_user(integration_client, mock_user_events_publisher)
+        user_data = await _setup_verified_user(integration_client, get_outbox_event)
         response = await integration_client.patch(
             f"{test_settings.API}/users/{user_data['id']}",
             json={"name": "Updated Name"},
@@ -519,9 +560,9 @@ class TestUpdateUserEndpoint:
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
     async def test_update_user_name_too_short_returns_422(
-        self, integration_client: AsyncClient, mock_user_events_publisher
+        self, integration_client: AsyncClient, get_outbox_event
     ):
-        user_data = await _setup_verified_user(integration_client, mock_user_events_publisher)
+        user_data = await _setup_verified_user(integration_client, get_outbox_event)
         response = await integration_client.patch(
             f"{test_settings.API}/users/{user_data['id']}",
             json={"name": "x"},
@@ -536,20 +577,29 @@ class TestUpdateUserEndpoint:
 
 class TestDeleteUserEndpoint:
     async def test_delete_user_returns_200(
-        self, integration_client: AsyncClient, mock_user_events_publisher
+        self, integration_client: AsyncClient, get_outbox_event
     ):
-        user_data = await _setup_verified_user(integration_client, mock_user_events_publisher)
+        user_data = await _setup_verified_user(integration_client, get_outbox_event)
         response = await integration_client.delete(f"{test_settings.API}/users/{user_data['id']}")
         assert response.status_code == status.HTTP_200_OK
         assert response.json()["detail"] == "User deleted successfully"
 
     async def test_deleted_user_is_no_longer_retrievable(
-        self, integration_client: AsyncClient, mock_user_events_publisher
+        self, integration_client: AsyncClient, get_outbox_event
     ):
-        user_data = await _setup_verified_user(integration_client, mock_user_events_publisher)
+        user_data = await _setup_verified_user(integration_client, get_outbox_event)
         await integration_client.delete(f"{test_settings.API}/users/{user_data['id']}")
         get_response = await integration_client.get(f"{test_settings.API}/users/{user_data['id']}")
         assert get_response.status_code == status.HTTP_404_NOT_FOUND
+
+    async def test_delete_user_creates_deleted_outbox_event(
+        self, integration_client: AsyncClient, get_outbox_event
+    ):
+        user_data = await _setup_verified_user(integration_client, get_outbox_event)
+        await integration_client.delete(f"{test_settings.API}/users/{user_data['id']}")
+        payload = await get_outbox_event(UserEvents.USER_DELETED)
+        assert payload is not None
+        assert payload["user_email"] == test_settings.TEST_EMAIL
 
     async def test_delete_unknown_user_returns_404(
         self, integration_client: AsyncClient

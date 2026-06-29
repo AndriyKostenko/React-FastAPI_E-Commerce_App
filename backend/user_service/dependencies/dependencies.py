@@ -6,10 +6,13 @@ from fastapi.security import OAuth2PasswordBearer
 
 from service_layer.user_service import UserService
 from database_layer.user_repository import UserRepository
+from shared.database_layer.outbox_repository import OutboxRepository
+from service_layer.outbox_event_service import OutboxEventService
 from shared.managers.token_manager import TokenManager
 from shared.managers.password_manager import PasswordManager
 from shared.shared_instances import user_service_database_session_manager, settings, user_service_redis_manager
 from shared.schemas.user_schemas import CurrentUserInfo
+
 
 """
 FLow Diagram for Database Session Management in FastAPI:
@@ -60,15 +63,21 @@ def get_token_manager() -> TokenManager:
     """Provide token manager instance"""
     return TokenManager(settings)
 
+def get_outbox_event_service(session: AsyncSession = Depends(get_db_session)) -> OutboxEventService:
+    """Dependency to provide OutboxEventService for transactional event publishing."""
+    return OutboxEventService(repository=OutboxRepository(session=session))
+
 def get_user_service(session: AsyncSession = Depends(get_db_session),
                      password_manager: PasswordManager = Depends(get_password_manager),
-                     token_manager: TokenManager = Depends(get_token_manager)) -> UserService:
+                     token_manager: TokenManager = Depends(get_token_manager),
+                     outbox_event_service: OutboxEventService = Depends(get_outbox_event_service)) -> UserService:
     """Dependency to provide UserService with UserRepository for database operations."""
     return UserService(
         repository=UserRepository(session=session),
         password_manager=password_manager,
         token_manager=token_manager,
-        cache_manager=user_service_redis_manager
+        cache_manager=user_service_redis_manager,
+        outbox_event_service=outbox_event_service,
     )
 
 # Type annotations for dependency injection

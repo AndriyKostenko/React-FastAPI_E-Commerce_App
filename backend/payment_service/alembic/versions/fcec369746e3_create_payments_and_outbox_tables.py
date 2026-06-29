@@ -40,7 +40,7 @@ def upgrade() -> None:
     op.create_index('idx_payments_stripe_payment_intent_id', 'payments', ['stripe_payment_intent_id'])
 
     op.create_table(
-        'payment_outbox_events',
+        'outbox_events',
         sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True, nullable=False),
         sa.Column('event_type', sa.String(), nullable=False),
         sa.Column('payload', sa.JSON(), nullable=False),
@@ -50,15 +50,15 @@ def upgrade() -> None:
         sa.Column('date_updated', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=True),
         sa.UniqueConstraint('id'),
     )
-    op.create_index('idx_outbox_events_event_type', 'payment_outbox_events', ['event_type'])
-    op.create_index('idx_outbox_events_processed', 'payment_outbox_events', ['processed'])
+    op.create_index('idx_outbox_events_event_type', 'outbox_events', ['event_type'])
+    op.create_index('idx_outbox_events_processed', 'outbox_events', ['processed'])
 
 
 def downgrade() -> None:
     """Downgrade schema."""
-    op.drop_index('idx_outbox_events_processed', table_name='payment_outbox_events')
-    op.drop_index('idx_outbox_events_event_type', table_name='payment_outbox_events')
-    op.drop_table('payment_outbox_events')
+    op.drop_index('idx_outbox_events_processed', table_name='outbox_events')
+    op.drop_index('idx_outbox_events_event_type', table_name='outbox_events')
+    op.drop_table('outbox_events')
 
     op.drop_index('idx_payments_stripe_payment_intent_id', table_name='payments')
     op.drop_index('idx_payments_status', table_name='payments')

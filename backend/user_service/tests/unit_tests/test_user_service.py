@@ -36,6 +36,7 @@ class TestCreateUser:
         mock_repository: MagicMock,
         mock_user_orm: MagicMock,
         mock_token_manager: MagicMock,
+        mock_outbox_event_service: MagicMock,
     ) -> None:
         mock_repository.get_by_field.return_value = None
         mock_repository.create.return_value = mock_user_orm
@@ -48,6 +49,7 @@ class TestCreateUser:
         assert token == "verify_tok"
         mock_repository.get_by_field.assert_awaited_once_with("email", data.email)
         mock_repository.create.assert_awaited_once()
+        mock_outbox_event_service.add_outbox_event.assert_awaited_once()
 
     async def test_raises_when_email_already_registered(
         self,
@@ -67,6 +69,7 @@ class TestCreateUser:
         mock_repository: MagicMock,
         mock_user_orm: MagicMock,
         mock_password_manager: MagicMock,
+        mock_outbox_event_service: MagicMock,
     ) -> None:
         mock_repository.get_by_field.return_value = None
         mock_repository.create.return_value = mock_user_orm
@@ -75,6 +78,7 @@ class TestCreateUser:
         await user_service.create_user(data)
 
         mock_password_manager.hash_password.assert_called_once_with("plain_pw")
+        mock_outbox_event_service.add_outbox_event.assert_awaited_once()
 
 
 # ---------------------------------------------------------------------------
@@ -319,6 +323,7 @@ class TestVerifyEmail:
         mock_repository: MagicMock,
         mock_user_orm: MagicMock,
         mock_token_manager: MagicMock,
+        mock_outbox_event_service: MagicMock,
     ) -> None:
         decoded = DecodedTokenSchema(
             email="test@example.com",
@@ -338,6 +343,7 @@ class TestVerifyEmail:
         mock_repository.update_by_field.assert_awaited_once_with(
             field_name="email", value="test@example.com", is_verified=True
         )
+        mock_outbox_event_service.add_outbox_event.assert_awaited_once()
 
     async def test_raises_when_user_not_found_after_token_decode(
         self,
@@ -369,9 +375,14 @@ class TestDeleteUserById:
         self,
         user_service,
         mock_repository: MagicMock,
+        mock_user_orm: MagicMock,
+        mock_outbox_event_service: MagicMock,
     ) -> None:
+        mock_repository.get_by_id.return_value = mock_user_orm
         mock_repository.delete_by_id.return_value = True
         await user_service.delete_user_by_id(uuid4())  # must not raise
+        mock_repository.get_by_id.assert_awaited_once()
+        mock_outbox_event_service.add_outbox_event.assert_awaited_once()
 
     async def test_raises_when_user_not_found(
         self,
@@ -458,6 +469,7 @@ class TestRequestPasswordReset:
         mock_repository: MagicMock,
         mock_user_orm: MagicMock,
         mock_token_manager: MagicMock,
+        mock_outbox_event_service: MagicMock,
     ) -> None:
         mock_repository.get_by_field.return_value = mock_user_orm
         mock_token_manager.create_access_token.return_value = ("reset_tok", 9999)
@@ -466,6 +478,7 @@ class TestRequestPasswordReset:
 
         assert user.email == "test@example.com"
         assert token == "reset_tok"
+        mock_outbox_event_service.add_outbox_event.assert_awaited_once()
 
     async def test_raises_when_user_not_found(
         self,
@@ -491,6 +504,7 @@ class TestResetPasswordWithToken:
         mock_user_orm: MagicMock,
         mock_token_manager: MagicMock,
         mock_password_manager: MagicMock,
+        mock_outbox_event_service: MagicMock,
     ) -> None:
         decoded = DecodedTokenSchema(
             email="test@example.com",
@@ -506,6 +520,7 @@ class TestResetPasswordWithToken:
 
         assert result.email == "test@example.com"
         mock_password_manager.hash_password.assert_called_once_with("new_pw123")
+        mock_outbox_event_service.add_outbox_event.assert_awaited_once()
 
     async def test_raises_when_db_update_fails(
         self,
@@ -608,6 +623,42 @@ class TestAuthenticateUser:
 
         assert exc_info.value.status_code == 401
         assert "deactivated" in exc_info.value.detail
+
+
+# ---------------------------------------------------------------------------
+# login_user
+# ---------------------------------------------------------------------------
+
+
+class TestLoginUser:
+    async def test_authenticates_and_creates_login_outbox_event(
+        self,
+        user_service,
+        mock_repository: MagicMock,
+        mock_user_orm: MagicMock,
+        mock_password_manager: MagicMock,
+        mock_token_manager: MagicMock,
+        mock_redis: AsyncMock,
+        mock_outbox_event_service: MagicMock,
+    ) -> None:
+        mock_repository.get_by_field.return_value = mock_user_orm
+        mock_password_manager.verify_password.return_value = True
+        mock_user_orm.is_verified = True
+        mock_user_orm.is_active = True
+        mock_token_manager.create_access_token.return_value = ("access_tok", 9999)
+        mock_token_manager.create_refresh_token.return_value = ("refresh_tok", 9999)
+
+        form_data = MagicMock()
+        form_data.username = "test@example.com"
+        form_data.password = "correct_pw"
+
+        user, access_token, _, refresh_token, _ = await user_service.login_user(form_data)
+
+        assert user.email == "test@example.com"
+        assert access_token == "access_tok"
+        assert refresh_token == "refresh_tok"
+        mock_redis.setex.assert_awaited_once()
+        mock_outbox_event_service.add_outbox_event.assert_awaited_once()
 
 
 # ---------------------------------------------------------------------------

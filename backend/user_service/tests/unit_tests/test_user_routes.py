@@ -5,7 +5,8 @@ Uses httpx.Asyncclient_for_unit_testing: AsyncClient + ASGITransport to send rea
 the Fasttest_settings.API application without any live infrastructure:
   - App lifespan is replaced with a no-op (no DB/Redis/RabbitMQ connections).
   - UserService dependency is overridden via app.dependency_overrides.
-  - user_events_publisher is patched so no events reach RabbitMQ.
+  - Event publishing is handled inside UserService via the outbox pattern; route tests
+    therefore exercise only HTTP routing/response logic.
 
 All tests that exercise an error branch configure the mock_route_service
 to raise the appropriate exception via .side_effect.

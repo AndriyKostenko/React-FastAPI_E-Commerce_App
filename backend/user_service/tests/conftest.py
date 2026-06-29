@@ -5,7 +5,7 @@ All fixtures use function scope (default) to ensure full isolation
 between tests.  Heavy external dependencies (DB, Redis, RabbitMQ)
 are replaced with mocks so the tests run without any live services.
 """
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
 from typing import Any
@@ -15,10 +15,15 @@ from fastapi import Depends
 from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from sqlalchemy import select
+
 from main import app
 from database_layer.user_repository import UserRepository
 from dependencies.dependencies import get_user_service, get_current_user, get_db_session
 from service_layer.user_service import UserService
+from service_layer.outbox_event_service import OutboxEventService
+from shared.database_layer.outbox_repository import OutboxRepository
+from shared.models.outbox_events import OutboxEvent
 from shared.shared_instances import test_settings, settings, test_user_service_database_session_manager
 from shared.managers.token_manager import TokenManager
 from shared.managers.password_manager import PasswordManager
@@ -111,6 +116,16 @@ def mock_redis_manager(mock_redis: AsyncMock) -> MagicMock:
     return mgr
 
 @pytest.fixture
+def mock_outbox_event_service() -> MagicMock:
+    """Mock OutboxEventService — records events without touching the database."""
+    svc = MagicMock()
+    svc.add_outbox_event = AsyncMock(return_value=None)
+    svc.get_all_events = AsyncMock(return_value=[])
+    svc.get_unprocessed_events = AsyncMock(return_value=[])
+    svc.mark_event_as_processed = AsyncMock(return_value=None)
+    return svc
+
+@pytest.fixture
 def token_manager() -> TokenManager:
     return TokenManager(settings=test_settings)
 
@@ -126,13 +141,15 @@ def user_service(
     mock_repository: MagicMock,
     mock_password_manager: MagicMock,
     mock_token_manager: MagicMock,
-    mock_redis_manager: MagicMock) -> UserService:
+    mock_redis_manager: MagicMock,
+    mock_outbox_event_service: MagicMock) -> UserService:
     """UserService instance wired with all mocked dependencies."""
     return UserService(
         repository=mock_repository,
         password_manager=mock_password_manager,
         token_manager=mock_token_manager,
-        cache_manager=mock_redis_manager)
+        cache_manager=mock_redis_manager,
+        outbox_event_service=mock_outbox_event_service)
 
 #---------------------------------------------------------------------------
 # Helpers
@@ -190,7 +207,6 @@ async def client_for_unit_testing(mock_route_service: MagicMock) -> AsyncGenerat
     - Replaces the FastAPI lifespan with a no-op so startup/shutdown don't
       attempt live connections to PostgreSQL, Redis, or RabbitMQ.
     - Overrides the get_user_service and get_current_user FastAPI dependencies.
-    - Patches user_events_publisher so events are not published to RabbitMQ.
     - Bypasses host validation middleware so tests can use the default testserver host.
     """
 
@@ -200,58 +216,50 @@ async def client_for_unit_testing(mock_route_service: MagicMock) -> AsyncGenerat
     original_lifespan = app.router.lifespan_context
     app.router.lifespan_context = _noop_lifespan
 
-    with patch("routes.user_routes.user_events_publisher") as mock_pub:
-        mock_pub.publish_user_registered = AsyncMock()
-        mock_pub.publish_email_verified = AsyncMock()
-        mock_pub.publish_password_reset_request = AsyncMock()
-        mock_pub.publish_password_reset_success = AsyncMock()
-        mock_pub.publish_user_logged_in = AsyncMock()
-        mock_pub.publish_user_deleted = AsyncMock()
+    app.dependency_overrides[get_user_service] = lambda: mock_route_service
+    app.dependency_overrides[get_current_user] = lambda: test_settings.CURRENT_USER
 
-        app.dependency_overrides[get_user_service] = lambda: mock_route_service
-        app.dependency_overrides[get_current_user] = lambda: test_settings.CURRENT_USER
+    async with AsyncClient(transport=ASGITransport(app=app),base_url="http://testserver") as async_client:
+        yield async_client
 
-        async with AsyncClient(transport=ASGITransport(app=app),base_url="http://testserver") as async_client:
-            yield async_client
-
-        app.dependency_overrides.clear()
+    app.dependency_overrides.clear()
 
     app.router.lifespan_context = original_lifespan
     settings.DEBUG_MODE = original_debug_mode
+
+@pytest.fixture
+async def get_outbox_event() -> AsyncGenerator[Callable[[str], Awaitable[dict[str, Any] | None]], Any]:
+    """Return a helper that reads the latest unprocessed outbox event payload by event_type."""
+    async def _query(event_type: str) -> dict[str, Any] | None:
+        async with test_user_service_database_session_manager.transaction() as session:
+            result = await session.execute(
+                select(OutboxEvent)
+                .where(OutboxEvent.event_type == event_type, OutboxEvent.processed.is_(False))
+                .order_by(OutboxEvent.date_created.desc())
+            )
+            event = result.scalars().first()
+            return event.payload if event else None
+
+    yield _query
+
 
 # ---------------------------------------------------------------------------
 # Integration-test fixtures  (real DB + real service + mock Redis/events)
 # ---------------------------------------------------------------------------
 
 @pytest.fixture
-async def mock_user_events_publisher():
-    """Patches the RabbitMQ event publisher used by user routes.
-
-    Yielded mock allows tests to inspect published events, e.g. to extract
-    the verification token from publish_user_registered.call_args.
-    """
-    with patch("routes.user_routes.user_events_publisher") as mock_pub:
-        mock_pub.publish_user_registered        = AsyncMock()
-        mock_pub.publish_email_verified         = AsyncMock()
-        mock_pub.publish_password_reset_request = AsyncMock()
-        mock_pub.publish_password_reset_success = AsyncMock()
-        mock_pub.publish_user_logged_in         = AsyncMock()
-        yield mock_pub
-
-
-@pytest.fixture
-async def integration_client(mock_user_events_publisher) -> AsyncGenerator[AsyncClient, Any]:
+async def integration_client() -> AsyncGenerator[AsyncClient, Any]:
     """
     Async HTTP client for integration tests.
 
     What is real:
       - PostgreSQL (user_service TEST database)
-      - UserService, UserRepository
+      - UserService, UserRepository, OutboxEventService, OutboxRepository
       - PasswordManager, TokenManager
 
     What is mocked:
       - Redis  (no live Redis needed in CI)
-      - RabbitMQ event publisher (via mock_user_events_publisher fixture)
+      - RabbitMQ event publisher (the outbox poller is not started because the lifespan is no-op)
       - FastAPI lifespan (tables are managed by this fixture directly)
 
     Isolation strategy:
@@ -299,6 +307,7 @@ async def integration_client(mock_user_events_publisher) -> AsyncGenerator[Async
             password_manager=real_password_manager,
             token_manager=real_token_manager,
             cache_manager=_mock_redis_manager,
+            outbox_event_service=OutboxEventService(repository=OutboxRepository(session=session)),
         )
 
     # ── 5. Replace the app lifespan so no live infra connections are made ───

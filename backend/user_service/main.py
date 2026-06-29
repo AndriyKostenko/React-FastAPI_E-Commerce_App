@@ -1,5 +1,6 @@
 from datetime import datetime
 from contextlib import asynccontextmanager
+from asyncio import create_task
 import os
 from time import perf_counter
 
@@ -22,6 +23,7 @@ from shared.shared_instances import (base_event_publisher, user_service_redis_ma
                                     settings)
 from helpers.internal_access_helper import internal_access_helper
 from helpers.request_helper import request_metrics_helper
+from service_layer.outbox_poller_service import OutboxPollerService
 
 
 @asynccontextmanager
@@ -39,10 +41,13 @@ async def lifespan(app: FastAPI): # pyright: ignore[reportUnusedParameter]
     logger.info("User service DB manager is started.")
     await base_event_publisher.start()
     logger.info("RabbitMQ Event publisher is started.")
+    poller_task = create_task(OutboxPollerService().start_outbox_poller())
+    logger.info("User service outbox poller is started.")
     logger.info('Server startup complete!')
 
     yield
 
+    poller_task.cancel()
     await user_service_database_session_manager.close()
     logger.warning("Database connection closed on shutdown!")
     await base_event_publisher.stop()

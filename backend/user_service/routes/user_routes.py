@@ -9,7 +9,6 @@ from pydantic import EmailStr
 from shared.shared_instances import settings
 from dependencies.dependencies import user_service_dependency, current_user_dependency
 from models.user_models import User
-from events_publisher.user_events_publisher import user_events_publisher
 from shared.schemas.user_schemas import (
     EmailVerificationResponse,
     ActivationLoginResponse,
@@ -38,7 +37,6 @@ async def create_user(request: Request,
                       data: UserSignUp,
                       user_service: user_service_dependency):
     new_db_user, verification_token = await user_service.create_user(data=data)
-    await user_events_publisher.publish_user_registered(new_db_user.email, verification_token, user_id=new_db_user.id)
     return new_db_user
 
 @user_routes.post("/activate/{token}",
@@ -48,7 +46,6 @@ async def create_user(request: Request,
                   status_code=status.HTTP_200_OK)
 async def verify_email(request: Request, token: str, user_service: user_service_dependency):
     db_user, access_token, token_expiry = await user_service.verify_email(token=token)
-    await user_events_publisher.publish_email_verified(email=db_user.email, user_id=db_user.id)
     return ActivationLoginResponse(
         detail="Email verified successfully",
         email=db_user.email,
@@ -66,7 +63,6 @@ async def verify_email(request: Request, token: str, user_service: user_service_
                     status_code=status.HTTP_200_OK)
 async def forgot_password(request: Request, email: EmailStr, user_service: user_service_dependency):
     user, reset_token = await user_service.request_password_reset(email)
-    await user_events_publisher.publish_password_reset_request(email=user.email, reset_token=reset_token, user_id=user.id)
     return ForgotPasswordResponse(
         detail="Password reset email has been sent!",
         email=user.email,
@@ -84,7 +80,6 @@ async def forgot_password(request: Request, email: EmailStr, user_service: user_
 async def reset_password(request: Request, token: str, data: ResetPasswordRequest, user_service: user_service_dependency):
     """Reset password using token"""
     user = await user_service.reset_password_with_token(token=token, new_password=data.new_password)
-    await user_events_publisher.publish_password_reset_success(email=user.email, user_id=user.id)
     return PasswordUpdateResponse(
         detail="Password reset successfully", email=user.email
     )
@@ -98,7 +93,6 @@ async def login(request: Request,
                 form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
                 user_service: user_service_dependency):
     user, access_token, access_expiry, refresh_token, refresh_expiry = await user_service.login_user(form_data)
-    await user_events_publisher.publish_user_logged_in(email=user.email, user_id=user.id)
     return UserLoginDetails(
         access_token=access_token,
         token_type=settings.TOKEN_TYPE,
@@ -224,9 +218,7 @@ async def update_user_by_id(
 async def delete_user_by_id(
     request: Request, user_id: UUID, user_service: user_service_dependency
 ):
-    user = await user_service.get_user_by_id(user_id=user_id)
     await user_service.delete_user_by_id(user_id=user_id)
-    await user_events_publisher.publish_user_deleted(email=user.email, user_id=user_id)
     return {"detail": "User deleted successfully"}
 
 
