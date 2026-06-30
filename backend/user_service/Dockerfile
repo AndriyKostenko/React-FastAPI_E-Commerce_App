@@ -61,7 +61,8 @@ WORKDIR /app
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PROMETHEUS_MULTIPROC_DIR=/tmp/prometheus_multiproc/user-service
+    PROMETHEUS_MULTIPROC_DIR=/tmp/prometheus_multiproc/user-service \
+    HOME=/tmp
 
 # Install runtime dependencies (smaller footprint than build stage)
 RUN apt-get update \

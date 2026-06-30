@@ -171,7 +171,7 @@ const HeroSection = ({isRegisteredUser, currentUserJWT}: HeroSectionProps) => {
                     <TshirtMeasurement size={size} />
                 </div>
             </div>
-            {/* ── Bottom bar (full width): color + placement + CTA ── */}
+            {/* ── Bottom bar (full width): selectors left, CTA right matching preview width ── */}
             <HeroBottomBar
                 garmentColor={garmentColor}
                 setGarmentColor={setGarmentColor}

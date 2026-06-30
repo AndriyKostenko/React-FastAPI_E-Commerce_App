@@ -174,48 +174,47 @@ const GenerationPanel = ({ isGenerating,
     return (
         <div className="flex-1 min-h-0 rounded-[2rem] overflow-hidden isolate flex flex-col">
             <div className="liquid-glass h-full flex flex-col min-h-0">
-                <div className="relative z-10 flex flex-col flex-1 p-4 md:p-5 lg:p-6 space-y-3 md:space-y-4 min-h-0 overflow-hidden">
-                    <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_180px] gap-3 md:gap-4 items-start min-h-0 flex-1">
-                        <div className="flex flex-col space-y-1.5 min-h-0">
-                            <label className="font-label-bold text-label-bold text-primary">
-                                Prompt
-                            </label>
-                            <textarea
-                                value={session.prompt}
-                                onChange={(e) =>
-                                    actions.setPrompt(e.target.value)
-                                }
-                                className="w-full bg-white/40 border-none rounded-2xl p-3 font-body-md focus:ring-2 focus:ring-brand-lime min-h-[48px] md:min-h-[56px] flex-1 resize-none overflow-y-auto text-primary placeholder:text-secondary"
-                                placeholder="A futuristic cyberpunk samurai mask made of translucent glass shards, neon indigo lighting, minimalist vector style..."
-                            />
-                        </div>
-
-                        <div className="flex flex-col space-y-1.5">
-                            <label className="font-label-bold text-label-bold text-primary">
-                                Style
-                            </label>
-                            <select
-                                value={session.style}
-                                onChange={(e) =>
-                                    actions.setStyle(e.target.value as StyleOption)
-                                }
-                                className="w-full bg-white/40 border-none rounded-2xl p-2.5 font-label-bold appearance-none text-primary cursor-pointer focus:ring-2 focus:ring-brand-lime"
-                            >
-                                {GENERATION_STYLES.map((style, index) => (
-                                    <option key={index} value={style}>
-                                        {style}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
+                <div className="relative z-10 grid flex-1 p-4 md:p-5 lg:p-6 gap-3 md:gap-4 min-h-0 overflow-hidden grid-cols-1 md:grid-cols-[minmax(0,1fr)_180px] grid-rows-[minmax(0,1fr)_auto]">
+                    <div className="flex flex-col space-y-1.5 min-h-0">
+                        <label className="font-label-bold text-label-bold text-primary">
+                            Prompt
+                        </label>
+                        <textarea
+                            value={session.prompt}
+                            onChange={(e) =>
+                                actions.setPrompt(e.target.value)
+                            }
+                            className="w-full bg-white/40 border-none rounded-2xl p-3 font-body-md focus:ring-2 focus:ring-brand-lime min-h-[48px] md:min-h-[56px] flex-1 resize-none overflow-y-auto text-primary placeholder:text-secondary"
+                            placeholder="A futuristic cyberpunk samurai mask made of translucent glass shards, neon indigo lighting, minimalist vector style..."
+                        />
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-2.5 pt-1 w-full flex-shrink-0">
+                    <div className="flex flex-col space-y-1.5">
+                        <label className="font-label-bold text-label-bold text-primary">
+                            Style
+                        </label>
+                        <select
+                            value={session.style}
+                            onChange={(e) =>
+                                actions.setStyle(e.target.value as StyleOption)
+                            }
+                            className="w-full bg-white/40 border-none rounded-2xl p-2.5 font-label-bold appearance-none text-primary cursor-pointer focus:ring-2 focus:ring-brand-lime"
+                        >
+                            {GENERATION_STYLES.map((style, index) => (
+                                <option key={index} value={style}>
+                                    {style}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div className="col-span-full flex flex-wrap items-center gap-2.5 w-full">
                         <div className="relative flex-1 min-w-[220px]">
                             <Button
                                 onClick={handleGenerate}
                                 disabled={isGenerating || isGenerationLimitReached}
                                 variant="keyboard"
+                                size="lg"
                                 custom="w-full py-2.5 pl-6 pr-12"
                             >
                                 <MdAutoAwesome
@@ -238,6 +237,7 @@ const GenerationPanel = ({ isGenerating,
                             onClick={handleSelectPreviousState}
                             disabled={isGenerating || !canCycleGeneratedStates}
                             variant="secondary"
+                            size="lg"
                             title="Browse generated states"
                         >
                             <MdRefresh className="text-lg" />
@@ -246,6 +246,7 @@ const GenerationPanel = ({ isGenerating,
                             onClick={handleRandomPresetPrompt}
                             variant="secondary"
                             title="Random Prompt"
+                            size="lg"
                         >
                             <MdElectricBolt className="text-lg" />
                         </Button>

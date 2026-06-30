@@ -1,7 +1,11 @@
 "use client";
-import Button from "@/components/ui/Button";
 import { Dispatch, SetStateAction } from "react";
 import { SIZE_MEASUREMENTS } from "@/utils/constants";
+import AddToCartButton from "./AddToCartButton";
+
+const Divider = () => (
+    <div className="hidden lg:block h-8 w-px bg-black/10 flex-shrink-0" />
+);
 
 type GarmentColor = "bg-white" | "bg-black";
 
@@ -21,10 +25,6 @@ type HeroBottomBarProps = {
     isPriceLoading: boolean;
     onAddToCart: () => void;
 };
-
-const Divider = () => (
-    <div className="hidden lg:block h-8 w-px bg-black/10 flex-shrink-0" />
-);
 
 const ColorSelector = ({
     garmentColor,
@@ -107,6 +107,7 @@ const PlacementSelector = ({
     placement,
     setPlacement,
 }: Pick<HeroBottomBarProps, "placement" | "setPlacement">) => (
+
     <div className="space-y-1 flex-shrink-0 min-w-[120px] md:min-w-[160px]">
         <h3 className="font-label-bold text-xs text-primary">
             Print Placement
@@ -186,35 +187,6 @@ const QuantitySelector = ({
     </div>
 );
 
-const AddToCartButton = ({
-    onAddToCart,
-    finalPrice,
-    currency,
-    isPriceLoading,
-}: Pick<
-    HeroBottomBarProps,
-    "onAddToCart" | "finalPrice" | "currency" | "isPriceLoading"
->) => {
-    const normalizedCurrency = currency?.trim() || "USD";
-    const formattedPrice = new Intl.NumberFormat("en-US", {
-        style: "currency",
-        currency: normalizedCurrency,
-    }).format(finalPrice);
-
-    return (
-        <div className="flex-shrink-0 w-full md:w-auto flex flex-col items-center gap-1 md:gap-2">
-            <span className="inline-flex items-center justify-center min-w-[48px] md:min-w-[54px] h-4 md:h-5 px-1.5 md:px-4 rounded-full bg-primary text-white font-label-bold text-xs shadow-md">
-                {isPriceLoading ? "..." : formattedPrice}
-            </span>
-            <Button
-                label="Add to Cart"
-                onClick={onAddToCart}
-                variant="keyboard"
-            />
-        </div>
-    );
-};
-
 const HeroBottomBar = ({
     garmentColor,
     setGarmentColor,
@@ -232,23 +204,24 @@ const HeroBottomBar = ({
     onAddToCart,
 }: HeroBottomBarProps) => {
     return (
-        <div className="lg:col-span-2 glass-card p-6 flex flex-row flex-wrap items-end justify-center gap-3 md:gap-4">
-            <ColorSelector
-                garmentColor={garmentColor}
-                setGarmentColor={setGarmentColor}
-            />
-            <Divider />
-            <SizeSelector size={size} setSize={setSize} />
-            <Divider />
-            <GenderSelector gender={gender} setGender={setGender} />
-            <Divider />
-            <PlacementSelector
-                placement={placement}
-                setPlacement={setPlacement}
-            />
-            <Divider />
-            <QuantitySelector quantity={quantity} setQuantity={setQuantity} />
-            <Divider />
+        <div className="lg:col-span-2 glass-card p-6 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-3 md:gap-4">
+            <div className="flex flex-wrap items-end gap-3 md:gap-4 min-w-0">
+                <ColorSelector
+                    garmentColor={garmentColor}
+                    setGarmentColor={setGarmentColor}
+                />
+                <Divider />
+                <SizeSelector size={size} setSize={setSize} />
+                <Divider />
+                <GenderSelector gender={gender} setGender={setGender} />
+                <Divider />
+                <PlacementSelector
+                    placement={placement}
+                    setPlacement={setPlacement}
+                />
+                <Divider />
+                <QuantitySelector quantity={quantity} setQuantity={setQuantity} />
+            </div>
             <AddToCartButton
                 onAddToCart={onAddToCart}
                 finalPrice={finalPrice}

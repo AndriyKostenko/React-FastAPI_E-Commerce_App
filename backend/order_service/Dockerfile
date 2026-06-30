@@ -46,7 +46,9 @@ FROM python:3.12-slim AS runtime
 WORKDIR /app
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    PROMETHEUS_MULTIPROC_DIR=/tmp/prometheus_multiproc/order-service \
+    HOME=/tmp
 
 RUN apt-get update \
     && apt-get upgrade -y \

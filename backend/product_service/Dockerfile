@@ -53,7 +53,8 @@ WORKDIR /app
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PROMETHEUS_MULTIPROC_DIR=/tmp/prometheus_multiproc/product-service
+    PROMETHEUS_MULTIPROC_DIR=/tmp/prometheus_multiproc/product-service \
+    HOME=/tmp
 
 RUN apt-get update \
     && apt-get upgrade -y \

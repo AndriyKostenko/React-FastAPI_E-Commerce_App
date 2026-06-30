@@ -133,7 +133,7 @@ const createDefaultSession = (limit: number): GenerationSession => ({
     phase: "idle",
 });
 
-const loadSession = (defaultLimit: number): GenerationSession => {
+const loadStoredSession = (defaultLimit: number): GenerationSession => {
     if (typeof window === "undefined") {
         return createDefaultSession(defaultLimit);
     }
@@ -160,7 +160,17 @@ export class GenerationSessionController {
     private _session: GenerationSession;
 
     constructor(defaultLimit: number) {
-        this._session = loadSession(defaultLimit);
+        this._session = createDefaultSession(defaultLimit);
+    }
+
+    /**
+     * Hydrates the session from localStorage. Must be called inside a
+     * client-side effect so the initial render/hydration matches the SSR
+     * output (which cannot access localStorage).
+     */
+    loadFromStorage(defaultLimit: number): void {
+        if (typeof window === "undefined") return;
+        this._session = loadStoredSession(defaultLimit);
     }
 
     get session(): GenerationSession {

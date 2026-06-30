@@ -36,6 +36,13 @@ export const useGenerationSession = (isRegisteredUser: boolean) => {
         setSession(controller.session);
     }, [controller]);
 
+    // Hydrate the session from localStorage after the initial client mount so
+    // the server-rendered HTML and the first client render stay identical.
+    useEffect(() => {
+        controller.loadFromStorage(defaultLimit);
+        syncSession();
+    }, [controller, defaultLimit, syncSession]);
+
     // Reset the counter when the user's authentication status changes.
     useEffect(() => {
         if (controller.resetCounterOnAuthChange(defaultLimit)) {

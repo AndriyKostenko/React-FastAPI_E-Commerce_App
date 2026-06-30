@@ -37,14 +37,15 @@ import type { ButtonHTMLAttributes } from "react";
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
     label?: string;
     children?: ReactNode;
-    
+
     outline?: boolean;
+    /** @deprecated Use `size="sm"` instead. */
     small?: boolean;
     custom?: string;
     icon?: IconType;
-    
-    
+
     variant?: "default" | "keyboard" | "secondary";
+    size?: "sm" | "md" | "lg";
 }
 
 export interface CartProviderProps {
