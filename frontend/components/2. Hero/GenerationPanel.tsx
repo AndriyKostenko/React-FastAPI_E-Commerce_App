@@ -174,11 +174,12 @@ const GenerationPanel = ({ isGenerating,
     return (
         <div className="flex-1 min-h-0 rounded-[2rem] overflow-hidden isolate flex flex-col">
             <div className="liquid-glass h-full flex flex-col min-h-0">
-                <div className="relative z-10 grid flex-1 p-4 md:p-5 lg:p-6 gap-3 md:gap-4 min-h-0 overflow-hidden grid-cols-1 md:grid-cols-[minmax(0,1fr)_180px] grid-rows-[minmax(0,1fr)_auto]">
-                    <div className="flex flex-col space-y-1.5 min-h-0">
-                        <label className="font-label-bold text-label-bold text-primary">
-                            Prompt
-                        </label>
+                <div className="relative z-10 flex flex-col flex-1 p-4 md:p-5 lg:p-6 min-h-0 overflow-hidden">
+                    <div className="grid flex-1 min-h-0 overflow-hidden grid-cols-1 md:grid-cols-[minmax(0,1fr)_180px] gap-3 md:gap-4">
+                        <div className="flex flex-col space-y-1.5 min-h-0">
+                            <label className="font-label-bold text-label-bold text-primary">
+                                Prompt
+                            </label>
                         <textarea
                             value={session.prompt}
                             onChange={(e) =>
@@ -206,9 +207,10 @@ const GenerationPanel = ({ isGenerating,
                                 </option>
                             ))}
                         </select>
+                        </div>
                     </div>
 
-                    <div className="col-span-full flex flex-wrap items-center gap-2.5 w-full">
+                    <div className="flex flex-wrap items-center gap-2.5 w-full mt-4 md:mt-6">
                         <div className="relative flex-1 min-w-[220px]">
                             <Button
                                 onClick={handleGenerate}

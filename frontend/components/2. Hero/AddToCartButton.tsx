@@ -30,7 +30,7 @@ const AddToCartButton = ({
                 label="Add to Cart"
                 onClick={onAddToCart}
                 variant="keyboard"
-                size="md"
+                size="lg"
             />
         </div>
     );

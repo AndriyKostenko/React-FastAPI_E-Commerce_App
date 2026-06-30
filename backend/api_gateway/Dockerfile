@@ -122,7 +122,7 @@ CMD ["sh", "-c", \
  -k uvicorn.workers.UvicornWorker \
  main:app \
  --bind 0.0.0.0:8000 \
- --workers ${GUNICORN_WORKERS:-4} \
+ --workers ${GUNICORN_WORKERS:-1} \
  --timeout 120 \
  --graceful-timeout 30 \
  --access-logfile -"]

@@ -9,41 +9,29 @@ const SetColor: React.FC<SetColorProps> = ({
 }) => {
     return (
         <div>
-            <div
-                className="flex
-                            gap-4
-                            items-center"
-            >
-                <span className="font-semibold">COLOR:</span>
-                <div
-                    className="flex
-                                gap-1"
-                >
+            <div className="flex gap-4 items-center">
+                <span className="font-label-bold text-primary">Color</span>
+                <div className="flex gap-2">
                     {images.map((image) => {
+                        const isSelected =
+                            cartProduct.selected_image.image_color ===
+                            image.image_color;
                         return (
                             <div
                                 key={image.image_color}
                                 onClick={() => handleColorSelect(image)}
-                                className={`h-7
-                                             w-7
-                                             rounded-full
-                                             border-teal-300
-                                             flex
-                                             items-center
-                                             justify-center
-                                             ${cartProduct.selected_image.image_color === image.image_color ? "border-[1.5px]" : "border-none"}`}
+                                className={`h-8 w-8 rounded-full flex items-center justify-center cursor-pointer transition-all ${
+                                    isSelected
+                                        ? "border-[1.5px] border-primary bg-white/60"
+                                        : "border border-transparent hover:bg-white/40"
+                                }`}
                             >
                                 <div
                                     style={{
                                         background: image.image_color_code,
                                     }}
-                                    className="h-5
-                                                                                      w-5
-                                                                                      rounded-full
-                                                                                      border-[1.2px]
-                                                                                       border-slate-300
-                                                                                      cursor-pointer"
-                                ></div>
+                                    className="h-5 w-5 rounded-full border border-white/40"
+                                />
                             </div>
                         );
                     })}

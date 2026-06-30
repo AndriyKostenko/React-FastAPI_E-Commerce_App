@@ -15,16 +15,16 @@ export default async function Home(props: {params: Params, searchParams: SearchP
     const products = await fetchProductsFromBackend(category, searchTerm);
 	const currentUserJWT = await sessionManagaer.getCurrentUserJWT();
 
-    // if (!products || products.length === 0) {
-    //     return <NullData title="No products!!!"/>
-    // }
+    if (!products || products.length === 0) {
+        return <NullData title="No products!!!"/>
+    }
 
     return (
         <div className="space-y-8">
 			<HeroSection isRegisteredUser={Boolean(currentUserJWT)}
 						 currentUserJWT={currentUserJWT} />
-            {/*<CommunityGallery />*/}
-            {/*<FeaturedCollection products={products} />*/}
+            <CommunityGallery />
+            <FeaturedCollection products={products} />
             <Testimonials />
         </div>
     )

@@ -13,12 +13,10 @@ interface IDParameters {
 }
 
 
-// will be rendered on server so cosole.log will be shown in terminal
 const Product = async ({params} : {params: Promise<IDParameters>}) => {
-
     const {productId} = await params;
 
-  const product = await fetchProductById(productId)
+    const product = await fetchProductById(productId)
 
     const currentUser = await sessionManagaer.getCurrentUser();
 
@@ -26,15 +24,24 @@ const Product = async ({params} : {params: Promise<IDParameters>}) => {
 
     const isDelivered = currentUser ? await checkIfOrderIsDelivered(currentUser.id, productId, currentUserToken) : false;
 
-
     return ( 
-        <div className="p-8">
+        <div className="py-8">
             <Container>
-                <ProductDetails product={product}/>
-                <div className="flex flex-col mt-20 gap-4">
-                     {/* Render AddReview only if the user is logged in */}
-                     {currentUser && product && <AddReview product={product} user={currentUser} isDelivered={isDelivered} token={currentUserToken} />}
-                    <ListReview product={product}/>
+                <div className="space-y-8">
+                    <ProductDetails product={product}/>
+                    <section className="glass-card p-6 md:p-8">
+                        <div className="flex flex-col gap-8">
+                            {currentUser && product && (
+                                <AddReview
+                                    product={product}
+                                    user={currentUser}
+                                    isDelivered={isDelivered}
+                                    token={currentUserToken}
+                                />
+                            )}
+                            <ListReview product={product}/>
+                        </div>
+                    </section>
                 </div>
             </Container>
         </div>
