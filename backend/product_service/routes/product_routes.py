@@ -6,6 +6,7 @@ from fastapi import APIRouter, File, Form, Query, Request, UploadFile, status
 
 from dependencies.dependencies import (
     product_service_dependency,
+    cjdropshipping_product_dependency
 )
 from models.product_models import Product
 from shared.shared_instances import settings
@@ -17,6 +18,7 @@ from shared.schemas.product_schemas import (
     ProductsFilterParams,
     UpdateProduct,
 )
+from shared.schemas.dropshipping_schemas import CJProductsFilterParams
 
 product_routes = APIRouter(tags=["products"])
 
@@ -75,8 +77,7 @@ async def create_product_with_images(
     in_stock: bool = Form(...),
     images: list[UploadFile] = File(...),
     image_colors: list[str] = Form(...),
-    image_color_codes: list[str] = Form(...),
-) -> ProductBase:
+    image_color_codes: list[str] = Form(...)) -> ProductBase:
     """
     Create a new product with optional image uploads.
     Used by frontend forms that need to upload files.
@@ -105,15 +106,22 @@ async def create_product_with_images(
     response_description="All products",
     status_code=status.HTTP_200_OK,
 )
-async def get_all_products(
-    request: Request,
-    product_service: product_service_dependency,
-    filters_query: Annotated[ProductsFilterParams, Query()],
-) -> list[ProductBase]:
-    products = await product_service.get_all_products_without_relations(
-        filters_query=filters_query
-    )
-    return products
+async def get_all_products(product_service: product_service_dependency,
+    				       filters_query: Annotated[ProductsFilterParams, Query()]) -> list[ProductBase]:
+    return await product_service.get_all_products_without_relations(filters_query=filters_query)
+
+
+@product_routes.get(
+    "/cjdropshipping/products",
+    response_model=
+    response_description="Products from CJDropshipping",
+    status_code=status.HTTP_200_OK,
+)
+async def get_products_from_cjdropshipping(
+    cj_product_service: cjdropshipping_product_dependency,
+    filters_query: Annotated[CJProductsFilterParams, Query()],
+):
+    return await cj_product_service.search_products(filters_query=filters_query)
 
 
 @product_routes.get(

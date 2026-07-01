@@ -5,6 +5,7 @@ from aiohttp import ClientSession
 from fastapi import Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from service_layer.dropshipping_provider import CJDropshippingProductProviderService
 from shared.shared_instances import (
     logger,
     product_service_database_session_manager,
@@ -78,14 +79,15 @@ def get_product_image_service(session: AsyncSession = Depends(get_db_session)) -
     return ProductImageService(ProductImageRepository(session=session))
 
 
-def get_product_service(
-    session: AsyncSession = Depends(get_db_session),
-    product_image_service: ProductImageService = Depends(get_product_image_service)
-) -> ProductService:
+def get_product_service(session: AsyncSession = Depends(get_db_session),
+    					product_image_service: ProductImageService = Depends(get_product_image_service)) -> ProductService:
     """Dependency to provide ProductService with ProductImageService(for imge handling) (for buisiness logic and data validation) which operates ProductRepository(inherits BaseRepository) for db session management."""
-    product_repository = ProductRepository(session=session)
-    return ProductService(product_repository, product_image_service)
+    return ProductService(ProductRepository(session=session), product_image_service)
 
+
+def get_cjdropshipping_product_service():
+    """Dependency to get the specific CJDropshipping product service"""
+    return CJDropshippingProductProviderService(settings_instance=settings)
 
 # ── image-generation dependency chain ─────────────────────────────────────────
 
@@ -142,8 +144,8 @@ def get_user_context_resolver() -> UserContextResolver:
         settings=settings,
     )
 
-
 product_service_dependency = Annotated[ProductService, Depends(get_product_service)]
+cjdropshipping_product_dependency = Annotated[CJDropshippingProductProviderService, Depends(get_cjdropshipping_product_service)]
 category_service_dependency = Annotated[CategoryService, Depends(get_category_service)]
 review_service_dependency = Annotated[ReviewService, Depends(get_review_service)]
 product_image_service_dependency = Annotated[ProductImageService, Depends(get_product_image_service)]

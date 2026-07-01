@@ -1,11 +1,12 @@
 from decimal import Decimal
 from functools import lru_cache
 from pathlib import Path
+from typing import Any
 from uuid import UUID, uuid4
 from datetime import datetime
 
 from sqlalchemy.engine import URL
-from pydantic import SecretStr, DirectoryPath
+from pydantic import HttpUrl, SecretStr, DirectoryPath, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from shared.schemas.user_schemas import UserInfo, CurrentUserInfo
@@ -194,6 +195,15 @@ class Settings(BaseSettings):
     POLLING_INTERVAL_FROM_DB: int | float
     CUSTOM_TSHIRT_BASE_PRICE: float
 
+    # CJDropshipping
+    CJ_DROPSHIPPING_API_KEY: str
+    CJ_DROPSHIPPING_ACCESS_TOKEN_URL: str = "https://developers.cjdropshipping.com/api2.0/v1/authentication/getAccessToken"
+    CJ_DROPSHIPPING_PRODUCT_LIST_URL: str = "https://developers.cjdropshipping.com/api2.0/v1/product/listV2"
+    CJ_DROPSHIPPING_CATEGORY_LIST_URL: str = "https://developers.cjdropshipping.com/api2.0/v1/product/getCategory"
+    CJ_DROPSHIPPING_PRODUCT_INFO_URL: str = "https://developers.cjdropshipping.com/api2.0/v1/product/query?pid="
+    CJ_DROPSHIPPING_BASE_URL: str = "https://developers.cjdropshipping.com/api2.0/v1"
+
+
 
     #--------------RABBITMQ-----------------------
 
@@ -375,6 +385,17 @@ class Settings(BaseSettings):
     @property
     def FULL_WISHLIST_SERVICE_URL(self) -> str:
         return f"{self.WISHLIST_SERVICE_URL}{self.WISHLIST_SERVICE_URL_API_VERSION}"
+
+    #------------CJDropshipping------------------------
+
+    @property
+    def CJ_DROPSHIPPING_AUTH_PAYLOAD(self) -> dict[str, str]:
+        return {"apiKey": self.CJ_DROPSHIPPING_API_KEY}
+
+    @property
+    def CJ_DROPSHIPPING_JSON_HEADERS(self) -> dict[str, str]:
+        return {"Content-Type": "application/json"}
+
 
 
 class TestSettings(BaseSettings):
@@ -599,14 +620,11 @@ class TestSettings(BaseSettings):
         "date_updated": None,
     }
 
-    MOCK_UPSTREAM_RESPONSE_BODY: dict = {"status": "ok", "data": "upstream_result"}
+    MOCK_UPSTREAM_RESPONSE_BODY: dict[str, str] = {"status": "ok", "data": "upstream_result"}
 
     # ── Auth request payload helpers ─────────────────────────────────────────
-    REGISTER_PAYLOAD: dict = {"name": "Test User", "email": "test@example.com", "password": "Password123!"}
+    REGISTER_PAYLOAD: dict[str, str] = {"name": "Test User", "email": "test@example.com", "password": "Password123!"}
     LOGIN_DATA: dict[str, str] = {"username": "test@example.com", "password": "secret123"}
-
-
-
 
 
 

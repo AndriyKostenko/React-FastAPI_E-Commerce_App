@@ -24,7 +24,7 @@ class ProductBase(BaseModel):
     """Base product schema with common attributes"""
 
     id: UUID
-    name: str = Field(..., min_length=3, max_length=50)
+    name: str = Field(..., min_length=3, max_length=70)
     description: str = Field(..., min_length=10, max_length=500)
     category_id: UUID
     brand: str = Field(..., min_length=3, max_length=50)
@@ -32,7 +32,7 @@ class ProductBase(BaseModel):
     price: Decimal = Field(..., gt=0, le=99999)
     in_stock: bool
     date_created: datetime
-    date_updated: Optional[datetime] = None
+    date_updated: datetime | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -157,6 +157,14 @@ class ProductsFilterParams(BaseFilters):
             except ValueError:
                 return None
         return value
+
+
+class CJDropshippingFilterParams(BaseModel):
+	keyWord: str = Field(description="Product name or SKU keyword search")
+	page: int = Field(description="Default 1, minimum 1, maximum 1000")
+	size: int =  Field(description="Default 10, minimum 1, maximum 100")
+	categoryId: str = Field(description="Filter products by third level category ID")
+	countryCode: str = Field(description="Format: CN,US,GB,FR etc., filter products with inventory in specified countries")
 
 
 class CustomTshirtPricingResponse(BaseModel):

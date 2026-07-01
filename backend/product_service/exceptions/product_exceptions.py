@@ -37,3 +37,9 @@ class ProductReleaseError(BaseAPIException):
     """Raised when product release (setting the prod. amount back) fails"""
     def __init__(self, detail: str = "Product release (setting quantity back) failed"):
         super().__init__(status_code=422, detail=detail)
+
+class CJDropshippingAPIError(BaseAPIException):
+    """Raised when CJ Dropshipping returns a business or HTTP error."""
+    def __init__(self, detail: str = "Error fetching product from CJDropshipping", status_code: int = 502):
+        super().__init__(status_code=status_code, detail=detail)
+
