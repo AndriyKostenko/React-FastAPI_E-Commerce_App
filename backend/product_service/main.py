@@ -40,8 +40,6 @@ async def lifespan(app: FastAPI):
 
     logger.info(f"Server is starting up on {settings.APP_HOST}:{settings.PRODUCT_SERVICE_APP_PORT}...")
     request_metrics_helper.initialize()
-    await product_service_redis_manager.connect()
-    await product_event_idempotency_service.connect()
     await product_service_database_session_manager.init_db()
     logger.info("Product service DB session is started.")
     await base_event_publisher.start()
@@ -59,8 +57,6 @@ async def lifespan(app: FastAPI):
 
     await product_service_database_session_manager.close()
     logger.warning("Database connection closed on shutdown!")
-    await product_service_redis_manager.close()
-    logger.warning("Redis Cache connection closed on shutdown!")
     await base_event_publisher.stop()
     logger.warning("RabbitMQ connection is closed")
     if not taskiq_broker.is_worker_process:
@@ -79,9 +75,9 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-setup_tracing(app, service_name="product-service")
+#setup_tracing(app, service_name="product-service")
 
-Instrumentator().instrument(app)
+#Instrumentator().instrument(app)
 
 # Registered second → inner layer → runs FIRST
 @app.middleware("http")
@@ -142,23 +138,23 @@ async def health_check():
     )
 
 
-@app.get("/metrics", include_in_schema=False)
-def metrics():
-    """Multiprocess-aware Prometheus metrics endpoint."""
-    multiproc_dir = os.environ.get("PROMETHEUS_MULTIPROC_DIR")
+# @app.get("/metrics", include_in_schema=False)
+# def metrics():
+#     """Multiprocess-aware Prometheus metrics endpoint."""
+#     multiproc_dir = os.environ.get("PROMETHEUS_MULTIPROC_DIR")
 
-    if multiproc_dir:
-        # Multi-worker: merge all worker .db files from the shared dir
-        registry = CollectorRegistry()
-        multiprocess.MultiProcessCollector(registry)
-    else:
-        # Single process (local dev): use the default registry directly
-        registry = REGISTRY
+#     if multiproc_dir:
+#         # Multi-worker: merge all worker .db files from the shared dir
+#         registry = CollectorRegistry()
+#         multiprocess.MultiProcessCollector(registry)
+#     else:
+#         # Single process (local dev): use the default registry directly
+#         registry = REGISTRY
 
-    return PlainResponse(
-        content=generate_latest(registry),
-        media_type="text/plain; version=0.0.4; charset=utf-8",
-    )
+#     return PlainResponse(
+#         content=generate_latest(registry),
+#         media_type="text/plain; version=0.0.4; charset=utf-8",
+#     )
 
 
 def add_exception_handlers(app: FastAPI):

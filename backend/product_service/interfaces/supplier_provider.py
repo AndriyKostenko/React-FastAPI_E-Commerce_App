@@ -1,14 +1,11 @@
 from abc import ABC, abstractmethod
 from typing import Any
 
+from shared.schemas.product_schemas import CreateProduct
+
 class SupplierProvider(ABC):
 	@abstractmethod
-	async def search_products(self, 
-								keyword: str,
-								page: int,
-								size: int,
-								category_id: str,
-								**filters: dict[str, Any]) -> dict[str ,Any]:
+	async def search_products(self, filters_query)-> list[CreateProduct]:
 		...
 
 	@abstractmethod

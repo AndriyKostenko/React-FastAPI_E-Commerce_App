@@ -1,8 +1,8 @@
 """Schemas for CJ Dropshipping API integration."""
 from decimal import Decimal
-from typing import Literal
+from typing import Literal, Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class CJProductsFilterParams(BaseModel):
@@ -16,7 +16,7 @@ class CJProductsFilterParams(BaseModel):
     size: int = Field(default=10, ge=1, le=100)
 
     # Search
-    keyWord: str | None = Field(default=None, max_length=200)
+    keyWord: str | None = Field(default="t-shirt", max_length=200)
 
     # Category filters
     categoryId: str | None = Field(default=None, max_length=200)
@@ -65,3 +65,31 @@ class CJProductsFilterParams(BaseModel):
             "enable_video",
         ]
     ] | None = None
+
+
+
+class CJRawProduct(BaseModel):
+    id: str = Field(alias="id")
+    name_en: str = Field(alias="nameEn")
+    sku: str | None = None
+    image_url: str | None = Field(default=None, alias="bigImage")
+    sell_price: str | None = Field(default=None, alias="sellPrice")
+    now_price: str | None = Field(default=None, alias="nowPrice")
+    category_id: str | None = Field(default=None, alias="categoryId")
+    warehouse_inventory: int | None = Field(default=None, alias="warehouseInventoryNum")
+    total_verified_inventory: int | None = Field(default=None, alias="totalVerifiedInventory")
+
+    @field_validator("sell_price", "now_price", mode="before")
+    @classmethod
+    def _stringify_prices(cls, v: Any) -> str | None:
+        if v is None:
+            return None
+        return str(v)
+
+
+class CJRawProductSearchResponse(BaseModel):
+    page_size: int = Field(alias="pageSize")
+    page_number: int = Field(alias="pageNumber")
+    total_records: int = Field(alias="totalRecords")
+    total_pages: int = Field(alias="totalPages")
+    products: list[CJRawProduct] = Field(alias="content")

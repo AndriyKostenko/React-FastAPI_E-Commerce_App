@@ -113,14 +113,11 @@ async def get_all_products(product_service: product_service_dependency,
 
 @product_routes.get(
     "/cjdropshipping/products",
-    response_model=
+    response_model=list[ProductBase],
     response_description="Products from CJDropshipping",
     status_code=status.HTTP_200_OK,
 )
-async def get_products_from_cjdropshipping(
-    cj_product_service: cjdropshipping_product_dependency,
-    filters_query: Annotated[CJProductsFilterParams, Query()],
-):
+async def get_products_from_cjdropshipping(cj_product_service: cjdropshipping_product_dependency, filters_query: Annotated[CJProductsFilterParams, Query()]):
     return await cj_product_service.search_products(filters_query=filters_query)
 
 

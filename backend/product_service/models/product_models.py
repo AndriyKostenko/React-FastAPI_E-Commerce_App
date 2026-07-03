@@ -38,7 +38,7 @@ class Product(Base, TimestampMixin):
               postgresql_where='in_stock = true'),
     )
 
-    id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4, unique=True)
+    id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, unique=True)
     name: Mapped[str] = mapped_column(nullable=False)
     description: Mapped[str] = mapped_column(nullable=True)
     category_id: Mapped[UUID] = mapped_column(ForeignKey('product_categories.id'), nullable=False)

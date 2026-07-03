@@ -3,6 +3,8 @@ services:
   db:
     image: postgres:16-alpine
     restart: always
+    ports:
+      - "5432:5432"
     env_file:
       - .env
     # Raise connection ceiling and tune shared memory for higher throughput.

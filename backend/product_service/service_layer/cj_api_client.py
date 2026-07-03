@@ -83,8 +83,8 @@ class CJDropshippingAPIClient:
         self._access_token = access_token
         return access_token
 
-    async def ensure_access_token(self) -> str:
+    async def ensure_access_token(self) -> str | None:
         """Return a cached token or fetch a new one."""
         if not self._access_token:
             await self.get_access_token()
-        return self._access_token  # type: ignore[return-value]
+        return self._access_token

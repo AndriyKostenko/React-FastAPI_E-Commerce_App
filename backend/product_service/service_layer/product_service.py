@@ -1,5 +1,5 @@
 from typing import Annotated, Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import Query, UploadFile
 from shared.utils.filter_parser import FilterParser
@@ -35,15 +35,12 @@ class ProductService:
         self.filter_parser: FilterParser = FilterParser()
 
     async def create_product_item(self, product_data: CreateProduct) -> ProductBase:
-        existing_product = await self.repository.get_by_field(
-            "name", value=product_data.name.lower()
-        )
-        if existing_product:
-            raise ProductCreationError(
-                f'Product with name: "{product_data.name}" already exists.'
-            )
+        existing_id = await self.repository.get_by_id(item_id=product_data.id)
+        if existing_id:
+            raise ProductCreationError(f'Product with id: "{product_data.id}" already exists.')
 
         new_product = Product(
+        	id=product_data.id or uuid4(),
             name=product_data.name.lower(),
             description=product_data.description,
             category_id=product_data.category_id,

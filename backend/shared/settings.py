@@ -19,10 +19,13 @@ from shared.enums.status_enums import OrderStatus, OrderDeliveryStatus
 # Resolve the single shared .env that lives one level above this file (backend/.env)
 _ROOT_ENV = Path(__file__).resolve().parents[1] / ".env"
 
+_LOCAL_ENV = Path(__file__).resolve().parents[1] / ".env.local"
+
+
 
 class Settings(BaseSettings):
     model_config: SettingsConfigDict = SettingsConfigDict(
-        env_file=_ROOT_ENV,
+        env_file=(_ROOT_ENV, _LOCAL_ENV),
         env_file_encoding="utf-8",
         extra="ignore",   # ignore vars in .env that aren't declared on this model
     )

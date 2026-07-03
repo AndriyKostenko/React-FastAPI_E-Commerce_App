@@ -40,13 +40,16 @@ class ProductBase(BaseModel):
 class CreateProduct(BaseModel):
     """Schema for creating a product"""
 
-    name: str = Field(..., min_length=3, max_length=50)
-    description: str = Field(..., min_length=10, max_length=500)
-    category_id: UUID
-    brand: str = Field(..., min_length=3, max_length=50)
-    quantity: PositiveInt = Field(..., gt=0, le=100)
-    price: Decimal = Field(..., gt=0, le=9000)
-    in_stock: bool
+	id: UUID | str | None
+	name: str = Field(..., min_length=3, max_length=50)
+	description: str = Field(..., min_length=10, max_length=500)
+	category_id: UUID | str | None
+	brand: str = Field(..., min_length=3, max_length=50)
+	quantity: PositiveInt = Field(..., gt=0, le=100)
+	price: Decimal = Field(..., gt=0, le=9000)
+	in_stock: bool
+	sku: str | None = Field(max_length=70)
+	image_url: str | None
 
     @field_validator("in_stock", mode="before")
     @classmethod

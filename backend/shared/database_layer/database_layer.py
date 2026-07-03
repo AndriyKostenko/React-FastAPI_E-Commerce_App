@@ -41,8 +41,8 @@ class BaseRepository(Generic[ModelType]):
 
     # ---------------- READ ----------------
     async def get_by_id(self,
-                        item_id: UUID,
-                        load_relations: Optional[list[str]] = None) -> Optional[ModelType]:
+                        item_id: UUID | str | None,
+                        load_relations: None | list[str] = None) -> Optional[ModelType]:
         """Get a record by ID"""
         query = select(self.model)
         if load_relations:
