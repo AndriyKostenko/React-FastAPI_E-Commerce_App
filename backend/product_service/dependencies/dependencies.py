@@ -79,10 +79,12 @@ def get_product_image_service(session: AsyncSession = Depends(get_db_session)) -
     return ProductImageService(ProductImageRepository(session=session))
 
 
-def get_product_service(session: AsyncSession = Depends(get_db_session),
-    					product_image_service: ProductImageService = Depends(get_product_image_service)) -> ProductService:
+def get_product_service(session: AsyncSession = Depends(get_db_session)) -> ProductService:
     """Dependency to provide ProductService with ProductImageService(for imge handling) (for buisiness logic and data validation) which operates ProductRepository(inherits BaseRepository) for db session management."""
-    return ProductService(ProductRepository(session=session), product_image_service)
+    image_repo = ProductImageRepository(session=session)
+    product_image_service = ProductImageService(repository=image_repo)
+    product_repo = ProductRepository(session=session)
+    return ProductService(repository=product_repo, product_image_service=product_image_service)
 
 
 def get_cjdropshipping_product_service():

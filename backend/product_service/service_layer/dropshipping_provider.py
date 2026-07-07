@@ -31,12 +31,15 @@ class CJDropshippingProductProviderService(SupplierProvider):
 
     @override
     async def search_products(self, filters_query: CJProductsFilterParams) -> list[CreateProduct]:
-        """Search products using the V2 product list endpoint."""
+        """
+        Search products using the V2 product list endpoint.
+        Returns the mapped on "CreateProduct" products.
+        """
         access_token = await self.api_client.ensure_access_token()
         params = self.filter_parser.parse_filter_params(filter_query=filters_query)
 
         url = self.api_client.build_url(self.settings.CJ_DROPSHIPPING_PRODUCT_LIST_URL, params)
-        data = await self.api_client._request("GET", url, access_token=access_token)
+        data = await self.api_client.request("GET", url, access_token=access_token)
         return self.product_mapper.map_products(data)
 
     @override
@@ -44,7 +47,7 @@ class CJDropshippingProductProviderService(SupplierProvider):
         """Fetch product details by pid."""
         access_token = await self.api_client.ensure_access_token()
         url = self.api_client.build_url(self.settings.CJ_DROPSHIPPING_PRODUCT_INFO_URL, {"pid": pid})
-        return await self.api_client._request("GET", url, access_token=access_token)
+        return await self.api_client.request("GET", url, access_token=access_token)
 
     @override
     async def get_inventory(self, pid: str) -> dict[str, Any]:
@@ -52,7 +55,7 @@ class CJDropshippingProductProviderService(SupplierProvider):
         access_token = await self.api_client.ensure_access_token()
         base_url = str(self.settings.CJ_DROPSHIPPING_BASE_URL).rstrip("/")
         url = self.api_client.build_url(f"{base_url}/product/stock/getInventoryByPid", {"pid": pid})
-        return await self.api_client._request("GET", url, access_token=access_token)
+        return await self.api_client.request("GET", url, access_token=access_token)
 
     @override
     async def create_order(self, **kwargs: Any) -> dict[str, Any]:

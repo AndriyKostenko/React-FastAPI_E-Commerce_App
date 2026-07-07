@@ -34,7 +34,7 @@ class CJRoductSchemaMapper:
 
 	@classmethod
 	def map_products(cls, data: Any):
-		content_list = data.get("data", {}).get("content", [])
+		content_list  = data.get("data", {}).get("content", [])
 		if not content_list:
 			raise CJDropshippingAPIError("No products found in CJDropshipping /products response.")
 		raw_products = content_list[0].get("productList", [])

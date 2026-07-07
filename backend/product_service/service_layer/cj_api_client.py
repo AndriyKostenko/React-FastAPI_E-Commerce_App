@@ -40,15 +40,13 @@ class CJDropshippingAPIClient:
             headers["CJ-Access-Token"] = token
         return headers
 
-    async def _request(
-        self,
-        method: str,
-        url: str,
-        *,
-        json: dict[str, Any] | None = None,
-        params: dict[str, Any] | None = None,
-        access_token: str | None = None,
-    ) -> dict[str, Any]:
+    async def request(self,
+				        method: str,
+				        url: str,
+				        *,
+				        json: dict[str, Any] | None = None,
+				        params: dict[str, Any] | None = None,
+				        access_token: str | None = None) -> dict[str, Any]:
         """Send an HTTP request and return the parsed JSON body."""
         headers = self._auth_headers(access_token)
         try:
@@ -72,7 +70,7 @@ class CJDropshippingAPIClient:
 
     async def get_access_token(self) -> str:
         """Obtain a CJ access token using the configured API key."""
-        response = await self._request(
+        response = await self.request(
             "POST",
             self.settings.CJ_DROPSHIPPING_ACCESS_TOKEN_URL,
             json=self.settings.CJ_DROPSHIPPING_AUTH_PAYLOAD,

@@ -10,7 +10,8 @@ from exceptions.product_exceptions import (
     ProductCreationError,
     ProductNotFoundError,
     ProductReleaseError,
-    ProductUpdateError
+    ProductUpdateError,
+    ProductAlreadyExistsError
 )
 from models.product_models import Product
 from shared.schemas.order_schemas import OrderItemBase
@@ -20,6 +21,7 @@ from shared.schemas.product_schemas import (
     ProductSchema,
     ProductsFilterParams,
     UpdateProduct,
+    ProductUploadForm
 )
 from service_layer.product_image_service import ProductImageService
 from utils.image_processing import image_processing_manager
@@ -41,47 +43,27 @@ class ProductService:
 
         new_product = Product(
         	id=product_data.id or uuid4(),
-            name=product_data.name.lower(),
-            description=product_data.description,
-            category_id=product_data.category_id,
-            brand=product_data.brand.lower(),
-            quantity=product_data.quantity,
-            price=product_data.price,
-            in_stock=product_data.in_stock,
+            **product_data.model_dump(exclude={"id"})
         )
         try:
             new_db_product = await self.repository.create(new_product)
+            return ProductBase.model_validate(new_db_product)
         except IntegrityError as e:
             # Check if it's a foreign key violation for category_id (the category_id does not exist)
             if "products_category_id_fkey" in str(e):
-                raise ProductCreationError(
-                    f'Category with id "{product_data.category_id}" does not exist.'
-                )
+                raise ProductCreationError(f'Category with id "{product_data.category_id}" does not exist.')
             # Re-raise other integrity errors
             raise ProductCreationError(f"Failed to create product: {str(e)}")
 
-        return ProductBase.model_validate(new_db_product)
-
-    async def create_product_with_images(self,
-                                         product_data: CreateProduct,
-                                         images: list[UploadFile],
-                                         image_colors: list[str],
-                                         image_color_codes: list[str]) -> ProductSchema:
-        image_urls = await image_processing_manager.save_images(images)
-        image_metadata = image_processing_manager.create_metadata_list(
-            image_urls=image_urls,
-            image_colors=image_colors,
-            image_color_codes=image_color_codes,
-        )
-        new_product = await self.create_product_item(product_data)
-        await self.product_image_service.create_product_images(
-            product_id=new_product.id,
-            images=image_metadata
-        )
-        full_product = await self.repository.get_by_id(
-            item_id=new_product.id,
-            load_relations=Product.get_relations(),  # category, images, reviews
-        )
+    async def create_product_with_images(self, product_data: ProductUploadForm) -> ProductSchema:
+        image_urls = await image_processing_manager.save_images(product_data.images)
+        image_metadata = image_processing_manager.create_metadata_list(image_urls=image_urls,
+															           image_colors=product_data.image_colors,
+															           image_color_codes=product_data.image_color_codes)
+        product_dto = CreateProduct(**product_data.model_dump(exclude={"images", "image_colors", "image_color_codes"}))
+        new_product = await self.create_product_item(product_data=product_dto)
+        await self.product_image_service.create_product_images(product_id=new_product.id,images=image_metadata)
+        full_product = await self.repository.get_by_id(item_id=new_product.id,load_relations=Product.get_relations(),)
         return ProductSchema.model_validate(full_product)
 
     async def get_product_by_id_without_relations(self, product_id: UUID) -> ProductBase:
