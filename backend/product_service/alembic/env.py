@@ -11,6 +11,7 @@ from shared.models.models_base_class import Base
 from models.category_models import ProductCategory
 from models.product_models import Product
 from models.product_image_models import ProductImage
+from models.product_variant_models import ProductVariant
 from models.review_models import ProductReview
 from shared.shared_instances import settings
 

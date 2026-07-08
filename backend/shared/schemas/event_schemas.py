@@ -4,8 +4,9 @@ from datetime import datetime, timezone
 from pydantic import BaseModel, EmailStr, PositiveFloat, Field
 
 from shared.schemas.order_schemas import OrderItemBase
+from shared.schemas.supplier_schemas import GenericSupplierProduct
 from shared.enums.services_enums import Services
-from shared.enums.event_enums import UserEvents, OrderEvents, InventoryEvents, PaymentEvents, ShippingEvents, WishlistEvents
+from shared.enums.event_enums import UserEvents, OrderEvents, InventoryEvents, PaymentEvents, ShippingEvents, WishlistEvents, SupplierEvents
 
 class BaseEvent(BaseModel):
     """Base class for all events"""
@@ -193,3 +194,37 @@ class WishlistItemAddedEvent(WishlistItemBaseEvent):
 class WishlistItemRemovedEvent(WishlistItemBaseEvent):
     """Event published when an item is removed from a wishlist"""
     event_type: str = Field(default_factory=lambda: WishlistEvents.WISHLIST_ITEM_REMOVED)
+
+
+# ============== SUPPLIER EVENTS ==============
+class SupplierBaseEvent(BaseEvent):
+    """Base class for supplier-related events."""
+    service: str = Field(default_factory=lambda: Services.SUPPLIER_SERVICE)
+    supplier_id: str
+
+
+class SupplierProductsFetchedEvent(SupplierBaseEvent):
+    """Event published when supplier_service fetches products from a supplier."""
+    event_type: str = Field(default_factory=lambda: SupplierEvents.SUPPLIER_PRODUCTS_FETCHED)
+    fetch_id: UUID
+    products: list["GenericSupplierProduct"]
+
+
+class SupplierProductImportSucceededEvent(BaseEvent):
+    """Event published by product_service when supplier products were imported."""
+    service: str = Field(default_factory=lambda: Services.PRODUCT_SERVICE)
+    event_type: str = Field(default_factory=lambda: SupplierEvents.SUPPLIER_PRODUCT_IMPORT_SUCCEEDED)
+    supplier_id: str
+    fetch_id: UUID
+    imported: int
+    updated: int
+    failed: int
+
+
+class SupplierProductImportFailedEvent(BaseEvent):
+    """Event published by product_service when supplier product import failed."""
+    service: str = Field(default_factory=lambda: Services.PRODUCT_SERVICE)
+    event_type: str = Field(default_factory=lambda: SupplierEvents.SUPPLIER_PRODUCT_IMPORT_FAILED)
+    supplier_id: str
+    fetch_id: UUID
+    reason: str

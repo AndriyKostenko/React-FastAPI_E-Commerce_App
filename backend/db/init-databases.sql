@@ -17,6 +17,8 @@ CREATE DATABASE shipping_service_db;
 CREATE DATABASE shipping_service_test_db;
 CREATE DATABASE wishlist_service_db;
 CREATE DATABASE wishlist_service_test_db;
+CREATE DATABASE supplier_service_db;
+CREATE DATABASE supplier_service_test_db;
 
 
 -- Grant privileges
@@ -38,3 +40,5 @@ GRANT ALL PRIVILEGES ON DATABASE shipping_service_db TO postgres;
 GRANT ALL PRIVILEGES ON DATABASE shipping_service_test_db TO postgres;
 GRANT ALL PRIVILEGES ON DATABASE wishlist_service_db TO postgres;
 GRANT ALL PRIVILEGES ON DATABASE wishlist_service_test_db TO postgres;
+GRANT ALL PRIVILEGES ON DATABASE supplier_service_db TO postgres;
+GRANT ALL PRIVILEGES ON DATABASE supplier_service_test_db TO postgres;

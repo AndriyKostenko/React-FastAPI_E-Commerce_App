@@ -1,0 +1,33 @@
+FROM python:3.12-slim AS builder
+WORKDIR /app
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PATH="/root/.local/bin:${PATH}"
+
+RUN apt-get update && apt-get install -y --no-install-recommends gcc python3-dev libpq-dev curl \
+    && curl -LsSf https://astral.sh/uv/install.sh | sh \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen --no-dev
+
+FROM python:3.12-slim
+WORKDIR /app
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+
+RUN apt-get update && apt-get install -y --no-install-recommends libpq5 curl \
+    && apt-get clean && rm -rf /var/lib/apt/lists/* \
+    && addgroup --system --gid 1020 supplier_scheduler_group \
+    && adduser --system --uid 1020 --ingroup supplier_scheduler_group supplier_scheduler_user \
+    && mkdir -p /app/logs \
+    && chown -R supplier_scheduler_user:supplier_scheduler_group /app
+
+COPY --from=builder /app/.venv /app/.venv
+ENV PATH="/app/.venv/bin:$PATH"
+
+COPY --chown=supplier_scheduler_user:supplier_scheduler_group . .
+
+USER supplier_scheduler_user
+
+HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
+    CMD ps aux | grep -v grep | grep "taskiq scheduler" || exit 1
+
+CMD ["taskiq", "scheduler", "tasks.scheduler:supplier_task_scheduler", "tasks.sync_tasks"]

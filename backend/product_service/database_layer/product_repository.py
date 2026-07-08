@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from sqlalchemy import update
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.product_models import Product
@@ -21,6 +21,17 @@ class ProductRepository(AdvancedQueryMixin[Product], BaseRepository[Product]):
 
     def __init__(self, session: AsyncSession):
         super().__init__(session, Product)
+
+    async def get_by_pid(self, pid: str, load_relations: list[str] | None = None) -> Product | None:
+        """Get a product by its CJ Dropshipping pid."""
+        query = select(Product).where(Product.pid == pid)
+        if load_relations:
+            from sqlalchemy.orm import selectinload
+            for relation in load_relations:
+                if hasattr(Product, relation):
+                    query = query.options(selectinload(getattr(Product, relation)))
+        result = await self.session.execute(query)
+        return result.scalar_one_or_none()
 
     async def atomic_decrement_quantity(self, item_id: UUID, requested: int) -> Product | None:
         """Atomically decrement `quantity` by *requested* only if sufficient stock exists.

@@ -42,6 +42,7 @@ payment_exchange = RabbitExchange(name="payment.events.exchange", durable=True, 
 cart_exchange = RabbitExchange(name="cart.events.exchange", durable=True, type=ExchangeType.TOPIC)
 shipping_exchange = RabbitExchange(name="shipping.events.exchange", durable=True, type=ExchangeType.TOPIC)
 wishlist_exchange = RabbitExchange(name="wishlist.events.exchange", durable=True, type=ExchangeType.TOPIC)
+supplier_exchange = RabbitExchange(name="supplier.events.exchange", durable=True, type=ExchangeType.TOPIC)
 
 
 
@@ -98,6 +99,10 @@ wishlist_service_redis_manager = CacheManager(service_prefix="wishlist-service",
                                               redis_url=settings.WISHLIST_SERVICE_REDIS_URL,
                                               logger=logger,
                                               service_api_version=settings.WISHLIST_SERVICE_URL_API_VERSION)
+supplier_service_redis_manager = CacheManager(service_prefix="supplier-service",
+                                             redis_url=settings.SUPPLIER_SERVICE_REDIS_URL,
+                                             logger=logger,
+                                             service_api_version=settings.SUPPLIER_SERVICE_URL_API_VERSION)
 
 # Redis idempotency managers
 product_event_idempotency_service = IdempotencyEventService(service_prefix="product-service",
@@ -129,6 +134,11 @@ wishlist_event_idempotency_service = IdempotencyEventService(service_prefix="wis
                                                              redis_url=settings.WISHLIST_SERVICE_REDIS_URL,
                                                              service_api_version=settings.WISHLIST_SERVICE_URL_API_VERSION,
                                                              ttl_hours=settings.IDEMPOTENCY_EVENT_SERVICE_HOURS)
+supplier_event_idempotency_service = IdempotencyEventService(service_prefix="supplier-service",
+                                                            logger=logger,
+                                                            redis_url=settings.SUPPLIER_SERVICE_REDIS_URL,
+                                                            service_api_version=settings.SUPPLIER_SERVICE_URL_API_VERSION,
+                                                            ttl_hours=settings.IDEMPOTENCY_EVENT_SERVICE_HOURS)
 
 #------------------------------------DB-Managers-----------------------------------------------
 
@@ -195,6 +205,14 @@ shipping_service_database_session_manager = DatabaseSessionManager(
 )
 wishlist_service_database_session_manager = DatabaseSessionManager(
     database_url=settings.WISHLIST_SERVICE_DATABASE_URL,
+    logger=logger,
+    echo=settings.DEBUG_MODE,
+    pg_max_connections=settings.PG_MAX_CONNECTIONS,
+    reserved_connections=settings.PG_RESERVED_CONNECTIONS,
+    num_db_services=settings.PG_DB_SERVICES_COUNT,
+)
+supplier_service_database_session_manager = DatabaseSessionManager(
+    database_url=settings.SUPPLIER_SERVICE_DATABASE_URL,
     logger=logger,
     echo=settings.DEBUG_MODE,
     pg_max_connections=settings.PG_MAX_CONNECTIONS,

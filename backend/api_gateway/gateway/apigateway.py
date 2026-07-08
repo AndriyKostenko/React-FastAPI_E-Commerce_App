@@ -122,6 +122,12 @@ class ApiGateway:
                     health_check_path="/health",
                     api_version=self.settings.PRODUCT_SERVICE_URL_API_VERSION
                 ),
+                "supplier-service": ServiceConfig(
+                    name="supplier-service",
+                    instances=[self.settings.FULL_SUPPLIER_SERVICE_URL],
+                    health_check_path="/health",
+                    api_version=self.settings.SUPPLIER_SERVICE_URL_API_VERSION
+                ),
                 "notification-service": ServiceConfig(
                     name="notification-service",
                     instances=[self.settings.FULL_NOTIFICATION_SERVICE_URL],

@@ -5,51 +5,27 @@ from aiohttp import ClientSession
 from fastapi import Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from service_layer.dropshipping_provider import CJDropshippingProductProviderService
+from database_layer.category_repository import CategoryRepository
+from database_layer.product_image_repository import ProductImageRepository
+from database_layer.product_repository import ProductRepository
+from database_layer.product_variant_repository import ProductVariantRepository
+from database_layer.review_repository import ReviewRepository
+from helpers.user_context_resolver import UserContextResolver
+from service_layer.category_service import CategoryService
+from service_layer.image_generation_quota import GenerationQuotaService
+from service_layer.image_generation_service import ImageGenerationService
+from service_layer.image_job_store import ImageJobStore
+from service_layer.image_storage_service import ImageStorageService
+from service_layer.openrouter_client import OpenRouterClient
+from service_layer.product_image_service import ProductImageService
+from service_layer.product_service import ProductService
+from service_layer.review_service import ReviewService
 from shared.shared_instances import (
     logger,
     product_service_database_session_manager,
     product_service_redis_manager,
     settings,
 )
-from database_layer.category_repository import CategoryRepository
-from database_layer.product_image_repository import ProductImageRepository
-from database_layer.product_repository import ProductRepository
-from database_layer.review_repository import ReviewRepository
-from service_layer.category_service import CategoryService
-from service_layer.product_image_service import ProductImageService
-from service_layer.product_service import ProductService
-from service_layer.review_service import ReviewService
-from service_layer.image_generation_service import ImageGenerationService
-from service_layer.image_generation_quota import GenerationQuotaService
-from service_layer.image_job_store import ImageJobStore
-from service_layer.openrouter_client import OpenRouterClient
-from service_layer.image_storage_service import ImageStorageService
-from helpers.user_context_resolver import UserContextResolver
-
-
-"""
-FLow Diagram for Database Session Management in FastAPI:
-
-    A[HTTP Request] --> B[FastAPI Router]
-    B --> C[get_db_session Dependency]
-    C --> D[DatabaseSessionManager.session]
-    D --> E[Database Operations]
-    E --> F[Commit/Rollback]
-    F --> G[Session Cleanup]
-    G --> H[HTTP Response]
-
-    1.Client sends HTTP request.
-    2.FastAPI receives and resolves dependencies for the endpoint.
-    3.get_db_session is called as a dependency, which:
-     -Calls DatabaseSessionManager.session() (an async context manager).
-     -This opens a new AsyncSession for this request.
-    4.get_db_session yields this session to the dependency tree.
-    5.ProductService, CategoryService, ReviewServcie are receiving the repository for managing db operation with the session via dependency injection.
-    6.Service methods use the *Repository  to talk to the DB.
-    7.Data flows back up to the *Service , which serializes the result and returns it to the Client.
-    8.Then data flows to FastAPI edpoints which cache / rate-limit / additionaly validate the response via response_model
-"""
 
 
 async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
@@ -65,31 +41,40 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
 
 
 def get_category_service(session: AsyncSession = Depends(get_db_session)) -> CategoryService:
-    """Dependency to provide CategoryService (for buisiness logic and data validation) which operates CategoryRepository(inherits BaseRepository) for db session management."""
-    return CategoryService(CategoryRepository(session=session))
+    """Dependency to provide CategoryService."""
+    return CategoryService(
+        CategoryRepository(session=session),
+        default_category_name=settings.CJ_DROPSHIPPING_DEFAULT_CATEGORY_NAME,
+    )
 
 
 def get_review_service(session: AsyncSession = Depends(get_db_session)) -> ReviewService:
-    """Dependency to provide ReviewService (for buisiness logic and data validation) which operates ReviewRepository(inherits BaseRepository) for db session management."""
+    """Dependency to provide ReviewService."""
     return ReviewService(ReviewRepository(session=session))
 
 
 def get_product_image_service(session: AsyncSession = Depends(get_db_session)) -> ProductImageService:
-    """Dependency to provide ProductImageService (for image management) which operates ProductImageRepository(inherits BaseRepository) for db session management."""
+    """Dependency to provide ProductImageService."""
     return ProductImageService(ProductImageRepository(session=session))
 
 
 def get_product_service(session: AsyncSession = Depends(get_db_session)) -> ProductService:
-    """Dependency to provide ProductService with ProductImageService(for imge handling) (for buisiness logic and data validation) which operates ProductRepository(inherits BaseRepository) for db session management."""
+    """Dependency to provide ProductService."""
     image_repo = ProductImageRepository(session=session)
     product_image_service = ProductImageService(repository=image_repo)
     product_repo = ProductRepository(session=session)
-    return ProductService(repository=product_repo, product_image_service=product_image_service)
+    category_service = CategoryService(
+        CategoryRepository(session=session),
+        default_category_name=settings.CJ_DROPSHIPPING_DEFAULT_CATEGORY_NAME,
+    )
+    return ProductService(
+        repository=product_repo,
+        product_image_service=product_image_service,
+        variant_repository=ProductVariantRepository(session=session),
+        image_repository=image_repo,
+        category_service=category_service,
+    )
 
-
-def get_cjdropshipping_product_service():
-    """Dependency to get the specific CJDropshipping product service"""
-    return CJDropshippingProductProviderService(settings_instance=settings)
 
 # ── image-generation dependency chain ─────────────────────────────────────────
 
@@ -146,8 +131,8 @@ def get_user_context_resolver() -> UserContextResolver:
         settings=settings,
     )
 
+
 product_service_dependency = Annotated[ProductService, Depends(get_product_service)]
-cjdropshipping_product_dependency = Annotated[CJDropshippingProductProviderService, Depends(get_cjdropshipping_product_service)]
 category_service_dependency = Annotated[CategoryService, Depends(get_category_service)]
 review_service_dependency = Annotated[ReviewService, Depends(get_review_service)]
 product_image_service_dependency = Annotated[ProductImageService, Depends(get_product_image_service)]

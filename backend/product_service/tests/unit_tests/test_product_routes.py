@@ -105,7 +105,7 @@ class TestGetCustomTshirtPricingEndpoint:
         assert response.status_code == status.HTTP_200_OK
         body = response.json()
         assert body["base_price"] == 19
-        assert body["currency"] == "USD"
+        assert body["currency"] == "CAD"
 
 
 # ===========================================================================

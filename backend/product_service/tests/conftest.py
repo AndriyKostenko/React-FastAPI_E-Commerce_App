@@ -41,6 +41,7 @@ from database_layer.category_repository import CategoryRepository
 from database_layer.product_repository import ProductRepository
 from database_layer.review_repository import ReviewRepository
 from database_layer.product_image_repository import ProductImageRepository
+from database_layer.product_variant_repository import ProductVariantRepository
 from dependencies.dependencies import (
     get_db_session,
     get_category_service,
@@ -101,6 +102,7 @@ def mock_product_orm() -> MagicMock:
     """Fake SQLAlchemy Product ORM object with all required attributes."""
     product = MagicMock()
     product.id = TEST_PRODUCT_ID
+    product.pid = None
     product.name = "test laptop"
     product.description = "A high-quality test laptop for testing purposes"
     product.category_id = TEST_CATEGORY_ID
@@ -108,10 +110,13 @@ def mock_product_orm() -> MagicMock:
     product.quantity = 10
     product.price = Decimal("999.99")
     product.in_stock = True
+    product.sku = None
+    product.image_url = None
     product.date_created = TEST_DATETIME
     product.date_updated = None
     product.reviews = []
     product.images = []
+    product.variants = []
     product.category = None
     return product
 
@@ -122,6 +127,7 @@ def mock_category_orm() -> MagicMock:
     category = MagicMock()
     category.id = TEST_CATEGORY_ID
     category.name = "electronics"
+    category.cj_category_id = None
     category.image_url = None
     category.date_created = TEST_DATETIME
     category.date_updated = None
@@ -154,7 +160,8 @@ def mock_product_repository() -> MagicMock:
     repo.get_by_field = AsyncMock()
     repo.create = AsyncMock()
     repo.get_all = AsyncMock()
-    repo.get_by_id = AsyncMock()
+    repo.get_by_id = AsyncMock(return_value=None)
+    repo.get_by_pid = AsyncMock(return_value=None)
     repo.update_by_id = AsyncMock()
     repo.delete_by_id = AsyncMock()
     repo.get_many_by_field = AsyncMock()
@@ -222,7 +229,7 @@ def product_service_unit(
 @pytest.fixture
 def category_service_unit(mock_category_repository: MagicMock) -> CategoryService:
     """CategoryService wired with a mocked repository."""
-    return CategoryService(repository=mock_category_repository)
+    return CategoryService(repository=mock_category_repository, default_category_name="cjdropshipping")
 
 
 @pytest.fixture
@@ -379,7 +386,10 @@ async def integration_client() -> AsyncGenerator[AsyncClient, Any]:
     def _override_get_category_service(
         session: AsyncSession = Depends(_override_get_db_session),
     ) -> CategoryService:
-        return CategoryService(CategoryRepository(session=session))
+        return CategoryService(
+            CategoryRepository(session=session),
+            default_category_name=settings.CJ_DROPSHIPPING_DEFAULT_CATEGORY_NAME,
+        )
 
     def _override_get_product_image_service(
         session: AsyncSession = Depends(_override_get_db_session),
@@ -395,7 +405,17 @@ async def integration_client() -> AsyncGenerator[AsyncClient, Any]:
         session: AsyncSession = Depends(_override_get_db_session),
         product_image_service: ProductImageService = Depends(_override_get_product_image_service),
     ) -> ProductService:
-        return ProductService(ProductRepository(session=session), product_image_service)
+        image_repo = ProductImageRepository(session=session)
+        return ProductService(
+            repository=ProductRepository(session=session),
+            product_image_service=product_image_service,
+            variant_repository=ProductVariantRepository(session=session),
+            image_repository=image_repo,
+            category_service=CategoryService(
+                CategoryRepository(session=session),
+                default_category_name=settings.CJ_DROPSHIPPING_DEFAULT_CATEGORY_NAME,
+            ),
+        )
 
     # ── 3. Replace the app lifespan so no live infra connections are made ───
     original_debug_mode = settings.DEBUG_MODE

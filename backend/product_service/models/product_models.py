@@ -3,7 +3,7 @@ from typing import Any
 from uuid import UUID, uuid4
 
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import ForeignKey, Index, inspect
+from sqlalchemy import ForeignKey, Index, inspect, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 
 from shared.models.models_base_class import Base
@@ -20,6 +20,7 @@ class Product(Base, TimestampMixin):
         Index('idx_product_category',   'category_id'),
         Index('idx_product_in_stock',   'in_stock'),
         Index('idx_product_price',      'price'),          # range queries (min_price/max_price)
+        Index('idx_product_pid',        'pid', unique=True),
 
         # ── Composite indexes for the most common query patterns ─────────────
         # "Show in-stock products" sorted by newest — the default browse query
@@ -39,16 +40,20 @@ class Product(Base, TimestampMixin):
     )
 
     id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, unique=True)
+    pid: Mapped[str | None] = mapped_column(nullable=True, unique=True)
     name: Mapped[str] = mapped_column(nullable=False)
-    description: Mapped[str] = mapped_column(nullable=True)
+    description: Mapped[str | None] = mapped_column(nullable=True)
     category_id: Mapped[UUID] = mapped_column(ForeignKey('product_categories.id'), nullable=False)
     brand: Mapped[str] = mapped_column(nullable=False)
     quantity: Mapped[int] = mapped_column(nullable=False)
     price: Mapped[Decimal] = mapped_column(nullable=False)
     in_stock: Mapped[bool] = mapped_column(nullable=False)
+    sku: Mapped[str | None] = mapped_column(nullable=True)
+    image_url: Mapped[str | None] = mapped_column(nullable=True)
 
     reviews: Mapped[list['ProductReview']] = relationship('ProductReview', back_populates='product', cascade='all, delete-orphan') # pyright: ignore[reportUndefinedVariable]
     images: Mapped[list['ProductImage']] = relationship('ProductImage', back_populates='product', cascade='all, delete-orphan') # pyright: ignore[reportUndefinedVariable]
+    variants: Mapped[list['ProductVariant']] = relationship('ProductVariant', back_populates='product', cascade='all, delete-orphan') # pyright: ignore[reportUndefinedVariable]
     category: Mapped['ProductCategory'] = relationship('ProductCategory', back_populates='products') # pyright: ignore[reportUndefinedVariable]
 
     @classmethod
@@ -59,7 +64,7 @@ class Product(Base, TimestampMixin):
     @classmethod
     def get_relations(cls) -> list[str]:
         """Return list of related entities to be loaded with the product"""
-        return ["reviews", "images", "category"]
+        return ["reviews", "images", "variants", "category"]
 
     @classmethod
     def get_admin_schema(cls) -> list[dict[str, Any]]:
@@ -99,6 +104,10 @@ class Product(Base, TimestampMixin):
         return type_mapping.get(type_name, 'string')
 
     def __repr__(self):
-        return f"<Product(id={self.id}, name={self.name}, category_id={self.category_id}, brand={self.brand}, in_stock={self.in_stock})>"
+        return f"<Product(id={self.id}, pid={self.pid}, name={self.name}, category_id={self.category_id}, brand={self.brand}, in_stock={self.in_stock})>"
     def __str__(self):
-        return f"Product(id={self.id}, name={self.name}, category_id={self.category_id}, brand={self.brand}, in_stock={self.in_stock})"
+        return f"Product(id={self.id}, pid={self.pid}, name={self.name}, category_id={self.category_id}, brand={self.brand}, in_stock={self.in_stock})"
+
+
+# Import variant model here so SQLAlchemy can resolve the relationship at mapper configuration time.
+from models.product_variant_models import ProductVariant  # noqa: E402, F401

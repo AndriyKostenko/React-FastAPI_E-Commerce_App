@@ -14,12 +14,14 @@ class ProductCategory(Base, TimestampMixin):
 
     __table_args__: tuple[Index, ...] = (
         Index('idx_product_categories_name', 'name'),
+        Index('idx_product_categories_cj_id', 'cj_category_id', unique=True),
         # idx_product_categories_date_created and idx_product_categories_image_url removed:
         # categories are tiny, never filtered by date/image_url, and the indexes add write overhead
     )
 
     id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4, unique=True)
     name: Mapped[str] = mapped_column(unique=True, nullable=False)
+    cj_category_id: Mapped[str | None] = mapped_column(nullable=True, unique=True)
     image_url: Mapped[str] = mapped_column(nullable=True)
 
     products: Mapped[list['Product']] = relationship('Product', back_populates='category', cascade='all, delete-orphan') # pyright: ignore[reportUndefinedVariable]

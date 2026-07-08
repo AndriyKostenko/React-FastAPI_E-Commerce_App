@@ -46,6 +46,16 @@ class WishlistEventsQueue(StrEnum):
     WISHLIST_EVENTS_DEAD_LETTER_QUEUE = "wishlist.events.dlq"
 
 
+class SupplierEventsQueue(StrEnum):
+    SUPPLIER_EVENTS_QUEUE = "supplier.events.queue"
+    SUPPLIER_EVENTS_DEAD_LETTER_QUEUE = "supplier.events.dlq"
+
+
+class ProductSupplierEventsQueue(StrEnum):
+    PRODUCT_SUPPLIER_EVENTS_QUEUE = "product.supplier.events"
+    PRODUCT_SUPPLIER_EVENTS_DEAD_LETTER_QUEUE = "product.supplier.events.dlq"
+
+
 class UserEvents(StrEnum):
     USER_REGISTERED = "user.registered"
     USER_REGISTRATION_FAILED = "user.registration.failed"
@@ -88,3 +98,9 @@ class ShippingEvents(StrEnum):
 class WishlistEvents(StrEnum):
     WISHLIST_ITEM_ADDED = "wishlist.item.added"
     WISHLIST_ITEM_REMOVED = "wishlist.item.removed"
+
+
+class SupplierEvents(StrEnum):
+    SUPPLIER_PRODUCTS_FETCHED = "supplier.products.fetched"
+    SUPPLIER_PRODUCT_IMPORT_SUCCEEDED = "supplier.product.import.succeeded"
+    SUPPLIER_PRODUCT_IMPORT_FAILED = "supplier.product.import.failed"

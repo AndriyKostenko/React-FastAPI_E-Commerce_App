@@ -6,11 +6,18 @@ from database_layer.product_repository import ProductRepository
 from exceptions.product_exceptions import ProductReleaseError
 from service_layer.product_service import ProductService
 from service_layer.product_image_service import ProductImageService
-from shared.schemas.event_schemas import InventoryReserveRequested, InventoryReleaseRequested
+from shared.schemas.event_schemas import (
+    InventoryReserveRequested,
+    InventoryReleaseRequested,
+    SupplierProductsFetchedEvent,
+    SupplierProductImportSucceededEvent,
+    SupplierProductImportFailedEvent,
+)
 from shared.shared_instances import logger, product_service_database_session_manager, product_event_idempotency_service, product_service_redis_manager, api_gateway_cache_manager
 from event_publisher.event_publisher import product_event_publisher
 from shared.idempotency.idempotency_service import IdempotencyEventService
-from shared.enums.event_enums import InventoryEvents
+from shared.enums.event_enums import InventoryEvents, SupplierEvents
+from service_layer.supplier_product_mapper import SupplierProductMapper
 
 """
 Product Event Consumer - SAGA Orchestrator
@@ -181,6 +188,62 @@ class ProductEventConsumer:
             # Note: We don't re-raise because inventory release is a compensation action;
             # logging and releasing the claim is sufficient to allow retry.
             await self.idempotency_service.release_claim(event.event_id, event.event_type)
+
+    async def handle_supplier_products_fetched(self, message: dict[str, Any]):
+        """Handle supplier product import events from supplier_service.
+
+        Steps:
+        1. Parse the event
+        2. Check idempotency
+        3. Map generic supplier products to CreateProduct DTOs
+        4. Persist via bulk_upsert_products
+        5. Publish import succeeded/failed event back to supplier_service
+        6. Invalidate product cache
+        """
+        event = SupplierProductsFetchedEvent(**message)
+        try:
+            if not await self.idempotency_service.try_claim_event(event.event_id, event.event_type):
+                self.logger.info(f"Skipping duplicate supplier products fetch for supplier: {event.supplier_id}, fetch_id: {event.fetch_id}")
+                return
+
+            self.logger.info(f"Processing supplier products fetched event for supplier: {event.supplier_id}, fetch_id: {event.fetch_id}, products: {len(event.products)}")
+
+            products_to_upsert = SupplierProductMapper.map_supplier_products(event.products)
+
+            async for product_service in self._get_product_service():
+                bulk_results = await product_service.bulk_upsert_products(products_to_upsert)
+
+                await self.idempotency_service.mark_event_as_processed(
+                    event_id=event.event_id,
+                    event_type=event.event_type,
+                    result="succeeded",
+                )
+                await api_gateway_cache_manager.invalidate_namespace(namespace="products")
+
+                success_event = SupplierProductImportSucceededEvent(
+                    supplier_id=event.supplier_id,
+                    fetch_id=event.fetch_id,
+                    imported=bulk_results.get("inserted", 0),
+                    updated=bulk_results.get("updated", 0),
+                    failed=bulk_results.get("failed", 0),
+                )
+                await product_event_publisher.publish_supplier_product_import_succeeded(success_event)
+                self.logger.info(
+                    f"Supplier product import completed for supplier: {event.supplier_id}, "
+                    f"fetch_id: {event.fetch_id}: inserted={bulk_results.get('inserted')}, "
+                    f"updated={bulk_results.get('updated')}, failed={bulk_results.get('failed')}"
+                )
+
+        except Exception as error:
+            await self.idempotency_service.release_claim(event.event_id, event.event_type)
+            self.logger.error(f"Error handling supplier products fetched event for supplier {event.supplier_id}, fetch_id {event.fetch_id}: {str(error)}")
+            failed_event = SupplierProductImportFailedEvent(
+                supplier_id=event.supplier_id,
+                fetch_id=event.fetch_id,
+                reason=f"System error: {str(error)}",
+            )
+            await product_event_publisher.publish_supplier_product_import_failed(failed_event)
+            raise
 
 
 product_event_consumer = ProductEventConsumer(logger=logger)

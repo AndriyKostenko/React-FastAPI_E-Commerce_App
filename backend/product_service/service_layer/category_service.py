@@ -14,8 +14,9 @@ from utils.image_processing import image_processing_manager
 class CategoryService:
     """Service layer for category management operations, business logic and data validation."""
 
-    def __init__(self, repository: CategoryRepository):
-        self.repository: CategoryRepository  = repository
+    def __init__(self, repository: CategoryRepository, default_category_name: str = "cjdropshipping"):
+        self.repository: CategoryRepository = repository
+        self.default_category_name: str = default_category_name
 
     async def create_category(self,
                               category_data: CreateCategory,
@@ -37,11 +38,46 @@ class CategoryService:
         # Create category
         new_category = ProductCategory(
             name=category_data.name.lower(),
+            cj_category_id=category_data.cj_category_id,
             image_url=image_url,
         )
 
         created_category = await self.repository.create(new_category)
         return CategorySchema.model_validate(created_category)
+
+    async def get_or_create_by_cj_id(self, cj_category_id: str | None, name: str | None = None) -> UUID:
+        """Look up a local category by CJ category ID, creating one if needed.
+
+        Returns the local category UUID. Falls back to a default 'cjdropshipping'
+        category when no CJ category ID is provided.
+        """
+        if not cj_category_id:
+            default_name = self.default_category_name.lower().strip()
+            default_category = await self.repository.get_by_field("name", default_name)
+            if default_category:
+                return default_category.id
+            new_category = ProductCategory(name=default_name, cj_category_id=None)
+            created = await self.repository.create(new_category)
+            return created.id
+
+        existing = await self.repository.get_by_field("cj_category_id", cj_category_id)
+        if existing:
+            return existing.id
+
+        category_name = (name or cj_category_id).lower().strip()
+        # Ensure uniqueness of the local name
+        name_candidate = category_name
+        suffix = 1
+        while await self.repository.get_by_field("name", name_candidate):
+            name_candidate = f"{category_name}-{suffix}"
+            suffix += 1
+
+        new_category = ProductCategory(
+            name=name_candidate,
+            cj_category_id=cj_category_id,
+        )
+        created = await self.repository.create(new_category)
+        return created.id
 
     async def get_all_categories(self) -> list[CategorySchema]:
         categories = await self.repository.get_all()

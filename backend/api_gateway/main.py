@@ -15,6 +15,7 @@ from shared.middleware.logging_middleware import add_logging_middleware
 from shared.telemetry import setup_tracing
 from routes.user_routes import user_proxy
 from routes.product_routes import product_proxy
+from routes.supplier_routes import supplier_proxy
 from routes.order_routes import order_proxy
 from routes.notification_routes import notification_proxy
 from routes.payment_routes import payment_proxy
@@ -245,6 +246,7 @@ add_exception_handlers(app)
 # Include the user service proxy routes
 app.include_router(user_proxy, prefix=settings.API_GATEWAY_SERVICE_URL_API_VERSION, tags=["User Service Proxy"])
 app.include_router(product_proxy, prefix=settings.API_GATEWAY_SERVICE_URL_API_VERSION, tags=["Product Service Proxy"])
+app.include_router(supplier_proxy, prefix=settings.API_GATEWAY_SERVICE_URL_API_VERSION, tags=["Supplier Service Proxy"])
 app.include_router(order_proxy, prefix=settings.API_GATEWAY_SERVICE_URL_API_VERSION, tags=["Order Service Proxy"])
 app.include_router(notification_proxy, prefix=settings.API_GATEWAY_SERVICE_URL_API_VERSION, tags=["Notification Service Proxy"])
 app.include_router(payment_proxy, prefix=settings.API_GATEWAY_SERVICE_URL_API_VERSION, tags=["Payment Service Proxy"])

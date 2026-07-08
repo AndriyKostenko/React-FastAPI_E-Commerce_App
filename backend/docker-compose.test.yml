@@ -35,6 +35,24 @@ services:
       - .env
     restart: "no"
 
+  supplier-service-test:
+    build:
+      context: ./supplier_service
+      dockerfile: Dockerfile
+      target: test
+    volumes:
+      - ./shared:/app/shared:ro
+    networks:
+      - usernet
+    profiles:
+      - test
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env
+    restart: "no"
+
   payment-service-test:
     build:
       context: ./payment_service

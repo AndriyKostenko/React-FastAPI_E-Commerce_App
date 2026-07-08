@@ -45,6 +45,7 @@ class Settings(BaseSettings):
     CART_SERVICE_APP_PORT: int
     SHIPPING_SERVICE_APP_PORT: int
     WISHLIST_SERVICE_APP_PORT: int
+    SUPPLIER_SERVICE_APP_PORT: int
 
     DEBUG_MODE: bool
     SECURE_COOKIES: bool # Set True in production (requires HTTPS)
@@ -52,7 +53,7 @@ class Settings(BaseSettings):
     # PostgreSQL connection pool tuning — used by PoolSettingsCalculator
     PG_MAX_CONNECTIONS: int = 100       # must match postgresql.conf max_connections
     PG_RESERVED_CONNECTIONS: int = 5    # reserved for superuser / admin / monitoring
-    PG_DB_SERVICES_COUNT: int = 8       # number of microservices sharing the same Postgres instance
+    PG_DB_SERVICES_COUNT: int = 9       # number of microservices sharing the same Postgres instance
     ALLOWED_HOSTS: list[str]
 
     # Service URLs
@@ -66,6 +67,7 @@ class Settings(BaseSettings):
     CART_SERVICE_URL: str
     SHIPPING_SERVICE_URL: str
     WISHLIST_SERVICE_URL: str
+    SUPPLIER_SERVICE_URL: str
 
     API_GATEWAY_SERVICE_URL_API_VERSION: str
     USER_SERVICE_URL_API_VERSION: str
@@ -77,6 +79,7 @@ class Settings(BaseSettings):
     CART_SERVICE_URL_API_VERSION: str
     SHIPPING_SERVICE_URL_API_VERSION: str
     WISHLIST_SERVICE_URL_API_VERSION: str
+    SUPPLIER_SERVICE_URL_API_VERSION: str
 
     # Shared Database configuration
     POSTGRES_USER: str
@@ -92,6 +95,7 @@ class Settings(BaseSettings):
     CART_SERVICE_DB: str
     SHIPPING_SERVICE_DB: str
     WISHLIST_SERVICE_DB: str
+    SUPPLIER_SERVICE_DB: str
 
     USER_SERVICE_TEST_DB: str
     PRODUCT_SERVICE_TEST_DB: str
@@ -101,6 +105,7 @@ class Settings(BaseSettings):
     CART_SERVICE_TEST_DB: str
     SHIPPING_SERVICE_TEST_DB: str
     WISHLIST_SERVICE_TEST_DB: str
+    SUPPLIER_SERVICE_TEST_DB: str
 
     # pgAdmin
     PGADMIN_DEFAULT_EMAIL: str
@@ -126,6 +131,7 @@ class Settings(BaseSettings):
     CART_SERVICE_REDIS_DB: int
     SHIPPING_SERVICE_REDIS_DB: int
     WISHLIST_SERVICE_REDIS_DB: int
+    SUPPLIER_SERVICE_REDIS_DB: int
 
     NOTIFICATION_SERVICE_REDIS_BACKEND_RESULT_DB: int
 
@@ -138,6 +144,7 @@ class Settings(BaseSettings):
     CART_SERVICE_REDIS_PREFIX: str
     SHIPPING_SERVICE_REDIS_PREFIX: str
     WISHLIST_SERVICE_REDIS_PREFIX: str
+    SUPPLIER_SERVICE_REDIS_PREFIX: str
 
     IDEMPOTENCY_EVENT_SERVICE_HOURS: int
 
@@ -203,8 +210,10 @@ class Settings(BaseSettings):
     CJ_DROPSHIPPING_ACCESS_TOKEN_URL: str = "https://developers.cjdropshipping.com/api2.0/v1/authentication/getAccessToken"
     CJ_DROPSHIPPING_PRODUCT_LIST_URL: str = "https://developers.cjdropshipping.com/api2.0/v1/product/listV2"
     CJ_DROPSHIPPING_CATEGORY_LIST_URL: str = "https://developers.cjdropshipping.com/api2.0/v1/product/getCategory"
-    CJ_DROPSHIPPING_PRODUCT_INFO_URL: str = "https://developers.cjdropshipping.com/api2.0/v1/product/query?pid="
+    CJ_DROPSHIPPING_PRODUCT_INFO_URL: str = "https://developers.cjdropshipping.com/api2.0/v1/product/query"
     CJ_DROPSHIPPING_BASE_URL: str = "https://developers.cjdropshipping.com/api2.0/v1"
+    CJ_DROPSHIPPING_USE_DEFAULT_CATEGORY: bool = False
+    CJ_DROPSHIPPING_DEFAULT_CATEGORY_NAME: str = "t-shirts"
 
 
 
@@ -388,6 +397,24 @@ class Settings(BaseSettings):
     @property
     def FULL_WISHLIST_SERVICE_URL(self) -> str:
         return f"{self.WISHLIST_SERVICE_URL}{self.WISHLIST_SERVICE_URL_API_VERSION}"
+
+    #---------------SUPPLIER-SERVICE-------------------
+
+    @property
+    def SUPPLIER_SERVICE_DATABASE_URL(self) -> str:
+        return f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.SUPPLIER_SERVICE_DB}"
+
+    @property
+    def SUPPLIER_SERVICE_TEST_DATABASE_URL(self) -> str:
+        return f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.SUPPLIER_SERVICE_TEST_DB}"
+
+    @property
+    def SUPPLIER_SERVICE_REDIS_URL(self) -> str:
+        return f"redis://:{self.REDIS_PASSWORD}@{self.REDIS_HOST}:{self.REDIS_PORT}/{self.SUPPLIER_SERVICE_REDIS_DB}"
+
+    @property
+    def FULL_SUPPLIER_SERVICE_URL(self) -> str:
+        return f"{self.SUPPLIER_SERVICE_URL}{self.SUPPLIER_SERVICE_URL_API_VERSION}"
 
     #------------CJDropshipping------------------------
 
