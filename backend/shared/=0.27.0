@@ -1,0 +1,6 @@
+Resolved 86 packages in 521ms
+Installed 4 packages in 4ms
+ + certifi==2026.6.17
+ + h11==0.16.0
+ + httpcore==1.0.9
+ + httpx==0.28.1
