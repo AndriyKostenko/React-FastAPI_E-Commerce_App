@@ -16,6 +16,8 @@ from exceptions.product_exceptions import (
     ProductNotFoundError,
     ProductUpdateError,
 )
+from shared.integrations.cj_api_client import CJDropshippingAPIError
+from shared.integrations.cj_inventory_verifier import CJDropshippingInventoryVerifier
 from shared.schemas.order_schemas import OrderItemBase
 from shared.schemas.product_schemas import CreateProduct, UpdateProduct
 
@@ -358,3 +360,142 @@ class TestReleaseInventory:
         item = OrderItemBase(order_id=uuid4(), product_id=uuid4(), quantity=1, price=9.99)
         with pytest.raises(ProductReleaseError):
             await product_service_unit.release_inventory([item])
+
+
+# ---------------------------------------------------------------------------
+# reserve_inventory with live CJ verification
+# ---------------------------------------------------------------------------
+
+class TestReserveInventoryWithCJVerification:
+    async def test_skips_cj_check_when_product_has_no_pid(
+        self,
+        product_service_unit,
+        mock_product_repository: MagicMock,
+        mock_product_orm: MagicMock,
+    ) -> None:
+        mock_verifier = MagicMock(spec=CJDropshippingInventoryVerifier)
+        mock_verifier.verify_product_stock = AsyncMock()
+        product_service_unit.inventory_verifier = mock_verifier
+
+        mock_product_orm.pid = None
+        mock_product_repository.atomic_decrement_quantity.return_value = mock_product_orm
+
+        item = OrderItemBase(order_id=uuid4(), product_id=mock_product_orm.id, quantity=3, price=9.99)
+        result = await product_service_unit.reserve_inventory([item])
+
+        assert result["success"] is True
+        mock_verifier.verify_product_stock.assert_not_awaited()
+
+    async def test_skips_cj_check_when_verifier_is_none(
+        self,
+        product_service_unit,
+        mock_product_repository: MagicMock,
+        mock_product_orm: MagicMock,
+    ) -> None:
+        product_service_unit.inventory_verifier = None
+        mock_product_orm.pid = "CJPID123"
+        mock_product_repository.atomic_decrement_quantity.return_value = mock_product_orm
+
+        item = OrderItemBase(order_id=uuid4(), product_id=mock_product_orm.id, quantity=3, price=9.99)
+        result = await product_service_unit.reserve_inventory([item])
+
+        assert result["success"] is True
+        mock_product_repository.atomic_decrement_quantity.assert_awaited_once()
+
+    async def test_succeeds_when_cj_confirms_sufficient_stock(
+        self,
+        product_service_unit,
+        mock_product_repository: MagicMock,
+        mock_product_orm: MagicMock,
+    ) -> None:
+        mock_verifier = MagicMock(spec=CJDropshippingInventoryVerifier)
+        mock_verifier.verify_product_stock = AsyncMock(return_value=MagicMock(
+            available=100,
+            buffered_available=100,
+            sufficient=True,
+        ))
+        product_service_unit.inventory_verifier = mock_verifier
+
+        mock_product_orm.pid = "CJPID123"
+        mock_product_repository.atomic_decrement_quantity.return_value = mock_product_orm
+
+        item = OrderItemBase(order_id=uuid4(), product_id=mock_product_orm.id, quantity=3, price=9.99)
+        result = await product_service_unit.reserve_inventory([item])
+
+        assert result["success"] is True
+        mock_verifier.verify_product_stock.assert_awaited_once_with(
+            pid="CJPID123", requested_quantity=3
+        )
+        mock_product_repository.atomic_increment_quantity.assert_not_awaited()
+
+    async def test_releases_local_reservation_when_cj_stock_insufficient(
+        self,
+        product_service_unit,
+        mock_product_repository: MagicMock,
+        mock_product_orm: MagicMock,
+    ) -> None:
+        mock_verifier = MagicMock(spec=CJDropshippingInventoryVerifier)
+        mock_verifier.verify_product_stock = AsyncMock(return_value=MagicMock(
+            available=1,
+            buffered_available=1,
+            sufficient=False,
+        ))
+        product_service_unit.inventory_verifier = mock_verifier
+
+        mock_product_orm.pid = "CJPID123"
+        mock_product_orm.name = "test product"
+        mock_product_repository.atomic_decrement_quantity.return_value = mock_product_orm
+
+        item = OrderItemBase(order_id=uuid4(), product_id=mock_product_orm.id, quantity=3, price=9.99)
+        result = await product_service_unit.reserve_inventory([item])
+
+        assert result["success"] is False
+        assert "Insufficient live stock" in result["reasons"]
+        mock_product_repository.atomic_increment_quantity.assert_awaited_once_with(
+            item_id=mock_product_orm.id, amount=3
+        )
+
+    async def test_releases_local_reservation_when_cj_api_fails(
+        self,
+        product_service_unit,
+        mock_product_repository: MagicMock,
+        mock_product_orm: MagicMock,
+    ) -> None:
+        mock_verifier = MagicMock(spec=CJDropshippingInventoryVerifier)
+        mock_verifier.verify_product_stock = AsyncMock(side_effect=CJDropshippingAPIError("CJ down"))
+        product_service_unit.inventory_verifier = mock_verifier
+
+        mock_product_orm.pid = "CJPID123"
+        mock_product_orm.name = "test product"
+        mock_product_repository.atomic_decrement_quantity.return_value = mock_product_orm
+
+        item = OrderItemBase(order_id=uuid4(), product_id=mock_product_orm.id, quantity=2, price=9.99)
+        result = await product_service_unit.reserve_inventory([item])
+
+        assert result["success"] is False
+        assert "Unable to verify live stock" in result["reasons"]
+        mock_product_repository.atomic_increment_quantity.assert_awaited_once_with(
+            item_id=mock_product_orm.id, amount=2
+        )
+
+    async def test_rolls_back_previous_local_reservations_on_local_failure(
+        self,
+        product_service_unit,
+        mock_product_repository: MagicMock,
+        mock_product_orm: MagicMock,
+    ) -> None:
+        product_service_unit.inventory_verifier = None
+
+        first_item = OrderItemBase(order_id=uuid4(), product_id=uuid4(), quantity=1, price=9.99)
+        second_item = OrderItemBase(order_id=uuid4(), product_id=uuid4(), quantity=5, price=9.99)
+
+        # First decrement succeeds, second fails.
+        mock_product_repository.atomic_decrement_quantity.side_effect = [mock_product_orm, None]
+        mock_product_repository.get_by_id.return_value = None
+
+        result = await product_service_unit.reserve_inventory([first_item, second_item])
+
+        assert result["success"] is False
+        mock_product_repository.atomic_increment_quantity.assert_awaited_once_with(
+            item_id=first_item.product_id, amount=first_item.quantity
+        )

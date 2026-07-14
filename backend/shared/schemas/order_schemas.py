@@ -16,6 +16,7 @@ class OrderSchema(BaseModel):
     delivery_status: str
     payment_intent_id: str
     address_id: UUID
+    cj_order_number: str | None = None
     date_created: datetime
     date_updated: Optional[datetime] = None
 
@@ -26,6 +27,10 @@ class AddressType(BaseModel):
     city: str
     province: str
     postal_code: str
+    country: str | None = None
+    country_code: str | None = None
+    name: str | None = None
+    phone: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -35,6 +40,7 @@ class OrderAddressBase(AddressType):
 
 class OrderProductItem(BaseModel):
     id: UUID
+    variant_id: UUID | None = None
     name: str
     price: Decimal
     quantity: PositiveInt
@@ -55,15 +61,41 @@ class CreateOrder(BaseModel):
 class OrderItemBase(BaseModel):
     order_id: UUID
     product_id: UUID
+    variant_id: UUID | None = None
     quantity: PositiveInt
     price: PositiveFloat
 
     model_config = ConfigDict(from_attributes=True)
 
+class ConfirmedOrderItem(BaseModel):
+    """Item carried on OrderConfirmedEvent for downstream fulfillment."""
+    product_id: UUID
+    variant_id: UUID | None = None
+    quantity: int
+    price: PositiveFloat
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ConfirmedOrderAddress(BaseModel):
+    """Address carried on OrderConfirmedEvent for downstream fulfillment."""
+    street: str
+    city: str
+    province: str
+    postal_code: str
+    country: str | None = None
+    country_code: str | None = None
+    name: str | None = None
+    phone: str | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class UpdateOrder(BaseModel):
     delivery_status: str | None = None
     status: str | None = None
     amount: float
+    cj_order_number: str | None = None
 
 
 class CancelOrder(BaseModel):

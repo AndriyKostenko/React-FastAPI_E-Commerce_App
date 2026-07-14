@@ -3,9 +3,9 @@ from typing import Any
 from faststream import FastStream
 from faststream.rabbit import RabbitQueue
 
-from shared.shared_instances import rabbitmq_broker, inventory_exchange, payment_exchange, shipping_exchange
+from shared.shared_instances import rabbitmq_broker, inventory_exchange, payment_exchange, shipping_exchange, order_exchange
 from events_consumer.order_event_consumer import order_event_consumer
-from shared.enums.event_enums import OrderSagaResponseQueue, ShippingEventsQueue
+from shared.enums.event_enums import OrderEvents, OrderSagaResponseQueue, ShippingEventsQueue
 
 
 # Create the FastStream app
@@ -74,3 +74,20 @@ async def handle_order_payment_events(body: dict[str, Any]) -> None:
 async def handle_order_shipping_events(body: dict[str, Any]) -> None:
     """FastStream subscriber for shipping events that affect order delivery status."""
     await order_event_consumer.handle_shipping_event(body)
+
+
+cj_order_created_queue = RabbitQueue(
+    name="order.cj.order.created.queue",
+    durable=True,
+    routing_key=OrderEvents.CJ_ORDER_CREATED,
+    arguments={
+        "x-dead-letter-exchange": "dlx",
+        "x-dead-letter-routing-key": "order.cj.order.created.dlq",
+    },
+)
+
+
+@rabbitmq_broker.subscriber(queue=cj_order_created_queue, exchange=order_exchange)
+async def handle_cj_order_created(body: dict[str, Any]) -> None:
+    """Persist the CJ Dropshipping order number on the local order."""
+    await order_event_consumer.handle_cj_order_created(body)

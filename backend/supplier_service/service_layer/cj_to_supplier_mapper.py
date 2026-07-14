@@ -5,7 +5,7 @@ from typing import Any
 
 from shared.schemas.dropshipping_schemas import CJProductsFilterParams
 from shared.schemas.supplier_schemas import GenericSupplierProduct, SupplierProductVariant, SupplierProductsPage
-from service_layer.cj_api_client import CJDropshippingAPIError
+from shared.integrations.cj_api_client import CJDropshippingAPIError
 
 
 class CJToSupplierMapper:

@@ -27,6 +27,7 @@ class Order(Base, TimestampMixin):
     delivery_status: Mapped[str] = mapped_column(nullable=False)
     payment_intent_id: Mapped[str] = mapped_column(unique=True, nullable=True)
     address_id: Mapped[UUID] = mapped_column(ForeignKey('order_addresses.id'), nullable=False)
+    cj_order_number: Mapped[str | None] = mapped_column(nullable=True)
 
     address: Mapped['OrderAddress'] = relationship('OrderAddress', back_populates='orders')
     items: Mapped[list['OrderItem']] = relationship('OrderItem', back_populates='order', cascade="all, delete-orphan")

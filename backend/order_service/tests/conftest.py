@@ -94,6 +94,7 @@ def mock_order_orm() -> MagicMock:
     order.delivery_status = OrderDeliveryStatus.PENDING
     order.payment_intent_id = TEST_PAYMENT_INTENT_ID
     order.address_id = TEST_ORDER_ADDRESS_ID
+    order.cj_order_number = None
     order.date_created = TEST_DATETIME
     order.date_updated = None
     return order
@@ -106,6 +107,7 @@ def mock_order_item_orm() -> MagicMock:
     item.id = TEST_ORDER_ITEM_ID
     item.order_id = TEST_ORDER_ID
     item.product_id = TEST_PRODUCT_ID
+    item.variant_id = None
     item.quantity = 2
     item.price = 49.99
     return item
@@ -121,6 +123,10 @@ def mock_order_address_orm() -> MagicMock:
     address.city = "Testville"
     address.province = "TS"
     address.postal_code = "T1T 1T1"
+    address.country = "Canada"
+    address.country_code = "CA"
+    address.name = "Test User"
+    address.phone = "+1234567890"
     return address
 
 

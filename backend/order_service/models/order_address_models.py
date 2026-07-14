@@ -22,13 +22,17 @@ class OrderAddress(Base, TimestampMixin):
     city: Mapped[str] = mapped_column(nullable=True)
     province: Mapped[str] = mapped_column(nullable=True)
     postal_code: Mapped[str] = mapped_column(nullable=True)
+    country: Mapped[str] = mapped_column(nullable=True)
+    country_code: Mapped[str] = mapped_column(nullable=True)
+    name: Mapped[str] = mapped_column(nullable=True)
+    phone: Mapped[str] = mapped_column(nullable=True)
 
     orders: Mapped[list['Order']] = relationship('Order', back_populates='address')
 
     @classmethod
     def get_search_fields(cls) -> list[str]:
         """Return list of fields to be used in search operations"""
-        return ["user_id", "street", "city", "province", "postal_code"]
+        return ["user_id", "street", "city", "province", "postal_code", "country", "country_code", "name", "phone"]
 
     @classmethod
     def get_admin_schema(cls) -> list[dict[str, str]]:

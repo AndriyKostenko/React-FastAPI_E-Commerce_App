@@ -189,6 +189,7 @@ class TestCancelOrder:
         cancelled_orm.delivery_status = OrderDeliveryStatus.PENDING
         cancelled_orm.payment_intent_id = TEST_PAYMENT_INTENT_ID
         cancelled_orm.address_id = TEST_ORDER_ADDRESS_ID
+        cancelled_orm.cj_order_number = None
         cancelled_orm.date_created = TEST_DATETIME
         cancelled_orm.date_updated = None
 
@@ -323,6 +324,7 @@ class TestUpdateOrder:
         updated_orm.delivery_status = OrderDeliveryStatus.DELIVERED
         updated_orm.payment_intent_id = TEST_PAYMENT_INTENT_ID
         updated_orm.address_id = TEST_ORDER_ADDRESS_ID
+        updated_orm.cj_order_number = None
         updated_orm.date_created = TEST_DATETIME
         updated_orm.date_updated = None
 
@@ -352,10 +354,23 @@ class TestUpdateOrder:
         confirmed_orm.delivery_status = OrderDeliveryStatus.PENDING
         confirmed_orm.payment_intent_id = TEST_PAYMENT_INTENT_ID
         confirmed_orm.address_id = TEST_ORDER_ADDRESS_ID
+        confirmed_orm.cj_order_number = None
         confirmed_orm.date_created = TEST_DATETIME
         confirmed_orm.date_updated = None
+        confirmed_orm.items = [
+            MagicMock(product_id=TEST_PRODUCT_ID, variant_id=None, quantity=2, price=49.99)
+        ]
+        confirmed_orm.address = MagicMock()
+        confirmed_orm.address.street = "123 Test St"
+        confirmed_orm.address.city = "Testville"
+        confirmed_orm.address.province = "TS"
+        confirmed_orm.address.postal_code = "T1T 1T1"
+        confirmed_orm.address.country = "Canada"
+        confirmed_orm.address.country_code = "CA"
+        confirmed_orm.address.name = "Test User"
+        confirmed_orm.address.phone = "+1234567890"
 
-        svc.repository.get_by_id = AsyncMock(return_value=mock_order_orm)
+        svc.repository.get_by_id = AsyncMock(side_effect=[mock_order_orm, confirmed_orm])
         svc.repository.update_by_id = AsyncMock(return_value=confirmed_orm)
         svc.outbox_event_service.add_outbox_event = AsyncMock(return_value=None)
 
@@ -382,6 +397,7 @@ class TestUpdateOrder:
         confirmed_orm.delivery_status = OrderDeliveryStatus.PENDING
         confirmed_orm.payment_intent_id = TEST_PAYMENT_INTENT_ID
         confirmed_orm.address_id = TEST_ORDER_ADDRESS_ID
+        confirmed_orm.cj_order_number = None
         confirmed_orm.date_created = TEST_DATETIME
         confirmed_orm.date_updated = None
 

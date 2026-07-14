@@ -1,6 +1,6 @@
 from typing import Any
 
-from service_layer.cj_api_client import CJDropshippingAPIClient
+from shared.integrations.cj_api_client import CJDropshippingAPIClient
 from service_layer.cj_filter_parser import CJFilterParser
 from service_layer.cj_to_supplier_mapper import CJToSupplierMapper
 from service_layer.supplier_provider import SupplierProvider

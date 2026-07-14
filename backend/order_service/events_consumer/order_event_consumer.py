@@ -8,7 +8,9 @@ from shared.database_layer.outbox_repository import OutboxRepository
 from events_publisher.order_event_publisher import order_event_publisher
 from service_layer.order_address_service import OrderAddressService
 from service_layer.order_item_service import OrderItemService
+from shared.schemas.order_schemas import UpdateOrder
 from shared.schemas.event_schemas import (
+    CJOrderCreatedEvent,
     InventoryReserveFailed,
     InventoryReserveSucceeded,
     PaymentSucceededEvent,
@@ -18,6 +20,8 @@ from shared.schemas.event_schemas import (
     ShipmentShippedEvent,
     ShipmentDeliveredEvent,
     ShipmentCancelledEvent,
+    ConfirmedOrderItem,
+    ConfirmedOrderAddress,
 )
 from shared.shared_instances import logger, order_service_database_session_manager
 from service_layer.order_service import OrderService
@@ -25,7 +29,7 @@ from shared.enums.status_enums import OrderStatus, OrderDeliveryStatus
 from service_layer.outbox_event_service import OutboxEventService
 from shared.shared_instances import order_event_idempotency_service
 from shared.idempotency.idempotency_service import IdempotencyEventService
-from shared.enums.event_enums import InventoryEvents, PaymentEvents, ShippingEvents
+from shared.enums.event_enums import InventoryEvents, OrderEvents, PaymentEvents, ShippingEvents
 from exceptions.order_exceptions import OrderNotFoundError, OrderNotCancellableError
 
 """
@@ -73,6 +77,45 @@ class OrderEventConsumer:
             )
             yield order_service
 
+    def _build_order_confirmed_event_data(
+        self,
+        order,
+    ) -> dict[str, Any]:
+        """Build an OrderConfirmedEvent payload enriched with items and address."""
+        event_data: dict[str, Any] = {
+            "order_id": str(order.id),
+            "user_id": str(order.user_id),
+            "user_email": order.user_email,
+        }
+
+        if order.items:
+            event_data["items"] = [
+                ConfirmedOrderItem(
+                    product_id=item.product_id,
+                    variant_id=item.variant_id,
+                    quantity=item.quantity,
+                    price=item.price,
+                ).model_dump()
+                for item in order.items
+            ]
+        else:
+            event_data["items"] = []
+
+        if order.address:
+            address = order.address
+            event_data["address"] = ConfirmedOrderAddress(
+                street=address.street or "",
+                city=address.city or "",
+                province=address.province or "",
+                postal_code=address.postal_code or "",
+                country=address.country,
+                country_code=address.country_code,
+                name=address.name,
+                phone=address.phone,
+            ).model_dump()
+
+        return event_data
+
     async def handle_order_saga_response(self, message: dict[str, Any]):
         """
         Route inventory SAGA responses to appropriate handlers based on event type.
@@ -99,6 +142,58 @@ class OrderEventConsumer:
                 await self.handle_payment_cancelled(message)
             case _:
                 self.logger.warning(f"Unhandled payment event type in order consumer: {event_type}")
+
+    async def handle_cj_order_created(self, message: dict[str, Any]) -> None:
+        """Persist the CJ Dropshipping order number on the local order."""
+        try:
+            event = CJOrderCreatedEvent(**message)
+            claimed = await self.idempotency_service.try_claim_event(
+                event_id=event.event_id,
+                event_type=event.event_type,
+            )
+            if not claimed:
+                self.logger.info(f"Skipping duplicate cj.order.created event for order: {event.order_id}")
+                return
+
+            result = "cj_order_number_updated"
+            async for order_service in self._get_order_service():
+                try:
+                    current_order = await order_service.get_order_by_id(order_id=event.order_id)
+                except OrderNotFoundError:
+                    self.logger.warning(
+                        f"Order {event.order_id} not found for cj.order.created event — skipping"
+                    )
+                    result = "order_not_found"
+                    break
+
+                await order_service.update_order(
+                    order_id=event.order_id,
+                    order_data=UpdateOrder(
+                        amount=current_order.amount,
+                        cj_order_number=event.cj_order_number,
+                    ),
+                )
+                self.logger.info(
+                    f"Updated order {event.order_id} with CJ order number: {event.cj_order_number}"
+                )
+
+            await self.idempotency_service.mark_event_as_processed(
+                event_id=event.event_id,
+                event_type=event.event_type,
+                order_id=event.order_id,
+                result=result,
+            )
+        except Exception as e:
+            try:
+                if message.get("event_id") and message.get("event_type"):
+                    await self.idempotency_service.release_claim(
+                        event_id=message["event_id"],
+                        event_type=message["event_type"],
+                    )
+            except Exception:
+                pass
+            self.logger.error(f"Error handling cj.order.created for order {message.get('order_id')}: {e}")
+            raise
 
     async def handle_payment_succeeded(self, message: dict[str, Any]) -> None:
         """
@@ -140,14 +235,11 @@ class OrderEventConsumer:
                     self.logger.info(
                         f"Order {event.order_id} moved to {OrderStatus.CONFIRMED} on payment.succeeded"
                     )
-                    await order_event_publisher.publish_order_confirmed(
-                        event_data={
-                            "order_id": str(event.order_id),
-                            "user_id": str(event.user_id),
-                            "user_email": event.user_email,
-                        }
-                    )
-                    self.logger.info(f"Published OrderConfirmedEvent for order: {event.order_id}")
+                    confirmed_order = await order_service.get_order_with_details(order_id=event.order_id)
+                    if confirmed_order:
+                        event_data = self._build_order_confirmed_event_data(confirmed_order)
+                        await order_event_publisher.publish_order_confirmed(event_data=event_data)
+                        self.logger.info(f"Published OrderConfirmedEvent for order: {event.order_id}")
                     result = "payment_succeeded_confirmed"
                 else:
                     result = f"no_transition_from_{current_order.status}"
@@ -217,14 +309,13 @@ class OrderEventConsumer:
 
             if result == "inventory_succeeded_confirmed":
                 # Publish OrderConfirmedEvent for downstream services (notification, etc.)
-                await order_event_publisher.publish_order_confirmed(
-                    event_data={
-                        "order_id": str(event.order_id),
-                        "user_id": str(event.user_id),
-                        "user_email": event.user_email,
-                    }
-                )
-                self.logger.info(f"Published OrderConfirmedEvent for order: {event.order_id}")
+                async for order_service in self._get_order_service():
+                    confirmed_order = await order_service.get_order_with_details(order_id=event.order_id)
+                    if confirmed_order:
+                        event_data = self._build_order_confirmed_event_data(confirmed_order)
+                        await order_event_publisher.publish_order_confirmed(event_data=event_data)
+                        self.logger.info(f"Published OrderConfirmedEvent for order: {event.order_id}")
+                        break
 
             # notification_service and payment_service consume order.confirmed
             # directly from the order.events.exchange — no further action required here.

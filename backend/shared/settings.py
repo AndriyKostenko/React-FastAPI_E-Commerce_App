@@ -211,9 +211,26 @@ class Settings(BaseSettings):
     CJ_DROPSHIPPING_PRODUCT_LIST_URL: str = "https://developers.cjdropshipping.com/api2.0/v1/product/listV2"
     CJ_DROPSHIPPING_CATEGORY_LIST_URL: str = "https://developers.cjdropshipping.com/api2.0/v1/product/getCategory"
     CJ_DROPSHIPPING_PRODUCT_INFO_URL: str = "https://developers.cjdropshipping.com/api2.0/v1/product/query"
+    CJ_DROPSHIPPING_INVENTORY_URL: str = "https://developers.cjdropshipping.com/api2.0/v1/product/stock/getInventoryByPid"
     CJ_DROPSHIPPING_BASE_URL: str = "https://developers.cjdropshipping.com/api2.0/v1"
     CJ_DROPSHIPPING_USE_DEFAULT_CATEGORY: bool = False
     CJ_DROPSHIPPING_DEFAULT_CATEGORY_NAME: str = "t-shirts"
+
+    # Live inventory verification before order confirmation
+    CJ_DROPSHIPPING_VERIFY_INVENTORY: bool = True
+    CJ_DROPSHIPPING_INVENTORY_BUFFER: int = 0
+    CJ_DROPSHIPPING_VERIFY_RETRIES: int = 2
+    CJ_DROPSHIPPING_VERIFY_TIMEOUT_SECONDS: float = 10.0
+    CJ_DROPSHIPPING_REQUEST_TIMEOUT_SECONDS: float = 30.0
+
+    # CJ Dropshipping order creation
+    CJ_DROPSHIPPING_CREATE_ORDER_URL: str = "https://developers.cjdropshipping.com/api2.0/v1/shopping/order/createOrderV2"
+    CJ_DROPSHIPPING_DEFAULT_LOGISTIC_NAME: str = "CJPacket"
+    CJ_DROPSHIPPING_DEFAULT_FROM_COUNTRY_CODE: str = "CN"
+    CJ_DROPSHIPPING_PAY_TYPE: int = 3  # 1=page payment, 2=balance, 3=create only
+    CJ_DROPSHIPPING_PLATFORM: str = "Api"
+    CJ_DROPSHIPPING_ORDER_CREATE_RETRIES: int = 2
+    CJ_DROPSHIPPING_ORDER_CREATE_TIMEOUT_SECONDS: float = 15.0
 
 
 

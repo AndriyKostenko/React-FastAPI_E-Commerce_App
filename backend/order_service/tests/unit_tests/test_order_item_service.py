@@ -56,12 +56,14 @@ class TestCreateOrderItems:
         orm_a = MagicMock()
         orm_a.order_id = TEST_ORDER_ID
         orm_a.product_id = product_a_id
+        orm_a.variant_id = None
         orm_a.quantity = 1
         orm_a.price = 10.0
 
         orm_b = MagicMock()
         orm_b.order_id = TEST_ORDER_ID
         orm_b.product_id = product_b_id
+        orm_b.variant_id = None
         orm_b.quantity = 3
         orm_b.price = 20.0
 

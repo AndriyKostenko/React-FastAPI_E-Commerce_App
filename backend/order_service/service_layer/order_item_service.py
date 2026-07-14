@@ -14,6 +14,7 @@ class OrderItemService:
             OrderItem(
                 order_id=db_order_id,
                 product_id=item.id,
+                variant_id=item.variant_id,
                 quantity=item.quantity,
                 price=item.price
             )

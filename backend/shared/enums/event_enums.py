@@ -79,6 +79,7 @@ class OrderEvents(StrEnum):
     ORDER_CREATED = "order.created"
     ORDER_CONFIRMED = "order.confirmed"
     ORDER_CANCELLED = "order.cancelled"
+    CJ_ORDER_CREATED = "cj.order.created"
 
 
 class PaymentEvents(StrEnum):

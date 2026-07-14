@@ -15,11 +15,13 @@ class OrderItem(Base, TimestampMixin):
     __table_args__ = (
         Index('idx_order_items_order_id', 'order_id'),
         Index('idx_order_items_product_id', 'product_id'),
+        Index('idx_order_items_variant_id', 'variant_id'),
     )
 
     id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4, unique=True)
     order_id: Mapped[UUID] = mapped_column(ForeignKey('orders.id'), nullable=False)
     product_id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), nullable=False)
+    variant_id: Mapped[UUID | None] = mapped_column(PostgresUUID(as_uuid=True), nullable=True)
     quantity: Mapped[int] = mapped_column(nullable=False)
     price: Mapped[float] = mapped_column(nullable=False)
 

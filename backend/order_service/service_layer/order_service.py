@@ -145,6 +145,10 @@ class OrderService:
             raise OrderNotFoundError(order_id)
         return OrderSchema.model_validate(db_order)
 
+    async def get_order_with_details(self, order_id: UUID) -> Order | None:
+        """Load an order together with its items and shipping address."""
+        return await self.repository.get_by_id(order_id, load_relations=["items", "address"])
+
     async def update_order_status(self, order_id: UUID, order_status: str) -> OrderSchema:
         updated_db_order = await self.repository.update_by_id(order_id, data={"status": order_status})
         return OrderSchema.model_validate(updated_db_order)
@@ -187,6 +191,32 @@ class OrderService:
                 and current_order.status != OrderStatus.CONFIRMED
             )
             if status_transitioned_to_confirmed:
+                confirmed_order = await self.get_order_with_details(updated_order.id)
+                items = []
+                address = None
+                if confirmed_order:
+                    from shared.schemas.order_schemas import ConfirmedOrderItem, ConfirmedOrderAddress
+                    items = [
+                        ConfirmedOrderItem(
+                            product_id=item.product_id,
+                            variant_id=item.variant_id,
+                            quantity=item.quantity,
+                            price=item.price,
+                        )
+                        for item in (confirmed_order.items or [])
+                    ]
+                    if confirmed_order.address:
+                        addr = confirmed_order.address
+                        address = ConfirmedOrderAddress(
+                            street=addr.street or "",
+                            city=addr.city or "",
+                            province=addr.province or "",
+                            postal_code=addr.postal_code or "",
+                            country=addr.country,
+                            country_code=addr.country_code,
+                            name=addr.name,
+                            phone=addr.phone,
+                        )
                 await self.outbox_event_service.add_outbox_event(
                     event_type=OrderEvents.ORDER_CONFIRMED,
                     payload=OrderConfirmedEvent(
@@ -195,6 +225,8 @@ class OrderService:
                         order_id=updated_order.id,
                         user_id=updated_order.user_id,
                         user_email=updated_order.user_email,
+                        items=items,
+                        address=address,
                     ),
                 )
 

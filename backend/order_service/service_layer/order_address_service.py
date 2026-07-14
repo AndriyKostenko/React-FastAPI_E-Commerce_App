@@ -14,7 +14,11 @@ class OrderAddressService:
                 street=order_data.address.street,
                 city=order_data.address.city,
                 province=order_data.address.province,
-                postal_code=order_data.address.postal_code
+                postal_code=order_data.address.postal_code,
+                country=order_data.address.country,
+                country_code=order_data.address.country_code,
+                name=order_data.address.name,
+                phone=order_data.address.phone,
             )
         )
         return OrderAddressBase.model_validate(db_new_order_adress)

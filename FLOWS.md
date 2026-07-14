@@ -1064,3 +1064,140 @@ Consumer             Consumer
        │                    │                        │  (TypeORM)               │
        │                    │                        │──────────────────────────>│
 ```
+
+
+## Supplier Service Flow
+
+### Manual supplier sync (admin triggered)
+
+```
+┌──────────────┐     ┌──────────────────────┐     ┌─────────────────────┐
+│  ADMIN USER  │     │   API-GATEWAY :8000  │     │  SUPPLIER-SERVICE   │
+│              │     │                      │     │      :8010          │
+└──────┬───────┘     └──────────┬───────────┘     └──────────┬──────────┘
+       │                        │                            │
+       │ POST /cjdropshipping/  │                            │
+       │   sync (admin only)    │                            │
+       │───────────────────────>│                            │
+       │                        │ forward to supplier-service│
+       │                        │───────────────────────────>│
+       │                        │                            │
+       │                        │        ┌───────────────────┴───────────────────┐
+       │                        │        │ 1. SupplierSyncOrchestrator.run_sync() │
+       │                        │        │ 2. load SupplierConfig                 │
+       │                        │        │ 3. create SupplierSyncState (running)  │
+       │                        │        │ 4. CJDropshippingProductProvider       │
+       │                        │        │    → CJ API: search + details          │
+       │                        │        │ 5. CJToSupplierMapper                  │
+       │                        │        │    → GenericSupplierProduct[]          │
+       │                        │        │ 6. OutboxEventService                  │
+       │                        │        │    → persist SupplierProductsFetched   │
+       │                        │        │ 7. update sync state (completed)       │
+       │                        │        └───────────────────┬───────────────────┘
+       │                        │                            │
+       │                        │  HTTP 202 Accepted         │
+       │                        │  { supplier_id, fetch_id,  │
+       │                        │    products_fetched, ... } │
+       │                        │<───────────────────────────│
+       │  HTTP 202              │                            │
+       │<───────────────────────│                            │
+```
+
+### Scheduled supplier sync (TaskIQ)
+
+```
+┌─────────────────────┐     ┌─────────────────────┐     ┌─────────────────────┐
+│  TASKIQ SCHEDULER   │     │   TASKIQ BROKER     │     │   TASKIQ WORKER     │
+│  (supplier_service) │     │  (RabbitMQ backend) │     │  (supplier_service) │
+└──────────┬──────────┘     └──────────┬──────────┘     └──────────┬──────────┘
+           │                           │                            │
+           │ cron: every 10 min        │                            │
+           │ scheduled_supplier_sync() │                            │
+           │──────────────────────────>│                            │
+           │                           │ enqueue task               │
+           │                           │───────────────────────────>│
+           │                           │                            │
+           │                           │                            │ loop active configs
+           │                           │                            │ call run_sync() for each
+           │                           │                            │ (same flow as manual sync)
+```
+
+### Direct CJ Dropshipping product search
+
+```
+┌──────────────┐     ┌──────────────────────┐     ┌─────────────────────┐     ┌─────────────────────┐
+│    CLIENT    │     │   API-GATEWAY :8000  │     │  SUPPLIER-SERVICE   │     │  CJ DROPSHIPPING    │
+│              │     │                      │     │      :8010          │     │       API           │
+└──────┬───────┘     └──────────┬───────────┘     └──────────┬──────────┘     └──────────┬──────────┘
+       │                        │                            │                         │
+       │ GET /cjdropshipping/   │                            │                         │
+       │   products?keyword=... │                            │                         │
+       │───────────────────────>│                            │                         │
+       │                        │ forward                    │                         │
+       │                        │───────────────────────────>│                         │
+       │                        │                            │  ensure access token    │
+       │                        │                            │  GET /product/listV2    │
+       │                        │                            │─────────────────────────>│
+       │                        │                            │  product list JSON      │
+       │                        │                            │<─────────────────────────│
+       │                        │                            │  CJToSupplierMapper     │
+       │                        │                            │  → list[CJProductPreview]│
+       │                        │  HTTP 200 products         │                         │
+       │                        │<───────────────────────────│                         │
+       │  HTTP 200              │                            │                         │
+       │<───────────────────────│                            │                         │
+```
+
+### Outbox publishing (background)
+
+```
+┌─────────────────────┐     ┌─────────────────────┐     ┌─────────────────────┐
+│  OUTBOX POLLER      │     │       POSTGRES      │     │      RABBITMQ       │
+│  (supplier_service) │     │    outbox_events    │     │  supplier.exchange  │
+└──────────┬──────────┘     └──────────┬──────────┘     └──────────┬──────────┘
+           │                           │                            │
+           │  SELECT unprocessed       │                            │
+           │  processed = false        │                            │
+           │──────────────────────────>│                            │
+           │                           │                            │
+           │  list of events           │                            │
+           │<──────────────────────────│                            │
+           │                           │                            │
+           │  publish supplier.        │                            │
+           │  products.fetched         │                            │
+           │───────────────────────────────────────────────────────>│
+           │                           │                            │
+           │  UPDATE processed = true  │                            │
+           │──────────────────────────>│                            │
+```
+
+### Downstream import + feedback loop
+
+```
+┌─────────────────────┐     ┌─────────────────────┐     ┌─────────────────────┐
+│      RABBITMQ       │     │   PRODUCT-SERVICE   │     │      RABBITMQ       │
+│  supplier.exchange  │     │       :8002         │     │  supplier.exchange  │
+└──────────┬──────────┘     └──────────┬──────────┘     └──────────┬──────────┘
+           │                           │                            │
+           │ supplier.products.fetched │                            │
+           │──────────────────────────>│                            │
+           │                           │  SupplierProductMapper     │
+           │                           │  bulk_upsert_products()    │
+           │                           │  invalidate product cache  │
+           │                           │                            │
+           │                           │ supplier.product.import.   │
+           │                           │ succeeded / failed         │
+           │                           │───────────────────────────>│
+           │                           │                            │
+           │                           │                            │─────┐
+           │                           │                            │     └───────────────► SUPPLIER-CONSUMER
+           │                           │                            │                         (log feedback)
+```
+
+### Supplier Service key events
+
+| Event | Publisher | Consumers | Purpose |
+|---|---|---|---|
+| `supplier.products.fetched` | Supplier Service | Product Service | Emit fetched supplier products for import |
+| `supplier.product.import.succeeded` | Product Service | Supplier Service Consumer | Acknowledge successful product import |
+| `supplier.product.import.failed` | Product Service | Supplier Service Consumer | Report failed product import |

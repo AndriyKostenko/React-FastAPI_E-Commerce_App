@@ -3,7 +3,11 @@ from datetime import datetime, timezone
 
 from pydantic import BaseModel, EmailStr, PositiveFloat, Field
 
-from shared.schemas.order_schemas import OrderItemBase
+from shared.schemas.order_schemas import (
+    ConfirmedOrderAddress,
+    ConfirmedOrderItem,
+    OrderItemBase,
+)
 from shared.schemas.supplier_schemas import GenericSupplierProduct
 from shared.enums.services_enums import Services
 from shared.enums.event_enums import UserEvents, OrderEvents, InventoryEvents, PaymentEvents, ShippingEvents, WishlistEvents, SupplierEvents
@@ -74,8 +78,10 @@ class OrderCreatedEvent(OrderBaseEvent):
 
 
 class OrderConfirmedEvent(OrderBaseEvent):
-    """Event published when order is confirmed (SAGA success)"""
+    """Event published when order is confirmed (SAGA success)."""
     event_type: str = Field(default_factory=lambda: OrderEvents.ORDER_CONFIRMED)
+    items: list[ConfirmedOrderItem] = Field(default_factory=list)
+    address: ConfirmedOrderAddress | None = None
 
 
 class OrderCancelledEvent(OrderBaseEvent):
@@ -176,6 +182,12 @@ class ShipmentCancelledEvent(ShipmentBaseEvent):
     """Event published when a shipment is cancelled"""
     event_type: str = Field(default_factory=lambda: ShippingEvents.SHIPMENT_CANCELLED)
     reason: str
+
+
+class CJOrderCreatedEvent(OrderBaseEvent):
+    """Event published when a CJ Dropshipping order has been created."""
+    event_type: str = Field(default_factory=lambda: OrderEvents.CJ_ORDER_CREATED)
+    cj_order_number: str
 
 
 # ============== WISHLIST EVENTS ==============
