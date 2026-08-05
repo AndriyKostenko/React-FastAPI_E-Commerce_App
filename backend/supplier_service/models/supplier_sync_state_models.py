@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import String, Integer, DateTime, Text, Index, ForeignKey, inspect
+from sqlalchemy import String, Integer, DateTime, Text, Index, ForeignKey, inspect, func
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -25,7 +25,7 @@ class SupplierSyncState(Base, TimestampMixin):
     status: Mapped[str] = mapped_column(String(50), nullable=False, default="pending")
     products_fetched: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     products_emitted: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
 

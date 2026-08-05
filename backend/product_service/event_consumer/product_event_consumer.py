@@ -6,8 +6,6 @@ from database_layer.product_repository import ProductRepository
 from exceptions.product_exceptions import ProductReleaseError
 from service_layer.product_service import ProductService
 from service_layer.product_image_service import ProductImageService
-from shared.integrations.cj_api_client import CJDropshippingAPIClient
-from shared.integrations.cj_inventory_verifier import CJDropshippingInventoryVerifier
 from shared.schemas.event_schemas import (
     InventoryReserveRequested,
     InventoryReleaseRequested,
@@ -49,20 +47,11 @@ class ProductEventConsumer:
             product_image_service = ProductImageService(
                 repository=ProductImageRepository(session=session)
             )
-            inventory_verifier = self._build_inventory_verifier()
             product_service = ProductService(
                 repository=ProductRepository(session=session),
                 product_image_service=product_image_service,
-                inventory_verifier=inventory_verifier,
             )
             yield product_service
-
-    def _build_inventory_verifier(self) -> CJDropshippingInventoryVerifier | None:
-        """Build a live CJ inventory verifier when verification is enabled."""
-        if not settings.CJ_DROPSHIPPING_VERIFY_INVENTORY:
-            return None
-        api_client = CJDropshippingAPIClient(settings)
-        return CJDropshippingInventoryVerifier(api_client, settings, self.logger)
 
     async def handle_inventory_saga_event(self, message: dict[str, Any]):
         """
@@ -225,6 +214,7 @@ class ProductEventConsumer:
                 bulk_results = await product_service.bulk_upsert_products(products_to_upsert)
 
                 await self.idempotency_service.mark_event_as_processed(
+                    order_id=None,
                     event_id=event.event_id,
                     event_type=event.event_type,
                     result="succeeded",

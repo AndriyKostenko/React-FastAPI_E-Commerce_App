@@ -1,18 +1,19 @@
-from uuid import UUID
+from shared.exceptions.base_exceptions import BaseAPIException
 
 
-class OutboxEventCreationError(Exception):
+class OutboxEventCreationError(BaseAPIException):
     """Raised when an outbox event cannot be created."""
-    pass
+    def __init__(self, detail: str = "Outbox event creation failed."):
+        super().__init__(status_code=500, detail=detail)
 
 
-class OutboxEventNotFoundError(Exception):
+class OutboxEventNotFoundError(BaseAPIException):
     """Raised when no unprocessed outbox events are found."""
-    pass
+    def __init__(self, detail: str = "Outbox event not found."):
+        super().__init__(status_code=404, detail=detail)
 
 
-class OutboxEventUpdateError(Exception):
+class OutboxEventUpdateError(BaseAPIException):
     """Raised when an outbox event cannot be marked as processed."""
-    def __init__(self, event_id: UUID):
-        self.event_id = event_id
-        super().__init__(f"Failed to update outbox event: {event_id}")
+    def __init__(self, detail: str = "Outbox event update failed."):
+        super().__init__(status_code=500, detail=detail)

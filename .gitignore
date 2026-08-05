@@ -1,10 +1,21 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Environment
+.env
+.env.*
+!.env.example
+
+
 # agents
 .agents/
 
 # environment variables
 .env
 .env.ci
-.env 2
+.env.local
 /backend/.env
 /backend/admin-js-service/.env
 /backend/user_service/.env
@@ -16,6 +27,8 @@
 /backend/api_gateway/.env
 /backend/payment_service/.env
 /backend/cart_service/.env
+backend/__pycache__
+backend/**/__pycache__/
 
 # dependencies
 /backend/admin-js-service/node_modules
@@ -28,14 +41,17 @@
 /backend/api_gateway/.venv
 /backend/payment_service/.venv
 /backend/cart_service/.venv
+/backend/supplier_service/.venv
+/backend/shpping_service/.venv
+/backend/whishlist_service/.venv
 
 # tests
-!/backend/user_service/tests
-!/backend/payment_service/tests
-!/backend/order_service/tests
-!/backend/notification_service/tests
-!/backend/api_gateway/tests
-!/backend/cart_service/tests
+/backend/user_service/tests
+/backend/payment_service/tests
+/backend/order_service/tests
+/backend/notification_service/tests
+/backend/api_gateway/tests
+/backend/cart_service/tests
 /backend/notification_consumer/tests
 /backend/shared/tests
 

@@ -749,16 +749,16 @@ Consumer             Consumer
 
 ### Webhook handling
 ```
-┌──────────────┐     ┌──────────────────────┐     ┌──────────────────┐     ┌─────────┐     ┌─────────────┐
-│    STRIPE    │     │   API-GATEWAY :8000  │     │ PAYMENT-SERVICE  │     │ORDER-SERVICE│  │NOTIFICATION │
-└──────┬───────┘     └──────────┬───────────┘     └────────┬─────────┘     └────┬────┘     └──────┬──────┘
-       │                        │                        │                    │                 │
-       │  POST /payments/webhook│                        │                    │                 │
-       │  Stripe event + sig    │                        │                    │                 │
-       │───────────────────────>│                        │                    │                 │
-       │                        │ forward raw body       │                    │                 │
-       │                        │───────────────────────>│                    │                 │
-       │                        │                        │                    │                 │
+┌──────────────┐     ┌──────────────────────┐     ┌──────────────────┐     ┌──────----───┐     ┌─────────────┐
+│    STRIPE    │     │   API-GATEWAY :8000  │     │ PAYMENT-SERVICE  │     │ORDER-SERVICE│     │NOTIFICATION │
+└──────┬───────┘     └──────────┬───────────┘     └────────┬─────────┘     └────┬──----──┘     └──────┬──────┘
+       │                        │                        │                    │                    │
+       │  POST /payments/webhook│                        │                    │                    │
+       │  Stripe event + sig    │                        │                    │                    │
+       │───────────────────────>│                        │                    │                    │
+       │                        │ forward raw body       │                    │                    │
+       │                        │───────────────────────>│                    │                    │
+       │                        │                        │                    │                    │
        │                        │                        │  verify signature  │                    │
        │                        │                        │  idempotency check │                    │                 │
        │                        │                        │                    │                    │
@@ -770,7 +770,7 @@ Consumer             Consumer
        │                        │                        │───────────────────>│                    │
        │                        │                        │                    │  confirm order     │
        │                        │                        │                    │  (idempotent)      │
-       │                        │                        │  - failed/canceled →                  │
+       │                        │                        │  - failed/canceled →                    │
        │                        │                        │    publish         │                    │
        │                        │                        │    "payment.failed"│                    │
        │                        │                        │    /"payment.      │                    │
@@ -1196,8 +1196,8 @@ Consumer             Consumer
 
 ### Supplier Service key events
 
-| Event | Publisher | Consumers | Purpose |
-|---|---|---|---|
-| `supplier.products.fetched` | Supplier Service | Product Service | Emit fetched supplier products for import |
-| `supplier.product.import.succeeded` | Product Service | Supplier Service Consumer | Acknowledge successful product import |
-| `supplier.product.import.failed` | Product Service | Supplier Service Consumer | Report failed product import |
+| Event                               | Publisher              | Consumers                 | Purpose                                   |
+|-------------------------------------|------------------------|---------------------------|-------------------------------------------|
+| `supplier.products.fetched`         | Supplier Service       | Product Service           | Emit fetched supplier products for import |
+| `supplier.product.import.succeeded` | Product Service        | Supplier Service Consumer | Acknowledge successful product import     |
+| `supplier.product.import.failed`    | Product Service        | Supplier Service Consumer | Report failed product import              |

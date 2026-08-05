@@ -1,18 +1,15 @@
-from __future__ import annotations
-
 import asyncio
 from dataclasses import dataclass
 from logging import Logger
 from typing import Any
 
-from shared.integrations.cj_api_client import CJDropshippingAPIClient, CJDropshippingAPIError
+from service_layer.cj_api_client import CJDropshippingAPIClient, CJDropshippingAPIError
 from shared.settings import Settings
 
 
 @dataclass(frozen=True)
 class StockVerificationResult:
     """Result of a live CJ Dropshipping stock verification."""
-
     requested: int
     available: int
     sufficient: bool
@@ -20,24 +17,16 @@ class StockVerificationResult:
     warehouses_checked: int
 
 
+
 class CJDropshippingInventoryVerifier:
     """Verifies product-level inventory against the live CJ Dropshipping API."""
 
-    def __init__(
-        self,
-        api_client: CJDropshippingAPIClient,
-        settings: Settings,
-        logger: Logger | None = None,
-    ) -> None:
+    def __init__(self, api_client: CJDropshippingAPIClient, settings: Settings,logger: Logger | None = None) -> None:
         self.api_client: CJDropshippingAPIClient = api_client
         self.settings: Settings = settings
         self.logger: Logger | None = logger
 
-    async def verify_product_stock(
-        self,
-        pid: str,
-        requested_quantity: int,
-    ) -> StockVerificationResult:
+    async def verify_product_stock(self, pid: str, requested_quantity: int) -> StockVerificationResult:
         """Fetch live stock for a CJ product and compare against requested quantity.
 
         The buffer defined in settings is subtracted from CJ's reported total to
@@ -60,10 +49,7 @@ class CJDropshippingInventoryVerifier:
             except CJDropshippingAPIError as exc:
                 last_error = exc
                 if self.logger:
-                    self.logger.warning(
-                        f"CJ inventory verification failed for pid={pid} "
-                        f"(attempt {attempt + 1}/{retries + 1}): {exc}"
-                    )
+                    self.logger.warning(f"CJ inventory verification failed for pid={pid} (attempt {attempt + 1}/{retries + 1}): {exc}")
                 if attempt < retries:
                     await asyncio.sleep(0.5 * (attempt + 1))
 
@@ -72,11 +58,7 @@ class CJDropshippingInventoryVerifier:
             f"CJ inventory verification failed for pid={pid} after {retries + 1} attempts: {last_error}"
         ) from last_error
 
-    def _parse_response(
-        self,
-        raw: dict[str, Any],
-        requested_quantity: int,
-    ) -> StockVerificationResult:
+    def _parse_response(self, raw: dict[str, Any], requested_quantity: int) -> StockVerificationResult:
         data = raw.get("data") if isinstance(raw, dict) else None
         if not isinstance(data, dict):
             raise CJDropshippingAPIError("CJ inventory response missing 'data' object")

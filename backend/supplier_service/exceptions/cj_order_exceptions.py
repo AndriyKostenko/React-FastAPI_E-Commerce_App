@@ -1,17 +1,25 @@
-"""Exceptions for CJ Dropshipping order creation in supplier_service."""
-from uuid import UUID
+from shared.exceptions.base_exceptions import BaseAPIException
 
 
-class CJOrderCreationError(Exception):
+class CJOrderCreationError(BaseAPIException):
     """Raised when CJ order creation fails after retries."""
-    pass
+    def __init__(self, detail: str = "Order creation failed after retries."):
+        super().__init__(status_code=500, detail=detail)
 
 
-class CJProductMappingError(Exception):
+class CJProductMappingError(BaseAPIException):
     """Raised when a local product/variant cannot be mapped to CJ IDs."""
-    pass
+    def __init__(self, detail: str = "Product mapping failed."):
+        super().__init__(status_code=500, detail=detail)
 
 
-class CJOrderConfigurationError(Exception):
+class CJOrderConfigurationError(BaseAPIException):
     """Raised when required CJ order settings or address fields are missing."""
-    pass
+    def __init__(self, detail: str = "Order configuration error."):
+        super().__init__(status_code=500, detail=detail)
+
+
+class ProviderNotFoundError(BaseAPIException):
+    """Raised when the provider is not found."""
+    def __init__(self, detail: str = "Provider not found."):
+        super().__init__(status_code=404, detail=detail)

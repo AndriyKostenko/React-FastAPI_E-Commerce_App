@@ -1,24 +1,27 @@
 from typing import Annotated, Any
-from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Query, status
 
-from dependencies.dependencies import sync_orchestrator_dependency
-from service_layer.cj_product_provider import CJDropshippingProductProvider
-from service_layer.sync_orchestrator_service import SupplierSyncOrchestrator
+from dependencies.dependencies import cj_provider_dependency, sync_orchestrator_dependency
 from shared.schemas.dropshipping_schemas import CJProductsFilterParams
 from shared.schemas.product_schemas import CJProductPreview
 from shared.schemas.supplier_schemas import SupplierSyncRunSummary
-from shared.settings import Settings
-from shared.shared_instances import settings
 
 
 supplier_routes = APIRouter(tags=["suppliers"])
 
 
-def get_cj_provider(settings_instance: Settings = settings) -> CJDropshippingProductProvider:
-    """Dependency to get the CJDropshipping product provider."""
-    return CJDropshippingProductProvider(settings_instance)
+def _to_sync_summary(sync_state) -> SupplierSyncRunSummary:
+    return SupplierSyncRunSummary(
+        supplier_id=sync_state.supplier_id,
+        fetch_id=sync_state.fetch_id,
+        started_at=sync_state.started_at,
+        finished_at=sync_state.finished_at,
+        products_fetched=sync_state.products_fetched,
+        products_emitted=sync_state.products_emitted,
+        status=sync_state.status,
+        errors=[sync_state.error_message] if sync_state.error_message else [],
+    )
 
 
 @supplier_routes.get(
@@ -28,7 +31,7 @@ def get_cj_provider(settings_instance: Settings = settings) -> CJDropshippingPro
     status_code=status.HTTP_200_OK,
 )
 async def get_products_from_cjdropshipping(
-    cj_provider: Annotated[CJDropshippingProductProvider, Depends(get_cj_provider)],
+    cj_provider: cj_provider_dependency,
     filters_query: Annotated[CJProductsFilterParams, Query()],
 ) -> list[CJProductPreview]:
     """Search products directly from CJDropshipping."""
@@ -56,7 +59,7 @@ async def get_products_from_cjdropshipping(
 )
 async def get_cjdropshipping_product_details(
     pid: str,
-    cj_provider: Annotated[CJDropshippingProductProvider, Depends(get_cj_provider)],
+    cj_provider: cj_provider_dependency,
 ) -> dict[str, Any]:
     """Fetch raw product details from CJDropshipping by pid."""
     return await cj_provider.get_product_details(supplier_pid=pid)
@@ -65,7 +68,7 @@ async def get_cjdropshipping_product_details(
 @supplier_routes.post(
     "/cjdropshipping/sync",
     response_model=SupplierSyncRunSummary,
-    status_code=status.HTTP_202_ACCEPTED,
+    status_code=status.HTTP_200_OK,
     summary="Synchronize CJ Dropshipping products",
 )
 async def sync_cjdropshipping_products(
@@ -79,22 +82,13 @@ async def sync_cjdropshipping_products(
         filters=filters_query,
         fetch_details=fetch_details,
     )
-    return SupplierSyncRunSummary(
-        supplier_id=sync_state.supplier_id,
-        fetch_id=sync_state.fetch_id,
-        started_at=sync_state.started_at,
-        finished_at=sync_state.finished_at,
-        products_fetched=sync_state.products_fetched,
-        products_emitted=sync_state.products_emitted,
-        status=sync_state.status,
-        errors=[sync_state.error_message] if sync_state.error_message else [],
-    )
+    return _to_sync_summary(sync_state)
 
 
 @supplier_routes.post(
     "/suppliers/{supplier_id}/sync",
     response_model=SupplierSyncRunSummary,
-    status_code=status.HTTP_202_ACCEPTED,
+    status_code=status.HTTP_200_OK,
     summary="Trigger a manual supplier sync",
 )
 async def sync_supplier_products(
@@ -109,13 +103,4 @@ async def sync_supplier_products(
         filters=filters_query,
         fetch_details=fetch_details,
     )
-    return SupplierSyncRunSummary(
-        supplier_id=sync_state.supplier_id,
-        fetch_id=sync_state.fetch_id,
-        started_at=sync_state.started_at,
-        finished_at=sync_state.finished_at,
-        products_fetched=sync_state.products_fetched,
-        products_emitted=sync_state.products_emitted,
-        status=sync_state.status,
-        errors=[sync_state.error_message] if sync_state.error_message else [],
-    )
+    return _to_sync_summary(sync_state)

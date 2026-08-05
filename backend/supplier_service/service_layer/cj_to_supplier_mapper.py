@@ -5,13 +5,13 @@ from typing import Any
 
 from shared.schemas.dropshipping_schemas import CJProductsFilterParams
 from shared.schemas.supplier_schemas import GenericSupplierProduct, SupplierProductVariant, SupplierProductsPage
-from shared.integrations.cj_api_client import CJDropshippingAPIError
+from service_layer.cj_api_client import CJDropshippingAPIError
 
 
 class CJToSupplierMapper:
     """Maps CJDropshipping API responses into generic supplier product schemas."""
 
-    SUPPLIER_ID = "cjdropshipping"
+    SUPPLIER_ID: str = "cjdropshipping"
     RANGE_SPLIT_REGEX = re.compile(r"\s*--\s*|\s+-\s+")
     CLEAN_REGEX = re.compile(r"[^\d.]")
 

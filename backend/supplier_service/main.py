@@ -1,9 +1,10 @@
 import os
+import asyncio
+import contextlib
 from datetime import datetime
 from contextlib import asynccontextmanager
 from time import perf_counter
 
-from aiohttp import ClientSession
 from uvicorn import run
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response as PlainResponse
@@ -27,6 +28,7 @@ from shared.shared_instances import (
 )
 from tasks.broker import taskiq_broker
 from service_layer.outbox_poller_service import OutboxPollerService
+from service_layer.cj_api_client import CJDropshippingAPIClient
 from utils.seed_database import seed_default_supplier_config
 from asyncio import create_task
 
@@ -35,8 +37,8 @@ from asyncio import create_task
 async def lifespan(app: FastAPI):
     """Startup and shutdown lifecycle for the supplier service."""
     logger.info(f"Server is starting up on {settings.APP_HOST}:{settings.SUPPLIER_SERVICE_APP_PORT}...")
-    await supplier_service_redis_manager.connect()
-    logger.info("Supplier service redis manager is connected.")
+    # await supplier_service_redis_manager.connect()
+    # logger.info("Supplier service redis manager is connected.")
     await supplier_service_database_session_manager.init_db()
     logger.info("Supplier service DB session is started.")
     async with supplier_service_database_session_manager.transaction() as session:
@@ -47,10 +49,11 @@ async def lifespan(app: FastAPI):
     if not taskiq_broker.is_worker_process:
         await taskiq_broker.startup()
         logger.info("TaskIQ broker started successfully.")
-    poller_task = create_task(OutboxPollerService().start_outbox_poller())
+    poller_task = create_task(OutboxPollerService.create().start_outbox_poller())
     logger.info("Supplier service outbox poller is started.")
-    app.state.http_session = ClientSession()
-    logger.info("Shared HTTP client session created.")
+    app.state.cj_api_client = CJDropshippingAPIClient(settings)
+    await app.state.cj_api_client.start()
+    logger.info("Shared CJ HTTP client created.")
     logger.info("Supplier service startup complete!")
 
     yield
@@ -63,10 +66,12 @@ async def lifespan(app: FastAPI):
         await taskiq_broker.shutdown()
         logger.info("TaskIQ broker shut down successfully.")
     poller_task.cancel()
-    await app.state.http_session.close()
-    logger.warning("Shared HTTP client session closed.")
-    await supplier_service_redis_manager.close()
-    logger.warning("Redis connection closed on shutdown!")
+    with contextlib.suppress(asyncio.CancelledError):
+        await poller_task
+    await app.state.cj_api_client.close()
+    logger.warning("Shared CJ HTTP client closed.")
+    # await supplier_service_redis_manager.close()
+    # logger.warning("Redis connection closed on shutdown!")
     logger.warning("Supplier service has shut down!")
 
 

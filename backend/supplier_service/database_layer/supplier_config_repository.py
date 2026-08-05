@@ -13,5 +13,5 @@ class SupplierConfigRepository(BaseRepository[SupplierConfig]):
     async def get_by_supplier_id(self, supplier_id: str) -> SupplierConfig | None:
         return await self.get_by_field("supplier_id", supplier_id)
 
-    async def get_active(self) -> list[SupplierConfig]:
+    async def get_active(self) -> list[SupplierConfig] | None:
         return await self.get_many_by_field("is_active", True)

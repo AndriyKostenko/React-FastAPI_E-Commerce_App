@@ -2,6 +2,7 @@ import os
 from datetime import datetime
 from contextlib import asynccontextmanager
 from time import perf_counter
+from pathlib import Path
 
 from aiohttp import ClientSession
 from uvicorn import run
@@ -246,7 +247,8 @@ app.add_middleware(
 add_logging_middleware(app, service_name="product-service")
 
 # Static files configuration
-_media_dir = os.environ.get("MEDIA_ROOT", "/media")
+_media_dir = Path(os.getenv("MEDIA_ROOT", "./media"))
+_media_dir.mkdir(parents=True, exist_ok=True)
 app.mount("/media", StaticFiles(directory=_media_dir), name="media")
 
 # including all the routers to the app

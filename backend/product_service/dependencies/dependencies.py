@@ -20,8 +20,6 @@ from service_layer.openrouter_client import OpenRouterClient
 from service_layer.product_image_service import ProductImageService
 from service_layer.product_service import ProductService
 from service_layer.review_service import ReviewService
-from shared.integrations.cj_api_client import CJDropshippingAPIClient
-from shared.integrations.cj_inventory_verifier import CJDropshippingInventoryVerifier
 from shared.shared_instances import (
     logger,
     product_service_database_session_manager,
@@ -69,24 +67,13 @@ def get_product_service(session: AsyncSession = Depends(get_db_session)) -> Prod
         CategoryRepository(session=session),
         default_category_name=settings.CJ_DROPSHIPPING_DEFAULT_CATEGORY_NAME,
     )
-    inventory_verifier = _get_inventory_verifier()
     return ProductService(
         repository=product_repo,
         product_image_service=product_image_service,
         variant_repository=ProductVariantRepository(session=session),
         image_repository=image_repo,
         category_service=category_service,
-        inventory_verifier=inventory_verifier,
     )
-
-
-def _get_inventory_verifier() -> CJDropshippingInventoryVerifier | None:
-    """Build a live CJ inventory verifier when verification is enabled."""
-    if not settings.CJ_DROPSHIPPING_VERIFY_INVENTORY:
-        return None
-    api_client = CJDropshippingAPIClient(settings)
-    return CJDropshippingInventoryVerifier(api_client, settings, logger)
-
 
 # ── image-generation dependency chain ─────────────────────────────────────────
 
@@ -95,9 +82,7 @@ def get_http_session(request: Request) -> ClientSession:
     return request.app.state.http_session
 
 
-def get_openrouter_client(
-    session: ClientSession = Depends(get_http_session),
-) -> OpenRouterClient:
+def get_openrouter_client(session: ClientSession = Depends(get_http_session)) -> OpenRouterClient:
     return OpenRouterClient(session=session, settings=settings, logger=logger)
 
 

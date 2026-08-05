@@ -20,3 +20,8 @@ class PaymentStatus(StrEnum):
     FAILED = "failed"
     CANCELLED = "cancelled"
     REFUNDED = "refunded"
+
+class SyncStatus(StrEnum):
+	RUNNING = "running"
+	COMPLETED = "completed"
+	FAILED = "failed"

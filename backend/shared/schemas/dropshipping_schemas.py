@@ -56,15 +56,6 @@ class CJProductsFilterParams(BaseModel):
     sort: Literal["desc", "asc"] | None = None
     orderBy: Literal[0, 1, 2, 3, 4] | None = None
 
-    # Optional feature flags
-    features: list[
-        Literal[
-            "enable_description",
-            "enable_category",
-            "enable_combine",
-            "enable_video",
-        ]
-    ] | None = None
 
 
 

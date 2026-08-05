@@ -1,9 +1,15 @@
 ## Getting Started
 
-## Flows & Diagrams
-
-Detailed flow diagrams (User Registration, Login, Token Refresh, Logout, Password Reset, Google OAuth, Order Creation, Order Cancellation, Stripe Payment, Inventory Release, Image Generation, Product Creation, Reviews, Notifications, Middleware Execution Order, and RabbitMQ Queue Topology) are documented in [FLOWS.md](FLOWS.md).
-
+## Local run
+ - PYTHONPATH=.. uv run uvicorn main:app --reload --port 8001
+ -  sync all services: or dir in */; do
+     if [ -f "$dir/pyproject.toml" ]; then
+         echo "Setting up $dir"
+         cd "$dir"
+         uv sync
+         cd ..
+     fi
+ done
 
 ## Alembic migrations
 

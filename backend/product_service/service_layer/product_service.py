@@ -22,7 +22,6 @@ from models.product_models import Product
 from models.product_variant_models import ProductVariant
 from service_layer.category_service import CategoryService
 from service_layer.product_image_service import ProductImageService
-from shared.integrations.cj_inventory_verifier import CJDropshippingInventoryVerifier
 from shared.schemas.order_schemas import OrderItemBase
 from shared.schemas.product_schemas import (
     CreateProduct,
@@ -43,14 +42,12 @@ class ProductService:
                  product_image_service: ProductImageService,
                  variant_repository: ProductVariantRepository | None = None,
                  image_repository: ProductImageRepository | None = None,
-                 category_service: CategoryService | None = None,
-                 inventory_verifier: CJDropshippingInventoryVerifier | None = None):
+                 category_service: CategoryService | None = None):
         self.repository: ProductRepository = repository
         self.product_image_service: ProductImageService = product_image_service
         self.variant_repository: ProductVariantRepository = variant_repository or ProductVariantRepository(repository.session)
         self.image_repository: ProductImageRepository = image_repository or ProductImageRepository(repository.session)
         self.category_service: CategoryService | None = category_service
-        self.inventory_verifier: CJDropshippingInventoryVerifier | None = inventory_verifier
         self.product_relations: list[str] = Product.get_relations()
         self.product_search_fileds: list[str] = Product.get_search_fields()
         self.filter_parser: FilterParser = FilterParser()
@@ -274,17 +271,11 @@ class ProductService:
 
     async def reserve_inventory(self, items: list[OrderItemBase]) -> dict[str, Any]:
         """
-        Reserve inventory via atomic per-row decrements, then confirm availability
-        with CJ Dropshipping when a live inventory verifier is configured.
+        Reserve inventory via atomic per-row decrements.
 
         The local DB decrement is the fast, race-safe gate. If any item cannot be
         reserved locally, all previously reserved items in this request are rolled
         back so the reservation is all-or-nothing.
-
-        After local reservation succeeds, products that have a CJ ``pid`` are
-        re-checked against the live CJ API. If CJ reports insufficient stock or the
-        API is unreachable after retries, the local reservations are released and
-        the reservation fails (fail-safe).
         """
         failed_items: list[OrderItemBase] = []
         reasons: set[str] = set()
@@ -324,37 +315,6 @@ class ProductService:
                 "failed_products": failed_items,
             }
 
-        # 2. Live CJ verification for products linked to a CJ pid
-        if self.inventory_verifier is not None:
-            for item, product in reserved_items:
-                if not product.pid:
-                    continue
-                try:
-                    result = await self.inventory_verifier.verify_product_stock(
-                        pid=product.pid,
-                        requested_quantity=item.quantity,
-                    )
-                except Exception as exc:
-                    await self._rollback_reserved_items(reserved_items)
-                    reasons.add(
-                        f"Unable to verify live stock for product: {product.name}, "
-                        f"ID: {product.id}, pid: {product.pid}: {exc}"
-                    )
-                    failed_items.append(item)
-                    break
-
-                if not result.sufficient:
-                    await self._rollback_reserved_items(reserved_items)
-                    reasons.add(
-                        f"Insufficient live stock for product: {product.name}, "
-                        f"ID: {product.id}, pid: {product.pid}, "
-                        f"requested: {item.quantity}, "
-                        f"available: {result.available} "
-                        f"(buffered: {result.buffered_available})"
-                    )
-                    failed_items.append(item)
-                    break
-
         if failed_items:
             return {
                 "success": False,
@@ -367,10 +327,7 @@ class ProductService:
             "products": [item for item, _ in reserved_items],
         }
 
-    async def _rollback_reserved_items(
-        self,
-        reserved_items: list[tuple[OrderItemBase, Product]],
-    ) -> None:
+    async def _rollback_reserved_items(self,reserved_items: list[tuple[OrderItemBase, Product]]) -> None:
         """Release locally reserved items during a failed reservation attempt."""
         for item, _ in reserved_items:
             try:

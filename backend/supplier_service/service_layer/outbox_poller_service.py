@@ -4,22 +4,45 @@ from asyncio import sleep
 
 from shared.settings import Settings
 from shared.managers.database_session_manager import DatabaseSessionManager
-from shared.shared_instances import logger, settings, supplier_service_database_session_manager
 from exceptions.outbox_event_exceptions import OutboxEventNotFoundError
 from service_layer.outbox_event_service import OutboxEventService
-from event_publisher.supplier_event_publisher import supplier_event_publisher, SupplierEventPublisher
+from event_publisher.supplier_event_publisher import SupplierEventPublisher
 from shared.database_layer.outbox_repository import OutboxRepository
 from shared.enums.event_enums import SupplierEvents
 
 
 class OutboxPollerService:
-    """Poll unprocessed events from the outbox table and publish them to RabbitMQ."""
+    """Poll unprocessed events from the outbox table and publish them to RabbitMQ.
 
-    def __init__(self) -> None:
-        self.session_manager: DatabaseSessionManager = supplier_service_database_session_manager
+    All collaborators are injected so the service can be tested without
+    touching global singletons.  Use ``OutboxPollerService.create()`` to
+    obtain an instance wired to the production globals.
+    """
+
+    def __init__(
+        self,
+        session_manager: DatabaseSessionManager,
+        supplier_event_publisher: SupplierEventPublisher,
+        logger: Logger,
+        settings: Settings,
+    ) -> None:
+        self.session_manager: DatabaseSessionManager = session_manager
         self.supplier_event_publisher: SupplierEventPublisher = supplier_event_publisher
         self.logger: Logger = logger
         self.settings: Settings = settings
+
+    @classmethod
+    def create(cls) -> "OutboxPollerService":
+        """Construct an instance using the production module-level singletons."""
+        from shared.shared_instances import logger, settings, supplier_service_database_session_manager
+        from event_publisher.supplier_event_publisher import supplier_event_publisher
+
+        return cls(
+            session_manager=supplier_service_database_session_manager,
+            supplier_event_publisher=supplier_event_publisher,
+            logger=logger,
+            settings=settings,
+        )
 
     async def event_type_to_publisher(self, event_data: dict[str, Any]) -> None:
         """Route event to the appropriate publisher method."""

@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     WEBSITE_NAME: str
     APP_HOST: str
     FRONTEND_URL: str
+    MEDIA_ROOT: str
 
     API_GATEWAY_SERVICE_APP_PORT: int
     USER_SERVICE_APP_PORT: int

@@ -15,9 +15,9 @@ export default async function Home(props: {params: Params, searchParams: SearchP
     const products = await fetchProductsFromBackend(category, searchTerm);
 	const currentUserJWT = await sessionManagaer.getCurrentUserJWT();
 
-    if (!products || products.length === 0) {
-        return <NullData title="No products!!!"/>
-    }
+    // if (!products || products.length === 0) {
+    //     return <NullData title="No products!!!"/>
+    // }
 
     return (
         <div className="space-y-8">
