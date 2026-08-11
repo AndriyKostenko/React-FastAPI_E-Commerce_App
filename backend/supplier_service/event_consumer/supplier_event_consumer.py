@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 import asyncio
 from logging import Logger
 from typing import Any
@@ -62,20 +63,58 @@ class SupplierEventConsumer:
 
     async def handle_import_feedback_event(self, message: dict[str, Any]) -> None:
         event_type = message.get("event_type")
+        raw_fetch_id = message.get("fetch_id")
+        fetch_id: UUID | None = None
+        if raw_fetch_id:
+            try:
+                fetch_id = UUID(str(raw_fetch_id))
+            except (ValueError, TypeError):
+                fetch_id = None
+
         match event_type:
             case SupplierEvents.SUPPLIER_PRODUCT_IMPORT_SUCCEEDED:
                 self.logger.info(
                     f"Product import succeeded for supplier {message.get('supplier_id')}, "
-                    f"fetch_id {message.get('fetch_id')}: "
+                    f"fetch_id {fetch_id}: "
                     f"imported={message.get('imported')}, updated={message.get('updated')}, failed={message.get('failed')}"
                 )
+                if fetch_id:
+                    await self._update_sync_state_on_feedback(
+                        fetch_id=fetch_id,
+                        status="completed",
+                    )
             case SupplierEvents.SUPPLIER_PRODUCT_IMPORT_FAILED:
                 self.logger.error(
                     f"Product import failed for supplier {message.get('supplier_id')}, "
-                    f"fetch_id {message.get('fetch_id')}: {message.get('reason')}"
+                    f"fetch_id {fetch_id}: {message.get('reason')}"
                 )
+                if fetch_id:
+                    await self._update_sync_state_on_feedback(
+                        fetch_id=fetch_id,
+                        status="import_failed",
+                        error_message=str(message.get("reason") or "Import failed"),
+                    )
             case _:
                 self.logger.warning(f"Unhandled supplier feedback event type: {event_type}")
+
+    async def _update_sync_state_on_feedback(
+        self,
+        fetch_id: UUID,
+        status: str,
+        error_message: str | None = None,
+    ) -> None:
+        try:
+            async with supplier_service_database_session_manager.transaction() as session:
+                repo = SupplierSyncStateRepository(session=session)
+                sync_state = await repo.get_by_fetch_id(fetch_id)
+                if sync_state:
+                    sync_state.status = status
+                    sync_state.finished_at = datetime.now(timezone.utc)
+                    if error_message:
+                        sync_state.error_message = error_message
+                    await repo.update(sync_state)
+        except Exception as exc:
+            self.logger.error(f"Failed to update sync_state for fetch_id {fetch_id}: {exc}")
 
     async def handle_order_event(self, message: dict[str, Any]) -> None:
         """Route order events to the appropriate handler."""
@@ -92,6 +131,14 @@ class SupplierEventConsumer:
         On success publishes cj.order.created.
         On failure publishes order.cancelled + inventory.release.requested so the
         SAGA can be compensated.
+
+        Safety properties guaranteed:
+        - CJ creation failed -> compensate and mark processed.
+        - CJ succeeded but cj.order.created publish failed -> release_claim so
+          the message is redelivered; a CRITICAL alert is logged for manual
+          reconciliation. Compensation is intentionally skipped (CJ has the order).
+        - Compensation itself raises -> release_claim so the broker redelivers;
+          the event is never permanently stamped processed in a broken state.
         """
         event = OrderConfirmedEvent(**message)
         claimed = await self.idempotency_service.try_claim_event(
@@ -102,9 +149,20 @@ class SupplierEventConsumer:
             self.logger.info(f"Skipping duplicate order.confirmed event for order: {event.order_id}")
             return
 
-        result = "cj_order_created"
+        result: str = "cj_order_created"
+        # Track whether the CJ order was placed so we can distinguish between
+        # "creation failed - safe to compensate" and "creation succeeded but
+        # publish failed - must NOT compensate" (Bug 5 fix).
+        cj_order_number: str | None = None
+        # Track whether compensation completed so the finally block knows
+        # whether to mark processed or release for retry (Bug 4 fix).
+        compensation_succeeded: bool = False
         try:
             cj_order_number = await self._create_cj_order(event)
+
+            # --- Bug 5 boundary ---
+            # CJ accepted the order. Any exception from here on must NOT trigger
+            # compensation (the order exists at CJ and may ship).
             await self.publisher.publish_cj_order_created(
                 event_data={
                     "service": event.service,
@@ -116,29 +174,66 @@ class SupplierEventConsumer:
                 }
             )
             self.logger.info(f"Published CJOrderCreatedEvent for order: {event.order_id}, CJ order: {cj_order_number}")
-        except CJOrderConfigurationError as exc:
-            self.logger.error(f"CJ order configuration error for order {event.order_id}: {exc}")
-            await self._compensate_order(event, reason=f"CJ order configuration error: {exc}")
-            result = f"cj_configuration_error: {exc}"
-        except CJProductMappingError as exc:
-            self.logger.error(f"CJ product mapping error for order {event.order_id}: {exc}")
-            await self._compensate_order(event, reason=f"CJ product mapping error: {exc}")
-            result = f"cj_mapping_error: {exc}"
-        except CJOrderCreationError as exc:
+
+        except (CJOrderConfigurationError, CJProductMappingError, CJOrderCreationError) as exc:
+            # _create_cj_order failed - CJ was never called (or all retries failed
+            # before any order was placed). Safe to compensate.
             self.logger.error(f"CJ order creation failed for order {event.order_id}: {exc}")
-            await self._compensate_order(event, reason=f"CJ order creation failed: {exc}")
-            result = f"cj_creation_failed: {exc}"
+            await self._compensate_order(event, reason=str(exc))
+            compensation_succeeded = True
+            result = f"compensated: {exc}"
+
         except Exception as exc:
+            if cj_order_number is not None:
+                # Bug 5: CJ accepted the order but publishing cj.order.created
+                # failed. Compensating here would refund + restock an order that
+                # CJ may fulfil. Instead: log for manual reconciliation, release
+                # the idempotency claim, and re-raise so the broker redelivers.
+                self.logger.critical(
+                    f"RECONCILIATION REQUIRED: CJ order {cj_order_number!r} was "
+                    f"placed for local order {event.order_id} but "
+                    f"cj.order.created publish failed: {exc}. "
+                    f"Do NOT compensate - verify CJ order status manually."
+                )
+                await self.idempotency_service.release_claim(
+                    event_id=event.event_id,
+                    event_type=event.event_type,
+                )
+                raise
+
+            # cj_order_number is None - _create_cj_order raised an unexpected
+            # error before placing anything; compensate normally.
             self.logger.error(f"Unexpected error creating CJ order for order {event.order_id}: {exc}")
             await self._compensate_order(event, reason=f"Unexpected CJ order error: {exc}")
+            compensation_succeeded = True
             result = f"cj_unexpected_error: {exc}"
+
         finally:
-            await self.idempotency_service.mark_event_as_processed(
-                event_id=event.event_id,
-                event_type=event.event_type,
-                order_id=event.order_id,
-                result=result,
-            )
+            # Bug 4: only stamp "processed" when we have a definitive outcome
+            # (success or a completed compensation). If compensation itself raised,
+            # release the claim so the broker redelivers and retries - the event
+            # must never be permanently marked processed in an unresolved state.
+            if cj_order_number is not None and not compensation_succeeded:
+                # We are inside the publish-failed re-raise path; release_claim
+                # was already called above - nothing more to do here.
+                pass
+            elif compensation_succeeded or cj_order_number is not None:
+                await self.idempotency_service.mark_event_as_processed(
+                    event_id=event.event_id,
+                    event_type=event.event_type,
+                    order_id=event.order_id,
+                    result=result,
+                )
+            else:
+                # Compensation was attempted but raised (cj_order_number is None
+                # and compensation_succeeded is False) - release so retry is possible.
+                try:
+                    await self.idempotency_service.release_claim(
+                        event_id=event.event_id,
+                        event_type=event.event_type,
+                    )
+                except Exception:
+                    pass  # never mask the original exception
 
     async def _create_cj_order(self, event: OrderConfirmedEvent) -> str:
         """Build and send a createOrderV2 request to CJ Dropshipping.

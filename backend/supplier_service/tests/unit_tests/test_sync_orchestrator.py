@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from exceptions.cj_order_exceptions import ProviderNotFoundError, SyncAlreadyInProgressError
 from service_layer.sync_orchestrator_service import SupplierSyncOrchestrator
 from shared.schemas.dropshipping_schemas import CJProductsFilterParams
 from shared.schemas.supplier_schemas import GenericSupplierProduct, SupplierProductsPage
@@ -48,7 +49,12 @@ def _orchestrator(provider: FakeCJProvider):
             )
         )
     )
-    sync_state_repository = SimpleNamespace(create=AsyncMock(), update=AsyncMock())
+    sync_state_repository = SimpleNamespace(
+        create=AsyncMock(),
+        update=AsyncMock(),
+        get_latest_by_supplier_id=AsyncMock(return_value=None),
+        session=SimpleNamespace(commit=AsyncMock()),
+    )
     outbox_event_service = SimpleNamespace(add_outbox_event=AsyncMock())
     return (
         SupplierSyncOrchestrator(
@@ -59,6 +65,7 @@ def _orchestrator(provider: FakeCJProvider):
             provider=provider,
         ),
         config_repository,
+        sync_state_repository,
         outbox_event_service,
     )
 
@@ -66,7 +73,7 @@ def _orchestrator(provider: FakeCJProvider):
 @pytest.mark.asyncio
 async def test_sync_persists_event_and_marks_complete() -> None:
     provider = FakeCJProvider({"one": _product("one")})
-    orchestrator, _, outbox = _orchestrator(provider)
+    orchestrator, _, _, outbox = _orchestrator(provider)
 
     state = await orchestrator.run_sync("cjdropshipping")
 
@@ -81,7 +88,7 @@ async def test_sync_persists_event_and_marks_complete() -> None:
 @pytest.mark.asyncio
 async def test_sync_records_partial_detail_failures() -> None:
     provider = FakeCJProvider({"good": _product("good"), "bad": RuntimeError("CJ unavailable")})
-    orchestrator, _, outbox = _orchestrator(provider)
+    orchestrator, _, _, outbox = _orchestrator(provider)
 
     state = await orchestrator.run_sync("cjdropshipping")
 
@@ -96,8 +103,19 @@ async def test_sync_records_partial_detail_failures() -> None:
 @pytest.mark.asyncio
 async def test_unknown_supplier_config_fails_before_creating_sync_state() -> None:
     provider = FakeCJProvider({"one": _product("one")})
-    orchestrator, config_repository, _ = _orchestrator(provider)
+    orchestrator, config_repository, _, _ = _orchestrator(provider)
     config_repository.get_by_supplier_id.return_value = None
 
-    with pytest.raises(ValueError, match="Supplier config not found"):
+    with pytest.raises(ProviderNotFoundError, match="Supplier config not found"):
         await orchestrator.run_sync("missing")
+
+
+@pytest.mark.asyncio
+async def test_sync_raises_when_already_in_progress() -> None:
+    provider = FakeCJProvider({"one": _product("one")})
+    orchestrator, _, sync_state_repository, _ = _orchestrator(provider)
+    sync_state_repository.get_latest_by_supplier_id.return_value = SimpleNamespace(status="running")
+
+    with pytest.raises(SyncAlreadyInProgressError, match="Sync already in progress"):
+        await orchestrator.run_sync("cjdropshipping")
+

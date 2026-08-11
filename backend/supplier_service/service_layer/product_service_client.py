@@ -48,11 +48,9 @@ class ProductServiceClient:
         except Exception as exc:
             raise ProductServiceError(f"Invalid product_service response: {exc}") from exc
 
-    async def resolve_cj_ids(
-        self,
-        product_id: UUID,
-        variant_id: UUID | None = None,
-    ) -> tuple[str, str]:
+    async def resolve_cj_ids(self,
+        					product_id: UUID,
+             				variant_id: UUID | None = None) -> tuple[str, str]:
         """Resolve a local product/variant pair to CJ pid/vid.
 
         Args:

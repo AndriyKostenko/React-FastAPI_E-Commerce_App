@@ -68,8 +68,12 @@ class CJDropshippingAPIClient:
         params: dict[str, Any] | None = None,
         access_token: str | None = None,
         timeout: float | None = None,
+        _retry_on_401: bool = True,
     ) -> dict[str, Any]:
         """Send an HTTP request and return the parsed JSON body."""
+        if url != self.settings.CJ_DROPSHIPPING_ACCESS_TOKEN_URL and access_token is None and not self._access_token:
+            await self.ensure_access_token()
+
         headers = self._auth_headers(access_token)
         request_timeout = timeout or self.settings.CJ_DROPSHIPPING_REQUEST_TIMEOUT_SECONDS
         try:
@@ -88,6 +92,17 @@ class CJDropshippingAPIClient:
         except RequestError as exc:
             raise CJDropshippingAPIError(f"Network error calling CJ API: {exc}") from exc
         except HTTPStatusError as exc:
+            if exc.response.status_code == 401 and _retry_on_401 and url != self.settings.CJ_DROPSHIPPING_ACCESS_TOKEN_URL:
+                new_token = await self.ensure_access_token(force_refresh=True)
+                return await self.request(
+                    method=method,
+                    url=url,
+                    json=json,
+                    params=params,
+                    access_token=new_token,
+                    timeout=timeout,
+                    _retry_on_401=False,
+                )
             raise CJDropshippingAPIError(
                 f"CJ API returned {exc.response.status_code}: {exc.response.text}"
             ) from exc
@@ -98,6 +113,7 @@ class CJDropshippingAPIClient:
             "POST",
             self.settings.CJ_DROPSHIPPING_ACCESS_TOKEN_URL,
             json=self.settings.CJ_DROPSHIPPING_AUTH_PAYLOAD,
+            _retry_on_401=False,
         )
         access_token = response.get("data", {}).get("accessToken")
         if not access_token:
@@ -105,9 +121,9 @@ class CJDropshippingAPIClient:
         self._access_token = access_token
         return access_token
 
-    async def ensure_access_token(self) -> str | None:
+    async def ensure_access_token(self, force_refresh: bool = False) -> str | None:
         """Return a cached token or fetch a new one."""
-        if not self._access_token:
+        if not self._access_token or force_refresh:
             await self.get_access_token()
         return self._access_token
 

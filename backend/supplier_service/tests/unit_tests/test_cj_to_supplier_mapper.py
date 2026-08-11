@@ -70,6 +70,14 @@ class TestCJToSupplierMapperList:
         assert page.products[0].price == Decimal("7.13")
 
 
+    def test_returns_empty_page_when_content_is_empty(self, mapper: CJToSupplierMapper) -> None:
+        data = {"data": {"content": []}}
+        page = mapper.map_products_page(data, page=1, page_size=10)
+        assert page.total_records == 0
+        assert page.total_pages == 0
+        assert len(page.products) == 0
+
+
 class TestCJToSupplierMapperDetails:
     def test_maps_detail_response(self, mapper: CJToSupplierMapper) -> None:
         data = {

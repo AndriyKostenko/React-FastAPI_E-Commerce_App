@@ -25,26 +25,15 @@ async def scheduled_supplier_sync() -> dict[str, Any]:
     try:
         async with supplier_service_database_session_manager.transaction() as session:
             config_repository = SupplierConfigRepository(session=session)
-            sync_state_repository = SupplierSyncStateRepository(session=session)
-            outbox_event_service = OutboxEventService(repository=OutboxRepository(session=session))
-            orchestrator = SupplierSyncOrchestrator(
-                settings=settings,
-                config_repository=config_repository,
-                sync_state_repository=sync_state_repository,
-                outbox_event_service=outbox_event_service,
-                provider=CJDropshippingProductProvider(
-                    settings=settings,
-                    api_client=cj_api_client,
-                    logger=logger,
-                ),
-            )
-
             active_configs: list[SupplierConfig] = await config_repository.get_active()
-            if not active_configs:
-                logger.info("No active supplier configs found; skipping scheduled sync.")
-                return {"synced_at": datetime.now(timezone.utc).isoformat(), "results": results}
 
-            for config in active_configs:
+        if not active_configs:
+            logger.info("No active supplier configs found; skipping scheduled sync.")
+            return {"synced_at": datetime.now(timezone.utc).isoformat(), "results": results}
+
+        for config in active_configs:
+            async with supplier_service_database_session_manager.transaction() as session:
+                sync_state_repository = SupplierSyncStateRepository(session=session)
                 latest_run = await sync_state_repository.get_latest_by_supplier_id(config.supplier_id)
                 next_run_at = (
                     latest_run.started_at + timedelta(minutes=config.sync_interval_minutes)
@@ -54,6 +43,23 @@ async def scheduled_supplier_sync() -> dict[str, Any]:
                 if next_run_at and next_run_at > datetime.now(timezone.utc):
                     logger.debug("Supplier %s is not due until %s", config.supplier_id, next_run_at)
                     continue
+
+            # Run sync outside long-lived transaction scope
+            async with supplier_service_database_session_manager.transaction() as session:
+                config_repository = SupplierConfigRepository(session=session)
+                sync_state_repository = SupplierSyncStateRepository(session=session)
+                outbox_event_service = OutboxEventService(repository=OutboxRepository(session=session))
+                orchestrator = SupplierSyncOrchestrator(
+                    settings=settings,
+                    config_repository=config_repository,
+                    sync_state_repository=sync_state_repository,
+                    outbox_event_service=outbox_event_service,
+                    provider=CJDropshippingProductProvider(
+                        settings=settings,
+                        api_client=cj_api_client,
+                        logger=logger,
+                    ),
+                )
                 try:
                     sync_state = await orchestrator.run_sync(
                         supplier_id=config.supplier_id,

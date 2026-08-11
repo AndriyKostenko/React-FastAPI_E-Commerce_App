@@ -53,9 +53,15 @@ class CJToSupplierMapper:
     @classmethod
     def map_products_page(cls, data: Any, page: int = 1, page_size: int = 10) -> SupplierProductsPage:
         """Map a CJ /product/listV2 response to a SupplierProductsPage."""
-        content_list = data.get("data", {}).get("content", [])
+        content_list = (data.get("data") or {}).get("content", []) if isinstance(data, dict) else []
         if not content_list:
-            raise CJDropshippingAPIError("No products found in CJDropshipping /products response.")
+            return SupplierProductsPage(
+                page=page,
+                page_size=page_size,
+                total_records=0,
+                total_pages=0,
+                products=[],
+            )
 
         pagination = content_list[0].get("page", {}) if content_list else {}
         raw_products = content_list[0].get("productList", []) if content_list else []

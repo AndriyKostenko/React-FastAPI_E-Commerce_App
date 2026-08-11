@@ -43,6 +43,8 @@ cart_exchange = RabbitExchange(name="cart.events.exchange", durable=True, type=E
 shipping_exchange = RabbitExchange(name="shipping.events.exchange", durable=True, type=ExchangeType.TOPIC)
 wishlist_exchange = RabbitExchange(name="wishlist.events.exchange", durable=True, type=ExchangeType.TOPIC)
 supplier_exchange = RabbitExchange(name="supplier.events.exchange", durable=True, type=ExchangeType.TOPIC)
+dlx_exchange = RabbitExchange(name="dlx", durable=True, type=ExchangeType.TOPIC)
+
 
 
 

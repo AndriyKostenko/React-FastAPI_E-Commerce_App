@@ -54,6 +54,11 @@ class SupplierEventsQueue(StrEnum):
 class ProductSupplierEventsQueue(StrEnum):
     PRODUCT_SUPPLIER_EVENTS_QUEUE = "product.supplier.events"
     PRODUCT_SUPPLIER_EVENTS_DEAD_LETTER_QUEUE = "product.supplier.events.dlq"
+    # Separate queue for supplier_service to receive import-feedback events.
+    # Using a distinct queue name prevents supplier_service and product_service
+    # from competing on the same physical RabbitMQ queue (shared-queue collision).
+    SUPPLIER_FEEDBACK_EVENTS_QUEUE = "supplier.feedback.events"
+    SUPPLIER_FEEDBACK_EVENTS_DLQ = "supplier.feedback.events.dlq"
 
 
 class UserEvents(StrEnum):

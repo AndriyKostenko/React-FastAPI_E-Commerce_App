@@ -12,13 +12,18 @@ from event_consumer.supplier_event_consumer import supplier_event_consumer
 app = FastStream(rabbitmq_broker)
 
 
+# Supplier-service–specific queue for import-feedback events
+# (supplier.product.import.succeeded / supplier.product.import.failed).
+# Must NOT share the name "product.supplier.events" with product_service —
+# that would cause RabbitMQ to merge both services' bindings on a single
+# physical queue and drop ~50 % of messages in each direction.
 product_supplier_events_queue = RabbitQueue(
-    ProductSupplierEventsQueue.PRODUCT_SUPPLIER_EVENTS_QUEUE,
+    ProductSupplierEventsQueue.SUPPLIER_FEEDBACK_EVENTS_QUEUE,
     durable=True,
     routing_key="supplier.product.import.*",
     arguments={
         "x-dead-letter-exchange": "dlx",
-        "x-dead-letter-routing-key": ProductSupplierEventsQueue.PRODUCT_SUPPLIER_EVENTS_DEAD_LETTER_QUEUE,
+        "x-dead-letter-routing-key": ProductSupplierEventsQueue.SUPPLIER_FEEDBACK_EVENTS_DLQ,
     },
 )
 

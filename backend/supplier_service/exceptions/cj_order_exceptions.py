@@ -23,3 +23,10 @@ class ProviderNotFoundError(BaseAPIException):
     """Raised when the provider is not found."""
     def __init__(self, detail: str = "Provider not found."):
         super().__init__(status_code=404, detail=detail)
+
+
+class SyncAlreadyInProgressError(BaseAPIException):
+    """Raised when a sync process is already running for the supplier."""
+    def __init__(self, detail: str = "Sync already in progress for supplier."):
+        super().__init__(status_code=409, detail=detail)
+

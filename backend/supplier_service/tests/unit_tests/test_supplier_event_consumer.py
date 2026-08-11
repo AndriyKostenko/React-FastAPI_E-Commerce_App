@@ -7,7 +7,7 @@ import pytest
 from event_consumer.supplier_event_consumer import SupplierEventConsumer
 from exceptions.cj_order_exceptions import CJOrderCreationError
 from service_layer.cj_api_client import CJDropshippingAPIError
-from shared.enums.event_enums import InventoryEvents, OrderEvents
+from shared.enums.event_enums import InventoryEvents, OrderEvents, SupplierEvents
 
 
 TEST_ORDER_ID = uuid4()
@@ -171,3 +171,51 @@ class TestHandleOrderConfirmed:
         event = OrderConfirmedEvent(**_make_order_confirmed_message())
         with pytest.raises(CJOrderCreationError):
             await consumer._create_cj_order(event)
+
+
+class TestHandleImportFeedback:
+    @pytest.mark.asyncio
+    async def test_handle_import_feedback_success(self, monkeypatch) -> None:
+        consumer = _make_consumer()
+        fetch_id = uuid4()
+        message = {
+            "event_type": SupplierEvents.SUPPLIER_PRODUCT_IMPORT_SUCCEEDED,
+            "supplier_id": "cjdropshipping",
+            "fetch_id": str(fetch_id),
+            "imported": 10,
+            "updated": 2,
+            "failed": 0,
+        }
+
+        mock_update = AsyncMock()
+        monkeypatch.setattr(consumer, "_update_sync_state_on_feedback", mock_update)
+
+        await consumer.handle_import_feedback_event(message)
+
+        mock_update.assert_awaited_once_with(
+            fetch_id=fetch_id,
+            status="completed",
+        )
+
+    @pytest.mark.asyncio
+    async def test_handle_import_feedback_failure(self, monkeypatch) -> None:
+        consumer = _make_consumer()
+        fetch_id = uuid4()
+        message = {
+            "event_type": SupplierEvents.SUPPLIER_PRODUCT_IMPORT_FAILED,
+            "supplier_id": "cjdropshipping",
+            "fetch_id": str(fetch_id),
+            "reason": "Invalid JSON",
+        }
+
+        mock_update = AsyncMock()
+        monkeypatch.setattr(consumer, "_update_sync_state_on_feedback", mock_update)
+
+        await consumer.handle_import_feedback_event(message)
+
+        mock_update.assert_awaited_once_with(
+            fetch_id=fetch_id,
+            status="import_failed",
+            error_message="Invalid JSON",
+        )
+
