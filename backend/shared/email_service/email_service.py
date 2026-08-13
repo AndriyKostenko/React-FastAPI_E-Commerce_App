@@ -108,7 +108,7 @@ class UserRelatedNotifications(EmailService):
             recipients=[event.user_email],
             template_name="email_verification.html"
         )
-        self.logger.info(f"Sending verification email to: {event.user_email} with token: {event.token}")
+        self.logger.info("Sending verification email to: %s", event.user_email)
 
     async def send_email_verified_notification(self, event: EmailVerificationEvent) -> None:
         """Send account activation confirmation email."""
@@ -137,7 +137,7 @@ class UserRelatedNotifications(EmailService):
             recipients=[event.user_email],
             template_name="password_reset.html"
         )
-        self.logger.info(f"Sending password reset email to: {event.user_email} with token: {event.reset_token}")
+        self.logger.info("Sending password reset email to: %s", event.user_email)
 
     async def send_password_reset_success_email(self, event: PasswordResetSuccessEvent) -> None:
         """Send password reset confirmation email."""

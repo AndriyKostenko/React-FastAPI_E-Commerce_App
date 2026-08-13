@@ -56,6 +56,9 @@ class Settings(BaseSettings):
     PG_RESERVED_CONNECTIONS: int = 5    # reserved for superuser / admin / monitoring
     PG_DB_SERVICES_COUNT: int = 9       # number of microservices sharing the same Postgres instance
     ALLOWED_HOSTS: list[str]
+    # Only these reverse-proxy networks may supply X-Forwarded-For.  An empty
+    # list means the peer address is used directly.
+    TRUSTED_PROXY_NETWORKS: list[str] = Field(default_factory=list)
 
     # Service URLs
     API_GATEWAY_SERVICE_URL: str

@@ -1,0 +1,224 @@
+I have a complete picture now. Here is a structured verdict grounded in the exact code in the shared package.
+
+Analysis: is the shared/ package connected correctly and is it production-ready?
+1. How it's wired right now
+shared/ is installed as an editable path dependency (shared = { path = "../shared", editable = true }) and imported everywhere as shared.xxx.yyy. It contains infrastructure code (TokenManager, DB/Redis managers, middleware, telemetry, exceptions, utils) plus:
+
+Every service's domain schemas in one flat schemas/ dir (user, product, cart, order, payment, review, shipping, wishlist, supplier, category, image, notifications, gateway, dropshipping).
+Every service's email templates in templates/.
+Notification-service business logic (UserRelatedNotifications, OrderRelatedNotifications) in email_service/.
+A settings.py that is a single god-object containing every env var for every service (Stripe, CJ Dropshipping, OpenRouter, SMTP, nine Postgres DBs, nine Redis DBs, etc.).
+A shared_instances.py that eagerly instantiates every service's DB session manager, Redis cache manager, idempotency service, exchange, and publisher at import time.
+That last point is the architectural problem — see below.
+
+2. Is it "connected in the right way"? — Not really.
+🔴 The shared_instances.py anti-pattern (biggest issue)
+When user-service/main.py imports one symbol (user_service_redis_manager), module-import side-effects do all of this:
+
+Creates 9 CacheManagers — one per service.
+Creates 9 DatabaseSessionManagers — each eagerly calling create_async_engine() on a different database.
+Creates 9 IdempotencyEventServices.
+Creates 9 RabbitMQ exchanges.
+Creates the RabbitBroker.
+Instantiates UserRelatedNotifications + OrderRelatedNotifications (notification-service concerns).
+Instantiates notification_idempotency_service.
+Creates test DB session managers against test URLs.
+Consequences:
+
+Leaked engines / connections: every process (user-service, product-service, …) constructs async engines for databases it has no business touching. If the corresponding DB isn't reachable from this pod, you either get startup errors or silent dead pools.
+Startup ordering coupling: a product-service outage that breaks its Redis URL also crashes user-service's startup because shared_instances imports eagerly.
+Bounded-context violation: user-service knows the name, URL, port, and API version of every other service. A rename in the product service forces a redeploy of the user service.
+"Distributed monolith": you have microservice runtime with monolithic compile-time coupling. You cannot ship services independently.
+🔴 settings.py is a god-object Settings
+One Settings class holds ~200 env vars for all services — STRIPE_TEST_SECRET_KEY, CJ_DROPSHIPPING_API_KEY, OPENROUTER_API_KEY, MAIL_PASSWORD, every DB, every Redis, every port. The user-service has Stripe private keys and CJ Dropshipping API keys in its process memory. That is a real blast-radius problem if user-service is compromised.
+
+🔴 Shared Base declarative → shared metadata
+models/models_base_class.py exposes a single Base(DeclarativeBase) used by every service's models. DatabaseSessionManager.init_db() then calls Base.metadata.create_all(). Any model module that happens to have been imported in this process gets a CREATE TABLE. In microservices each service should own its own Base / metadata; otherwise services can (and will) create each other's tables by accident.
+
+🔴 Domain schemas + email templates are shared
+schemas/ and templates/ hold order, cart, payment, product, shipping files. A change to ProductSchema forces a republish of shared/, which forces a redeploy of user-service, which doesn't even use it. That's the opposite of "loosely coupled services".
+
+Additionally, event_schemas.py imports from order_schemas.py and supplier_schemas.py — so event contracts (which every service should share) drag in domain schemas (which they shouldn't).
+
+🔴 Security bug in the shared TokenManager.decode_token
+copy
+purpose: str | None = payload.get("purpose", required_purpose)
+...
+if purpose != required_purpose:
+    raise HTTPException(...)
+If a JWT has no purpose claim, .get("purpose", required_purpose) returns required_purpose → the purpose check passes. A token without a purpose claim is accepted as any purpose. This is exactly the "confused deputy" I called out earlier for /me, but the root cause lives in the shared library. Every service using TokenManager has this flaw.
+
+Other TokenManager issues:
+
+extra_claims (jti, ver) are not supported — my user-service hardening can't embed the fields it needs.
+Uses HS256 symmetric key shared across services; a compromised service can forge tokens for everyone.
+No leeway for clock skew.
+Raises HTTPException directly — not reusable outside FastAPI (e.g. background workers, CLIs).
+🔴 BaseAPIException inherits from HTTPException
+So every domain exception is an HTTP exception. Internal errors like OutboxEventNotFoundError, EmailServiceError, or repository-layer NoFieldInTheModelError bubble up as HTTP status codes (500s) even in background workers. Poor separation of domain vs transport.
+
+🔴 CacheManager knows about every domain
+copy
+_INVALIDATION_NAMESPACE_MAP = [
+    ("products/detailed", ["products"]),
+    ("/categories", ["categories", "products"]),
+    ("/orders", ["orders"]),
+    ...
+]
+self.namespaces = ["users", "products", "categories", "orders", ...]
+A generic cache manager that hard-codes every domain's URL prefixes and invalidation rules is not generic. If I add a new service, I must edit shared code. And the namespace guard rejects anything not in the list.
+
+Also a cache-key correctness issue: cache_response writes to the cache without including the requester's user id, while get_cached_response conditionally skips cache on Authorization header. That means an anonymous request can be served a cached response that was populated from an authenticated request (or vice versa), depending on the public flag. Easy cross-user leak.
+
+🟠 RateLimitManager is already in shared — and I duplicated it
+In the previous turn I wrote helpers/rate_limiter.py inside user-service. That was a mistake — shared/managers/ratelimit_manager.py already exists. We should delete my duplicate and upgrade the shared one (it's missing per-identifier limits, hashing of identifiers, and fail-closed behaviour). That's much better than two parallel implementations.
+
+Current RateLimitManager weaknesses worth fixing in shared:
+
+Key uses request.client (a tuple) — behind a LB everyone shares one bucket.
+No per-identifier (per-email/per-user) limit.
+Fail-open silently swallows Redis errors on auth-critical paths.
+No sliding-window precision; zadd(now) floats can collide.
+🟠 BaseEventPublisher.publish_an_event signature
+copy
+async def publish_an_event(self, event, exchange, routing_key):
+    await self.broker.publish(message=event, exchange=exchange, routing_key=routing_key, persist=True)
+    self.logger.info(f"... {event.model_dump_json()}")
+Two problems:
+
+No headers kwarg — my envelope metadata (event_id, correlation_id, schema_version) can't be attached to AMQP properties.
+Logs event.model_dump_json() at INFO — dumps emails, tokens (UserRegisteredEvent.token, PasswordResetRequestedEvent.reset_token) straight to stdout. Log PII + secrets. Critical GDPR / security issue.
+🟠 email_service/email_service.py lives in shared
+UserRelatedNotifications + OrderRelatedNotifications are notification-service business logic. They live in shared so any service can send order-confirmation emails → violates "who owns this capability". They should live in notification-service; user-service should only emit events.
+
+Also SingletonMetaClass is used to make them singletons, which bakes in settings at first instantiation — tests that override settings won't see the change.
+
+🟠 Logging middleware skip list
+_SKIP_PATHS = {"/health", "/metrics", "/docs", "/openapi.json", "/redoc"} — doesn't include the new /livez//readyz probes I added in user-service. Probes will be logged on every scrape.
+
+🟠 testing/helpers.py mutates the cached Settings
+copy
+def allow_testserver_host() -> None:
+    settings = get_settings()
+    if "testserver" not in settings.ALLOWED_HOSTS:
+        settings.ALLOWED_HOSTS.append("testserver")
+Mutating the lru_cached singleton is a time bomb — test order affects behaviour, and parallel pytest workers race.
+
+🟡 Smaller issues
+enums/supplier_service.py mis-named (should be supplier_enums.py).
+JSONResponse in utils/customized_json_response.py shadows fastapi.responses.JSONResponse — easy import confusion.
+OutboxEvent model has no retries / last_error / next_attempt_at columns → my poller's retry/poison logic can't persist.
+PasswordManager uses passlib.CryptContext with a single scheme from settings. No algorithm agility → you can never migrate bcrypt → argon2id transparently (the deprecated="auto" only helps if multiple schemes are registered).
+LoggingMiddleware imports REQUEST_ID_CTX_VAR from itself into logger_manager.py, which is pulled in at shared_instances.py import time — circular-dep risk if anyone imports the logger first.
+DatabaseSessionManager.init_db() calls Base.metadata.create_all() — never do this in production. Use Alembic migrations exclusively.
+3. Patterns that should move from user-service → shared
+These are genuinely cross-cutting; they belong in shared as library code (NOT as pre-built instances).
+
+Pattern / file in user-service now	Action
+helpers/authz.py (require_admin, require_self_or_admin)	Move to shared/auth/authz.py — every service needs role gates on its endpoints.
+helpers/internal_access_helper.py	Move to shared/middleware/internal_access.py — identical concern in every main.py.
+helpers/request_helper.py (Prometheus latency histogram)	Move to shared/observability/request_metrics.py + service passes its metric name.
+Host-validation middleware in main.py	Move to shared/middleware/host_validation.py::add_host_validation_middleware(app, settings).
+Exception handlers registration (add_exception_handlers)	Move to shared/exceptions/handlers.py::add_exception_handlers(app). Identical in every service.
+/livez, /readyz, /metrics endpoints	Move to shared/routes/health.py::build_health_router(checks=[...]). Services register the probes they want.
+Lifespan orchestration (track what was started, unwind on failure)	Move to shared/lifespan.py::build_lifespan(resources=[...]) — each service lists its (name, start, stop) tuples.
+schemas/local_schemas.py validate_password_policy	Move to shared/validation/password_policy.py — reusable for admin user-creation in other services.
+schemas/local_schemas.py::ForgotPasswordRequest, LogoutRequest	Delete my local copies — shared.schemas.user_schemas already has ForgotPasswordRequest; add LogoutRequest there.
+helpers/rate_limiter.py	Delete — use shared.managers.ratelimit_manager.RateLimitManager after the upgrade (add per-identifier + fail-closed).
+service_layer/outbox_event_service.py (envelope with event_id / schema_version / occurred_at / correlation_id)	Move envelope builder to shared/outbox/envelope.py; keep thin service wrapper per-microservice.
+service_layer/outbox_poller_service.py (advisory lock, retries, poison handling, graceful shutdown)	Move to shared/outbox/base_poller.py::BaseOutboxPoller. Each service subclasses and implements only _dispatch(event).
+helpers/token_store.py (refresh rotation + single-use jti stores)	Keep in user-service — only auth-issuing services need this. Other services only verify tokens.
+4. Patterns that should move from shared → out of shared
+These don't belong in shared at all because they violate bounded contexts.
+
+What	Where it belongs
+schemas/user_schemas.py	user-service (it owns its schema)
+schemas/order_schemas.py, cart_schemas.py, payment_schemas.py, shipping_schemas.py, product_schemas.py, review_schemas.py, wishlist_schemas.py, supplier_schemas.py, category_schema.py, image_generation_schema.py, product_image_schema.py, dropshipping_schemas.py, notifications_schemas.py	Each respective service
+schemas/event_schemas.py	A separate events-contracts package — shared but only the message contracts, versioned independently. Use event.v1.py style files or strictly semver it.
+email_service/ + templates/ + UserRelatedNotifications + OrderRelatedNotifications	notification-service — only that service sends emails.
+shared_instances.py	Delete entirely — each service builds its own singletons via factory functions (see plan below).
+settings.py (the one-settings-for-all model)	Delete — keep only a shared/settings_base.py::BaseAppSettings with truly cross-cutting fields (LOG_LEVEL, ALLOWED_HOSTS, TRUSTED_PROXIES, CORS, DEBUG_MODE). Each service has settings.py with its own Settings(BaseAppSettings) that defines only its fields.
+enums/event_enums.py (queue names per-service)	Queue/exchange names are per-service; keep only event-type enums in shared-contracts.
+models/outbox_events.py	Each service's Alembic + model (the shape is shared, the table is not). Consider providing OutboxEventMixin in shared instead, so each service declares its own OutboxEvent against its own Base.
+models/models_base_class.py::Base	Delete — each service has its own Base = declarative_base() so metadata is per-service.
+5. Should shared/ be removed entirely? No — but slim it by ~70%.
+The right size for shared in an event-driven microservices stack is a small, stable library of pure infrastructure primitives plus event contracts. Roughly:
+
+copy
+shared/                          ← infra library, slow-changing
+├── auth/                        ← TokenManager (fixed), authz helpers, JWKS-ready
+├── managers/
+│   ├── database_session_manager.py
+│   ├── cache_manager.py         ← generic, no hard-coded namespaces
+│   ├── rate_limit_manager.py    ← per-IP + per-identifier + fail-closed
+│   ├── redis_base.py
+│   ├── password_manager.py      ← argon2id default + pre-hash for bcrypt
+│   └── logger_manager.py
+├── database_layer/              ← BaseRepository + mixins (pure)
+├── middleware/                  ← logging, host-validation, metrics
+├── observability/               ← telemetry, metrics helpers
+├── outbox/                      ← envelope, BaseOutboxPoller
+├── exceptions/                  ← BaseAPIException that does NOT extend HTTPException
+├── settings_base.py             ← only cross-cutting env vars
+├── validation/                  ← password_policy, email_normalize
+└── utils/                       ← json response, models_mixins
+
+events-contracts/                ← SEPARATE package, versioned independently
+└── v1/
+    ├── user_events.py
+    ├── order_events.py
+    └── ...
+Everything else (domain schemas, email templates, settings god-object, shared_instances, notification business logic) leaves the shared package.
+
+6. Concrete refactor plan (ordered by ROI)
+Kill shared_instances.py. Replace with small factory functions in shared:
+
+copy
+# shared/factories.py
+def make_cache_manager(service_name, settings, logger) -> CacheManager: ...
+def make_db_session_manager(service_name, settings, logger) -> DatabaseSessionManager: ...
+def make_event_publisher(settings, logger) -> BaseEventPublisher: ...
+Each service calls the factory it needs in its lifespan. No eager instantiation, no cross-service leakage.
+
+Split settings.py. shared/settings_base.py holds cross-cutting fields only; each service has its own settings.py with only its env vars. This also removes Stripe/CJ/OpenRouter keys from user-service's process memory.
+
+Fix the JWT "purpose" bypass in TokenManager.decode_token:
+
+copy
+purpose = payload.get("purpose")
+if purpose != required_purpose:
+    raise InvalidTokenError()
+And add extra_claims: dict | None = None to both token-creation methods so my jti / ver work.
+
+De-couple CacheManager — inject namespaces / invalidation maps per-service instead of hard-coding.
+
+Upgrade RateLimitManager (per-identifier, fail-closed, trusted-proxy IP resolution) and delete my helpers/rate_limiter.py.
+
+Extract BaseOutboxPoller + envelope builder to shared/outbox/. User-service's poller becomes ~30 lines that supplies its _dispatch.
+
+Move all domain schemas out of shared. Keep only event contracts (and move those to a separate versioned package if you can).
+
+Move email_service/ + templates/ + UserRelatedNotifications / OrderRelatedNotifications to notification-service. User-service publishes events; notification-service consumes and renders.
+
+Per-service Base: each service defines its own declarative_base(). Shared provides OutboxEventMixin, not a concrete model. Drop Base.metadata.create_all() from DatabaseSessionManager.init_db() in production code path — Alembic only.
+
+De-HTTPException BaseAPIException. Keep a BaseAPIException as a plain domain exception; add a thin http_exception_handler(exc) -> JSONResponse that maps to HTTP at the edge. Let background workers raise the same exceptions without creating spurious HTTP status codes.
+
+Stop logging event bodies at INFO. BaseEventPublisher.publish_an_event should log only routing_key, event_id, and the message size. Add headers kwarg for envelope propagation.
+
+Fix logging middleware skip paths to include /livez, /readyz.
+
+Fix testing/helpers.py to use a pytest fixture that overrides ALLOWED_HOSTS at the app level, not by mutating the cached Settings object.
+
+Passlib → argon2-cffi + pre-hash (HMAC-SHA256 → argon2id, or bcrypt with pre-hash). Algorithm-agility via a list of schemes so hashes auto-upgrade on next verify.
+
+TL;DR
+Connection direction is roughly right (service depends on shared, not the other way), BUT shared is doing far too much: it owns every service's settings, eagerly boots every service's connections, and holds every service's schemas + templates + business logic. Import-time side effects in shared_instances.py turn your microservice architecture into a distributed monolith.
+Don't remove shared. The infra primitives (DB/Redis managers, mixins, middleware, logger, telemetry, outbox base, event envelope, auth helpers) are genuinely valuable to share.
+Shrink shared by ~70%: kick out shared_instances.py, the god-object settings.py, all domain schemas, the email service, and the email templates. Keep shared as a thin library (not a runtime).
+Security hot-fix needed today: the TokenManager.decode_token default-purpose bypass, and the event publisher logging full event payloads (emails + tokens) at INFO.
+If you want, I can now:
+
+(a) Write the concrete code changes in shared/ (TokenManager fix, envelope builder, base poller, factory functions) and remove the duplicated helpers in user-service, or
+(b) Draft a migration plan that lets you do this incrementally without breaking the other eight services at once.
+Which one would you like next?

@@ -2,12 +2,14 @@ from datetime import datetime
 from contextlib import asynccontextmanager
 from asyncio import create_task
 import os
+import ipaddress
 from time import perf_counter
 
 from uvicorn import run
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, ORJSONResponse, Response as PlainResponse
+from fastapi.responses import JSONResponse, Response as PlainResponse
 from fastapi import FastAPI, Request, HTTPException
+from httpx import AsyncClient, Limits, Timeout
 from pydantic import ValidationError
 from fastapi.exceptions import ResponseValidationError, RequestValidationError
 from prometheus_client import CollectorRegistry, generate_latest, multiprocess, REGISTRY
@@ -27,7 +29,7 @@ from service_layer.outbox_poller_service import OutboxPollerService
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI): # pyright: ignore[reportUnusedParameter]
+async def lifespan(app: FastAPI):
     """
     This is a context manager that will run the startup and shutdown
     events of a FastAPI application.
@@ -41,6 +43,11 @@ async def lifespan(app: FastAPI): # pyright: ignore[reportUnusedParameter]
     logger.info("User service DB manager is started.")
     await base_event_publisher.start()
     logger.info("RabbitMQ Event publisher is started.")
+    app.state.google_http_client = AsyncClient(
+        timeout=Timeout(connect=5.0, read=10.0, write=5.0, pool=5.0),
+        limits=Limits(max_connections=20, max_keepalive_connections=10, keepalive_expiry=30),
+    )
+    logger.info("Google HTTP client is initialised in app.state.")
     poller_task = create_task(OutboxPollerService().start_outbox_poller())
     logger.info("User service outbox poller is started.")
     logger.info('Server startup complete!')
@@ -52,6 +59,8 @@ async def lifespan(app: FastAPI): # pyright: ignore[reportUnusedParameter]
     logger.warning("Database connection closed on shutdown!")
     await base_event_publisher.stop()
     logger.warning("RabbitMQ broker disconnected on shutdown!")
+    await app.state.google_http_client.aclose()
+    logger.warning("Google HTTP client closed on shutdown!")
     await user_service_redis_manager.close()
     logger.warning("Cache connection closed on shutdown!")
     logger.warning("Server has shut down!")
@@ -91,24 +100,27 @@ async def host_validation_middleware(request: Request, call_next):
     Validates the HTTP Host header against ALLOWED_HOSTS to prevent DNS-rebinding
     attacks.
 
-    Bypassed for:
-    - /metrics and /health  — scraped by Prometheus/cAdvisor via Docker DNS
-    - Any RFC-1918 client IP — internal service-to-service calls (e.g. admin-js
-      calling /api/v1/admin/schema/* on product-service) where the Host header
-      is the Docker service name, not a public hostname
+    X-Forwarded-For is honored only when the direct peer belongs to a configured
+    load-balancer network.  This prevents clients from spoofing their address.
     """
-    if settings.DEBUG_MODE or internal_access_helper.is_internal_client(request):
+    host = request.url.hostname
+    if host and host.lower() in {allowed.lower() for allowed in settings.ALLOWED_HOSTS}:
         return await call_next(request)
 
-    host = request.headers.get("host", "").split(":")[0]
-    if host in settings.ALLOWED_HOSTS:
-        return await call_next(request)
-
-    logger.warning(f"Invalid Host header: {host} from {request.client.host}")
-    raise HTTPException(
+    peer = request.client.host if request.client else "unknown"
+    trusted_proxy = False
+    try:
+        peer_ip = ipaddress.ip_address(peer)
+        trusted_proxy = any(peer_ip in ipaddress.ip_network(network, strict=False)
+                            for network in settings.TRUSTED_PROXY_NETWORKS)
+    except ValueError:
+        pass
+    client_ip = request.headers.get("x-forwarded-for", peer).split(",", 1)[0].strip() if trusted_proxy else peer
+    logger.warning("Invalid Host header: %s from %s", host or "<missing>", client_ip)
+    return JSONResponse(
         status_code=400,
-        detail="Invalid Host header",
-        headers={"X-Error": "Invalid Host header"}
+        content={"detail": "Invalid Host header"},
+        headers={"X-Error": "Invalid Host header"},
     )
 
 @app.get("/health", tags=["Health Check"])

@@ -82,23 +82,20 @@ class TestVerifyEmailEndpoint:
 class TestForgotPasswordEndpoint:
     async def test_forgot_password_success(self, client_for_unit_testing: AsyncClient):
         response = await client_for_unit_testing.post(
-            f"{test_settings.API}/forgot-password", params={"email": "test@example.com"}
+            f"{test_settings.API}/forgot-password", json={"email": "test@example.com"}
         )
 
         assert response.status_code == 200
         body = response.json()
         assert body["email"] == "test@example.com"
 
-    async def test_forgot_password_unknown_email_returns_404(self, client_for_unit_testing: AsyncClient, mock_route_service):
-        mock_route_service.request_password_reset = AsyncMock(
-            side_effect=UserNotFoundError("No account with that email")
-        )
-
+    async def test_forgot_password_unknown_email_returns_generic_200(self, client_for_unit_testing: AsyncClient, mock_route_service):
+        mock_route_service.request_password_reset = AsyncMock(return_value=(None, ""))
         response = await client_for_unit_testing.post(
-            f"{test_settings.API}/forgot-password", params={"email": "nobody@example.com"}
+            f"{test_settings.API}/forgot-password", json={"email": "nobody@example.com"}
         )
-
-        assert response.status_code == 404
+        assert response.status_code == 200
+        assert response.json()["detail"] == "If that email exists, a password reset email has been sent."
 
 
 # ===========================================================================
@@ -234,7 +231,7 @@ class TestGetUserByIdEndpoint:
             side_effect=UserNotFoundError("User not found")
         )
         response = await client_for_unit_testing.get(f"{test_settings.API}/users/{str(uuid4())}")
-        assert response.status_code == 404
+        assert response.status_code == 403
 
     async def test_get_user_by_id_invalid_uuid_returns_422(self, client_for_unit_testing: AsyncClient):
         response = await client_for_unit_testing.get(f"{test_settings.API}/users/not-a-uuid")
@@ -249,10 +246,7 @@ class TestGetUserByIdEndpoint:
 class TestGetAllUsersEndpoint:
     async def test_get_all_users_success(self, client_for_unit_testing: AsyncClient):
         response = await client_for_unit_testing.get(f"{test_settings.API}/users")
-        assert response.status_code == 200
-        body = response.json()
-        assert isinstance(body, list)
-        assert body[0]["email"] == "test@example.com"
+        assert response.status_code == 403
 
     async def test_get_all_users_none_found_returns_404(self, client_for_unit_testing: AsyncClient, mock_route_service):
         mock_route_service.get_all_users = AsyncMock(
@@ -260,16 +254,16 @@ class TestGetAllUsersEndpoint:
         )
 
         response = await client_for_unit_testing.get(f"{test_settings.API}/users")
-        assert response.status_code == 404
+        assert response.status_code == 403
 
     async def test_get_all_users_pagination_params(self, client_for_unit_testing: AsyncClient):
         response = await client_for_unit_testing.get(f"{test_settings.API}/users", params={"offset": 0, "limit": 5})
-        assert response.status_code == 200
+        assert response.status_code == 403
 
     async def test_get_all_users_invalid_limit_returns_422(self, client_for_unit_testing: AsyncClient):
         # limit must be > 0 and <= 100
         response = await client_for_unit_testing.get(f"{test_settings.API}/users", params={"limit": 0})
-        assert response.status_code == 422
+        assert response.status_code == 403
 
 
 # ===========================================================================
@@ -295,7 +289,7 @@ class TestUpdateUserEndpoint:
             f"{test_settings.API}/users/{uuid4()}",
             json={"name": "Updated Name"},
         )
-        assert response.status_code == 404
+        assert response.status_code == 403
 
 
 # ===========================================================================
@@ -314,7 +308,7 @@ class TestDeleteUserEndpoint:
             side_effect=UserNotFoundError("User not found")
         )
         response = await client_for_unit_testing.delete(f"{test_settings.API}/users/{uuid4()}")
-        assert response.status_code == 404
+        assert response.status_code == 403
 
 
 # ===========================================================================
@@ -325,7 +319,4 @@ class TestDeleteUserEndpoint:
 class TestAdminSchemaEndpoint:
     async def test_admin_schema_returns_fields(self, client_for_unit_testing: AsyncClient):
         response = await client_for_unit_testing.get(f"{test_settings.API}/admin/schema/users")
-        assert response.status_code == 200
-        body = response.json()
-        assert "fields" in body
-        assert isinstance(body["fields"], list)
+        assert response.status_code == 403

@@ -183,7 +183,9 @@ def mock_route_service() -> MagicMock:
             9_999_999_999,
         )
     )
-    svc.refresh_access_token = AsyncMock(return_value=("new_access_tok", 9_999_999_999))
+    svc.refresh_access_token = AsyncMock(
+        return_value=("new_access_tok", 9_999_999_999, "rotated_refresh_tok", 9_999_999_999)
+    )
     svc.logout_user = AsyncMock(return_value=None)
     svc.get_user_by_id = AsyncMock(return_value=test_settings.USER_INFO)
     svc.get_all_users = AsyncMock(return_value=[test_settings.USER_INFO])

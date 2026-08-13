@@ -23,7 +23,8 @@ class TokenManager:
                             user_id: UUID,
                             role: str | None,
                             expires_delta: timedelta,
-                            purpose: str = "access") -> tuple[str, int]:
+                            purpose: str = "access",
+                            extra_claims: dict | None = None) -> tuple[str, int]:
         """
         Create JWT access token.
 
@@ -38,6 +39,9 @@ class TokenManager:
             'exp': expire_timestamp,
             'purpose': purpose
         }
+        if extra_claims:
+            payload.update(extra_claims)
+
         token = jwt.encode(
             payload,
             self.settings.SECRET_KEY,
@@ -48,7 +52,8 @@ class TokenManager:
     def create_refresh_token(self,
                              email: EmailStr,
                              user_id: UUID,
-                             role: str | None) -> tuple[str, int]:
+                             role: str | None,
+                             extra_claims: dict | None = None) -> tuple[str, int]:
         """
         Create a long-lived JWT refresh token (purpose='refresh').
          `refresh_token` (7 days, stored in Redis)
@@ -61,7 +66,8 @@ class TokenManager:
             user_id=user_id,
             role=role,
             expires_delta=timedelta(days=self.settings.REFRESH_TOKEN_TIME_DELTA_DAYS),
-            purpose="refresh"
+            purpose="refresh",
+            extra_claims=extra_claims,
         )
 
     def decode_token(self, token: str, required_purpose: str = "access") -> DecodedTokenSchema:
@@ -81,7 +87,8 @@ class TokenManager:
             email: EmailStr | None = payload.get("sub")
             user_id: UUID | None = payload.get("id")
             role: str | None = payload.get("role")
-            purpose: str | None = payload.get("purpose", required_purpose)
+            purpose: str | None = payload.get("purpose")
+            token_version: int | None = payload.get("token_version") or payload.get("ver")
 
             if not email or not user_id:
                 raise HTTPException(
@@ -99,7 +106,8 @@ class TokenManager:
                 email=email,
                 id=user_id,
                 role=role,
-                purpose=purpose
+                purpose=purpose,
+                token_version=token_version
             )
 
 

@@ -73,6 +73,9 @@ user_service_redis_manager = CacheManager(service_prefix="user-service",
                                           redis_url=settings.USER_SERVICE_REDIS_URL,
                                           logger=logger,
                                           service_api_version=settings.USER_SERVICE_URL_API_VERSION)
+user_service_rate_limit_manager = RateLimitManager(service_prefix="user-service",
+                                                  redis_url=settings.USER_SERVICE_REDIS_URL,
+                                                  logger=logger)
 product_service_redis_manager = CacheManager(service_prefix="product-service",
                                             redis_url=settings.PRODUCT_SERVICE_REDIS_URL,
                                             logger=logger,

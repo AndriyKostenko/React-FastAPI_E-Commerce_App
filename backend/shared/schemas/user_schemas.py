@@ -66,6 +66,7 @@ class DecodedTokenSchema(BaseModel):
     id: UUID
     role: str | None
     purpose: str | None
+    token_version: int | None = None
 
 
 class UserLoginDetails(BaseModel):
@@ -85,6 +86,8 @@ class RefreshTokenResponse(BaseModel):
     access_token: str
     token_type: str
     token_expiry: int
+    refresh_token: Optional[str] = None
+    refresh_token_expiry: Optional[int] = None
 
 class TokenPayload(BaseModel):
     sub: str

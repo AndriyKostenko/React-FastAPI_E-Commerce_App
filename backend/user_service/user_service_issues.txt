@@ -1,0 +1,607 @@
+🔴 CRITICAL — must fix before any production use
+1. Broken access control on user management endpoints (IDOR + privilege escalation)
+In routes/user_routes.py:
+
+copy
+@user_routes.get("/users/{user_id}")
+async def get_user_by_user_id(request, user_id: UUID, user_service: ...):
+    ...
+@user_routes.get("/users")
+async def get_all_users(...):
+@user_routes.patch("/users/{user_id}")
+@user_routes.delete("/users/{user_id}")
+@user_routes.get("/admin/schema/users")
+None of these depend on current_user_dependency and none check roles. Consequences:
+
+Any unauthenticated caller can list every user and introspect the User SQL schema (including hashed_password column name) via /admin/schema/users.
+Any caller can delete or patch any user by UUID.
+No RBAC (role == "admin") guard anywhere.
+Fix: add a require_admin dependency and a require_self_or_admin(user_id) dependency on all /users/* endpoints and the admin schema endpoint.
+
+2. JWT "purpose" confusion on /me
+In dependencies.py:
+
+copy
+async def get_current_user(token, user_service):
+    return await user_service.get_current_user_from_token(token)
+And in user_service.py:
+
+copy
+async def get_current_user_from_token(self, token: str):
+    user_info = self.token_manager.decode_token(token)   # ← no required_purpose!
+    ...
+An email_verification, password_reset, or refresh token (all signed with the same secret) can be used as an access token. Always pass required_purpose="access".
+
+3. User enumeration on /forgot-password
+copy
+user = await self.repository.get_by_field("email", email)
+if not user:
+    raise UserNotFoundError("User not found")
+This lets attackers scrape registered emails (HTTP 404 vs 200). The standard safe behavior: always return 200 and only publish the reset event if the user actually exists.
+
+Also: email: EmailStr on a POST route as a bare scalar is parsed by FastAPI as a query parameter. That puts emails in request URLs (logs, referer headers). Wrap in a Pydantic schema or Body(...).
+
+4. httpx.AsyncClient lifetime bug in Google login
+copy
+def __init__(self, ...):
+    self.httpx_client: AsyncClient = AsyncClient()
+
+async def login_or_register_google_user(...):
+    async with self.httpx_client as client:   # ← closes the client
+        response = await client.get(...)
+async with client closes the client on exit. Even though UserService is per-request (so you "get away" with it), it’s still wrong semantically: you are creating+closing a new pooled client for every login and the self.httpx_client reference will be unusable on reuse. Make AsyncClient a module-level singleton managed by the FastAPI lifespan; inject it.
+
+5. Refresh tokens: no rotation, no reuse-detection, no hashing
+In authenticate_user and refresh_access_token:
+
+copy
+await self.cache_manager.redis.setex(
+    self._refresh_key(refresh_token),   # raw JWT used as Redis key
+    ttl_seconds, str(user.id))
+Problems:
+
+Refresh tokens are not rotated on /refresh. The same refresh can be used repeatedly until expiry — a stolen refresh token never burns.
+No reuse detection. If an attacker uses your refresh, you have no way to know and invalidate the family.
+Stored as raw token → anyone with Redis read access gets valid tokens. Store a hash (sha256) as the Redis key, not the raw token.
+Redis key is not bound to a device/session.
+/logout takes the refresh token in body and is not authenticated — an attacker with a leaked refresh can log the user out (low impact but wrong).
+Standard pattern: rotate the refresh token on every refresh; store jti → user_id, family_id, rotated_at; on reuse of a rotated token, invalidate the whole family.
+
+6. Email/password reset tokens are replayable
+verify_email does not mark the token used and does not check is_verified already. Token can be replayed while still valid to obtain a fresh access token.
+reset_password_with_token has the same issue — the reset URL remains usable until it expires even after a successful reset.
+After password reset, existing access/refresh tokens are NOT invalidated. Industry practice is to bump a token_version on the user row and embed it in JWTs (or revoke via jti blocklist).
+Also, these tokens are full JWTs signed with the app secret and are sent via events to another service that emails them. You are committing the secret-signed token to the message bus; if RabbitMQ ACLs/mTLS are weak, that's account takeover material. Consider opaque 256-bit tokens stored in Redis (short TTL, single-use), not JWTs.
+
+7. No rate limiting on sensitive endpoints
+RateLimitExceededError has a handler in main.py but there is no actual limiter wired up. /login, /register, /forgot-password, /password-reset/{token}, /activate/{token}, /refresh, /google-login all need at least per-IP + per-account limits (e.g. slowapi, Redis token bucket), plus login failure backoff. Currently this service is trivially brute-forceable.
+
+8. Host validation bypass for any RFC-1918 source IP
+copy
+if settings.DEBUG_MODE or internal_access_helper.is_internal_client(request):
+    return await call_next(request)
+Behind a load balancer / ingress, request.client.host is almost always a private IP, so the host header check never runs in production. Either:
+
+Use ProxyHeadersMiddleware / trust X-Forwarded-For from the LB only, and check the true client IP, OR
+Drop the short-circuit and only trust Host header.
+Also "host".split(":")[0] breaks for IPv6 ([::1]:8000).
+
+9. Admin schema endpoint leaks internal schema, publicly
+GET /admin/schema/users returns all column names and types including hashed_password. Must be admin-only and ideally not exposed on the public ingress at all.
+
+🟠 HIGH — logic & correctness
+10. Multi-worker outbox poller race
+main.py launches OutboxPollerService().start_outbox_poller() inside the lifespan. With gunicorn --workers N, you get N pollers racing on the same table. get_many_by_field_with_lock hopefully uses FOR UPDATE SKIP LOCKED (check!), but even so this is wasteful, brittle under scale, and couples API latency to broker latency.
+
+Proper fix: run the outbox relay as a separate deployment (single replica, or with leader election / advisory locks), not inside the API process.
+
+11. PATCH /users/{user_id} nulls out unset fields
+copy
+await self.repository.update_by_id(item_id=user_id, data=update_data.model_dump())
+model_dump() emits every field including unset ones as None. PATCH must use update_data.model_dump(exclude_unset=True) (and for Pydantic v2 probably also exclude_none=True depending on repo semantics). Currently, updating just the name will overwrite phone_number, image, etc. with NULL.
+
+12. get_all_users returns 404 for empty result
+copy
+if not users:
+    raise UserNotFoundError("No users found with the given criteria.")
+An empty list is not an error — return [] with 200. 404 breaks idiomatic clients and breaks pagination UX.
+
+13. No default pagination / unbounded listing
+get_all_users accepts offset/limit but doesn't enforce a max/default. A caller without limit could scan the entire users table. Enforce a hard cap (e.g. limit=100) server-side.
+
+14. Exceptions used for control flow
+get_unprocessed_events raises OutboxEventNotFoundError when there's simply nothing to do, caught by the poller every tick. Return []. Misusing exceptions hurts performance and readability.
+
+Also, OutboxEventNotFoundError returns status 400 (not 404) — exposing it as an HTTP exception type at all is wrong because this is an internal condition. Don't inherit internal errors from BaseAPIException.
+
+15. Outbox poller uses payload to discover event type
+copy
+event_type = event_data.get("event_type")
+match event_type:
+    case UserEvents.USER_REGISTERED: ...
+But OutboxEvent has an event_type column — use event.event_type. Trusting the payload only is brittle (and if payload lacks the field, everything falls into _ and is silently dropped while still being marked processed? No — it's only unmarked if exception is raised. Unknown event types get warning but the event is not marked processed, so it will re-poll forever. Add explicit DLQ/poison-message handling with a retry counter + alert.
+
+16. Outbox event has no idempotency / schema version
+OutboxEvent.payload should include: event_id (UUID), occurred_at, schema_version, correlation_id, trace_id. Downstream consumers need these for idempotent processing and to correlate with OTEL traces (which you already set up). Right now a consumer restart could process the same event twice with no way to detect it.
+
+17. Email not normalized
+email: EmailStr is stored as-entered. Bob@Example.com and bob@example.com will register as different users (and later attempts to login with different casing fail or succeed inconsistently). Lowercase + .strip() on write and on lookup.
+
+18. role column is nullable
+copy
+role: Mapped[str] = mapped_column(nullable=True)
+But User(role="user") is always set at creation. Make the column NOT NULL with a server default and use a PostgreSQL enum (or a CHECK constraint). Unknown/NULL roles are a latent privilege-escalation vector.
+
+19. JWT stores role; role changes don't propagate
+If an admin demotes a user, their existing access/refresh tokens still carry role=admin until expiry. Combine with #6: bump a token_version.
+
+20. Password hashing limits
+You pinned bcrypt>=3.2,<4. bcrypt silently truncates at 72 bytes. Either pre-hash with HMAC-SHA256 before bcrypt, or switch to argon2id (OWASP recommended). Also, no visible password policy (check UserSignUp schema) — enforce length, complexity, and HIBP check.
+
+21. Logout is unauthenticated + no access-token revocation
+/logout only drops the refresh from Redis; the access token continues to work until it expires. If you want real logout, you need either short access TTLs (already) plus a jti blocklist for forced revoke.
+
+22. race condition handler in Google login is too broad
+copy
+try:
+    user = await self.repository.create(new_user)
+except Exception:
+    user = await self.repository.get_by_field("email", email)
+Catches everything (DB timeout, connection error, etc.) and silently tries to recover. Catch only IntegrityError from SQLAlchemy, and raise ... from e to preserve chain.
+
+23. Google token verification via network call
+Using tokeninfo adds a round-trip and an availability dependency to every Google login. Prefer local JWT verification with Google's JWKS (cached). Also, no nonce check — you should verify the nonce you sent in the OAuth request.
+
+24. Health check is not a readiness probe
+copy
+return {"status": "ok", ...}
+Returns 200 even when Postgres, Redis, or RabbitMQ are down. Split into /livez (process alive) and /readyz (pings DB/Redis/broker with timeouts).
+
+25. Lifespan failure & graceful shutdown
+If redis_manager.connect() fails, the DB manager is never started — but previously started resources aren't cleaned up either. Wrap startup in try/except and unwind partial state.
+poller_task.cancel() is not awaited. In-flight publishes can be lost. Do:
+copy
+poller_task.cancel()
+with suppress(asyncio.CancelledError):
+    await poller_task
+🟡 MEDIUM — tech hygiene & scale concerns
+26. datetime.now() without timezone
+Everywhere in main.py: datetime.now().isoformat(). Use datetime.now(timezone.utc).isoformat() to get ...Z suffix. Same in outbox_event_service.py — that one already uses timezone.utc. Be consistent.
+
+27. PII in logs
+logger.info(f"Published user.registered event for {event.user_email}") — emails in logs at INFO level. GDPR: treat email as PII, hash it in logs or log user_id only.
+
+28. request: Request unused in every handler
+Either remove or use it (e.g., correlation id). Dead parameter noise.
+
+29. Dockerfile hygiene
+nano, vim, curl in the runtime image → unnecessary attack surface. Move to builder/test only, use wget-less / tini, or remove.
+HEALTHCHECK uses curl; if you drop curl, switch to python -c "import urllib.request...".
+PROMETHEUS_MULTIPROC_DIR under /tmp is fine but tmpfs loses state on restart — OK for metrics, but mount it as tmpfs in compose explicitly.
+rm -rf ${PROMETHEUS_MULTIPROC_DIR}/* on every container start is correct for the Prometheus client requirement, good.
+--workers ${GUNICORN_WORKERS:-1} — default 1 is safe but almost nobody sets it. Document the connection-pool math in infra docs, not just a comment.
+No migration step. That's fine if you run alembic upgrade head via an init container, but there's no hint of that in the Dockerfile/README.
+psycopg2-binary is shipped in runtime deps but the app uses asyncpg. psycopg2 is only needed for Alembic (sync). Keep in dev/migration image; remove from runtime to reduce image size and CVE surface.
+30. Dependency-injection churn
+PasswordManager, TokenManager, AsyncClient are created per request. They are stateless and could be app-lifetime singletons (cache them in app.state or module-level). Low impact but cleaner.
+
+31. _map_sqlalchemy_type_to_adminjs is fragile
+String-matching sql_type.__class__.__name__.upper() — breaks on dialect-specific types (JSONB, INET, CITEXT). Use isinstance checks against SA types.
+
+32. CORS
+Verify settings.CORS_ALLOWED_ORIGINS is not ["*"] while allow_credentials=True. Browsers reject that combo, and if it's configured that way it signals a misconfig.
+
+33. Prometheus default registry usage
+/metrics works OK, but Instrumentator().instrument(app) + custom metrics_middleware + Prometheus multiprocess is overlapping. Choose one source of truth for request latency metrics; otherwise you double-count or confuse dashboards.
+
+34. Structured error logging
+self.logger.error(f"Failed to publish outbox event {event.id}: {error}") — no stack trace. Use logger.exception(...) inside except so traces reach your log aggregator.
+
+35. Test coverage visibility
+There's a tests/ tree with unit + integration subfolders and a conftest.py, which is great. Make sure CI fails below a threshold (e.g. 80%) and that security-critical paths (auth, token purpose, authorization) have explicit tests.
+
+36. Typos / naming
+OutboxEventCreatioError → OutboxEventCreationError.
+refactore → refactor (TODO comment).
+Inconsistency: raw HTTPException in Google login vs BaseAPIException subclasses elsewhere. Standardize on the custom hierarchy.
+37. settings.DEBUG_MODE bypasses Host-header protection
+Ensure this env var cannot be set to true in production (CI guard, sealed config).
+
+🟢 Positives worth keeping / building on
+Clean layered architecture: routes → service → repository.
+Outbox pattern is the right choice for event-driven consistency — just move the relay out-of-process and add event metadata.
+OpenTelemetry + Prometheus (multiprocess-aware) wired up — ahead of many codebases.
+Async SQLAlchemy + asyncpg, Alembic for migrations, per-request transactional session.
+Dedicated exception hierarchy + unified exception handlers.
+Non-root user in Docker, multi-stage builds with a test stage — nice touch.
+Using setex for refresh-token TTLs in Redis is the right primitive.
+Password reset / email verification routed through async events rather than blocking SMTP calls.
+Suggested priority list (what I'd do in order)
+Auth/RBAC on every user endpoint + authz on /admin/schema/users.
+Pass required_purpose="access" in get_current_user_from_token.
+Forgot-password → always-200 + move email out of query string.
+Rate limiting on auth endpoints (slowapi or custom Redis token bucket).
+Refresh-token rotation + reuse detection, hash-at-rest, logout requires auth.
+Single-use verification & reset tokens; invalidate sessions on password change via token_version.
+Fix PATCH nulling bug (exclude_unset=True).
+Normalize email on sign-up/login; make role NOT NULL + enum.
+Move outbox relay to a dedicated deployment with advisory lock/leader election; add event_id, occurred_at, schema_version, correlation_id to payloads; use event.event_type column, not payload; DLQ on unknown/poison events.
+Readiness probe that actually checks DB/Redis/RabbitMQ; proper graceful shutdown of the poller.
+Fix httpx client lifetime (app-wide singleton in lifespan).
+Host-header middleware — trust X-Forwarded-For from LB only; remove RFC-1918 escape hatch.
+Argon2id (or bcrypt with HMAC pre-hash) + explicit password policy.
+Hygiene: remove vim/nano/curl from runtime image; drop psycopg2-binary from runtime; add logger.exception with stack traces; stop passing request: Request unused; fix typos.
+
+
+
+
+
+
+
+
+
+TL;DR — Verdict
+The scaffolding is genuinely good (clean layering routes → service → repository, transactional outbox, OTel tracing, Prometheus multiproc, non-root Docker, real test suite). But this is not production-ready. There is a set of authorization and auth-lifecycle defects that are not "hardening nice-to-haves" — they are exploitable on day one, plus a few outright bugs (an unhandled exception in middleware, a poison-message loop in the poller).
+
+Rough grade: architecture 8/10, security 3/10, correctness 5/10, ops 6/10.
+
+Below: blockers first, each with file/line, why it's broken, and the fix.
+
+🔴 P0 — Ship-blockers (exploitable)
+1. The entire /users CRUD surface is unauthenticated
+routes/user_routes.py:169–234
+
+copy
+@user_routes.get("/users")                 # no deps
+@user_routes.get("/users/{user_id}")       # no deps
+@user_routes.patch("/users/{user_id}")     # no deps
+@user_routes.delete("/users/{user_id}")    # no deps
+@user_routes.get("/admin/schema/users")    # no deps
+Only /me has current_user_dependency. Anyone who can reach the service can:
+
+GET /users → dump every user's email, name, phone, role (full PII exfil + account enumeration),
+PATCH /users/{id} → modify any user (and, depending on UserBasicUpdate, possibly role → privilege escalation),
+DELETE /users/{id} → wipe the user table one ID at a time.
+"It's behind the gateway" is not a defense in an event-driven mesh — any compromised sibling service, any SSRF, any misrouted ingress rule owns your user table. And your own host_validation_middleware explicitly waives checks for every RFC-1918 caller (see #6), so the internal network is the attack surface.
+
+Fix: introduce require_roles(...) + ownership checks and apply them at the router level.
+
+copy
+# dependencies/dependencies.py
+def require_roles(*roles: str):
+    async def _dep(current_user: current_user_dependency) -> CurrentUserInfo:
+        if current_user.role not in roles:
+            raise HTTPException(403, "Insufficient privileges")
+        return current_user
+    return _dep
+
+admin_only = Annotated[CurrentUserInfo, Depends(require_roles("admin"))]
+
+async def self_or_admin(user_id: UUID, current_user: current_user_dependency) -> CurrentUserInfo:
+    if current_user.role != "admin" and current_user.id != user_id:
+        raise HTTPException(403, "Forbidden")
+    return current_user
+copy
+# routes/user_routes.py
+admin_routes = APIRouter(prefix="/users", dependencies=[Depends(require_roles("admin"))])
+# /users (list), /admin/schema/users  -> admin_routes
+# GET/PATCH/DELETE /users/{user_id}   -> dependencies=[Depends(self_or_admin)]
+Also add a route-level test that asserts 401 without token / 403 with wrong role for every non-public endpoint. Today you have 60+ route tests and zero authz tests — that's why this slipped through.
+
+2. User enumeration on four endpoints (incl. 404 vs 401 on login)
+user_service.py:107, 240, 322
+
+copy
+async def verify_password(self, email, password):
+    user = await self.repository.get_by_field("email", email)
+    if not user:
+        raise UserNotFoundError(...)     # -> HTTP 404
+    return self.password_manager.verify_password(password, user.hashed_password)
+POST /login with unknown email → 404; wrong password → 401. Free account-existence oracle.
+Unknown email short-circuits before bcrypt runs → timing oracle even if you fix the status code.
+POST /forgot-password with unknown email → 404 (request_password_reset, line 322). Classic leak.
+GET /users/{id} → 404 vs 200, unauthenticated (see #1).
+Your own integration test enshrines the bug: test_login_unknown_email_returns_404.
+
+Fix:
+
+copy
+async def authenticate_user(self, email, password):
+    user = await self.repository.get_by_field("email", email)
+    # always burn a hash to equalize timing
+    hashed = user.hashed_password if user else self.password_manager.dummy_hash()
+    ok = self.password_manager.verify_password(password, hashed)
+    if not user or not ok or not user.is_active or not user.is_verified:
+        raise HTTPException(401, "Incorrect email or password")
+And forgot_password must always return 200 {"detail": "If that email exists, a reset link has been sent."} — move the "does the user exist" branch behind the outbox write, never into the response.
+
+3. Password-reset / verification tokens are long-lived, replayable JWTs stored in plaintext in your DB and broadcast on the bus
+user_service.py:86–99 (register), 321–341 (reset request), outbox_event_service.py:18–24
+
+copy
+reset_token, _ = self.token_manager.create_access_token(..., purpose="password_reset")
+await self.outbox_event_service.add_outbox_event(
+    event_type=UserEvents.USER_PASSWORD_RESET_REQUEST,
+    payload=PasswordResetRequestedEvent(user_email=..., reset_token=reset_token, ...))
+Four compounding problems:
+
+Not single-use. reset_password_with_token only checks the JWT signature + purpose. The same token resets the password again and again until exp. Attacker who sees one reset link owns the account for the whole TTL.
+Persisted forever in plaintext. payload_dict lands in the outbox_events table. Nothing purges processed rows. A read-only DB dump / analytics replica / backup = a pile of valid credential-reset tokens.
+Fanned out to every consumer bound to user.events.exchange. Notification service needs the token; analytics and audit services don't, and they now have it.
+Password reset doesn't revoke sessions. After reset_password_with_token, every previously issued refresh token is still live in Redis. The attacker whose password you just "reset away from" stays logged in indefinitely.
+Fix:
+
+Store a random 32-byte secret (secrets.token_urlsafe(32)) in Redis/a password_resets table keyed by sha256(token), with used_at, expires_at, single-use GETDEL/UPDATE ... WHERE used_at IS NULL. JWTs are the wrong primitive here — you cannot revoke them.
+Put only {user_id, reset_id} in the event payload; let the notification service fetch/compose, or at minimum encrypt the token column.
+Add outbox_events retention (DELETE WHERE processed AND processed_at < now() - interval '7 days') as a scheduled job.
+On password reset and on email change: bump a per-user token_version / delete refresh:* for that user → forces global logout.
+4. Refresh tokens: no rotation, no reuse detection, no revocation, stored raw
+user_service.py:64, 192–201, 404–426
+
+copy
+def _refresh_key(self, token, prefix="refresh"): return f"{prefix}:{token}"
+await self.cache_manager.redis.setex(self._refresh_key(refresh_token), ttl, str(user.id))
+Raw token as the Redis key → anyone with KEYS refresh:* (Redis compromise, MONITOR, a rogue service sharing the instance, a Redis slowlog) gets directly usable bearer credentials. Store sha256(token).
+No rotation. /refresh mints a new access token and leaves the same refresh token valid. A stolen refresh token is a permanent account takeover for REFRESH_TOKEN_TIME_DELTA_DAYS. You cannot even detect the theft.
+Stale claims. refresh_access_token re-signs role and email straight out of the old token (line 415-419) without re-reading the DB. Demote an admin → they keep minting admin access tokens until the refresh expires. Deactivate / delete a user → same. Ban is meaningless.
+No jti/denylist on access tokens. DELETE /users/{id} removes the row; their access token keeps working until exp. logout_user deletes the refresh key but the access token lives on.
+No refresh:user:{id} index → "log out all devices" is impossible.
+Fix (standard rotating-refresh family):
+
+copy
+async def refresh_access_token(self, refresh_token: str):
+    data = self.token_manager.decode_token(refresh_token, required_purpose="refresh")
+    key = self._refresh_key(sha256(refresh_token))
+    user_id = await self.redis.getdel(key)            # atomic single-use
+    if not user_id:
+        await self._revoke_all_for_user(data.id)      # reuse => breach => nuke family
+        raise HTTPException(401, "Refresh token reuse detected")
+    user = await self.repository.get_by_id(data.id)
+    if not user or not user.is_active:
+        raise HTTPException(401, "Account disabled")
+    new_refresh, _ = self.token_manager.create_refresh_token(email=user.email, user_id=user.id, role=user.role)
+    await self._store_refresh(user.id, new_refresh)   # also SADD refresh:user:{id}
+    return self.token_manager.create_access_token(email=user.email, user_id=user.id, role=user.role, purpose="access")
+Keep access tokens ≤ 5–15 min, and add a token_version claim checked against the DB/cache so you get cheap global invalidation.
+
+5. Zero rate limiting / brute-force protection on the auth endpoints
+You import RateLimitExceededError and register a handler for it in main.py:17, 206 — but nothing in this service ever raises it. There is no limiter, no lockout, no CAPTCHA, no failed_login_attempts column.
+
+POST /login, POST /register, POST /forgot-password, POST /activate/{token}, POST /password-reset/{token} are all unlimited. Combined with #2 (enumeration), this is a credential-stuffing drive-through. /forgot-password is also an unlimited email-bomb / cost amplification primitive against your SES/SMTP bill.
+
+Fix: Redis sliding-window or token bucket, keyed on (ip, route) and (email, route):
+
+Endpoint	Limit
+/login	5/min per IP, 10/hour per email, exponential lockout after 5 fails
+/register	3/hour per IP
+/forgot-password	3/hour per email, 10/hour per IP
+/password-reset/{token}, /activate/{token}	10/hour per IP
+/refresh	30/min per user
+Trust X-Forwarded-For only from a configured proxy allowlist.
+
+6. host_validation_middleware returns 500, not 400 — and is trivially bypassed
+main.py:88–111
+
+copy
+@app.middleware("http")
+async def host_validation_middleware(request, call_next):
+    ...
+    raise HTTPException(status_code=400, detail="Invalid Host header", ...)
+I reproduced this:
+
+copy
+$ curl -H 'Host: evil.com' localhost:8000/   →  HTTP 500  (+ traceback in logs)
+A raw HTTPException raised in a BaseHTTPMiddleware is outside Starlette's ExceptionMiddleware, so your handlers never see it. It surfaces as an unhandled 500. Return a JSONResponse instead.
+
+Two more issues in the same block:
+
+copy
+logger.warning(f"Invalid Host header: {host} from {request.client.host}")  # AttributeError if client is None
+and the bypass in helpers/internal_access_helper.py:
+
+copy
+self._private_prefixes = ("10.", "172.", "192.168.")
+return ... any(client_host.startswith(prefix) for prefix in self._private_prefixes)
+172. matches 172.32.0.0 – 172.255.255.255, which are public (private range is only 172.16/12). Prefix-matching IPs is never correct.
+Behind any reverse proxy / ingress / service mesh sidecar, request.client.host is the proxy, which is RFC-1918 → every request is classified "internal" and host validation is a no-op in production.
+Fix:
+
+copy
+from ipaddress import ip_address, ip_network
+_PRIVATE = [ip_network(n) for n in ("10.0.0.0/8","172.16.0.0/12","192.168.0.0/16","127.0.0.0/8")]
+
+def is_internal_client(self, request: Request) -> bool:
+    if self.is_internal_path(request.url.path): return True
+    host = request.client.host if request.client else None
+    if not host: return False
+    try:    addr = ip_address(host)
+    except ValueError: return False
+    return any(addr in net for net in _PRIVATE)
+And honestly: delete the custom middleware, use Starlette's TrustedHostMiddleware + ProxyHeadersMiddleware and make the internal/external distinction at the gateway, not via source-IP sniffing.
+
+7. Google login: misconfiguration silently disables audience validation
+user_service.py:126–186
+
+copy
+if settings.GOOGLE_CLIENT_ID and claims.get("aud") != settings.GOOGLE_CLIENT_ID:
+    raise HTTPException(401, "Google token audience mismatch")
+If GOOGLE_CLIENT_ID is unset/empty (a plausible env slip), the check is skipped entirely → any valid Google ID token from any Google OAuth app on the internet authenticates as that email on your platform. Full ATO. Fail-closed:
+
+copy
+if not settings.GOOGLE_CLIENT_ID:
+    raise RuntimeError("GOOGLE_CLIENT_ID must be configured")   # at import/startup
+if claims.get("aud") != settings.GOOGLE_CLIENT_ID: raise HTTPException(401, ...)
+Also in this method:
+
+No exp check. tokeninfo does reject expired tokens today, but you're relying on an undocumented side effect of a deprecated endpoint, with a network round-trip on every login (latency + a hard external dependency on the auth path). Use google.oauth2.id_token.verify_oauth2_token (local verification, cached JWKS).
+No nonce validation → no replay protection.
+Account pre-hijacking. A user registered via /register with email victim@gmail.com (never verified) gets silently linked when the real victim does Google login. is_verified is never upgraded, and the pre-existing attacker password row survives. Either (a) reject linking unless is_verified, or (b) on link, set is_verified=True, null the password, and revoke existing sessions. Also add an explicit identities table (provider, subject) keyed on Google's sub — not email, which is mutable.
+Bare except Exception: as a race-condition handler (line 167) will also swallow a dead DB connection and then return a confusing 500. Catch IntegrityError specifically.
+copy
+async with self.httpx_client as client:   # line 130
+self.httpx_client = AsyncClient() is constructed in __init__, per request (DI builds a new UserService each request) — so you allocate a client on every single request and close it only on the Google path. Net result: no connection pooling, no timeouts (AsyncClient() defaults are generous), and RuntimeError: Cannot reopen a client instance the moment anyone caches the service. Verified:
+
+copy
+$ python -c "...reuse closed AsyncClient..."
+REUSE -> RuntimeError: Cannot reopen a client instance, once it has been closed.
+Move it to a module-level singleton with explicit timeouts, created in lifespan:
+
+copy
+http_client = AsyncClient(timeout=Timeout(5.0, connect=2.0), limits=Limits(max_connections=100))
+🟠 P1 — Correctness / data-integrity bugs
+8. The outbox poller has a poison-message head-of-line block
+outbox_poller_service.py:23–70
+
+copy
+event_type = event_data.get("event_type")   # read from the *payload*, not the column
+match event_type:
+    ...
+    case _: self.logger.warning(f"Unhandled event type ...")   # never marked processed
+Routing reads event.payload["event_type"], ignoring the authoritative OutboxEvent.event_type column you just wrote. If they ever diverge (schema change, new event), the row falls into case _, logs a warning, is never marked processed, and is re-fetched in the same first 50 rows on every single poll, forever. Same for any event that permanently fails to publish (malformed payload, consumer-rejected). One bad row stops the entire outbox.
+There is no attempt counter, no backoff, no dead-letter. Add attempts, last_error, next_retry_at, and WHERE processed = false AND next_retry_at <= now() ORDER BY created_at LIMIT 50 FOR UPDATE SKIP LOCKED; move rows over max_attempts to a outbox_events_dead table + alert.
+RabbitMQ I/O happens while holding FOR UPDATE row locks inside an open Postgres transaction (up to 50 network round-trips). That's a long-lived transaction pinning locks and bloating the DB. Fetch + mark in short transactions; publish between them.
+SKIP LOCKED must be confirmed. get_many_by_field_with_lock lives in shared/ (not in this archive). Without SKIP LOCKED, your GUNICORN_WORKERS pollers serialize and block each other. Worse: every gunicorn worker and every pod replica starts its own poller (main.py:43). You're running N× pollers against the same table with zero leader election. Either run the poller as a separate single-replica deployment / leader-elected sidecar, or gate it on if os.getenv("RUN_OUTBOX_POLLER").
+Events have no event_id in the payload → consumers cannot deduplicate. Your delivery is at-least-once (publish succeeds, mark_event_as_processed commit fails → republish). Put event_id, occurred_at, schema_version, and a correlation_id/trace_id in every payload, and have consumers keep an processed_events(event_id) unique table.
+Confirm BaseEventPublisher uses publisher confirms (publisher_confirms=True, mandatory=True) and that the exchange/queues are durable + messages delivery_mode=2. Without confirms, publish() returns immediately and you mark-processed a message RabbitMQ never persisted → silent data loss.
+9. Control flow via HTTP exceptions in the background poller
+outbox_event_service.py:31–37
+
+copy
+async def get_unprocessed_events(self, limit=50):
+    events = await self.repository.get_many_by_field_with_lock(...)
+    if not events:
+        raise OutboxEventNotFoundError()    # BaseAPIException, status_code=400
+"No work to do" raises an HTTP 400 exception that the poller catches and logs at debug (outbox_poller_service.py:57). An empty result is not an error. Worse, these same BaseAPIExceptions are reachable from the request path: if add_outbox_event hiccups during POST /register, the client gets 400 "Could not create an outbox event." — a confusing, internal-leaking response to what should be a 500. Return []; raise domain errors, not API errors, from the service layer. (Also: OutboxEventCreatioError → typo, and that check if not outbox_db_event is dead code — create() either returns an object or throws.)
+
+10. update_user_basic_info will null out unset fields
+user_service.py:263–267
+
+copy
+updated_user = await self.repository.update_by_id(item_id=user_id, data=update_data.model_dump())
+model_dump() with no exclude_unset=True serializes every field on UserBasicUpdate, including the ones the client didn't send, as None. A PATCH {"name": "Bob"} will happily write phone_number=None, image=None. This is a PATCH route — it must be model_dump(exclude_unset=True), and you should reject an empty dict with a 400.
+
+Relatedly: confirm UserBasicUpdate does not expose role, is_active, is_verified, email, or hashed_password. Given the endpoint is also unauthenticated (#1), if role is in there it's a one-request path to admin. Pydantic should have model_config = ConfigDict(extra="forbid").
+
+11. get_all_users raises 404 on an empty result set
+user_service.py:233–235. An empty collection is 200 [], not 404. Your clients will treat "no users matched this filter" as "this endpoint doesn't exist." Same pattern in get_unprocessed_events. This is also baked into a test (test_get_all_users_empty_db_returns_404).
+
+12. Register has a TOCTOU race
+user_service.py:71–82: get_by_field("email") → create(). Two concurrent registrations for the same email → one wins, the other hits the unique constraint and surfaces as an unhandled IntegrityError → 500, not your nice 409. Rely on the DB constraint:
+
+copy
+try:
+    user = await self.repository.create(new_user)
+except IntegrityError:
+    raise UserAlreadyExistsError(...)   # (which, per #2, should be a generic 200/202 anyway)
+13. Secrets-in-URL on /activate/{token} and /password-reset/{token}
+routes/user_routes.py:41, 75. Path parameters land in: nginx/ALB access logs, your own --access-logfile - gunicorn logs, OTel span names/attributes, browser history, and Referer headers to any third-party script on the landing page. Credentials belong in the body (POST /password-reset with {"token": ..., "new_password": ...}) or, at minimum, scrub them in the logging middleware + OTel span processor.
+
+Same class of bug: POST /forgot-password takes email: EmailStr as a query parameter (user_routes.py:64), not a body — every password-reset request writes the user's email into your access logs. Make it a Pydantic body model.
+
+14. Verifying an email auto-issues an access token
+verify_email (user_service.py:270–292) returns a live access token. Clicking a link in an email (which may be prefetched by a mail scanner, a corporate proxy, or Safe Links) now yields session credentials in a URL the user didn't control. Verify, then redirect to login.
+
+15. Hard DELETE of users in an event-driven system
+user_service.py:294–312. Orders, carts, reviews, and ledgers in sibling services hold user_id. A hard delete produces dangling references in every downstream read-model, and you can't audit it. Use soft-delete (deleted_at, is_active=False) + an explicit anonymization flow for GDPR erasure (scrub PII in place, keep the row + id). Also: deletion doesn't revoke the user's outstanding access/refresh tokens.
+
+16. Every login writes a DB row
+login_user → add_outbox_event(USER_LOGGED_IN) on the hot path. That's a synchronous INSERT + commit + a RabbitMQ publish per login, plus a row in the outbox table that grows monotonically. Login analytics do not need exactly-once transactional delivery. Either drop it from the outbox (emit via the logging/metrics pipeline) or accept the cost consciously and make sure outbox retention is in place.
+
+🟡 P2 — Tech / dependency / ops
+17. Dependency risk
+copy
+"python-jose>=3.5.0",     # unmaintained; CVE-2024-33663 (algorithm confusion), CVE-2024-33664 (JWT bomb / DoS)
+"passlib>=1.7.4",         # last release 2020
+"bcrypt>=3.2,<4",         # dev group — pinned <4 purely to work around passlib's broken __about__ probe
+"psycopg2-binary",        # sync driver, unused (you use asyncpg) — dead weight in the image
+Drop python-jose → PyJWT (or authlib). Verify alg against an allowlist explicitly; never trust the header.
+Drop passlib → bcrypt directly, or argon2-cffi (Argon2id is the OWASP recommendation). The bcrypt<4 pin is a smell and silently caps you on a 4-year-old hashing lib. Also: bcrypt truncates at 72 bytes — either pre-hash with SHA-256 or reject passwords >72 bytes, otherwise "A"*72 + anything all collide.
+Pin with hashes (uv.lock ✅) and run pip-audit/uv pip audit + Trivy in CI. None present.
+18. Dockerfile
+copy
+RUN apt-get install -y --no-install-recommends libpq5 curl nano vim   # runtime stage
+COPY --chown=user:usergroup . .                                        # copies tests/, .git?, .env?
+HEALTHCHECK ... CMD curl -f http://localhost:8001/health
+nano and vim in a production runtime image. Remove. Also remove curl and use a Python one-liner or a /health probe from the orchestrator — that drops a whole class of "attacker has a download tool" post-exploitation.
+No .dockerignore in the archive → COPY . . pulls tests/, __pycache__/, .DS_Store, and anything else in the context (including .env if present). Add one.
+Base image not pinned by digest (python:3.12-slim is mutable). Pin python:3.12-slim@sha256:....
+pyproject.toml declares shared = { path = "../shared", editable = true }, but the Dockerfile only COPY pyproject.toml uv.lock ./ and runs uv sync --frozen. That build cannot resolve shared unless the build context is the monorepo root and you copy ../shared in. Worth verifying; an editable path dep in a prod image is also wrong — vendor shared as a wheel or copy it non-editable.
+GUNICORN_WORKERS:-1 default 1 is sensible given the pool-size comment — but per #8, each worker spawns a poller, so this default is load-bearing and undocumented. Make it explicit.
+EXPOSE 8001 but main.py runs on settings.USER_SERVICE_APP_PORT. Drift.
+19. /metrics is publicly exposed
+main.py:126 + internal_access_helper whitelists /metrics for both host validation and metrics recording. It's a GET with no auth. Your histogram labels include handler (route templates) — low sensitivity, but request counts per route, latency distributions, and Python/GC internals are free recon. Bind it to a separate admin port, or require a scrape token / mTLS.
+
+Also status=f"{response.status_code // 100}xx" throws away the distinction between 401 and 403, 404 and 429. You will want exact codes when you add rate limiting. And there's a subtle one: the metrics middleware is registered first (so it runs innermost) and the logging middleware is added last (outermost) — fine — but host_validation_middleware raising an unhandled exception (#6) means those 500s are recorded as 5xx with handler = raw path, polluting cardinality with attacker-controlled URLs. request.scope["route"] is absent on 404s, so handler=request.url.path → unbounded label cardinality. One scanner hitting /aaa1…/aaa99999 OOMs your Prometheus. Fall back to "__unmatched__", never the raw path.
+
+20. lifespan / shutdown
+main.py:43–57
+
+copy
+poller_task = create_task(OutboxPollerService().start_outbox_poller())
+...
+poller_task.cancel()          # never awaited
+await user_service_database_session_manager.close()
+poller_task.cancel() is not followed by await poller_task / contextlib.suppress(CancelledError) → you close the DB session manager while the poller may still be mid-transaction, producing ugly shutdown errors and potentially a half-committed processed=true.
+A hard reference to poller_task must be kept (it is — good) or it can be GC'd mid-flight.
+start_outbox_poller's while True catches Exception but a CancelledError (BaseException in 3.8+) propagates — OK — but the await sleep(...) means shutdown waits up to POLLING_INTERVAL_FROM_DB. Use an asyncio.Event for a prompt stop.
+If the poller task dies from a BaseException, nothing notices. No task.add_done_callback → silent degradation: the API keeps serving 200s while zero events reach the bus. Add a done_callback that logs + flips a outbox_poller_up gauge, and alert on outbox_unprocessed_age_seconds > 60.
+21. /health is a liveness probe masquerading as readiness
+main.py:112 returns {"status":"ok"} unconditionally. It never touches Postgres, Redis, or RabbitMQ. K8s will route traffic to a pod whose DB pool is exhausted and whose poller is dead. Split:
+
+GET /health/live → the current static 200.
+GET /health/ready → SELECT 1, redis.ping(), broker is_connected, poller heartbeat. With timeouts. Cached ~2s so it isn't a DoS vector.
+22. Missing security headers & misc middleware
+No X-Content-Type-Options: nosniff, X-Frame-Options, Strict-Transport-Security, Referrer-Policy: no-referrer (which would partly mitigate #13). No GZipMiddleware. No request-body size cap (POST /register with a 4 GB JSON body). No Retry-After on 429 (no 429 exists yet). Verify CORS_ALLOWED_ORIGINS != ["*"] when CORS_ALLOW_CREDENTIALS=True — Starlette silently ignores the combination, and it's a common misconfig.
+
+23. Data model
+models/user_models.py
+
+copy
+role: Mapped[str] = mapped_column(nullable=True)       # free-form string, nullable!
+phone_number: Mapped[str] = mapped_column(nullable=True)   # type lies: should be str | None
+role is a nullable free-text column. Nothing stops role="Admin" / role="admin " / role=NULL. Your require_roles check (once added) does string equality. Make it Mapped[UserRole] with a PG enum or a CHECK constraint, nullable=False, server_default='user'.
+Mapped[str] + nullable=True is a typing lie that mypy/pyright will not catch and that will bite UserInfo.model_validate.
+Index('idx_users_email', 'email') is redundant — unique=True already creates one. Drop it.
+Index('idx_users_is_active') / is_verified on a boolean with ~99% one value is near-useless; use partial indexes (WHERE is_active = false) if you actually query them.
+Missing: last_login_at, failed_login_attempts, locked_until, token_version, deleted_at, password_changed_at.
+__repr__/__str__ dump email — every logger.error(f"{user}") becomes a PII leak. Redact.
+24. Migrations
+alembic/ has no versions/ directory. Zero migrations are committed, and lifespan calls user_service_database_session_manager.init_db() — which, if it's metadata.create_all, means your production schema is whatever the ORM felt like at boot and Alembic is decorative. Remove init_db() from app startup, generate a baseline revision, and run alembic upgrade head as a pre-deploy Job/init-container, not in-process (N workers racing create_all is a real failure mode). Add compare_type=True and a naming convention to env.py so autogenerate produces reversible diffs.
+
+25. PII in logs
+events_publisher/user_events_publisher.py logs event.user_email on every event (6 call sites). Emails in centralized logs = a GDPR/retention problem and a breach-blast-radius multiplier. Log user_id only.
+
+26. Tests
+Good breadth, but the gaps mirror the bugs:
+
+No authorization tests at all. Add the 401/403 matrix from #1 — this would have caught the whole class.
+No tests for /google-login, /refresh rotation, token reuse, refresh-after-deactivation, or concurrent registration.
+test_login_unknown_email_returns_404 and test_get_all_users_empty_db_returns_404 assert the bugs. Fix the tests with the code.
+The outbox poller has no tests: poison message, publish failure, duplicate delivery, concurrent pollers.
+No load/soak test to validate the pool_size × workers < max_connections warning you wrote into the Dockerfile.
+Suggested ordering
+Before any production traffic (days, not weeks):
+
+AuthZ on /users/* + /admin/schema/* (#1) — with tests.
+Fail-closed GOOGLE_CLIENT_ID (#7).
+Rate limits + lockout on auth routes (#5).
+Kill enumeration: uniform 401/200 + constant-time login (#2).
+Single-use, revocable reset/verification tokens; stop putting them in the outbox (#3).
+Refresh rotation + reuse detection + hashed keys + DB re-check on refresh (#4).
+host_validation_middleware → JSONResponse; fix the RFC-1918 matcher (#6).
+model_dump(exclude_unset=True) (#10); IntegrityError → 409 (#12).
+Next sprint:
+
+Outbox: event_id + dedup, attempt counter + DLQ, SKIP LOCKED, publish outside the transaction, single poller (leader-elected or separate deployment), retention job, publisher confirms (#8).
+Swap python-jose → PyJWT; passlib → argon2-cffi (#17).
+Alembic baseline + remove init_db() from startup (#24).
+/health/ready, poller heartbeat gauge + alert, bounded metric cardinality (#19, #20, #21).
+Soft-delete + anonymization (#15); security headers, body-size cap (#22); enum role (#23).
+What's genuinely good (keep it)
+Clean hexagonal-ish separation; the repository/service/route boundary is respected almost everywhere.
+Transactional outbox with the correct ordering (publish → then mark processed) and the right comment explaining why. Most teams get this backwards.
+DI via Annotated[..., Depends(...)] with a real session-per-request transaction scope.
+Prometheus multiprocess handled properly (post-fork histogram creation, MultiProcessCollector, dir cleanup in CMD) — this is a detail almost everyone gets wrong.
+Non-root container, multi-stage build, separate test stage, uv.lock committed.
+A real, broad integration test suite with mocked externals.
+The bones are right. The problem is that authorization and token lifecycle were never built — the service currently authenticates users and then trusts everyone. Fix #1–#8 and this goes from "demo" to "defensible."

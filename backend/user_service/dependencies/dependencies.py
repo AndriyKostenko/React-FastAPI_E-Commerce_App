@@ -1,8 +1,10 @@
 from typing import Annotated, AsyncGenerator
+from uuid import UUID
 
-from fastapi import Depends
+from fastapi import Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi.security import OAuth2PasswordBearer
+from httpx import AsyncClient
 
 from service_layer.user_service import UserService
 from database_layer.user_repository import UserRepository
@@ -67,10 +69,16 @@ def get_outbox_event_service(session: AsyncSession = Depends(get_db_session)) ->
     """Dependency to provide OutboxEventService for transactional event publishing."""
     return OutboxEventService(repository=OutboxRepository(session=session))
 
+def get_google_http_client(request: Request) -> AsyncClient:
+    """Provide the shared Google HTTP client from application state."""
+    return request.app.state.google_http_client
+
+
 def get_user_service(session: AsyncSession = Depends(get_db_session),
                      password_manager: PasswordManager = Depends(get_password_manager),
                      token_manager: TokenManager = Depends(get_token_manager),
-                     outbox_event_service: OutboxEventService = Depends(get_outbox_event_service)) -> UserService:
+                     outbox_event_service: OutboxEventService = Depends(get_outbox_event_service),
+                     google_http_client: AsyncClient = Depends(get_google_http_client)) -> UserService:
     """Dependency to provide UserService with UserRepository for database operations."""
     return UserService(
         repository=UserRepository(session=session),
@@ -78,18 +86,43 @@ def get_user_service(session: AsyncSession = Depends(get_db_session),
         token_manager=token_manager,
         cache_manager=user_service_redis_manager,
         outbox_event_service=outbox_event_service,
+        http_client=google_http_client,
     )
 
 # Type annotations for dependency injection
 user_service_dependency = Annotated[UserService, Depends(get_user_service)]
 
 
-async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)],user_service: user_service_dependency) -> CurrentUserInfo:
+async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)], user_service: user_service_dependency) -> CurrentUserInfo:
     """
     Dependency
     - extracts token from request
-    - delegetas validation to UserService
+    - delegates validation to UserService
     """
     return await user_service.get_current_user_from_token(token)
 
 current_user_dependency = Annotated[CurrentUserInfo, Depends(get_current_user)]
+
+
+def require_roles(*roles: str):
+    """Factory creating a dependency to enforce RBAC role checking."""
+    async def _require_roles(current_user: current_user_dependency) -> CurrentUserInfo:
+        if current_user.role not in roles:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=403, detail="Insufficient privileges")
+        return current_user
+    return _require_roles
+
+
+admin_only_dependency = Annotated[CurrentUserInfo, Depends(require_roles(settings.SECRET_ROLE))]
+
+
+async def self_or_admin(user_id: UUID, current_user: current_user_dependency) -> CurrentUserInfo:
+    """Dependency ensuring caller is either an admin or the subject of the operation."""
+    if current_user.role != settings.SECRET_ROLE and current_user.id != user_id:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=403, detail="Forbidden")
+    return current_user
+
+
+self_or_admin_dependency = Annotated[CurrentUserInfo, Depends(self_or_admin)]

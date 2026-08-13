@@ -1,5 +1,8 @@
 from datetime import timedelta
+from asyncio import Lock
+import hashlib
 import secrets
+from time import monotonic
 from typing import Annotated
 from uuid import UUID
 
@@ -8,6 +11,8 @@ from pydantic import EmailStr
 from fastapi import Query
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.exceptions import HTTPException
+from sqlalchemy.exc import IntegrityError
+from jose import jwt as jose_jwt, jwk, JWTError
 
 from models.user_models import User
 from shared.schemas.user_schemas import CurrentUserInfo
@@ -53,20 +58,56 @@ class UserService:
                 password_manager: PasswordManager,
                 token_manager: TokenManager,
                 cache_manager: CacheManager,
-                outbox_event_service: OutboxEventService):
+                outbox_event_service: OutboxEventService,
+                http_client: AsyncClient):
         self.repository: UserRepository = repository
         self.password_manager: PasswordManager = password_manager
         self.token_manager: TokenManager = token_manager
         self.cache_manager: CacheManager = cache_manager
         self.outbox_event_service: OutboxEventService = outbox_event_service
-        self.httpx_client: AsyncClient = AsyncClient()
+        self.httpx_client: AsyncClient = http_client
 
-    def _refresh_key(self, token: str, prefix: str = "refresh") -> str:
-        return f"{prefix}:{token}"
+    def _token_hash(self, token: str) -> str:
+        """Compute SHA-256 hash of a token for secure Redis storage."""
+        return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+    def _refresh_key(self, token_or_hash: str) -> str:
+        return f"refresh:{token_or_hash}"
+
+    def _user_refresh_set_key(self, user_id: UUID | str) -> str:
+        return f"refresh:user:{user_id}"
+
+    def _verify_token_key(self, token: str) -> str:
+        return f"verify_email:{self._token_hash(token)}"
+
+    def _reset_token_key(self, token: str) -> str:
+        return f"pwd_reset:{self._token_hash(token)}"
+
+    async def _store_refresh(self, user_id: UUID | str, refresh_token: str) -> None:
+        """Store hashed refresh token and index it in the user's active token set."""
+        token_hash = self._token_hash(refresh_token)
+        ttl_seconds = settings.REFRESH_TOKEN_TIME_DELTA_DAYS * 86400
+        pipe = self.cache_manager.redis.pipeline()
+        pipe.setex(self._refresh_key(token_hash), ttl_seconds, str(user_id))
+        pipe.sadd(self._user_refresh_set_key(user_id), token_hash)
+        pipe.expire(self._user_refresh_set_key(user_id), ttl_seconds)
+        await pipe.execute()
+
+    async def _revoke_all_refresh_for_user(self, user_id: UUID | str) -> None:
+        """Revoke all active refresh tokens for a given user (family invalidation)."""
+        set_key = self._user_refresh_set_key(user_id)
+        token_hashes = await self.cache_manager.redis.smembers(set_key)
+        if token_hashes:
+            pipe = self.cache_manager.redis.pipeline()
+            for th in token_hashes:
+                th_str = th.decode("utf-8") if isinstance(th, bytes) else str(th)
+                pipe.delete(self._refresh_key(th_str))
+            pipe.delete(set_key)
+            await pipe.execute()
 
     async def create_user(self, data: UserSignUp) -> tuple[UserInfo , str]:
         """
-        Create a new user and publish registration event via outbox.
+        Create a new user and publish registration event with opaque token via outbox.
 
         Returns:
             tuple: (UserInfo, verification_token)
@@ -81,14 +122,19 @@ class UserService:
             hashed_password=hashed_password,
             is_verified=False,
             role="user",
-            is_active=True)
+            is_active=True,
+            token_version=1
+        )
         user = await self.repository.create(new_user)
-        verification_token, _ = self.token_manager.create_access_token(
-            email=user.email,
-            user_id=user.id,
-            role=user.role,
-            expires_delta=timedelta(minutes=settings.VERIFICATION_TOKEN_EXPIRY_MINUTES),
-            purpose="email_verification")
+
+        # Generate single-use opaque verification token and store hash in Redis
+        verification_token = secrets.token_urlsafe(32)
+        ttl_seconds = settings.VERIFICATION_TOKEN_EXPIRY_MINUTES * 60
+        await self.cache_manager.redis.setex(
+            self._verify_token_key(verification_token),
+            ttl_seconds,
+            str(user.id)
+        )
 
         await self.outbox_event_service.add_outbox_event(
             event_type=UserEvents.USER_REGISTERED,
@@ -127,25 +173,10 @@ class UserService:
         Verify a Google ID token, then find or create the user, and issue backend JWT tokens.
         Validates aud, iss, and email_verified claims before trusting the token.
         """
-        async with self.httpx_client as client:
-            response: Response = await client.get(
-                "https://oauth2.googleapis.com/tokeninfo",
-                params={"id_token": id_token},
-            )
+        if not settings.GOOGLE_CLIENT_ID:
+            raise HTTPException(status_code=500, detail="Google authentication client ID is not configured")
 
-        if response.status_code != 200:
-            raise HTTPException(status_code=401, detail="Invalid Google token")
-
-        claims = response.json()
-
-        # Validate aud — must match our Google client ID to prevent token theft
-        if settings.GOOGLE_CLIENT_ID and claims.get("aud") != settings.GOOGLE_CLIENT_ID:
-            raise HTTPException(status_code=401, detail="Google token audience mismatch")
-
-        # Validate iss
-        valid_issuers = {"accounts.google.com", "https://accounts.google.com"}
-        if claims.get("iss") not in valid_issuers:
-            raise HTTPException(status_code=401, detail="Invalid Google token issuer")
+        claims = await self._verify_google_id_token(id_token)
 
         # Require email_verified
         if claims.get("email_verified") not in (True, "true"):
@@ -169,13 +200,22 @@ class UserService:
                     is_verified=True,
                     role="user",
                     is_active=True,
+                    token_version=1
                 )
                 user = await self.repository.create(new_user)
-            except Exception:
+            except IntegrityError:
                 # Race condition: another request created the same user — fetch it
                 user = await self.repository.get_by_field("email", email)
                 if not user:
                     raise HTTPException(status_code=500, detail="Failed to create user")
+        else:
+            # Google has just proven ownership of this address.  A linked local
+            # account must not retain a password-based session family.
+            user = await self.repository.update_by_field(
+                field_name="email", value=email, is_verified=True, hashed_password=None,
+                token_version=(user.token_version or 1) + 1,
+            )
+            await self._revoke_all_refresh_for_user(user.id)
 
         # Enforce account-level guards (same as authenticate_user)
         if not user.is_active:
@@ -187,20 +227,65 @@ class UserService:
             role=user.role,
             expires_delta=timedelta(minutes=settings.TOKEN_TIME_DELTA_MINUTES),
             purpose="access",
+            extra_claims={"ver": user.token_version},
         )
         refresh_token, refresh_expiry = self.token_manager.create_refresh_token(
             email=email,
             user_id=user.id,
             role=user.role,
+            extra_claims={"ver": user.token_version},
         )
-        ttl_seconds = settings.REFRESH_TOKEN_TIME_DELTA_DAYS * 86400
-        await self.cache_manager.redis.setex(
-            self._refresh_key(refresh_token),
-            ttl_seconds,
-            str(user.id),
-        )
+        await self._store_refresh(user.id, refresh_token)
         current_user = CurrentUserInfo(email=user.email, id=user.id, role=user.role)
         return current_user, access_token, access_expiry, refresh_token, refresh_expiry
+
+    async def _verify_google_id_token(self, id_token: str) -> dict:
+        """Verify a Google ID token locally against Google's rotating JWKS."""
+        try:
+            header = jose_jwt.get_unverified_header(id_token)
+            kid = header.get("kid")
+            if not kid or header.get("alg") not in {"RS256"}:
+                raise ValueError("unsupported Google token header")
+            keys = await self._get_google_jwks()
+            key_data = next((item for item in keys if item.get("kid") == kid), None)
+            if not key_data:
+                # Key rotations are rare; force one refresh before rejecting.
+                keys = await self._get_google_jwks(force_refresh=True)
+                key_data = next((item for item in keys if item.get("kid") == kid), None)
+            if not key_data:
+                raise ValueError("unknown Google signing key")
+            return jose_jwt.decode(
+                id_token,
+                jwk.construct(key_data, algorithm="RS256"),
+                algorithms=["RS256"],
+                audience=settings.GOOGLE_CLIENT_ID,
+                issuer="https://accounts.google.com",
+            )
+        except (JWTError, ValueError, KeyError, TypeError):
+            raise HTTPException(status_code=401, detail="Invalid Google token")
+
+    async def _get_google_jwks(self, force_refresh: bool = False) -> list[dict]:
+        if not force_refresh and self._google_jwks and monotonic() < self._google_jwks_expires_at:
+            return self._google_jwks["keys"]
+        async with self._google_jwks_lock:
+            if not force_refresh and self._google_jwks and monotonic() < self._google_jwks_expires_at:
+                return self._google_jwks["keys"]
+            try:
+                if self.httpx_client is None:
+                    raise RuntimeError("Google HTTP client is unavailable")
+                response: Response = await self.httpx_client.get("https://www.googleapis.com/oauth2/v3/certs")
+                response.raise_for_status()
+                payload = response.json()
+                if not isinstance(payload.get("keys"), list):
+                    raise ValueError("invalid JWKS response")
+            except Exception:
+                # Do not accept a token if signing keys cannot be obtained.
+                raise HTTPException(status_code=503, detail="Google authentication is temporarily unavailable")
+            self.__class__._google_jwks = payload
+            # Google rotates keys at most daily; refresh within one hour even if
+            # the cache-control header is unavailable.
+            self.__class__._google_jwks_expires_at = monotonic() + 3600
+            return payload["keys"]
 
     async def get_all_users(self, filters: Annotated[UsersFilterParams, Query()]) -> list[UserInfo]:
         filters_dict = filters.model_dump()
@@ -231,7 +316,7 @@ class UserService:
                                               date_filters=date_filters,
                                               search_fields=User.get_search_fields())
         if not users:
-            raise UserNotFoundError("No users found with the given criteria.")
+            return []
         return [UserInfo.model_validate(user) for user in users]
 
     async def get_user_by_email(self, email: EmailStr) -> UserInfo:
@@ -266,10 +351,22 @@ class UserService:
         return UserInfo.model_validate(updated_user)
 
     async def verify_email(self, token: str) -> tuple["UserInfo", str, int]:
-        token_data = self.token_manager.decode_token(token=token, required_purpose="email_verification")
-        updated_user = await self.repository.update_by_field(field_name="email",
-                                                            value=token_data.email,
-                                                            is_verified=True)
+        """Verify user email using single-use opaque token."""
+        key = self._verify_token_key(token)
+        user_id_str = await self.cache_manager.redis.getdel(key)
+        if not user_id_str:
+            raise HTTPException(status_code=401, detail="Verification token is invalid or expired")
+
+        user_id = UUID(user_id_str.decode("utf-8") if isinstance(user_id_str, bytes) else user_id_str)
+        user = await self.repository.get_by_id(user_id)
+        if not user:
+            raise UserNotFoundError("User not found for verification")
+
+        updated_user = await self.repository.update_by_field(
+            field_name="email",
+            value=user.email,
+            is_verified=True
+        )
         if not updated_user:
             raise UserNotFoundError("User not found for verification")
 
@@ -278,7 +375,8 @@ class UserService:
             user_id=updated_user.id,
             role=updated_user.role,
             expires_delta=timedelta(minutes=settings.TOKEN_TIME_DELTA_MINUTES),
-            purpose="access"
+            purpose="access",
+            extra_claims={"ver": updated_user.token_version}
         )
 
         await self.outbox_event_service.add_outbox_event(
@@ -300,6 +398,8 @@ class UserService:
         if not success:
             raise UserNotFoundError(f"User with id: {user_id} not found.")
 
+        await self._revoke_all_refresh_for_user(user_id)
+
         await self.outbox_event_service.add_outbox_event(
             event_type=UserEvents.USER_DELETED,
             payload=UserDeletedEvent(
@@ -316,16 +416,22 @@ class UserService:
         users = await self.repository.get_users_by_role(role=role)
         return [UserInfo.model_validate(user) for user in users]
 
-    async def request_password_reset(self, email: EmailStr) -> tuple[UserInfo, str]:
+    async def request_password_reset(self, email: EmailStr) -> tuple[UserInfo | None, str]:
+        """
+        Request password reset with single-use opaque token.
+        Always returns safely to prevent account enumeration.
+        """
         user = await self.repository.get_by_field("email", email)
         if not user:
-            raise UserNotFoundError("User not found")
-        reset_token, _ = self.token_manager.create_access_token(
-            email=user.email,
-            user_id=user.id,
-            role=user.role,
-            expires_delta=timedelta(minutes=settings.RESET_TOKEN_EXPIRY_MINUTES),
-            purpose="password_reset"
+            # Prevent enumeration: return silently without raising 404 or writing outbox event
+            return None, ""
+
+        reset_token = secrets.token_urlsafe(32)
+        ttl_seconds = settings.RESET_TOKEN_EXPIRY_MINUTES * 60
+        await self.cache_manager.redis.setex(
+            self._reset_token_key(reset_token),
+            ttl_seconds,
+            str(user.id)
         )
 
         await self.outbox_event_service.add_outbox_event(
@@ -340,13 +446,28 @@ class UserService:
         return UserInfo.model_validate(user), reset_token
 
     async def reset_password_with_token(self, token: str, new_password: str) -> UserInfo:
-        token_data = self.token_manager.decode_token(token=token,required_purpose="password_reset")
+        """Reset password using single-use opaque token, bumping token_version and invalidating sessions."""
+        key = self._reset_token_key(token)
+        user_id_str = await self.cache_manager.redis.getdel(key)
+        if not user_id_str:
+            raise HTTPException(status_code=401, detail="Password reset token is invalid or expired")
+
+        user_id = UUID(user_id_str.decode("utf-8") if isinstance(user_id_str, bytes) else user_id_str)
+        user = await self.repository.get_by_id(user_id)
+        if not user:
+            raise UserNotFoundError("User not found")
+
+        new_version = (user.token_version or 1) + 1
         hashed_password = self.password_manager.hash_password(new_password)
-        updated_user = await self.repository.update_by_field(field_name="email",
-                                                            value=token_data.email,
-                                                            hashed_password=hashed_password)
+        updated_user = await self.repository.update_by_id(
+            item_id=user.id,
+            data={"hashed_password": hashed_password, "token_version": new_version}
+        )
         if not updated_user:
             raise UserUpdateError("Password reset failed")
+
+        # Invalidate all existing sessions / refresh tokens
+        await self._revoke_all_refresh_for_user(user.id)
 
         await self.outbox_event_service.add_outbox_event(
             event_type=UserEvents.USER_PASSWORD_RESET_SUCCESS,
@@ -362,15 +483,15 @@ class UserService:
                                 email: EmailStr,
                                 password: str) -> tuple[CurrentUserInfo, str, int, str, int]:
         """
-        Authenticate user with email and password.
-
-        Returns:
-            tuple: (CurrentUserInfo, access_token, access_expiry, refresh_token, refresh_expiry)
+        Authenticate user with constant-time password verification and rotating refresh tokens.
         """
-        is_valid = await self.verify_password(email, password)
-        if not is_valid:
+        user = await self.repository.get_by_field("email", email)
+        dummy_hash = self.password_manager.dummy_hash()
+        hashed = user.hashed_password if user and user.hashed_password else dummy_hash
+        is_valid = self.password_manager.verify_password(password, hashed)
+
+        if not user or not is_valid:
             raise HTTPException(status_code=401, detail="Incorrect email or password")
-        user = await self.get_user_by_email(email)
         if not user.is_verified:
             raise HTTPException(status_code=401, detail="User is not verified")
         if not user.is_active:
@@ -381,19 +502,18 @@ class UserService:
             user_id=user.id,
             role=user.role,
             expires_delta=timedelta(minutes=settings.TOKEN_TIME_DELTA_MINUTES),
-            purpose="access"
+            purpose="access",
+            extra_claims={"ver": user.token_version}
         )
         refresh_token, refresh_expiry = self.token_manager.create_refresh_token(
             email=email,
             user_id=user.id,
             role=user.role,
+            extra_claims={"ver": user.token_version}
         )
-        ttl_seconds = settings.REFRESH_TOKEN_TIME_DELTA_DAYS * 86400 # days
-        await self.cache_manager.redis.setex(
-            self._refresh_key(refresh_token),
-            ttl_seconds,
-            str(user.id)
-        )
+
+        await self._store_refresh(user.id, refresh_token)
+
         current_user = CurrentUserInfo(
             email=user.email,
             id=user.id,
@@ -401,34 +521,71 @@ class UserService:
         )
         return current_user, access_token, access_expiry, refresh_token, refresh_expiry
 
-    async def refresh_access_token(self, refresh_token: str) -> tuple[str, int]:
+    async def refresh_access_token(self, refresh_token: str) -> tuple[str, int, str, int]:
         """
-        Validate a refresh token and issue a new access token.
+        Validate a refresh token, rotate it, detect reuse, and issue new credentials.
 
         Returns:
-            tuple: (new_access_token, expiry_timestamp)
+            tuple: (new_access_token, access_expiry, new_refresh_token, refresh_expiry)
         """
         token_data = self.token_manager.decode_token(refresh_token, required_purpose="refresh")
-        stored_refresh_token = await self.cache_manager.redis.get(self._refresh_key(refresh_token))
-        if not stored_refresh_token:
-            raise HTTPException(status_code=401, detail="Refresh token expired or revoked")
-        access_token, expiry = self.token_manager.create_access_token(
-            email=token_data.email,
-            user_id=token_data.id,
-            role=token_data.role,
-            expires_delta=timedelta(minutes=settings.TOKEN_TIME_DELTA_MINUTES),
-            purpose="access"
-        )
-        return access_token, expiry
+        token_hash = self._token_hash(refresh_token)
+        stored_user_id = await self.cache_manager.redis.getdel(self._refresh_key(token_hash))
 
-    async def logout_user(self, refresh_token: str) -> None:
-        """Revoke a refresh token so it can no longer be used."""
-        await self.cache_manager.redis.delete(self._refresh_key(refresh_token))
+        if not stored_user_id:
+            # Token reuse detected or token expired -> revoke all sessions for this user family
+            await self._revoke_all_refresh_for_user(token_data.id)
+            raise HTTPException(status_code=401, detail="Refresh token reuse detected or token expired")
+
+        # Clean old token hash from user's active set
+        await self.cache_manager.redis.srem(self._user_refresh_set_key(token_data.id), token_hash)
+
+        # Fresh database check to eliminate stale-role / deactivation claims
+        user = await self.repository.get_by_id(token_data.id)
+        if not user or not user.is_active:
+            raise HTTPException(status_code=401, detail="Account is deactivated or not found")
+
+        if token_data.token_version != user.token_version:
+            raise HTTPException(status_code=401, detail="Token version revoked")
+
+        # Mint rotated refresh token
+        new_refresh_token, new_refresh_expiry = self.token_manager.create_refresh_token(
+            email=user.email,
+            user_id=user.id,
+            role=user.role,
+            extra_claims={"ver": user.token_version}
+        )
+        await self._store_refresh(user.id, new_refresh_token)
+
+        # Mint new access token
+        access_token, expiry = self.token_manager.create_access_token(
+            email=user.email,
+            user_id=user.id,
+            role=user.role,
+            expires_delta=timedelta(minutes=settings.TOKEN_TIME_DELTA_MINUTES),
+            purpose="access",
+            extra_claims={"ver": user.token_version}
+        )
+        return access_token, expiry, new_refresh_token, new_refresh_expiry
+
+    async def logout_user(self, refresh_token: str, user_id: UUID | None = None) -> None:
+        """Revoke a refresh token and remove from user's active set."""
+        token_hash = self._token_hash(refresh_token)
+        await self.cache_manager.redis.delete(self._refresh_key(token_hash))
+        if user_id:
+            await self.cache_manager.redis.srem(self._user_refresh_set_key(user_id), token_hash)
 
     async def get_current_user_from_token(self, token: str) -> CurrentUserInfo:
-        user_info = self.token_manager.decode_token(token)
+        """Validate an access token against the current account state."""
+        user_info = self.token_manager.decode_token(token, required_purpose="access")
+        user = await self.repository.get_by_id(user_info.id)
+        if not user or not user.is_active or user_info.token_version != user.token_version:
+            raise HTTPException(status_code=401, detail="Token is revoked or account is unavailable")
         return CurrentUserInfo(
-            email=user_info.email,
-            id=user_info.id,
-            role=user_info.role
+            email=user.email,
+            id=user.id,
+            role=user.role
         )
+    _google_jwks: dict | None = None
+    _google_jwks_expires_at: float = 0
+    _google_jwks_lock = Lock()
