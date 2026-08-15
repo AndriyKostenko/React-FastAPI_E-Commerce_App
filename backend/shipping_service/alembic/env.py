@@ -6,9 +6,12 @@ import asyncio
 
 from alembic import context  # type: ignore
 
-from shared.models.models_base_class import Base
+from models.base import Base
 from models.shipping_models import ShippingMethod, Shipment
-from shared.shared_instances import settings
+from shared.settings import get_settings
+
+
+settings = get_settings()
 
 config = context.config
 

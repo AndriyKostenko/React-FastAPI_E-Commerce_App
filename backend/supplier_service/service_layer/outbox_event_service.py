@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from pydantic import BaseModel
 
 from shared.database_layer.outbox_repository import OutboxRepository
-from shared.models.outbox_events import OutboxEvent
+from models.outbox_models import OutboxEvent
 from exceptions.outbox_event_exceptions import OutboxEventCreationError, OutboxEventNotFoundError, OutboxEventUpdateError
 
 

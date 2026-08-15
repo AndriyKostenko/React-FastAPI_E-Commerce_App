@@ -8,7 +8,7 @@ import pytest
 from service_layer.cart_services import CartService, CartNotFoundError, CartItemNotFoundError
 from models.cart_models import Cart, CartItem
 from shared.schemas.cart_schemas import CartSchema, CartSummary, AddCartItem, UpdateCartItem
-from shared.shared_instances import test_settings
+from service_test_config import test_settings
 
 
 # ---------------------------------------------------------------------------

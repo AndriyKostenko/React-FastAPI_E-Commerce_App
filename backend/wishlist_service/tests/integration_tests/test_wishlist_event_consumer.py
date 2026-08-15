@@ -5,11 +5,17 @@ import pytest
 
 from shared.enums.event_enums import UserEvents
 from events_consumer.wishlist_event_consumer import WishlistEventConsumer
+from service_config import settings
 
 
 @pytest.fixture
 def consumer() -> WishlistEventConsumer:
-    return WishlistEventConsumer(logger=MagicMock())
+    return WishlistEventConsumer(
+        logger=MagicMock(),
+        settings=settings,
+        database=MagicMock(),
+        idempotency=MagicMock(),
+    )
 
 
 @pytest.fixture

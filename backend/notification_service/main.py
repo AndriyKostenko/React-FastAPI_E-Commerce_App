@@ -11,17 +11,13 @@ from pydantic import ValidationError
 from fastapi.exceptions import ResponseValidationError, RequestValidationError
 from prometheus_client import CollectorRegistry, generate_latest, multiprocess, REGISTRY
 
-from shared.shared_instances import (notification_service_redis_manager,
-                                    notification_service_database_session_manager,
-                                    logger,
-                                    settings
-)
+from resources import logger, notification_api_resources, settings
+from models import Base
 from shared.exceptions.base_exceptions import (BaseAPIException, RateLimitExceededError)
 from shared.middleware.logging_middleware import add_logging_middleware
 from shared.telemetry import setup_tracing
 from prometheus_fastapi_instrumentator import Instrumentator
 from routes.notification_routes import notification_routes
-from tasks.broker import taskiq_broker
 from helpers.internal_access_helper import internal_access_helper
 from helpers.request_helper import request_metrics_helper
 
@@ -34,24 +30,15 @@ async def lifespan(app: FastAPI):
     request_metrics_helper.initialize()
 
     logger.info(f"Server is starting up on {settings.APP_HOST}:{settings.NOTIFICATION_SERVICE_APP_PORT}...")
-    if not taskiq_broker.is_worker_process:
-        await taskiq_broker.startup()
-        logger.info("TaskIQ broker started successfully.")
-    await notification_service_redis_manager.connect()
-    logger.info("Redis health check passed.")
-    await notification_service_database_session_manager.init_db()
-    logger.info("Database initialized successfully.")
-    logger.info('Server startup complete!')
-
-    yield
-
-    await notification_service_database_session_manager.close()
-    logger.warning("Database connection closed on shutdown!")
-    await notification_service_redis_manager.close()
-    logger.warning("Cache connection closed on shutdown!")
-    if not taskiq_broker.is_worker_process:
-        await taskiq_broker.shutdown()
-        logger.info("TaskIQ broker shut down successfully.")
+    async with notification_api_resources() as resources:
+        app.state.resources = resources
+        try:
+            await resources.database.init_db(Base.metadata)
+            logger.info("Notification service tables are initialized from service-owned metadata.")
+            logger.info('Server startup complete!')
+            yield
+        finally:
+            del app.state.resources
     logger.warning("Server has shut down !")
 
 

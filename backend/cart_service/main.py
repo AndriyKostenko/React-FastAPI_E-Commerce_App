@@ -3,7 +3,6 @@ from datetime import datetime
 from contextlib import asynccontextmanager
 from time import perf_counter
 
-from aiohttp import ClientSession
 from uvicorn import run
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response as PlainResponse
@@ -14,43 +13,34 @@ from prometheus_client import CollectorRegistry, generate_latest, multiprocess, 
 from prometheus_fastapi_instrumentator import Instrumentator
 
 from routes.cart_routes import cart_routes
+from models import Base
 from shared.exceptions.base_exceptions import (BaseAPIException,RateLimitExceededError)
 from shared.middleware.logging_middleware import add_logging_middleware
 from shared.telemetry import setup_tracing
-from shared.shared_instances import (cart_event_idempotency_service, cart_service_redis_manager,
-                                    cart_service_database_session_manager,
-                                    logger,
-                                    settings,
-                                    base_event_publisher)
+from service_config import logger, settings
 from helpers.internal_access_helper import internal_access_helper
 from helpers.request_helper import request_metrics_helper
+from resources import create_cart_api_resources
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info(f"Server is starting up on {settings.APP_HOST}:{settings.CART_SERVICE_APP_PORT}...")
-    request_metrics_helper.initialize()
-    await cart_service_redis_manager.connect()
-    await cart_event_idempotency_service.connect()
-    await cart_service_database_session_manager.init_db()
-    logger.info("Cart service DB session is started.")
-    await base_event_publisher.start()
-    logger.info("RabbitMQ Event publisher is started.")
-    app.state.http_session = ClientSession()
-    logger.info("Shared HTTP client session created.")
-    logger.info('Server startup complete!')
-
-    yield
-
-    await cart_service_database_session_manager.close()
-    logger.warning("Database connection closed on shutdown!")
-    await cart_service_redis_manager.close()
-    logger.warning("Redis Cache connection closed on shutdown!")
-    await base_event_publisher.stop()
-    logger.warning("RabbitMQ connection is closed")
-    await app.state.http_session.close()
-    logger.warning("Shared HTTP client session closed.")
-    logger.warning(f"Server has shut down !")
+    resources = create_cart_api_resources()
+    app.state.resources = resources
+    try:
+        logger.info(f"Server is starting up on {settings.APP_HOST}:{settings.CART_SERVICE_APP_PORT}...")
+        request_metrics_helper.initialize()
+        await resources.database.init_db(Base.metadata)
+        logger.info("Cart service tables are initialized from service-owned metadata.")
+        logger.info("Server startup complete!")
+        yield
+    finally:
+        try:
+            await resources.database.close()
+            logger.warning("Database connection closed on shutdown!")
+        finally:
+            del app.state.resources
+        logger.warning("Server has shut down!")
 
 
 app = FastAPI(

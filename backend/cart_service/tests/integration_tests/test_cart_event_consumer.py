@@ -9,7 +9,11 @@ from events_consumer.cart_event_consumer import CartEventConsumer
 
 @pytest.fixture
 def consumer() -> CartEventConsumer:
-    return CartEventConsumer(logger=MagicMock())
+    return CartEventConsumer(
+        logger=MagicMock(),
+        database=MagicMock(),
+        idempotency=MagicMock(),
+    )
 
 
 @pytest.fixture

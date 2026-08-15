@@ -1,6 +1,5 @@
 from datetime import datetime
 from contextlib import asynccontextmanager
-from asyncio import create_task
 import os
 from time import perf_counter
 
@@ -12,22 +11,16 @@ from pydantic import ValidationError
 from fastapi.exceptions import ResponseValidationError, RequestValidationError
 from prometheus_client import CollectorRegistry, generate_latest, multiprocess, REGISTRY
 
-from service_layer.outbox_poller_service import OutboxPollerService
 from routes.payment_routes import payment_routes
+from models import Base
 from shared.exceptions.base_exceptions import BaseAPIException, RateLimitExceededError
 from shared.middleware.logging_middleware import add_logging_middleware
 from shared.telemetry import setup_tracing
 from prometheus_fastapi_instrumentator import Instrumentator
-from shared.shared_instances import (
-    payment_event_idempotency_service,
-    payment_service_redis_manager,
-    payment_service_database_session_manager,
-    logger,
-    settings,
-    base_event_publisher,
-)
+from config import logger, settings
 from helpers.internal_access_helper import internal_access_helper
 from helpers.request_helper import request_metrics_helper
+from resources import payment_api_resources
 
 
 @asynccontextmanager
@@ -35,25 +28,17 @@ async def lifespan(app: FastAPI):
     request_metrics_helper.initialize()
 
     logger.info(f"Payment service starting on {settings.APP_HOST}:{settings.PAYMENT_SERVICE_APP_PORT}...")
-    await payment_service_redis_manager.connect()
-    await payment_event_idempotency_service.connect()
-    await payment_service_database_session_manager.init_db()
-    await base_event_publisher.start()
-    logger.info("RabbitMQ Event publisher started.")
-    poller_task = create_task(OutboxPollerService().start_outbox_poller())
-    logger.info("Outbox poller task created.")
-    logger.info("Payment service startup complete!")
+    async with payment_api_resources() as resources:
+        app.state.resources = resources
+        try:
+            await resources.database.init_db(Base.metadata)
+            logger.info("Payment service tables are initialized from service-owned metadata.")
+            logger.info("Payment service startup complete!")
+            yield
+        finally:
+            del app.state.resources
 
-    yield
-
-    await payment_service_database_session_manager.close()
-    logger.warning("Database connection closed on shutdown!")
-    await payment_service_redis_manager.close()
-    logger.warning("Redis cache connection closed on shutdown!")
-    await base_event_publisher.stop()
-    logger.warning("RabbitMQ Event publisher stopped.")
-    poller_task.cancel()
-    logger.warning("Outbox poller cancelled.")
+    logger.warning("Payment service database and idempotency resources closed on shutdown!")
     logger.warning("Payment service shut down!")
 
 

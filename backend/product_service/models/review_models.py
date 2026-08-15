@@ -6,7 +6,7 @@ from sqlalchemy import ForeignKey, Index
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 from sqlalchemy.inspection import inspect
 
-from shared.models.models_base_class import Base
+from models.base import Base
 from shared.utils.models_mixins import TimestampMixin
 
 

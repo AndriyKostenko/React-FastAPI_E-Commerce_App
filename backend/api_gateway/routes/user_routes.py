@@ -3,16 +3,14 @@ from uuid import UUID
 from orjson import loads
 from fastapi import APIRouter, Request, Response, Depends, status
 
-from gateway.apigateway import api_gateway_manager
+from resources import api_gateway_manager, get_api_gateway_resources, rate_limited
 from dependencies.auth_dependencies import (get_current_user,
                                             require_admin,
                                             require_user_or_admin)
 from shared.schemas.user_schemas import CurrentUserInfo
 from shared.utils.customized_json_response import JSONResponse
-from middleware.auth_middleware import auth_middleware
 from shared.enums.services_enums import Services
 from shared.enums.auth_enums import AuthCookies
-from shared.shared_instances import api_gateway_rate_limit_manager
 
 
 user_proxy = APIRouter(tags=["User Service Proxy"])
@@ -20,7 +18,7 @@ user_proxy = APIRouter(tags=["User Service Proxy"])
 # ==================== PUBLIC ENDPOINTS (No Auth) ====================
 
 @user_proxy.post("/register", summary="Register a new user")
-@api_gateway_rate_limit_manager.ratelimiter(times=5, seconds=3600)
+@rate_limited(times=5, seconds=3600)
 async def register_user(request: Request) -> JSONResponse:
     return await api_gateway_manager.forward_request(
         request=request,
@@ -28,7 +26,7 @@ async def register_user(request: Request) -> JSONResponse:
 
 
 @user_proxy.post("/login", summary="User login")
-@api_gateway_rate_limit_manager.ratelimiter(times=5, seconds=60)
+@rate_limited(times=5, seconds=60)
 async def login_user(request: Request, response: Response) -> JSONResponse:
     """
     Gateway forwards form data to user service → gets JSON with tokens.
@@ -49,7 +47,7 @@ async def login_user(request: Request, response: Response) -> JSONResponse:
             content=body,
             status_code=status.HTTP_200_OK
         )
-        auth_middleware.set_auth_cookies(
+        get_api_gateway_resources(request).auth.set_auth_cookies(
             response=response,
             access_token=access_token,
             refresh_token=refresh_token
@@ -59,7 +57,7 @@ async def login_user(request: Request, response: Response) -> JSONResponse:
 
 
 @user_proxy.post("/google-login", summary="Login or register with Google OAuth")
-@api_gateway_rate_limit_manager.ratelimiter(times=10, seconds=60)
+@rate_limited(times=10, seconds=60)
 async def google_login(request: Request, response: Response) -> JSONResponse:
     """
     Accepts a Google ID token, verifies it via the user service, and returns an app JWT.
@@ -77,7 +75,7 @@ async def google_login(request: Request, response: Response) -> JSONResponse:
             content=body,
             status_code=status.HTTP_200_OK,
         )
-        auth_middleware.set_auth_cookies(
+        get_api_gateway_resources(request).auth.set_auth_cookies(
             response=response,
             access_token=access_token,
             refresh_token=refresh_token,
@@ -87,7 +85,7 @@ async def google_login(request: Request, response: Response) -> JSONResponse:
 
 
 @user_proxy.post("/refresh", summary="Refresh access token")
-@api_gateway_rate_limit_manager.ratelimiter(times=10, seconds=60)
+@rate_limited(times=10, seconds=60)
 async def refresh_token(request: Request, response: Response) -> JSONResponse:
     """
     Gateway reads `refresh_token` cookie → forwards `{"refresh_token": ...}` to user service
@@ -106,7 +104,7 @@ async def refresh_token(request: Request, response: Response) -> JSONResponse:
     )
     if upstream.status_code == 200:
         body = loads(upstream.body)
-        auth_middleware.set_auth_cookies(
+        get_api_gateway_resources(request).auth.set_auth_cookies(
             response,
             access_token=body.pop(AuthCookies.ACCESS_COOKIE),
             refresh_token=None,
@@ -116,14 +114,14 @@ async def refresh_token(request: Request, response: Response) -> JSONResponse:
 
 
 @user_proxy.post("/logout", summary="Logout and revoke refresh token")
-@api_gateway_rate_limit_manager.ratelimiter(times=10, seconds=60)
+@rate_limited(times=10, seconds=60)
 async def logout(request: Request, response: Response) -> JSONResponse:
     """
     Gateway reads `refresh_token` cookie → revokes it in Redis via user service
     - **Clears both cookies** immediately
     """
     refresh = request.cookies.get(AuthCookies.REFRESH_COOKIE)
-    auth_middleware.clear_auth_cookies(response)
+    get_api_gateway_resources(request).auth.clear_auth_cookies(response)
     if refresh:
         await api_gateway_manager.forward_request(
             request=request,
@@ -134,7 +132,7 @@ async def logout(request: Request, response: Response) -> JSONResponse:
 
 
 @user_proxy.post("/activate/{token}", summary="Verify user email")
-@api_gateway_rate_limit_manager.ratelimiter(times=5, seconds=3600)
+@rate_limited(times=5, seconds=3600)
 async def verify_email(request: Request) -> JSONResponse:
     return await api_gateway_manager.forward_request(
         service_name=Services.USER_SERVICE,
@@ -142,7 +140,7 @@ async def verify_email(request: Request) -> JSONResponse:
     )
 
 @user_proxy.post("/forgot-password", summary="Request password reset")
-@api_gateway_rate_limit_manager.ratelimiter(times=3, seconds=3600)
+@rate_limited(times=3, seconds=3600)
 async def forgot_password(request: Request) -> JSONResponse:
     return await api_gateway_manager.forward_request(
         service_name=Services.USER_SERVICE,
@@ -150,7 +148,7 @@ async def forgot_password(request: Request) -> JSONResponse:
     )
 
 @user_proxy.post("/password-reset/{token}", summary="Reset password with token")
-@api_gateway_rate_limit_manager.ratelimiter(times=3, seconds=3600)
+@rate_limited(times=3, seconds=3600)
 async def reset_password(request: Request) -> JSONResponse:
     return await api_gateway_manager.forward_request(
         service_name=Services.USER_SERVICE,
@@ -160,7 +158,7 @@ async def reset_password(request: Request) -> JSONResponse:
 # ==================== AUTHENTICATED USER ENDPOINTS ====================
 
 @user_proxy.get("/me", summary="Get current user data")
-@api_gateway_rate_limit_manager.ratelimiter(times=3, seconds=3600)
+@rate_limited(times=3, seconds=3600)
 async def get_current_user_data(request: Request,
                                 current_user: CurrentUserInfo = Depends(get_current_user)) -> JSONResponse:
     return await api_gateway_manager.forward_request(
@@ -173,7 +171,7 @@ async def get_current_user_data(request: Request,
 
 
 @user_proxy.get("/users/{user_id}", summary="Get user by ID")
-@api_gateway_rate_limit_manager.ratelimiter(times=10, seconds=60)
+@rate_limited(times=10, seconds=60)
 async def get_user_by_id(request: Request,
                          user_id: UUID,
                          current_user: CurrentUserInfo = Depends(get_current_user)):

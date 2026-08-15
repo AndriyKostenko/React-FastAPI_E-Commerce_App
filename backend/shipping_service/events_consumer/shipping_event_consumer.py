@@ -1,11 +1,9 @@
 from logging import Logger
 from typing import Any
 
-from shared.shared_instances import (
-    logger,
-    shipping_event_idempotency_service,
-    shipping_service_database_session_manager,
-)
+from events_publisher.shipping_event_publisher import ShippingEventPublisher
+from shared.idempotency.idempotency_service import IdempotencyEventService
+from shared.managers.database_session_manager import DatabaseSessionManager
 from shared.enums.event_enums import OrderEvents
 from shared.schemas.event_schemas import OrderConfirmedEvent, OrderCancelledEvent
 from database_layer.shipping_repository import ShipmentRepository, ShippingMethodRepository
@@ -15,16 +13,26 @@ from service_layer.shipment_service import ShipmentService
 class ShippingEventConsumer:
     """Consumes order lifecycle events and manages shipments."""
 
-    def __init__(self, logger: Logger):
+    def __init__(
+        self,
+        *,
+        logger: Logger,
+        database: DatabaseSessionManager,
+        idempotency: IdempotencyEventService,
+        event_publisher: ShippingEventPublisher,
+    ) -> None:
         self.logger: Logger = logger
-        self.idempotency_service = shipping_event_idempotency_service
+        self.database = database
+        self.idempotency_service = idempotency
+        self.event_publisher = event_publisher
 
     async def _get_shipment_service(self):
         """Create a ShipmentService with a fresh database session."""
-        async with shipping_service_database_session_manager.transaction() as session:
+        async with self.database.transaction() as session:
             yield ShipmentService(
                 shipment_repository=ShipmentRepository(session=session),
                 method_repository=ShippingMethodRepository(session=session),
+                event_publisher=self.event_publisher,
             )
 
     async def handle_order_event(self, message: dict[str, Any]) -> None:
@@ -127,6 +135,3 @@ class ShippingEventConsumer:
             )
             self.logger.error(f"Error cancelling shipment for order {message.get('order_id')}: {e}")
             raise
-
-
-shipping_event_consumer = ShippingEventConsumer(logger=logger)

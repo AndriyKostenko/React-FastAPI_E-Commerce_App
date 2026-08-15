@@ -5,7 +5,7 @@ from database_layer.order_address_repository import OrderAddressRepository
 from database_layer.order_item_repository import OrderItemRepository
 from database_layer.order_repository import OrderRepository
 from shared.database_layer.outbox_repository import OutboxRepository
-from events_publisher.order_event_publisher import order_event_publisher
+from events_publisher.order_event_publisher import OrderEventPublisher
 from service_layer.order_address_service import OrderAddressService
 from service_layer.order_item_service import OrderItemService
 from shared.schemas.order_schemas import UpdateOrder
@@ -23,12 +23,12 @@ from shared.schemas.event_schemas import (
     ConfirmedOrderItem,
     ConfirmedOrderAddress,
 )
-from shared.shared_instances import logger, order_service_database_session_manager
 from service_layer.order_service import OrderService
 from shared.enums.status_enums import OrderStatus, OrderDeliveryStatus
 from service_layer.outbox_event_service import OutboxEventService
-from shared.shared_instances import order_event_idempotency_service
+from models.outbox_models import OutboxEvent
 from shared.idempotency.idempotency_service import IdempotencyEventService
+from shared.managers.database_session_manager import DatabaseSessionManager
 from shared.enums.event_enums import InventoryEvents, OrderEvents, PaymentEvents, ShippingEvents
 from exceptions.order_exceptions import OrderNotFoundError, OrderNotCancellableError
 
@@ -50,16 +50,24 @@ class OrderEventConsumer:
     This class handles the actual business logic, while the subscriber functions
     handle the FastStream integration.
     """
-    def __init__(self, logger: Logger):
+    def __init__(
+        self,
+        logger: Logger,
+        database: DatabaseSessionManager,
+        idempotency_service: IdempotencyEventService,
+        event_publisher: OrderEventPublisher,
+    ) -> None:
         self.logger: Logger = logger
-        self.idempotency_service: IdempotencyEventService = order_event_idempotency_service
+        self.database = database
+        self.idempotency_service = idempotency_service
+        self.event_publisher = event_publisher
 
     async def _get_order_service(self):
         """
         Creating an OrderService instance with a fresh database session.
         This is similar to FastAPI's dependency injection but for FastStream consumers.
         """
-        async with order_service_database_session_manager.transaction() as session:
+        async with self.database.transaction() as session:
             order_item_service = OrderItemService(
                 repository=OrderItemRepository(session=session)
             )
@@ -67,7 +75,7 @@ class OrderEventConsumer:
                 repository=OrderAddressRepository(session=session)
             )
             outbox_event_service = OutboxEventService(
-                repository=OutboxRepository(session=session)
+                repository=OutboxRepository(session=session, model=OutboxEvent)
             )
             order_service = OrderService(
                 repository=OrderRepository(session=session),
@@ -238,7 +246,7 @@ class OrderEventConsumer:
                     confirmed_order = await order_service.get_order_with_details(order_id=event.order_id)
                     if confirmed_order:
                         event_data = self._build_order_confirmed_event_data(confirmed_order)
-                        await order_event_publisher.publish_order_confirmed(event_data=event_data)
+                        await self.event_publisher.publish_order_confirmed(event_data=event_data)
                         self.logger.info(f"Published OrderConfirmedEvent for order: {event.order_id}")
                     result = "payment_succeeded_confirmed"
                 else:
@@ -313,7 +321,7 @@ class OrderEventConsumer:
                     confirmed_order = await order_service.get_order_with_details(order_id=event.order_id)
                     if confirmed_order:
                         event_data = self._build_order_confirmed_event_data(confirmed_order)
-                        await order_event_publisher.publish_order_confirmed(event_data=event_data)
+                        await self.event_publisher.publish_order_confirmed(event_data=event_data)
                         self.logger.info(f"Published OrderConfirmedEvent for order: {event.order_id}")
                         break
 
@@ -378,7 +386,7 @@ class OrderEventConsumer:
 
             # Publish OrderCancelledEvent for downstream services (notification, etc.)
             if result == "inventory_failed_cancelled":
-                await order_event_publisher.publish_order_cancelled(
+                await self.event_publisher.publish_order_cancelled(
                     event_data={
                         "service": "order-service",
                         "event_type": "order.cancelled",
@@ -650,6 +658,3 @@ class OrderEventConsumer:
     async def handle_shipment_cancelled(self, message: dict[str, Any]) -> None:
         """Update order delivery_status to CANCELLED."""
         await self._update_delivery_status(message, OrderDeliveryStatus.CANCELLED)
-
-
-order_event_consumer = OrderEventConsumer(logger=logger)

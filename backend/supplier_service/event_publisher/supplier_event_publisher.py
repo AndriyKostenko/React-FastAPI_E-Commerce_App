@@ -1,16 +1,8 @@
 from logging import Logger
 from typing import Any
 
-from faststream.rabbit import RabbitExchange
+from faststream.rabbit import RabbitBroker, RabbitExchange
 
-from shared.shared_instances import (
-    inventory_exchange,
-    logger,
-    order_exchange,
-    rabbitmq_broker,
-    settings,
-    supplier_exchange,
-)
 from shared.events.event_publisher import BaseEventPublisher
 from shared.settings import Settings
 from shared.schemas.event_schemas import (
@@ -25,8 +17,16 @@ from shared.enums.event_enums import InventoryEvents, OrderEvents, SupplierEvent
 class SupplierEventPublisher(BaseEventPublisher):
     """Event publisher for supplier_service using FastStream."""
 
-    def __init__(self, logger: Logger, settings: Settings):
-        super().__init__(rabbitmq_broker, logger, settings)
+    def __init__(
+        self,
+        broker: RabbitBroker,
+        supplier_exchange: RabbitExchange,
+        order_exchange: RabbitExchange,
+        inventory_exchange: RabbitExchange,
+        logger: Logger,
+        settings: Settings,
+    ):
+        super().__init__(broker, logger, settings)
         self.exchange: RabbitExchange = supplier_exchange
         self.order_exchange: RabbitExchange = order_exchange
         self.inventory_exchange: RabbitExchange = inventory_exchange
@@ -70,6 +70,3 @@ class SupplierEventPublisher(BaseEventPublisher):
             routing_key=InventoryEvents.INVENTORY_RELEASE_REQUESTED,
         )
         self.logger.info(f"Published InventoryReleaseRequested for order: {event.order_id}")
-
-
-supplier_event_publisher = SupplierEventPublisher(logger=logger, settings=settings)

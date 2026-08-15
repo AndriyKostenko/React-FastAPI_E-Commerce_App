@@ -2,7 +2,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Request, Depends
 
-from gateway.apigateway import api_gateway_manager
+from resources import api_gateway_manager
 from dependencies.auth_dependencies import get_current_user
 from shared.utils.customized_json_response import JSONResponse
 from shared.enums.services_enums import Services

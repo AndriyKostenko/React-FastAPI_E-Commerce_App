@@ -20,15 +20,17 @@ from service_layer.openrouter_client import OpenRouterClient
 from service_layer.product_image_service import ProductImageService
 from service_layer.product_service import ProductService
 from service_layer.review_service import ReviewService
-from shared.shared_instances import (
-    logger,
-    product_service_database_session_manager,
-    product_service_redis_manager,
-    settings,
-)
+from resources import ProductApiResources
 
 
-async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
+def get_resources(request: Request) -> ProductApiResources:
+    """Return resources owned by this FastAPI application instance."""
+    return request.app.state.resources
+
+
+async def get_db_session(
+    resources: ProductApiResources = Depends(get_resources),
+) -> AsyncGenerator[AsyncSession, None]:
     """
     Providing a transactional scope around for each series (request) of operations with database.
     FastAPI
@@ -36,15 +38,18 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
          └─ async with DatabaseSessionManager.transaction()
              └─ async with AsyncSession()
     """
-    async with product_service_database_session_manager.transaction() as session:
+    async with resources.database.transaction() as session:
         yield session
 
 
-def get_category_service(session: AsyncSession = Depends(get_db_session)) -> CategoryService:
+def get_category_service(
+    resources: ProductApiResources = Depends(get_resources),
+    session: AsyncSession = Depends(get_db_session),
+) -> CategoryService:
     """Dependency to provide CategoryService."""
     return CategoryService(
         CategoryRepository(session=session),
-        default_category_name=settings.CJ_DROPSHIPPING_DEFAULT_CATEGORY_NAME,
+        default_category_name=resources.settings.CJ_DROPSHIPPING_DEFAULT_CATEGORY_NAME,
     )
 
 
@@ -58,14 +63,17 @@ def get_product_image_service(session: AsyncSession = Depends(get_db_session)) -
     return ProductImageService(ProductImageRepository(session=session))
 
 
-def get_product_service(session: AsyncSession = Depends(get_db_session)) -> ProductService:
+def get_product_service(
+    resources: ProductApiResources = Depends(get_resources),
+    session: AsyncSession = Depends(get_db_session),
+) -> ProductService:
     """Dependency to provide ProductService."""
     image_repo = ProductImageRepository(session=session)
     product_image_service = ProductImageService(repository=image_repo)
     product_repo = ProductRepository(session=session)
     category_service = CategoryService(
         CategoryRepository(session=session),
-        default_category_name=settings.CJ_DROPSHIPPING_DEFAULT_CATEGORY_NAME,
+        default_category_name=resources.settings.CJ_DROPSHIPPING_DEFAULT_CATEGORY_NAME,
     )
     return ProductService(
         repository=product_repo,
@@ -77,35 +85,49 @@ def get_product_service(session: AsyncSession = Depends(get_db_session)) -> Prod
 
 # ── image-generation dependency chain ─────────────────────────────────────────
 
-def get_http_session(request: Request) -> ClientSession:
+def get_http_session(resources: ProductApiResources = Depends(get_resources)) -> ClientSession:
     """Return the shared aiohttp ClientSession stored on app.state during lifespan."""
-    return request.app.state.http_session
+    return resources.http_session
 
 
-def get_openrouter_client(session: ClientSession = Depends(get_http_session)) -> OpenRouterClient:
-    return OpenRouterClient(session=session, settings=settings, logger=logger)
+def get_openrouter_client(
+    resources: ProductApiResources = Depends(get_resources),
+    session: ClientSession = Depends(get_http_session),
+) -> OpenRouterClient:
+    return OpenRouterClient(
+        session=session,
+        settings=resources.settings,
+        logger=resources.logger,
+    )
 
 
-def get_generation_quota_service() -> GenerationQuotaService:
+def get_generation_quota_service(
+    resources: ProductApiResources = Depends(get_resources),
+) -> GenerationQuotaService:
     return GenerationQuotaService(
-        cache_manager=product_service_redis_manager,
-        settings=settings,
-        logger=logger,
+        cache_manager=resources.cache,
+        settings=resources.settings,
+        logger=resources.logger,
     )
 
 
-def get_image_job_store() -> ImageJobStore:
+def get_image_job_store(
+    resources: ProductApiResources = Depends(get_resources),
+) -> ImageJobStore:
     return ImageJobStore(
-        cache_manager=product_service_redis_manager,
-        logger=logger,
+        cache_manager=resources.cache,
+        logger=resources.logger,
     )
 
 
-def get_image_storage_service() -> ImageStorageService:
-    return ImageStorageService(logger=logger)
+def get_image_storage_service(
+    resources: ProductApiResources = Depends(get_resources),
+) -> ImageStorageService:
+    return ImageStorageService(logger=resources.logger)
 
 
 def get_image_generation_service(
+    resources: ProductApiResources = Depends(get_resources),
     openrouter_client: OpenRouterClient = Depends(get_openrouter_client),
     quota_service: GenerationQuotaService = Depends(get_generation_quota_service),
     job_store: ImageJobStore = Depends(get_image_job_store),
@@ -116,16 +138,18 @@ def get_image_generation_service(
         quota_service=quota_service,
         job_store=job_store,
         storage_service=storage_service,
-        settings=settings,
-        logger=logger,
+        settings=resources.settings,
+        logger=resources.logger,
     )
 
 
-def get_user_context_resolver() -> UserContextResolver:
+def get_user_context_resolver(
+    resources: ProductApiResources = Depends(get_resources),
+) -> UserContextResolver:
     """Dependency to provide UserContextResolver for resolving authenticated/guest user context."""
     return UserContextResolver(
-        guest_quota_cookie_name=settings.GUEST_QUOTA_COOKIE,
-        settings=settings,
+        guest_quota_cookie_name=resources.settings.GUEST_QUOTA_COOKIE,
+        settings=resources.settings,
     )
 
 

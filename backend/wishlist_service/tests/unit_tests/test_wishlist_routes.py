@@ -6,7 +6,7 @@ import pytest
 from httpx import AsyncClient
 
 from shared.schemas.wishlist_schemas import WishlistSchema
-from shared.shared_instances import test_settings
+from service_test_config import test_settings
 
 
 class TestGetMyWishlist:

@@ -1,10 +1,7 @@
 from typing import Any
 
-from shared.shared_instances import (
-    user_notification_email_service,
-    order_notification_email_service,
-    logger,
-)
+from resources import logger, settings
+from shared.email_service.email_service import UserRelatedNotifications, OrderRelatedNotifications
 from shared.schemas.event_schemas import (
     UserRegisteredEvent,
     EmailVerificationEvent,
@@ -15,6 +12,10 @@ from shared.schemas.event_schemas import (
     OrderCancelledEvent,
 )
 from .broker import taskiq_broker
+
+
+user_notification_email_service = UserRelatedNotifications(settings=settings, logger=logger)
+order_notification_email_service = OrderRelatedNotifications(settings=settings, logger=logger)
 
 
 @taskiq_broker.task

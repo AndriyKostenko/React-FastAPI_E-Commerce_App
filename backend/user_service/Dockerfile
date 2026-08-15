@@ -17,8 +17,6 @@ RUN apt-get update \
         python3-dev \
         libpq-dev \
         curl \
-        nano \
-        vim \
     && curl -LsSf https://astral.sh/uv/install.sh | sh \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
@@ -67,9 +65,6 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         libpq5 \
-        curl \
-        nano \
-        vim \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* \
     && addgroup --system --gid 1001 usergroup \
@@ -95,7 +90,7 @@ EXPOSE 8001
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8001/health || exit 1
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8001/health/live')" || exit 1
 
 
 # NOTE: DB connection pool size multiplies per worker. With dynamic workers (2×cores+1),

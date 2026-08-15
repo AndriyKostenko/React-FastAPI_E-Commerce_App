@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, Query, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import EmailStr
 
-from shared.shared_instances import settings, user_service_rate_limit_manager
+from resources import rate_limited, settings
 from dependencies.dependencies import (
     user_service_dependency,
     current_user_dependency,
@@ -16,7 +16,7 @@ from dependencies.dependencies import (
 from models.user_models import User
 from shared.schemas.user_schemas import (
     EmailVerificationResponse,
-    ActivationLoginResponse,
+    ActivationRequest,
     ForgotPasswordRequest,
     ForgotPasswordResponse,
     GoogleLoginRequest,
@@ -39,29 +39,24 @@ user_routes = APIRouter(tags=["users"])
                   response_description="New user created successfully",
                   response_model=UserInfo,
                   status_code=status.HTTP_201_CREATED)
-@user_service_rate_limit_manager.ratelimiter(times=20, seconds=3600)
-async def create_user(request: Request,
-                      data: UserSignUp,
+@rate_limited(times=20, seconds=3600)
+async def create_user(request: Request, data: UserSignUp,
                       user_service: user_service_dependency):
     new_db_user, verification_token = await user_service.create_user(data=data)
     return new_db_user
 
-@user_routes.post("/activate/{token}",
+@user_routes.post("/activate",
                   summary="Verify user email",
                   response_description="Email verified successfully",
-                  response_model=ActivationLoginResponse,
+                  response_model=EmailVerificationResponse,
                   status_code=status.HTTP_200_OK)
-@user_service_rate_limit_manager.ratelimiter(times=15, seconds=3600)
-async def verify_email(request: Request, token: str, user_service: user_service_dependency):
-    db_user, access_token, token_expiry = await user_service.verify_email(token=token)
-    return ActivationLoginResponse(
+@rate_limited(times=15, seconds=3600)
+async def verify_email(request: Request, data: ActivationRequest, user_service: user_service_dependency):
+    db_user = await user_service.verify_email(token=data.token)
+    return EmailVerificationResponse(
         detail="Email verified successfully",
         email=db_user.email,
         verified=db_user.is_verified,
-        access_token=access_token,
-        user_role=db_user.role,
-        token_expiry=token_expiry,
-        user_id=str(db_user.id),
     )
 
 @user_routes.post("/forgot-password",
@@ -69,7 +64,7 @@ async def verify_email(request: Request, token: str, user_service: user_service_
                   response_description="Password reset email sent successfully",
                   response_model=ForgotPasswordResponse,
                   status_code=status.HTTP_200_OK)
-@user_service_rate_limit_manager.ratelimiter(times=10, seconds=3600, identifier_param="data")
+@rate_limited(times=10, seconds=3600, identifier_param="data")
 async def forgot_password(request: Request, data: ForgotPasswordRequest, user_service: user_service_dependency):
     user, reset_token = await user_service.request_password_reset(data.email)
     return ForgotPasswordResponse(
@@ -77,15 +72,15 @@ async def forgot_password(request: Request, data: ForgotPasswordRequest, user_se
         email=data.email,
     )
 
-@user_routes.post("/password-reset/{token}",
+@user_routes.post("/password-reset",
                   summary="Reset password with token",
                   response_model=PasswordUpdateResponse,
                   response_description="Password reset successfully",
                   status_code=status.HTTP_200_OK)
-@user_service_rate_limit_manager.ratelimiter(times=15, seconds=3600)
-async def reset_password(request: Request, token: str, data: ResetPasswordRequest, user_service: user_service_dependency):
+@rate_limited(times=15, seconds=3600)
+async def reset_password(request: Request, data: ResetPasswordRequest, user_service: user_service_dependency):
     """Reset password using token"""
-    user = await user_service.reset_password_with_token(token=token, new_password=data.new_password)
+    user = await user_service.reset_password_with_token(token=data.token, new_password=data.new_password)
     return PasswordUpdateResponse(
         detail="Password reset successfully", email=user.email
     )
@@ -95,7 +90,7 @@ async def reset_password(request: Request, token: str, data: ResetPasswordReques
                   response_model=UserLoginDetails,
                   response_description="User logged in successfully",
                   status_code=status.HTTP_200_OK)
-@user_service_rate_limit_manager.ratelimiter(times=10, seconds=60, identifier_param="form_data")
+@rate_limited(times=10, seconds=60, identifier_param="form_data")
 async def login(request: Request,
                 form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
                 user_service: user_service_dependency):
@@ -116,9 +111,8 @@ async def login(request: Request,
                   response_model=UserLoginDetails,
                   response_description="Authenticated successfully via Google",
                   status_code=status.HTTP_200_OK)
-@user_service_rate_limit_manager.ratelimiter(times=10, seconds=60, identifier_param="data")
-async def google_login(request: Request,
-                       data: GoogleLoginRequest,
+@rate_limited(times=10, seconds=60, identifier_param="data")
+async def google_login(request: Request, data: GoogleLoginRequest,
                        user_service: user_service_dependency):
     user, access_token, access_expiry, refresh_token, refresh_expiry = await user_service.login_or_register_google_user(data.id_token)
     return UserLoginDetails(
@@ -137,9 +131,8 @@ async def google_login(request: Request,
                   response_model=RefreshTokenResponse,
                   response_description="New access token issued",
                   status_code=status.HTTP_200_OK)
-@user_service_rate_limit_manager.ratelimiter(times=30, seconds=60)
-async def refresh_token(request: Request,
-                        data: RefreshTokenRequest,
+@rate_limited(times=30, seconds=60)
+async def refresh_token(request: Request, data: RefreshTokenRequest,
                         user_service: user_service_dependency):
     access_token, expiry, new_refresh_token, refresh_expiry = await user_service.refresh_access_token(data.refresh_token)
     return RefreshTokenResponse(
@@ -176,8 +169,7 @@ async def get_me(current_user: current_user_dependency):
     response_description="User data retrieved successfully",
     response_model=UserInfo,
     status_code=status.HTTP_200_OK)
-async def get_user_by_user_id(request: Request,
-                              user_id: UUID,
+async def get_user_by_user_id(user_id: UUID,
                               user_service: user_service_dependency,
                               auth_user: self_or_admin_dependency):
     user = await user_service.get_user_by_id(user_id=user_id)
@@ -192,7 +184,6 @@ async def get_user_by_user_id(request: Request,
     status_code=status.HTTP_200_OK,
 )
 async def get_all_users(
-    request: Request,
     user_service: user_service_dependency,
     current_admin: admin_only_dependency,
     filters_query: Annotated[UsersFilterParams, Query()],
@@ -209,7 +200,6 @@ async def get_all_users(
     status_code=status.HTTP_200_OK,
 )
 async def update_user_by_id(
-    request: Request,
     user_id: UUID,
     data: UserBasicUpdate,
     user_service: user_service_dependency,
@@ -229,7 +219,6 @@ async def update_user_by_id(
     status_code=status.HTTP_200_OK,
 )
 async def delete_user_by_id(
-    request: Request,
     user_id: UUID,
     user_service: user_service_dependency,
     auth_user: self_or_admin_dependency,
@@ -247,5 +236,5 @@ async def delete_user_by_id(
     response_model=dict[str, Any],
     status_code=status.HTTP_200_OK,
 )
-async def get_user_schema_for_admin_js(request: Request, current_admin: admin_only_dependency):
+async def get_user_schema_for_admin_js(current_admin: admin_only_dependency):
     return {"fields": User.get_admin_schema()}

@@ -1,11 +1,10 @@
 from typing import Any
 from logging import Logger
 
-from faststream.rabbit import RabbitExchange
+from faststream.rabbit import RabbitBroker, RabbitExchange
 
 from shared.settings import Settings
 from shared.events.event_publisher import BaseEventPublisher
-from shared.shared_instances import settings, logger, rabbitmq_broker, shipping_exchange
 from shared.schemas.event_schemas import (
     ShipmentCreatedEvent,
     ShipmentShippedEvent,
@@ -17,9 +16,16 @@ from shared.schemas.event_schemas import (
 class ShippingEventPublisher(BaseEventPublisher):
     """Event publisher for Shipping Service using FastStream."""
 
-    def __init__(self, logger: Logger, settings: Settings):
-        super().__init__(rabbitmq_broker, logger, settings)
-        self.shipping_exchange: RabbitExchange = shipping_exchange
+    def __init__(
+        self,
+        *,
+        broker: RabbitBroker,
+        exchange: RabbitExchange,
+        logger: Logger,
+        settings: Settings,
+    ) -> None:
+        super().__init__(broker, logger, settings)
+        self.shipping_exchange = exchange
 
     async def publish_shipment_created(self, event_data: dict[str, Any]):
         event = ShipmentCreatedEvent(**event_data)
@@ -56,6 +62,3 @@ class ShippingEventPublisher(BaseEventPublisher):
             routing_key=event.event_type,
         )
         self.logger.info(f"Published ShipmentCancelledEvent for shipment {event.shipment_id}")
-
-
-shipping_event_publisher = ShippingEventPublisher(logger=logger, settings=settings)

@@ -5,11 +5,14 @@ All external dependencies (repository, password manager, token manager,
 Redis) are mocked so every test runs without a live database or cache.
 Tests are grouped by service method using classes for readability.
 """
-from unittest.mock import AsyncMock, MagicMock
+from datetime import datetime
+import hashlib
+from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
 from fastapi import HTTPException
+from sqlalchemy.exc import IntegrityError
 
 from exceptions.user_exceptions import (
     UserAlreadyExistsError,
@@ -35,19 +38,24 @@ class TestCreateUser:
         user_service,
         mock_repository: MagicMock,
         mock_user_orm: MagicMock,
-        mock_token_manager: MagicMock,
+        mock_redis: AsyncMock,
         mock_outbox_event_service: MagicMock,
     ) -> None:
-        mock_repository.get_by_field.return_value = None
         mock_repository.create.return_value = mock_user_orm
-        mock_token_manager.create_access_token.return_value = ("verify_tok", 9999)
 
         data = UserSignUp(name="Test User", email="test@example.com", password="password123")
-        user_info, token = await user_service.create_user(data)
+        with patch("service_layer.user_service.secrets.token_urlsafe", return_value="verify_tok"):
+            user_info, token = await user_service.create_user(data)
 
         assert user_info.email == "test@example.com"
         assert token == "verify_tok"
-        mock_repository.get_by_field.assert_awaited_once_with("email", data.email)
+        token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+        mock_redis.setex.assert_awaited_once_with(
+            f"verify_email:{token_hash}",
+            user_service.settings.VERIFICATION_TOKEN_EXPIRY_MINUTES * 60,
+            str(mock_user_orm.id),
+        )
+        mock_repository.get_by_field.assert_not_awaited()
         mock_repository.create.assert_awaited_once()
         mock_outbox_event_service.add_outbox_event.assert_awaited_once()
 
@@ -55,13 +63,16 @@ class TestCreateUser:
         self,
         user_service,
         mock_repository: MagicMock,
-        mock_user_orm: MagicMock,
     ) -> None:
-        mock_repository.get_by_field.return_value = mock_user_orm
+        mock_repository.create.side_effect = IntegrityError(
+            "duplicate email", params={}, orig=Exception("unique constraint")
+        )
 
         data = UserSignUp(name="Test User", email="test@example.com", password="password123")
         with pytest.raises(UserAlreadyExistsError):
             await user_service.create_user(data)
+
+        mock_repository.get_by_field.assert_not_awaited()
 
     async def test_hashes_plain_password_before_saving(
         self,
@@ -145,15 +156,14 @@ class TestGetAllUsers:
         assert len(result) == 1
         assert result[0].email == "test@example.com"
 
-    async def test_raises_when_query_returns_no_users(
+    async def test_returns_empty_list_when_query_returns_no_users(
         self,
         user_service,
         mock_repository: MagicMock,
     ) -> None:
         mock_repository.get_all.return_value = []
 
-        with pytest.raises(UserNotFoundError):
-            await user_service.get_all_users(UsersFilterParams())
+        assert await user_service.get_all_users(UsersFilterParams()) == []
 
 
 # ---------------------------------------------------------------------------
@@ -297,8 +307,19 @@ class TestUpdateUserBasicInfo:
 
         assert result.email == "test@example.com"
         mock_repository.update_by_id.assert_awaited_once_with(
-            item_id=mock_user_orm.id, data={"name": "New Name", "phone_number": None, "image": None}
+            item_id=mock_user_orm.id, data={"name": "New Name"}
         )
+
+    async def test_rejects_an_empty_update(
+        self,
+        user_service,
+        mock_repository: MagicMock,
+    ) -> None:
+        with pytest.raises(HTTPException) as exc_info:
+            await user_service.update_user_basic_info(uuid4(), UserBasicUpdate())
+
+        assert exc_info.value.status_code == 400
+        mock_repository.update_by_id.assert_not_awaited()
 
     async def test_raises_when_user_not_found(
         self,
@@ -322,44 +343,33 @@ class TestVerifyEmail:
         user_service,
         mock_repository: MagicMock,
         mock_user_orm: MagicMock,
-        mock_token_manager: MagicMock,
+        mock_redis: AsyncMock,
         mock_outbox_event_service: MagicMock,
     ) -> None:
-        decoded = DecodedTokenSchema(
-            email="test@example.com",
-            id=mock_user_orm.id,
-            role="user",
-            purpose="email_verification",
-        )
-        mock_token_manager.decode_token.return_value = decoded
+        mock_redis.getdel.return_value = str(mock_user_orm.id)
+        mock_repository.get_by_id.return_value = mock_user_orm
         mock_repository.update_by_field.return_value = mock_user_orm
 
-        result, access_token, token_expiry = await user_service.verify_email("verification_token")
+        result = await user_service.verify_email("verification_token")
 
         assert result.email == "test@example.com"
-        mock_token_manager.decode_token.assert_called_once_with(
-            token="verification_token", required_purpose="email_verification"
-        )
+        token_hash = hashlib.sha256(b"verification_token").hexdigest()
+        mock_redis.getdel.assert_awaited_once_with(f"verify_email:{token_hash}")
+        mock_repository.get_by_id.assert_awaited_once_with(mock_user_orm.id)
         mock_repository.update_by_field.assert_awaited_once_with(
-            field_name="email", value="test@example.com", is_verified=True
+            field_name="email", value=mock_user_orm.email, is_verified=True
         )
         mock_outbox_event_service.add_outbox_event.assert_awaited_once()
 
-    async def test_raises_when_user_not_found_after_token_decode(
+    async def test_raises_when_user_not_found_after_token_lookup(
         self,
         user_service,
         mock_repository: MagicMock,
         mock_user_orm: MagicMock,
-        mock_token_manager: MagicMock,
+        mock_redis: AsyncMock,
     ) -> None:
-        decoded = DecodedTokenSchema(
-            email="test@example.com",
-            id=mock_user_orm.id,
-            role="user",
-            purpose="email_verification",
-        )
-        mock_token_manager.decode_token.return_value = decoded
-        mock_repository.update_by_field.return_value = None
+        mock_redis.getdel.return_value = str(mock_user_orm.id)
+        mock_repository.get_by_id.return_value = None
 
         with pytest.raises(UserNotFoundError):
             await user_service.verify_email("verification_token")
@@ -379,9 +389,22 @@ class TestDeleteUserById:
         mock_outbox_event_service: MagicMock,
     ) -> None:
         mock_repository.get_by_id.return_value = mock_user_orm
-        mock_repository.delete_by_id.return_value = True
-        await user_service.delete_user_by_id(uuid4())  # must not raise
-        mock_repository.get_by_id.assert_awaited_once()
+        mock_repository.update_by_id.return_value = mock_user_orm
+        user_id = mock_user_orm.id
+
+        await user_service.delete_user_by_id(user_id)  # must not raise
+
+        mock_repository.get_by_id.assert_awaited_once_with(user_id)
+        mock_repository.delete_by_id.assert_not_awaited()
+        update_call = mock_repository.update_by_id.await_args
+        assert update_call.kwargs["item_id"] == user_id
+        changes = update_call.kwargs["data"]
+        assert changes["name"] == "Deleted user"
+        assert changes["email"] == f"deleted+{user_id}@invalid.local"
+        assert changes["hashed_password"] is None
+        assert changes["is_active"] is False
+        assert changes["token_version"] == 2
+        assert isinstance(changes["deleted_at"], datetime)
         mock_outbox_event_service.add_outbox_event.assert_awaited_once()
 
     async def test_raises_when_user_not_found(
@@ -389,10 +412,12 @@ class TestDeleteUserById:
         user_service,
         mock_repository: MagicMock,
     ) -> None:
-        mock_repository.delete_by_id.return_value = False
+        mock_repository.get_by_id.return_value = None
 
         with pytest.raises(UserNotFoundError):
             await user_service.delete_user_by_id(uuid4())
+
+        mock_repository.update_by_id.assert_not_awaited()
 
 
 # ---------------------------------------------------------------------------
@@ -468,27 +493,34 @@ class TestRequestPasswordReset:
         user_service,
         mock_repository: MagicMock,
         mock_user_orm: MagicMock,
-        mock_token_manager: MagicMock,
+        mock_redis: AsyncMock,
         mock_outbox_event_service: MagicMock,
     ) -> None:
         mock_repository.get_by_field.return_value = mock_user_orm
-        mock_token_manager.create_access_token.return_value = ("reset_tok", 9999)
 
-        user, token = await user_service.request_password_reset("test@example.com")
+        with patch("service_layer.user_service.secrets.token_urlsafe", return_value="reset_tok"):
+            user, token = await user_service.request_password_reset("test@example.com")
 
         assert user.email == "test@example.com"
         assert token == "reset_tok"
+        token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+        mock_redis.setex.assert_awaited_once_with(
+            f"pwd_reset:{token_hash}",
+            user_service.settings.RESET_TOKEN_EXPIRY_MINUTES * 60,
+            str(mock_user_orm.id),
+        )
         mock_outbox_event_service.add_outbox_event.assert_awaited_once()
 
-    async def test_raises_when_user_not_found(
+    async def test_returns_generic_result_when_user_not_found(
         self,
         user_service,
         mock_repository: MagicMock,
+        mock_outbox_event_service: MagicMock,
     ) -> None:
         mock_repository.get_by_field.return_value = None
 
-        with pytest.raises(UserNotFoundError):
-            await user_service.request_password_reset("ghost@example.com")
+        assert await user_service.request_password_reset("ghost@example.com") == (None, "")
+        mock_outbox_event_service.add_outbox_event.assert_not_awaited()
 
 
 # ---------------------------------------------------------------------------
@@ -502,24 +534,25 @@ class TestResetPasswordWithToken:
         user_service,
         mock_repository: MagicMock,
         mock_user_orm: MagicMock,
-        mock_token_manager: MagicMock,
+        mock_redis: AsyncMock,
         mock_password_manager: MagicMock,
         mock_outbox_event_service: MagicMock,
     ) -> None:
-        decoded = DecodedTokenSchema(
-            email="test@example.com",
-            id=mock_user_orm.id,
-            role="user",
-            purpose="password_reset",
-        )
-        mock_token_manager.decode_token.return_value = decoded
-        mock_repository.update_by_field.return_value = mock_user_orm
+        mock_redis.getdel.return_value = str(mock_user_orm.id)
+        mock_repository.get_by_id.return_value = mock_user_orm
+        mock_repository.update_by_id.return_value = mock_user_orm
         mock_password_manager.hash_password.return_value = "new_hashed_pw"
 
         result = await user_service.reset_password_with_token("reset_token", "new_pw123")
 
         assert result.email == "test@example.com"
+        token_hash = hashlib.sha256(b"reset_token").hexdigest()
+        mock_redis.getdel.assert_awaited_once_with(f"pwd_reset:{token_hash}")
         mock_password_manager.hash_password.assert_called_once_with("new_pw123")
+        mock_repository.update_by_id.assert_awaited_once_with(
+            item_id=mock_user_orm.id,
+            data={"hashed_password": "new_hashed_pw", "token_version": 2},
+        )
         mock_outbox_event_service.add_outbox_event.assert_awaited_once()
 
     async def test_raises_when_db_update_fails(
@@ -527,16 +560,11 @@ class TestResetPasswordWithToken:
         user_service,
         mock_repository: MagicMock,
         mock_user_orm: MagicMock,
-        mock_token_manager: MagicMock,
+        mock_redis: AsyncMock,
     ) -> None:
-        decoded = DecodedTokenSchema(
-            email="test@example.com",
-            id=mock_user_orm.id,
-            role="user",
-            purpose="password_reset",
-        )
-        mock_token_manager.decode_token.return_value = decoded
-        mock_repository.update_by_field.return_value = None
+        mock_redis.getdel.return_value = str(mock_user_orm.id)
+        mock_repository.get_by_id.return_value = mock_user_orm
+        mock_repository.update_by_id.return_value = None
 
         with pytest.raises(UserUpdateError):
             await user_service.reset_password_with_token("reset_token", "new_pw123")
@@ -571,7 +599,11 @@ class TestAuthenticateUser:
         assert current_user.email == "test@example.com"
         assert access_token == "access_tok"
         assert refresh_token == "refresh_tok"
-        mock_redis.setex.assert_awaited_once()
+        pipeline = mock_redis.pipeline.return_value
+        pipeline.setex.assert_called_once()
+        pipeline.sadd.assert_called_once()
+        pipeline.expire.assert_called_once()
+        pipeline.execute.assert_awaited_once()
 
     async def test_raises_401_on_wrong_password(
         self,
@@ -657,7 +689,7 @@ class TestLoginUser:
         assert user.email == "test@example.com"
         assert access_token == "access_tok"
         assert refresh_token == "refresh_tok"
-        mock_redis.setex.assert_awaited_once()
+        mock_redis.pipeline.return_value.execute.assert_awaited_once()
         mock_outbox_event_service.add_outbox_event.assert_awaited_once()
 
 
@@ -679,15 +711,25 @@ class TestRefreshAccessToken:
             id=mock_user_orm.id,
             role="user",
             purpose="refresh",
+            token_version=1,
         )
         mock_token_manager.decode_token.return_value = decoded
-        mock_redis.get.return_value = str(mock_user_orm.id)
+        mock_redis.getdel.return_value = str(mock_user_orm.id)
+        mock_repository = user_service.repository
+        mock_repository.get_by_id.return_value = mock_user_orm
         mock_token_manager.create_access_token.return_value = ("new_access_tok", 9999)
+        mock_token_manager.create_refresh_token.return_value = ("rotated_refresh_tok", 19999)
 
-        access_token, expiry = await user_service.refresh_access_token("valid_refresh_tok")
+        access_token, expiry, refresh_token, refresh_expiry = await user_service.refresh_access_token(
+            "valid_refresh_tok"
+        )
 
         assert access_token == "new_access_tok"
         assert expiry == 9999
+        assert refresh_token == "rotated_refresh_tok"
+        assert refresh_expiry == 19999
+        mock_redis.srem.assert_awaited_once()
+        mock_redis.pipeline.return_value.execute.assert_awaited_once()
 
     async def test_raises_401_when_token_not_in_redis(
         self,
@@ -701,9 +743,10 @@ class TestRefreshAccessToken:
             id=mock_user_orm.id,
             role="user",
             purpose="refresh",
+            token_version=1,
         )
         mock_token_manager.decode_token.return_value = decoded
-        mock_redis.get.return_value = None  # token absent / expired
+        mock_redis.getdel.return_value = None  # token absent / expired
 
         with pytest.raises(HTTPException) as exc_info:
             await user_service.refresh_access_token("revoked_refresh_tok")
@@ -724,7 +767,8 @@ class TestLogoutUser:
     ) -> None:
         await user_service.logout_user("some_refresh_token")
 
-        mock_redis.delete.assert_awaited_once_with("refresh:some_refresh_token")
+        token_hash = hashlib.sha256(b"some_refresh_token").hexdigest()
+        mock_redis.delete.assert_awaited_once_with(f"refresh:{token_hash}")
 
 
 # ---------------------------------------------------------------------------
@@ -736,6 +780,7 @@ class TestGetCurrentUserFromToken:
     async def test_returns_current_user_info(
         self,
         user_service,
+        mock_repository: MagicMock,
         mock_token_manager: MagicMock,
         mock_user_orm: MagicMock,
     ) -> None:
@@ -744,11 +789,15 @@ class TestGetCurrentUserFromToken:
             id=mock_user_orm.id,
             role="user",
             purpose="access",
+            token_version=1,
         )
         mock_token_manager.decode_token.return_value = decoded
+        mock_repository.get_by_id.return_value = mock_user_orm
 
         result = await user_service.get_current_user_from_token("valid_access_token")
 
         assert result.email == "test@example.com"
         assert result.role == "user"
-        mock_token_manager.decode_token.assert_called_once_with("valid_access_token")
+        mock_token_manager.decode_token.assert_called_once_with(
+            "valid_access_token", required_purpose="access"
+        )

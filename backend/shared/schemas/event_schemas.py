@@ -18,6 +18,8 @@ class BaseEvent(BaseModel):
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     service: str
     event_type: str
+    schema_version: int = 1
+    correlation_id: UUID = Field(default_factory=uuid4)
 
 # ============== USER SAGA EVENTS ==============
 class UserBaseEvent(BaseEvent):

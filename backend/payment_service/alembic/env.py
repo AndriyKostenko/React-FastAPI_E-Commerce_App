@@ -18,12 +18,12 @@ for p in (_SERVICE_ROOT, _BACKEND_ROOT):
     if str(p) not in sys.path:
         sys.path.insert(0, str(p))
 
-from shared.models.models_base_class import Base  # noqa: E402
-from shared.models.outbox_events import OutboxEvent  # noqa: E402, F401  — registers table with Base
-from models.payment_models import Payment  # noqa: E402, F401  — registers table with Base
-from shared.settings import Settings  # noqa: E402
+from models.base import Base  # noqa: E402
+from models.outbox_models import OutboxEvent  # noqa: E402, F401
+from models.payment_models import Payment  # noqa: E402, F401
+from shared.settings import get_settings  # noqa: E402
 
-_settings = Settings()
+_settings = get_settings()
 
 config = context.config
 config.set_main_option("sqlalchemy.url", _settings.PAYMENT_SERVICE_DATABASE_URL)

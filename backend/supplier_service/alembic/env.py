@@ -7,11 +7,13 @@ import asyncio
 
 from alembic import context
 
-from shared.models.models_base_class import Base
+from models.base import Base
 from models.supplier_config_models import SupplierConfig
 from models.supplier_sync_state_models import SupplierSyncState
-from shared.models.outbox_events import OutboxEvent
-from shared.shared_instances import settings
+from models.outbox_models import OutboxEvent
+from shared.settings import get_settings
+
+settings = get_settings()
 
 
 config = context.config

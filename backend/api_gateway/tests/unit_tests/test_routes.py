@@ -7,7 +7,7 @@ from fastapi.responses import JSONResponse
 from httpx import Response as HttpxResponse
 from httpx import AsyncClient
 
-from gateway.apigateway import ApiGateway
+from main import app
 from tests.constants import (
     TEST_ORDER_ID, TEST_NOTIFICATION_ID, TEST_PAYMENT_ID,
     TEST_USER_ID, TEST_API,
@@ -211,7 +211,7 @@ class TestMediaProxy:
             )
         )
 
-        with patch.object(ApiGateway, "_http_client", mock_http_client):
+        with patch.object(app.state.resources.gateway, "_http_client", mock_http_client):
             response = await client.get("/media/generated/test.png")
 
         assert response.status_code == 200

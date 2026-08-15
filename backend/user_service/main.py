@@ -1,31 +1,26 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from contextlib import asynccontextmanager
-from asyncio import create_task
 import os
 import ipaddress
 from time import perf_counter
 
 from uvicorn import run
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse, Response as PlainResponse
 from fastapi import FastAPI, Request, HTTPException
-from httpx import AsyncClient, Limits, Timeout
 from pydantic import ValidationError
 from fastapi.exceptions import ResponseValidationError, RequestValidationError
 from prometheus_client import CollectorRegistry, generate_latest, multiprocess, REGISTRY
-from prometheus_fastapi_instrumentator import Instrumentator
 
 from routes.user_routes import user_routes
+from models import Base
 from shared.exceptions.base_exceptions import (BaseAPIException, RateLimitExceededError)
 from shared.middleware.logging_middleware import add_logging_middleware
 from shared.telemetry import setup_tracing
-from shared.shared_instances import (base_event_publisher, user_service_redis_manager,
-                                    user_service_database_session_manager,
-                                    logger,
-                                    settings)
+from resources import get_user_api_resources, logger, settings, user_api_runtime
 from helpers.internal_access_helper import internal_access_helper
 from helpers.request_helper import request_metrics_helper
-from service_layer.outbox_poller_service import OutboxPollerService
 
 
 @asynccontextmanager
@@ -37,32 +32,17 @@ async def lifespan(app: FastAPI):
     logger.info(f"Server is starting up on {settings.APP_HOST}:{settings.USER_SERVICE_APP_PORT}...")
     request_metrics_helper.initialize()
     logger.info("User service Prometheus metrics are initialized!")
-    await user_service_redis_manager.connect()
-    logger.info("User service redis manager is ok.")
-    await user_service_database_session_manager.init_db()
-    logger.info("User service DB manager is started.")
-    await base_event_publisher.start()
-    logger.info("RabbitMQ Event publisher is started.")
-    app.state.google_http_client = AsyncClient(
-        timeout=Timeout(connect=5.0, read=10.0, write=5.0, pool=5.0),
-        limits=Limits(max_connections=20, max_keepalive_connections=10, keepalive_expiry=30),
-    )
-    logger.info("Google HTTP client is initialised in app.state.")
-    poller_task = create_task(OutboxPollerService().start_outbox_poller())
-    logger.info("User service outbox poller is started.")
-    logger.info('Server startup complete!')
+    async with user_api_runtime() as resources:
+        app.state.resources = resources
+        try:
+            await resources.database.init_db(Base.metadata)
+            logger.info("User service tables are initialized from service-owned metadata.")
+            logger.info("User service API resources are initialized.")
+            logger.info('Server startup complete!')
+            yield
+        finally:
+            del app.state.resources
 
-    yield
-
-    poller_task.cancel()
-    await user_service_database_session_manager.close()
-    logger.warning("Database connection closed on shutdown!")
-    await base_event_publisher.stop()
-    logger.warning("RabbitMQ broker disconnected on shutdown!")
-    await app.state.google_http_client.aclose()
-    logger.warning("Google HTTP client closed on shutdown!")
-    await user_service_redis_manager.close()
-    logger.warning("Cache connection closed on shutdown!")
     logger.warning("Server has shut down!")
 
 
@@ -76,10 +56,7 @@ app = FastAPI(
 # opentelemetry tracing
 setup_tracing(app, service_name="user-service")
 
-# init the prometheus metriscs scraping
-Instrumentator().instrument(app)
-
-# Registered second → inner layer → runs FIRST
+# Single custom instrumentation path; avoids double-counting requests.
 @app.middleware("http")
 async def metrics_middleware(request: Request, call_next):
     """Records request latency into a multiprocess-safe histogram."""
@@ -123,20 +100,34 @@ async def host_validation_middleware(request: Request, call_next):
         headers={"X-Error": "Invalid Host header"},
     )
 
-@app.get("/health", tags=["Health Check"])
-async def health_check():
-    """
-    A simple health check endpoint to verify that the service is running.
-    """
+@app.get("/health/live", tags=["Health Check"])
+async def health_live():
+    """Liveness only: the process can answer requests."""
     return JSONResponse(
         content={
             "status": "ok",
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "service": "user-service"
         },
         status_code=200,
         headers={"Cache-Control": "no-cache"}
     )
+
+@app.get("/health/ready", tags=["Health Check"])
+async def health_ready(request: Request):
+    """Readiness: Redis and the database engine have been initialized."""
+    resources = get_user_api_resources(request)
+    if not resources.database.async_engine:
+        return JSONResponse(status_code=503, content={"status": "not_ready"})
+    try:
+        await resources.cache.redis.ping()
+        await resources.rate_limiter.redis.ping()
+    except Exception:
+        return JSONResponse(status_code=503, content={"status": "not_ready"})
+    return JSONResponse(status_code=200, content={"status": "ready"})
+
+# Backwards-compatible health endpoint for existing probes.
+app.add_api_route("/health", health_live, tags=["Health Check"], include_in_schema=False)
 
 @app.get("/metrics", include_in_schema=False)
 def metrics():
@@ -241,6 +232,7 @@ app.add_middleware(
     allow_methods=settings.CORS_ALLOWED_METHODS,
     allow_headers=settings.CORS_ALLOWED_HEADERS,
 )
+app.add_middleware(GZipMiddleware, minimum_size=1024)
 
 # adding the logging middleware
 add_logging_middleware(app, service_name="user-service")

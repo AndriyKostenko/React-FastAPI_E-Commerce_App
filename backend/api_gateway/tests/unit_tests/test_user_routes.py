@@ -6,7 +6,6 @@ import pytest
 from fastapi.responses import JSONResponse
 from httpx import AsyncClient
 
-from gateway.apigateway import api_gateway_manager
 from tests.constants import TEST_USER_ID, TEST_ADMIN_ID, TEST_API, MOCK_UPSTREAM_RESPONSE_BODY
 from tests.conftest import TEST_REGULAR_USER, TEST_ADMIN_USER
 

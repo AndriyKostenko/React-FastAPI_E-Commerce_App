@@ -1,5 +1,8 @@
-"""Test constants for payment_service — sourced from shared TestSettings."""
-from shared.shared_instances import test_settings
+"""Test constants for payment_service — sourced without runtime infrastructure."""
+from shared.settings import get_test_settings
+
+
+test_settings = get_test_settings()
 
 TEST_PAYMENT_ID       = test_settings.TEST_PAYMENT_ID
 TEST_ORDER_ID         = test_settings.TEST_ORDER_ID

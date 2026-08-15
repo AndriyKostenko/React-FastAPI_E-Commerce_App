@@ -23,13 +23,20 @@ from dependencies.dependencies import get_user_service, get_current_user, get_db
 from service_layer.user_service import UserService
 from service_layer.outbox_event_service import OutboxEventService
 from shared.database_layer.outbox_repository import OutboxRepository
-from shared.models.outbox_events import OutboxEvent
-from shared.shared_instances import test_settings, settings, test_user_service_database_session_manager
+from models.base import Base
+from models.outbox_models import OutboxEvent
+from models.user_models import User
+from resources import UserApiResources, logger, settings
+from shared.settings import get_test_settings
+from shared.managers.test_database_session_manager import TestDatabaseSessionManager
 from shared.managers.token_manager import TokenManager
 from shared.managers.password_manager import PasswordManager
 
 
 from shared.testing.helpers import allow_testserver_host
+
+
+test_settings = get_test_settings()
 
 
 # ---------------------------------------------------------------------------
@@ -40,6 +47,20 @@ from shared.testing.helpers import allow_testserver_host
 def _allow_testserver_host() -> None:
     """Make the default httpx/TestClient host ('testserver') pass host checks."""
     allow_testserver_host()
+
+
+@pytest.fixture(scope="session")
+async def test_database_session_manager(
+) -> AsyncGenerator[TestDatabaseSessionManager, None]:
+    """Own and close the user test database manager for this session."""
+    manager = TestDatabaseSessionManager(
+        database_url=settings.USER_SERVICE_TEST_DATABASE_URL,
+        logger=logger,
+    )
+    try:
+        yield manager
+    finally:
+        await manager.close()
 
 
 # ---------------------------------------------------------------------------
@@ -59,6 +80,8 @@ def mock_user_orm() -> MagicMock:
     user.image = None
     user.is_active = True
     user.is_verified = True
+    user.token_version = 1
+    user.deleted_at = None
     user.date_created = test_settings.TEST_DATETIME
     user.date_updated = test_settings.TEST_DATETIME
     return user
@@ -87,6 +110,7 @@ def mock_password_manager() -> MagicMock:
     """Mock PasswordManager with sensible default return values."""
     mgr = MagicMock()
     mgr.hash_password = MagicMock(return_value="$2b$12$mocked_hashed_password")
+    mgr.dummy_hash = MagicMock(return_value="$2b$12$mocked_dummy_password_hash")
     mgr.verify_password = MagicMock(return_value=True)
     return mgr
 
@@ -105,7 +129,20 @@ def mock_redis() -> AsyncMock:
     redis = AsyncMock()
     redis.setex = AsyncMock(return_value=True)
     redis.get = AsyncMock(return_value=None)
+    redis.getdel = AsyncMock(return_value=None)
     redis.delete = AsyncMock(return_value=1)
+    redis.sadd = AsyncMock(return_value=1)
+    redis.srem = AsyncMock(return_value=1)
+    redis.smembers = AsyncMock(return_value=set())
+
+    # redis-py creates pipelines synchronously; only execute() is awaited.
+    pipeline = MagicMock()
+    pipeline.setex = MagicMock(return_value=pipeline)
+    pipeline.sadd = MagicMock(return_value=pipeline)
+    pipeline.expire = MagicMock(return_value=pipeline)
+    pipeline.delete = MagicMock(return_value=pipeline)
+    pipeline.execute = AsyncMock(return_value=[])
+    redis.pipeline = MagicMock(return_value=pipeline)
     return redis
 
 @pytest.fixture
@@ -149,7 +186,10 @@ def user_service(
         password_manager=mock_password_manager,
         token_manager=mock_token_manager,
         cache_manager=mock_redis_manager,
-        outbox_event_service=mock_outbox_event_service)
+        outbox_event_service=mock_outbox_event_service,
+        http_client=AsyncMock(),
+        settings=settings,
+    )
 
 #---------------------------------------------------------------------------
 # Helpers
@@ -171,7 +211,7 @@ def mock_route_service() -> MagicMock:
     """Full mock of UserService for use via app.dependency_overrides in route tests."""
     svc = MagicMock()
     svc.create_user = AsyncMock(return_value=(test_settings.USER_INFO, "verification_token_abc"))
-    svc.verify_email = AsyncMock(return_value=(test_settings.USER_INFO, "access_tok", 9_999_999_999))
+    svc.verify_email = AsyncMock(return_value=test_settings.USER_INFO)
     svc.request_password_reset = AsyncMock(return_value=(test_settings.USER_INFO, "reset_token_abc"))
     svc.reset_password_with_token = AsyncMock(return_value=test_settings.USER_INFO)
     svc.login_user = AsyncMock(
@@ -218,6 +258,18 @@ async def client_for_unit_testing(mock_route_service: MagicMock) -> AsyncGenerat
     original_lifespan = app.router.lifespan_context
     app.router.lifespan_context = _noop_lifespan
 
+    test_resources = UserApiResources(
+        settings=settings,
+        logger=logger,
+        database=MagicMock(),
+        cache=MagicMock(),
+        rate_limiter=MagicMock(is_rate_limited=AsyncMock(return_value=False)),
+        google_http_client=AsyncMock(),
+        password_manager=MagicMock(),
+        token_manager=MagicMock(),
+    )
+    app.state.resources = test_resources
+
     app.dependency_overrides[get_user_service] = lambda: mock_route_service
     app.dependency_overrides[get_current_user] = lambda: test_settings.CURRENT_USER
 
@@ -227,13 +279,16 @@ async def client_for_unit_testing(mock_route_service: MagicMock) -> AsyncGenerat
     app.dependency_overrides.clear()
 
     app.router.lifespan_context = original_lifespan
+    del app.state.resources
     settings.DEBUG_MODE = original_debug_mode
 
 @pytest.fixture
-async def get_outbox_event() -> AsyncGenerator[Callable[[str], Awaitable[dict[str, Any] | None]], Any]:
+async def get_outbox_event(
+    test_database_session_manager: TestDatabaseSessionManager,
+) -> AsyncGenerator[Callable[[str], Awaitable[dict[str, Any] | None]], Any]:
     """Return a helper that reads the latest unprocessed outbox event payload by event_type."""
     async def _query(event_type: str) -> dict[str, Any] | None:
-        async with test_user_service_database_session_manager.transaction() as session:
+        async with test_database_session_manager.transaction() as session:
             result = await session.execute(
                 select(OutboxEvent)
                 .where(OutboxEvent.event_type == event_type, OutboxEvent.processed.is_(False))
@@ -250,7 +305,9 @@ async def get_outbox_event() -> AsyncGenerator[Callable[[str], Awaitable[dict[st
 # ---------------------------------------------------------------------------
 
 @pytest.fixture
-async def integration_client() -> AsyncGenerator[AsyncClient, Any]:
+async def integration_client(
+    test_database_session_manager: TestDatabaseSessionManager,
+) -> AsyncGenerator[AsyncClient, Any]:
     """
     Async HTTP client for integration tests.
 
@@ -269,7 +326,7 @@ async def integration_client() -> AsyncGenerator[AsyncClient, Any]:
       - After  yield : TRUNCATE every table so the next test starts clean.
     """
     # ── 1. Ensure the test schema exists ────────────────────────────────────
-    await test_user_service_database_session_manager.init_db()
+    await test_database_session_manager.init_db(Base.metadata)
 
     # ── 2. Build real managers ───────────────────────────────────────────────
     real_password_manager = PasswordManager(settings)
@@ -300,7 +357,7 @@ async def integration_client() -> AsyncGenerator[AsyncClient, Any]:
 
     # ── 4. Dependency overrides ──────────────────────────────────────────────
     async def _override_get_db_session() -> AsyncGenerator[AsyncSession, None]:
-        async with test_user_service_database_session_manager.transaction() as session:
+        async with test_database_session_manager.transaction() as session:
             yield session
 
     async def _override_get_user_service(session: AsyncSession = Depends(_override_get_db_session)) -> UserService:
@@ -309,7 +366,9 @@ async def integration_client() -> AsyncGenerator[AsyncClient, Any]:
             password_manager=real_password_manager,
             token_manager=real_token_manager,
             cache_manager=_mock_redis_manager,
-            outbox_event_service=OutboxEventService(repository=OutboxRepository(session=session)),
+            outbox_event_service=OutboxEventService(repository=OutboxRepository(session=session, model=OutboxEvent)),
+            http_client=AsyncMock(),
+            settings=settings,
         )
 
     # ── 5. Replace the app lifespan so no live infra connections are made ───
@@ -319,6 +378,17 @@ async def integration_client() -> AsyncGenerator[AsyncClient, Any]:
     original_lifespan = app.router.lifespan_context
     app.router.lifespan_context = _noop_lifespan
 
+    app.state.resources = UserApiResources(
+        settings=settings,
+        logger=logger,
+        database=test_database_session_manager,
+        cache=_mock_redis_manager,
+        rate_limiter=MagicMock(is_rate_limited=AsyncMock(return_value=False)),
+        google_http_client=AsyncMock(),
+        password_manager=real_password_manager,
+        token_manager=real_token_manager,
+    )
+
     app.dependency_overrides[get_db_session]   = _override_get_db_session
     app.dependency_overrides[get_user_service] = _override_get_user_service
 
@@ -327,7 +397,8 @@ async def integration_client() -> AsyncGenerator[AsyncClient, Any]:
 
     app.dependency_overrides.clear()
     app.router.lifespan_context = original_lifespan
+    del app.state.resources
     settings.DEBUG_MODE = original_debug_mode
 
     # ── 6. Wipe all rows so the next test starts with an empty database ─────
-    await test_user_service_database_session_manager.truncate_all_tables()
+    await test_database_session_manager.truncate_all_tables(Base.metadata)

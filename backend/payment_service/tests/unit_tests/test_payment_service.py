@@ -448,7 +448,9 @@ class TestGetPayments:
 
         result = await payment_service_unit.get_payments()
         assert len(result) == 1
-        assert result[0] == mock_payment_orm
+        assert result[0].id == mock_payment_orm.id
+        assert result[0].stripe_payment_intent_id == mock_payment_orm.stripe_payment_intent_id
+        assert result[0] is not mock_payment_orm
 
     async def test_raises_when_no_payments(
         self,

@@ -1,16 +1,16 @@
-from faststream import FastStream
-from faststream.rabbit import RabbitQueue
+from typing import Any
 
-from shared.shared_instances import (
-    logger,
-    rabbitmq_broker,
-    notification_service_database_session_manager,
-    user_exchange,
-    order_exchange,
-    payment_exchange,
-)
-from .event_handlers import user_handler, order_handler, payment_handler
+from faststream import FastStream
+from faststream.rabbit import ExchangeType, RabbitBroker, RabbitExchange, RabbitQueue
+
+from .event_handlers import UserEventHandler, OrderEventHandler, PaymentEventHandler
 from shared.enums.event_enums import UserEventsQueue, OrderEventsQueue, PaymentEventsQueue
+from resources import (
+    NotificationConsumerResources,
+    create_notification_consumer_resources,
+    logger,
+    settings,
+)
 from tasks.broker import taskiq_broker
 
 
@@ -22,20 +22,77 @@ connects directly to RabbitMQ
 """
 
 
+rabbitmq_broker = RabbitBroker(url=settings.RABBITMQ_BROKER_URL)
+user_exchange = RabbitExchange(name="user.events.exchange", durable=True, type=ExchangeType.TOPIC)
+order_exchange = RabbitExchange(name="order.events.exchange", durable=True, type=ExchangeType.TOPIC)
+payment_exchange = RabbitExchange(name="payment.events.exchange", durable=True, type=ExchangeType.TOPIC)
 app = FastStream(rabbitmq_broker)
+
+user_handler: UserEventHandler | None = None
+order_handler: OrderEventHandler | None = None
+payment_handler: PaymentEventHandler | None = None
+consumer_resources: NotificationConsumerResources | None = None
+taskiq_started = False
 
 
 @app.on_startup
 async def startup():
-    await notification_service_database_session_manager.init_db()
-    await taskiq_broker.startup()
-    logger.info("Notification consumer: database initialized.")
+    global consumer_resources, taskiq_started
+    global user_handler, order_handler, payment_handler
+    resources = create_notification_consumer_resources()
+    taskiq_start_attempted = False
+    started_taskiq = False
+    try:
+        await resources.start()
+        taskiq_start_attempted = True
+        await taskiq_broker.startup()
+        started_taskiq = True
+        new_user_handler = UserEventHandler(
+            resources.idempotency,
+            resources.database,
+            resources.logger,
+        )
+        new_order_handler = OrderEventHandler(
+            resources.idempotency,
+            resources.database,
+            resources.logger,
+        )
+        new_payment_handler = PaymentEventHandler(
+            resources.idempotency,
+            resources.database,
+            resources.logger,
+        )
+    except Exception:
+        try:
+            if taskiq_start_attempted:
+                await taskiq_broker.shutdown()
+        finally:
+            await resources.close()
+        raise
+
+    consumer_resources = resources
+    taskiq_started = started_taskiq
+    user_handler = new_user_handler
+    order_handler = new_order_handler
+    payment_handler = new_payment_handler
+    logger.info("Notification consumer: schema is managed by Alembic migrations.")
 
 
 @app.on_shutdown
 async def shutdown():
-    await taskiq_broker.shutdown()
-    await notification_service_database_session_manager.close()
+    global consumer_resources, taskiq_started
+    global user_handler, order_handler, payment_handler
+    resources = consumer_resources
+    should_stop_taskiq = taskiq_started
+    consumer_resources = None
+    taskiq_started = False
+    user_handler = order_handler = payment_handler = None
+    try:
+        if should_stop_taskiq:
+            await taskiq_broker.shutdown()
+    finally:
+        if resources is not None:
+            await resources.close()
     logger.info("Notification consumer: database connection closed.")
 
 
@@ -73,6 +130,22 @@ payment_events_queue = RabbitQueue(
 )
 
 # Subscribers — exchange param wires up the queue binding on startup
-handle_user_events = rabbitmq_broker.subscriber(queue=user_events_queue, exchange=user_exchange)(user_handler.handle)
-handle_order_events = rabbitmq_broker.subscriber(queue=order_events_queue, exchange=order_exchange)(order_handler.handle)
-handle_payment_events = rabbitmq_broker.subscriber(queue=payment_events_queue, exchange=payment_exchange)(payment_handler.handle)
+@rabbitmq_broker.subscriber(queue=user_events_queue, exchange=user_exchange)
+async def handle_user_events(body: dict[str, Any]) -> None:
+    if user_handler is None:
+        raise RuntimeError("Notification consumer resources are not initialized")
+    await user_handler.handle(body)
+
+
+@rabbitmq_broker.subscriber(queue=order_events_queue, exchange=order_exchange)
+async def handle_order_events(body: dict[str, Any]) -> None:
+    if order_handler is None:
+        raise RuntimeError("Notification consumer resources are not initialized")
+    await order_handler.handle(body)
+
+
+@rabbitmq_broker.subscriber(queue=payment_events_queue, exchange=payment_exchange)
+async def handle_payment_events(body: dict[str, Any]) -> None:
+    if payment_handler is None:
+        raise RuntimeError("Notification consumer resources are not initialized")
+    await payment_handler.handle(body)

@@ -3,30 +3,41 @@ from uuid import UUID, uuid4
 from typing import Any
 
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, declared_attr, mapped_column
 from sqlalchemy.types import JSON
-from sqlalchemy import DateTime, inspect, Index
+from sqlalchemy import DateTime, Integer, Text, inspect, Index
 
-from shared.models.models_base_class import Base
 from shared.utils.models_mixins import TimestampMixin
 
 
-class OutboxEvent(Base, TimestampMixin):
-    __tablename__: str = "outbox_events"
-    __table_args__: tuple[Index, ...] = (
+class OutboxEventMixin(TimestampMixin):
+    """Columns shared by service-owned outbox tables.
+
+    This is deliberately abstract: every service maps the table into its own
+    ``DeclarativeBase.metadata`` so one service cannot create another's tables.
+    """
+    __abstract__ = True
+
+    @declared_attr.directive
+    def __table_args__(cls):
+        return (
         Index('idx_outbox_events_event_type', 'event_type'),
         Index('idx_outbox_events_processed', 'processed'),
-    )
+        Index('idx_outbox_events_retry', 'processed', 'next_retry_at'),
+        )
 
     id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4, unique=True)
     event_type: Mapped[str] = mapped_column(nullable=False)
     payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
     processed: Mapped[bool] = mapped_column(default=False)
     processed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    next_retry_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     @classmethod
     def get_search_fields(cls) -> list[str]:
-        return ["event_type", "payload", "processed", "processed_at"]
+        return ["event_type", "payload", "processed", "processed_at", "attempts", "next_retry_at"]
 
     @classmethod
     def get_admin_schema(cls) -> list[dict[str, str]]:

@@ -5,7 +5,7 @@ from uuid import uuid4
 import pytest
 from httpx import AsyncClient
 
-from shared.shared_instances import test_settings
+from service_test_config import test_settings
 
 
 def _add_item_payload(**overrides) -> dict:

@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Optional, List
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr, field_validator
 from pydantic.fields import Field
 
 
@@ -28,6 +28,11 @@ class UserSignUp(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+    @field_validator("email")
+    @classmethod
+    def normalise_email(cls, value: EmailStr) -> str:
+        return str(value).strip().lower()
+
 class CurrentUserInfo(BaseModel):
     email: EmailStr
     id: UUID
@@ -49,6 +54,7 @@ class UserBasicUpdate(BaseModel):
     name: Optional[str] = None
     phone_number: Optional[str] = None
     image: Optional[str] = None
+    model_config = ConfigDict(extra="forbid")
 
 
 class GetUser(BaseModel):
@@ -103,13 +109,8 @@ class EmailVerificationResponse(BaseModel):
     email: str
     verified: bool
 
-class ActivationLoginResponse(EmailVerificationResponse):
-    """Returned after email activation — includes a session token so the frontend can auto-sign in."""
-    access_token: str
-    token_type: str = "bearer"
-    user_role: str
-    token_expiry: int
-    user_id: str
+class ActivationRequest(BaseModel):
+    token: str = Field(..., min_length=32, max_length=512)
 
 class VerificationEmailSchema(BaseModel):
     addresses: List[str]
@@ -125,6 +126,11 @@ class EmailSchema(BaseModel):
 class ForgotPasswordRequest(BaseModel):
     email: EmailStr
 
+    @field_validator("email")
+    @classmethod
+    def normalise_email(cls, value: EmailStr) -> str:
+        return str(value).strip().lower()
+
 
 class ForgotPasswordResponse(BaseModel):
     email: EmailStr
@@ -132,7 +138,7 @@ class ForgotPasswordResponse(BaseModel):
 
 
 class ResetPasswordRequest(BaseModel):
-    email: EmailStr
+    token: str = Field(..., min_length=32, max_length=512)
     new_password: str = Field(..., min_length=8, max_length=100, description="New password must be between 8 and 100 characters")
 
 

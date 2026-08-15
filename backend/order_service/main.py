@@ -1,6 +1,5 @@
 from datetime import datetime
 from contextlib import asynccontextmanager
-from asyncio import create_task
 import os
 from time import perf_counter
 
@@ -12,19 +11,16 @@ from pydantic import ValidationError
 from fastapi.exceptions import ResponseValidationError, RequestValidationError
 from prometheus_client import CollectorRegistry, generate_latest, multiprocess, REGISTRY
 
-from service_layer.outbox_poller_service import OutboxPollerService
 from routes.orders_routes import order_routes
+from models import Base
 from shared.exceptions.base_exceptions import (BaseAPIException, RateLimitExceededError)
 from shared.middleware.logging_middleware import add_logging_middleware
 from shared.telemetry import setup_tracing
 from prometheus_fastapi_instrumentator import Instrumentator
-from shared.shared_instances import (order_event_idempotency_service, order_service_redis_manager,
-                                    order_service_database_session_manager,
-                                    logger,
-                                    settings,
-                                    base_event_publisher)
+from config import logger, settings
 from helpers.internal_access_helper import internal_access_helper
 from helpers.request_helper import request_metrics_helper
+from resources import order_api_resources
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -35,26 +31,17 @@ async def lifespan(app: FastAPI):
     request_metrics_helper.initialize()
 
     logger.info(f"Server is starting up on {settings.APP_HOST}:{settings.ORDER_SERVICE_APP_PORT}...")
-    await order_service_redis_manager.connect()
-    await order_event_idempotency_service.connect()
-    await order_service_database_session_manager.init_db()
-    logger.info("Order service DB connection is closed.")
-    await base_event_publisher.start()
-    logger.info("RabbitMQ Event publisher is started.")
-    poller_task = create_task(OutboxPollerService().start_outbox_poller())
-    logger.info("The poller task for fetching an unprocessed events is created.")
-    logger.info('Server startup complete!')
+    async with order_api_resources() as resources:
+        app.state.resources = resources
+        try:
+            await resources.database.init_db(Base.metadata)
+            logger.info("Order service tables are initialized from service-owned metadata.")
+            logger.info('Server startup complete!')
+            yield
+        finally:
+            del app.state.resources
 
-    yield
-
-    await order_service_database_session_manager.close()
-    logger.warning("Database connection closed on shutdown!")
-    await order_service_redis_manager.close()
-    logger.warning("Redis Cache connection closed on shutdown!")
-    await base_event_publisher.stop()
-    logger.warning("RabbitMQ Event publisher is stopped.")
-    poller_task.cancel()
-    logger.warning("Poller task has been cancelled")
+    logger.warning("Order service database resources closed on shutdown!")
     logger.warning("Server has shut down !")
 
 

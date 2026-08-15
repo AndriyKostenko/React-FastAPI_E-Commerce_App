@@ -2,8 +2,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Request, Depends
 
-from gateway.apigateway import api_gateway_manager
-from shared.shared_instances import api_gateway_rate_limit_manager
+from resources import api_gateway_manager, rate_limited
 from dependencies.auth_dependencies import (get_current_user,
                                             require_admin,
                                             require_user_or_admin)
@@ -17,7 +16,7 @@ order_proxy = APIRouter(tags=["Order Service Proxy"])
 # ==================== PUBLIC ENDPOINTS ====================
 
 @order_proxy.post("/orders", summary="Create a new order")
-@api_gateway_rate_limit_manager.ratelimiter(times=10, seconds=60)
+@rate_limited(times=10, seconds=60)
 async def create_order(
     request: Request,
     current_user: CurrentUserInfo = Depends(get_current_user),

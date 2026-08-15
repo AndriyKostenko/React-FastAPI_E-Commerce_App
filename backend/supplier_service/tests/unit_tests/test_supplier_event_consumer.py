@@ -8,6 +8,7 @@ from event_consumer.supplier_event_consumer import SupplierEventConsumer
 from exceptions.cj_order_exceptions import CJOrderCreationError
 from service_layer.cj_api_client import CJDropshippingAPIError
 from shared.enums.event_enums import InventoryEvents, OrderEvents, SupplierEvents
+from shared.settings import get_settings
 
 
 TEST_ORDER_ID = uuid4()
@@ -50,6 +51,8 @@ def _make_consumer(
 
     consumer = SupplierEventConsumer(
         logger=logger,
+        settings=get_settings(),
+        database=MagicMock(),
         idempotency_service=idempotency,
         cj_api_client=cj_client,
         product_service_client=product_client,
@@ -218,4 +221,3 @@ class TestHandleImportFeedback:
             status="import_failed",
             error_message="Invalid JSON",
         )
-

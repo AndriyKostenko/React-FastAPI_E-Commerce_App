@@ -11,7 +11,9 @@ import pytest
 from fastapi import HTTPException
 
 from shared.managers.token_manager import TokenManager
-from shared.shared_instances import test_settings
+from shared.settings import get_test_settings
+
+test_settings = get_test_settings()
 
 
 class TestCreateAccessToken:

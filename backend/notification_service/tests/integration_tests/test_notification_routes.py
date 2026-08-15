@@ -8,30 +8,42 @@ All tests use the `integration_client` fixture which:
 
 Tests cover the full request-through-DB lifecycle.
 """
+from collections.abc import Awaitable, Callable
+
 import pytest
 from httpx import AsyncClient
 
-from shared.shared_instances import test_notification_service_database_session_manager
+from shared.managers.test_database_session_manager import (
+    TestDatabaseSessionManager as DatabaseTestManager,
+)
 from service_layer.notification_service import NotificationService
 from database_layer.notification_repository import NotificationRepository
+from shared.schemas.notifications_schemas import NotificationInfo
 from tests.constants import TEST_USER_ID, TEST_MESSAGE, TEST_NOTIFICATION_TYPE, TEST_API
 
 
-async def _create_notification(
-    *,
-    user_id=TEST_USER_ID,
-    message=TEST_MESSAGE,
-    notification_type=TEST_NOTIFICATION_TYPE,
-):
-    """Helper: persist a notification directly via the service layer."""
-    async with test_notification_service_database_session_manager.transaction() as session:
-        svc = NotificationService(repository=NotificationRepository(session=session))
-        result = await svc.save_notification(
-            message=message,
-            notification_type=notification_type,
-            user_id=user_id,
-        )
-    return result
+@pytest.fixture
+def create_notification(
+    test_database_session_manager: DatabaseTestManager,
+) -> Callable[..., Awaitable[NotificationInfo]]:
+    """Return a helper backed by the session-owned notification test database."""
+    async def _create(
+        *,
+        user_id=TEST_USER_ID,
+        message=TEST_MESSAGE,
+        notification_type=TEST_NOTIFICATION_TYPE,
+    ) -> NotificationInfo:
+        async with test_database_session_manager.transaction() as session:
+            service = NotificationService(
+                repository=NotificationRepository(session=session)
+            )
+            return await service.save_notification(
+                message=message,
+                notification_type=notification_type,
+                user_id=user_id,
+            )
+
+    return _create
 
 
 # ---------------------------------------------------------------------------
@@ -39,9 +51,13 @@ async def _create_notification(
 # ---------------------------------------------------------------------------
 
 class TestGetUserNotificationsIntegration:
-    async def test_returns_list_of_notifications(self, integration_client: AsyncClient):
-        await _create_notification()
-        await _create_notification(message="Second notification")
+    async def test_returns_list_of_notifications(
+        self,
+        integration_client: AsyncClient,
+        create_notification,
+    ):
+        await create_notification()
+        await create_notification(message="Second notification")
 
         response = await integration_client.get(
             f"{TEST_API}/notifications/users/{TEST_USER_ID}"
@@ -51,8 +67,12 @@ class TestGetUserNotificationsIntegration:
         assert isinstance(data, list)
         assert len(data) == 2
 
-    async def test_filter_by_is_read_false(self, integration_client: AsyncClient):
-        await _create_notification()
+    async def test_filter_by_is_read_false(
+        self,
+        integration_client: AsyncClient,
+        create_notification,
+    ):
+        await create_notification()
 
         response = await integration_client.get(
             f"{TEST_API}/notifications/users/{TEST_USER_ID}?is_read=false"
@@ -77,9 +97,13 @@ class TestGetUserNotificationsIntegration:
 # ---------------------------------------------------------------------------
 
 class TestGetUnreadCountIntegration:
-    async def test_returns_correct_unread_count(self, integration_client: AsyncClient):
-        await _create_notification()
-        await _create_notification(message="Another unread")
+    async def test_returns_correct_unread_count(
+        self,
+        integration_client: AsyncClient,
+        create_notification,
+    ):
+        await create_notification()
+        await create_notification(message="Another unread")
 
         response = await integration_client.get(
             f"{TEST_API}/notifications/users/{TEST_USER_ID}/unread-count"
@@ -102,8 +126,12 @@ class TestGetUnreadCountIntegration:
 # ---------------------------------------------------------------------------
 
 class TestMarkAsReadIntegration:
-    async def test_marks_single_notification_as_read(self, integration_client: AsyncClient):
-        notif = await _create_notification()
+    async def test_marks_single_notification_as_read(
+        self,
+        integration_client: AsyncClient,
+        create_notification,
+    ):
+        notif = await create_notification()
         notif_id = notif.id
 
         response = await integration_client.patch(
@@ -120,10 +148,12 @@ class TestMarkAsReadIntegration:
         assert response.status_code == 404
 
     async def test_unread_count_decreases_after_mark_as_read(
-        self, integration_client: AsyncClient
+        self,
+        integration_client: AsyncClient,
+        create_notification,
     ):
-        notif = await _create_notification()
-        await _create_notification(message="Another notification")
+        notif = await create_notification()
+        await create_notification(message="Another notification")
 
         await integration_client.patch(f"{TEST_API}/notifications/{notif.id}/read")
 
@@ -138,10 +168,14 @@ class TestMarkAsReadIntegration:
 # ---------------------------------------------------------------------------
 
 class TestMarkAllAsReadIntegration:
-    async def test_marks_all_as_read_and_returns_count(self, integration_client: AsyncClient):
-        await _create_notification()
-        await _create_notification(message="Another one")
-        await _create_notification(message="Third one")
+    async def test_marks_all_as_read_and_returns_count(
+        self,
+        integration_client: AsyncClient,
+        create_notification,
+    ):
+        await create_notification()
+        await create_notification(message="Another one")
+        await create_notification(message="Third one")
 
         response = await integration_client.patch(
             f"{TEST_API}/notifications/users/{TEST_USER_ID}/read-all"
@@ -150,10 +184,12 @@ class TestMarkAllAsReadIntegration:
         assert response.json()["updated"] == 3
 
     async def test_unread_count_is_zero_after_mark_all_read(
-        self, integration_client: AsyncClient
+        self,
+        integration_client: AsyncClient,
+        create_notification,
     ):
-        await _create_notification()
-        await _create_notification(message="Second notification")
+        await create_notification()
+        await create_notification(message="Second notification")
 
         await integration_client.patch(
             f"{TEST_API}/notifications/users/{TEST_USER_ID}/read-all"
@@ -177,16 +213,24 @@ class TestMarkAllAsReadIntegration:
 # ---------------------------------------------------------------------------
 
 class TestDeleteNotificationIntegration:
-    async def test_delete_returns_204(self, integration_client: AsyncClient):
-        notif = await _create_notification()
+    async def test_delete_returns_204(
+        self,
+        integration_client: AsyncClient,
+        create_notification,
+    ):
+        notif = await create_notification()
 
         response = await integration_client.delete(
             f"{TEST_API}/notifications/{notif.id}"
         )
         assert response.status_code == 204
 
-    async def test_deleted_notification_is_gone(self, integration_client: AsyncClient):
-        notif = await _create_notification()
+    async def test_deleted_notification_is_gone(
+        self,
+        integration_client: AsyncClient,
+        create_notification,
+    ):
+        notif = await create_notification()
 
         await integration_client.delete(f"{TEST_API}/notifications/{notif.id}")
 

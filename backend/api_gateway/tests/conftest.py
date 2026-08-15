@@ -4,7 +4,7 @@ Shared pytest fixtures for api_gateway unit tests.
 Strategy:
   - No database — api_gateway is a pure proxy service.
   - The lifespan (Redis + httpx client init) is replaced with a no-op.
-  - auth_middleware.middleware is patched to inject a mock user (bypass JWT validation).
+  - the app-owned auth middleware is patched to inject a mock user (bypass JWT validation).
   - All CacheManager and RateLimitManager async methods (rate-limiter, cache) are patched to no-ops.
   - api_gateway_manager.forward_request is patched per-test via the `mock_forward` fixture.
 """
@@ -19,9 +19,13 @@ from fastapi.responses import JSONResponse
 from httpx import AsyncClient, ASGITransport
 
 from main import app
-from middleware.auth_middleware import auth_middleware
-from gateway.apigateway import api_gateway_manager
-from shared.shared_instances import api_gateway_cache_manager, api_gateway_rate_limit_manager, settings, test_settings
+from resources import (
+    api_gateway_manager,
+    create_api_gateway_resources,
+    logger,
+    settings,
+)
+from shared.settings import get_test_settings
 from shared.schemas.user_schemas import CurrentUserInfo
 from tests.constants import (
     TEST_USER_ID,
@@ -35,6 +39,9 @@ from tests.constants import (
 
 
 from shared.testing.helpers import allow_testserver_host
+
+
+test_settings = get_test_settings()
 
 
 # ---------------------------------------------------------------------------
@@ -88,6 +95,8 @@ def _make_client(current_user: CurrentUserInfo, mock_forward: AsyncMock):
 
     original_lifespan = app.router.lifespan_context
     app.router.lifespan_context = _noop_lifespan
+    resources = create_api_gateway_resources()
+    app.state.resources = resources
 
     async def _bypass_auth(request, call_next):
         """Auth middleware replacement: injects current_user and passes through."""
@@ -95,11 +104,11 @@ def _make_client(current_user: CurrentUserInfo, mock_forward: AsyncMock):
         return await call_next(request)
 
     patches = [
-        patch.object(auth_middleware, "middleware", side_effect=_bypass_auth),
-        patch.object(api_gateway_rate_limit_manager, "is_rate_limited", new=AsyncMock(return_value=False)),
-        patch.object(api_gateway_cache_manager, "get_cached_response", new=AsyncMock(return_value=None)),
-        patch.object(api_gateway_cache_manager, "cache_response", new=AsyncMock()),
-        patch.object(api_gateway_cache_manager, "invalidate_namespace", new=AsyncMock()),
+        patch.object(resources.auth, "middleware", side_effect=_bypass_auth),
+        patch.object(resources.rate_limiter, "is_rate_limited", new=AsyncMock(return_value=False)),
+        patch.object(resources.cache, "get_cached_response", new=AsyncMock(return_value=None)),
+        patch.object(resources.cache, "cache_response", new=AsyncMock()),
+        patch.object(resources.cache, "invalidate_namespace", new=AsyncMock()),
         patch.object(api_gateway_manager, "forward_request", mock_forward),
     ]
 
@@ -116,6 +125,10 @@ def _make_client(current_user: CurrentUserInfo, mock_forward: AsyncMock):
             await self._client.__aexit__(*args)
             for p in reversed(patches):
                 p.stop()
+            await resources.gateway.shutdown()
+            await resources.rate_limiter.close()
+            await resources.cache.close()
+            del app.state.resources
             app.router.lifespan_context = original_lifespan
             settings.DEBUG_MODE = original_debug_mode
 

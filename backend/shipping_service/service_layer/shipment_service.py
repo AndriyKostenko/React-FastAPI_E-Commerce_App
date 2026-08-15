@@ -5,7 +5,7 @@ from uuid import UUID
 from sqlalchemy.exc import IntegrityError
 
 from database_layer.shipping_repository import ShipmentRepository, ShippingMethodRepository
-from events_publisher.shipping_event_publisher import shipping_event_publisher
+from events_publisher.shipping_event_publisher import ShippingEventPublisher
 from exceptions.shipping_exceptions import (
     DuplicateShipmentError,
     InvalidShipmentStatusError,
@@ -37,9 +37,11 @@ class ShipmentService:
         self,
         shipment_repository: ShipmentRepository,
         method_repository: ShippingMethodRepository,
+        event_publisher: ShippingEventPublisher,
     ):
         self.shipment_repository: ShipmentRepository = shipment_repository
         self.method_repository: ShippingMethodRepository = method_repository
+        self.event_publisher = event_publisher
 
     def _now(self) -> datetime:
         return datetime.now(timezone.utc)
@@ -74,7 +76,7 @@ class ShipmentService:
         except IntegrityError:
             raise DuplicateShipmentError(order_id=order_id)
 
-        await shipping_event_publisher.publish_shipment_created(
+        await self.event_publisher.publish_shipment_created(
             event_data={
                 "shipment_id": str(created.id),
                 "order_id": str(created.order_id),
@@ -154,7 +156,7 @@ class ShipmentService:
         updated = await self.shipment_repository.update_by_id(shipment_id, update_dict)
 
         if new_status == "shipped":
-            await shipping_event_publisher.publish_shipment_shipped(
+            await self.event_publisher.publish_shipment_shipped(
                 event_data={
                     "shipment_id": str(updated.id),
                     "order_id": str(updated.order_id),
@@ -165,7 +167,7 @@ class ShipmentService:
                 }
             )
         elif new_status == "delivered":
-            await shipping_event_publisher.publish_shipment_delivered(
+            await self.event_publisher.publish_shipment_delivered(
                 event_data={
                     "shipment_id": str(updated.id),
                     "order_id": str(updated.order_id),
@@ -201,7 +203,7 @@ class ShipmentService:
             },
         )
 
-        await shipping_event_publisher.publish_shipment_cancelled(
+        await self.event_publisher.publish_shipment_cancelled(
             event_data={
                 "shipment_id": str(updated.id),
                 "order_id": str(updated.order_id),

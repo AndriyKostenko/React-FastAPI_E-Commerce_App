@@ -34,11 +34,16 @@ def _make_order_schema(amount: float = 99.99):
 
 
 def _make_consumer():
-    consumer = OrderEventConsumer(logger=MagicMock())
-    consumer.idempotency_service = MagicMock()
-    consumer.idempotency_service.try_claim_event = AsyncMock(return_value=True)
-    consumer.idempotency_service.mark_event_as_processed = AsyncMock()
-    consumer.idempotency_service.release_claim = AsyncMock()
+    idempotency_service = MagicMock()
+    idempotency_service.try_claim_event = AsyncMock(return_value=True)
+    idempotency_service.mark_event_as_processed = AsyncMock()
+    idempotency_service.release_claim = AsyncMock()
+    consumer = OrderEventConsumer(
+        logger=MagicMock(),
+        database=MagicMock(),
+        idempotency_service=idempotency_service,
+        event_publisher=MagicMock(),
+    )
 
     order_service = MagicMock()
     order_service.get_order_by_id = AsyncMock(return_value=_make_order_schema())

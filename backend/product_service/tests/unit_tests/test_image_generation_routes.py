@@ -7,7 +7,9 @@ from exceptions.image_generation_exceptions import (
     ImageGenerationLimitExceededError,
 )
 from tests.conftest import TEST_API
-from shared.shared_instances import settings
+from shared.settings import get_settings
+
+settings = get_settings()
 
 
 class TestGenerateImageEndpoint:

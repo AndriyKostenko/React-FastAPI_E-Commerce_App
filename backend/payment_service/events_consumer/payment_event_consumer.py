@@ -1,16 +1,15 @@
 from typing import Any
 from logging import Logger
 
-from shared.shared_instances import logger, payment_service_database_session_manager
 from shared.idempotency.idempotency_service import IdempotencyEventService
-from shared.shared_instances import payment_event_idempotency_service
+from shared.managers.database_session_manager import DatabaseSessionManager
 from shared.enums.event_enums import OrderEvents
 from shared.schemas.event_schemas import OrderCancelledEvent
 from database_layer.payment_repository import PaymentRepository
 from shared.database_layer.outbox_repository import OutboxRepository
 from service_layer.payment_service import PaymentService
 from service_layer.outbox_event_service import OutboxEventService
-from shared.shared_instances import settings
+from models.outbox_models import OutboxEvent
 from shared.settings import Settings
 
 
@@ -22,15 +21,22 @@ class PaymentEventConsumer:
     - order.cancelled: triggers a Stripe refund when a payment was already succeeded.
     """
 
-    def __init__(self, logger: Logger, settings: Settings) -> None:
+    def __init__(
+        self,
+        logger: Logger,
+        settings: Settings,
+        database: DatabaseSessionManager,
+        idempotency_service: IdempotencyEventService,
+    ) -> None:
         self.logger: Logger = logger
         self.settings: Settings = settings
-        self.idempotency_service: IdempotencyEventService = payment_event_idempotency_service
+        self.database = database
+        self.idempotency_service = idempotency_service
 
     async def _get_payment_service(self):
         """Create a PaymentService with a fresh DB session (mirrors FastAPI DI for consumers)."""
-        async with payment_service_database_session_manager.transaction() as session:
-            outbox_service = OutboxEventService(repository=OutboxRepository(session=session))
+        async with self.database.transaction() as session:
+            outbox_service = OutboxEventService(repository=OutboxRepository(session=session, model=OutboxEvent))
             payment_service = PaymentService(
                 repository=PaymentRepository(session=session),
                 outbox_event_service=outbox_service,
@@ -86,6 +92,3 @@ class PaymentEventConsumer:
             await self.idempotency_service.release_claim(event_id=event.event_id, event_type=event.event_type)
             self.logger.error(f"Error handling order.cancelled for order {message.get('order_id')}: {e}")
             raise
-
-
-payment_event_consumer = PaymentEventConsumer(logger=logger, settings=settings)

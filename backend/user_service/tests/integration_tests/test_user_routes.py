@@ -16,8 +16,10 @@ from typing import Any
 from httpx import AsyncClient
 from fastapi import status
 
-from shared.shared_instances import test_settings
+from shared.settings import get_test_settings
 from shared.enums.event_enums import UserEvents
+
+test_settings = get_test_settings()
 
 # ---------------------------------------------------------------------------
 # Module-level helpers — call inside test methods to compose state

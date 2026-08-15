@@ -21,7 +21,9 @@ from exceptions.user_exceptions import (
     UserAuthenticationError,
     UserNotFoundError,
 )
-from shared.shared_instances import test_settings
+from shared.settings import get_test_settings
+
+test_settings = get_test_settings()
 
 
 class TestHealthEndpoint:
@@ -53,13 +55,15 @@ class TestRegisterEndpoint:
 
 
 # ===========================================================================
-# POST /activate/{token}
+# POST /activate
 # ===========================================================================
 
 
 class TestVerifyEmailEndpoint:
     async def test_verify_email_success(self, client_for_unit_testing: AsyncClient):
-        response = await client_for_unit_testing.post(f"{test_settings.API}/activate/valid-token")
+        response = await client_for_unit_testing.post(
+            f"{test_settings.API}/activate", json={"token": "a" * 32}
+        )
         assert response.status_code == 200
         body = response.json()
         assert body["verified"] is True
@@ -69,7 +73,9 @@ class TestVerifyEmailEndpoint:
         mock_route_service.verify_email = AsyncMock(
             side_effect=UserNotFoundError("Token invalid or expired")
         )
-        response = await client_for_unit_testing.post(f"{test_settings.API}/activate/bad-token")
+        response = await client_for_unit_testing.post(
+            f"{test_settings.API}/activate", json={"token": "a" * 32}
+        )
 
         assert response.status_code == 404
 
@@ -99,15 +105,15 @@ class TestForgotPasswordEndpoint:
 
 
 # ===========================================================================
-# POST /password-reset/{token}
+# POST /password-reset
 # ===========================================================================
 
 
 class TestResetPasswordEndpoint:
     async def test_reset_password_success(self, client_for_unit_testing: AsyncClient):
         response = await client_for_unit_testing.post(
-            f"{test_settings.API}/password-reset/valid-token",
-            json={"email": "test@example.com", "new_password": "newpassword1"},
+            f"{test_settings.API}/password-reset",
+            json={"token": "a" * 32, "new_password": "newpassword1"},
         )
 
         assert response.status_code == 200
@@ -120,8 +126,8 @@ class TestResetPasswordEndpoint:
         )
 
         response = await client_for_unit_testing.post(
-            f"{test_settings.API}/password-reset/bad-token",
-            json={"email": "test@example.com", "new_password": "newpassword1"},
+            f"{test_settings.API}/password-reset",
+            json={"token": "a" * 32, "new_password": "newpassword1"},
         )
 
         assert response.status_code == 404

@@ -16,7 +16,16 @@ class BaseEventPublisher:
     async def start(self):
         """Start the broker connection"""
         if not self._is_started:
-            await self.broker.start()
+            try:
+                await self.broker.start()
+            except Exception:
+                try:
+                    await self.broker.stop()
+                except Exception:
+                    self.logger.exception(
+                        "Failed to clean up RabbitMQ after publisher startup error"
+                    )
+                raise
             self._is_started = True
             self.logger.info("Base Event publisher started")
 

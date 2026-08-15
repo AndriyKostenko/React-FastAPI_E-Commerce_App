@@ -2,10 +2,9 @@ from logging import Logger
 from collections.abc import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import URL, text
+from sqlalchemy import MetaData, URL, text
 from sqlalchemy.pool import NullPool
 
-from shared.models.models_base_class import Base
 from .database_session_manager import DatabaseSessionManager
 
 class TestDatabaseSessionManager(DatabaseSessionManager):
@@ -24,7 +23,7 @@ class TestDatabaseSessionManager(DatabaseSessionManager):
         self.engine_settings = {"echo": False, "pool_pre_ping": True, "poolclass": NullPool}
         self._initialize_engine()
 
-    async def truncate_all_tables(self) -> None:
+    async def truncate_all_tables(self, metadata: MetaData) -> None:
         """
         Delete all rows from every mapped table and restart identity sequences.
 
@@ -33,7 +32,7 @@ class TestDatabaseSessionManager(DatabaseSessionManager):
             - FK-referencing tables are cleared automatically (CASCADE)
         """
         table_names = ", ".join(
-            t.name for t in reversed(Base.metadata.sorted_tables)
+            t.name for t in reversed(metadata.sorted_tables)
         )
         if not table_names:
             return

@@ -19,13 +19,21 @@ from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from main import app
+from service_config import logger, settings
 from database_layer.wishlist_repository import WishlistRepository
-from dependencies.dependencies import get_db_session, get_wishlist_service, get_current_user
+from dependencies.dependencies import (
+    get_current_user,
+    get_db_session,
+    get_http_client,
+    get_wishlist_service,
+)
+from models.base import Base
 from models.wishlist_models import Wishlist, WishlistItem
 from service_layer.wishlist_service import WishlistService
+from shared.managers.test_database_session_manager import TestDatabaseSessionManager
 from shared.schemas.wishlist_schemas import WishlistSchema, WishlistItemSchema
-from shared.shared_instances import settings, test_wishlist_service_database_session_manager, test_settings
 from shared.testing.helpers import allow_testserver_host
+from service_test_config import test_settings
 
 
 # ---------------------------------------------------------------------------
@@ -36,6 +44,19 @@ from shared.testing.helpers import allow_testserver_host
 def _allow_testserver_host() -> None:
     """Make the default httpx/TestClient host ('testserver') pass host checks."""
     allow_testserver_host()
+
+
+@pytest.fixture(scope="session")
+async def test_database_session_manager():
+    """Create the wishlist test database manager only for integration tests."""
+    manager = TestDatabaseSessionManager(
+        database_url=settings.WISHLIST_SERVICE_TEST_DATABASE_URL,
+        logger=logger,
+    )
+    try:
+        yield manager
+    finally:
+        await manager.close()
 
 
 # ---------------------------------------------------------------------------
@@ -115,7 +136,11 @@ def mock_wishlist_repository() -> MagicMock:
 @pytest.fixture
 def wishlist_service_unit(mock_wishlist_repository: MagicMock) -> WishlistService:
     """WishlistService wired with a mocked repository."""
-    return WishlistService(repository=mock_wishlist_repository)
+    return WishlistService(
+        repository=mock_wishlist_repository,
+        settings=settings,
+        logger=logger,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -187,7 +212,7 @@ async def client_for_unit_testing(
 
     app.dependency_overrides[get_wishlist_service] = lambda: mock_route_wishlist_service
     app.dependency_overrides[get_current_user] = _make_current_user_override(test_settings.TEST_USER_ID)
-    app.state.http_session = MagicMock()
+    app.dependency_overrides[get_http_client] = lambda: MagicMock()
 
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://testserver"
@@ -204,7 +229,9 @@ async def client_for_unit_testing(
 # ---------------------------------------------------------------------------
 
 @pytest.fixture
-async def integration_client() -> AsyncGenerator[AsyncClient, Any]:
+async def integration_client(
+    test_database_session_manager: TestDatabaseSessionManager,
+) -> AsyncGenerator[AsyncClient, Any]:
     """
     Async HTTP client for integration tests.
 
@@ -220,16 +247,20 @@ async def integration_client() -> AsyncGenerator[AsyncClient, Any]:
       - Before yield : create all tables (idempotent) so the schema is fresh.
       - After  yield : TRUNCATE every table so the next test starts clean.
     """
-    await test_wishlist_service_database_session_manager.init_db()
+    await test_database_session_manager.init_db(Base.metadata)
 
     async def _override_get_db_session() -> AsyncGenerator[AsyncSession, None]:
-        async with test_wishlist_service_database_session_manager.transaction() as session:
+        async with test_database_session_manager.transaction() as session:
             yield session
 
     def _override_get_wishlist_service(
         session: AsyncSession = Depends(_override_get_db_session),
     ) -> WishlistService:
-        return WishlistService(WishlistRepository(session=session))
+        return WishlistService(
+            WishlistRepository(session=session),
+            settings=settings,
+            logger=logger,
+        )
 
     original_debug_mode = settings.DEBUG_MODE
     settings.DEBUG_MODE = True
@@ -240,7 +271,7 @@ async def integration_client() -> AsyncGenerator[AsyncClient, Any]:
     app.dependency_overrides[get_db_session] = _override_get_db_session
     app.dependency_overrides[get_wishlist_service] = _override_get_wishlist_service
     app.dependency_overrides[get_current_user] = _make_current_user_override(test_settings.TEST_USER_ID)
-    app.state.http_session = None  # Skip product-service validation in integration tests
+    app.dependency_overrides[get_http_client] = lambda: None
 
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://testserver"
@@ -251,4 +282,4 @@ async def integration_client() -> AsyncGenerator[AsyncClient, Any]:
     app.router.lifespan_context = original_lifespan
     settings.DEBUG_MODE = original_debug_mode
 
-    await test_wishlist_service_database_session_manager.truncate_all_tables()
+    await test_database_session_manager.truncate_all_tables(Base.metadata)

@@ -135,8 +135,6 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
     env_file:
       - .env
     environment:
@@ -158,6 +156,32 @@ services:
       timeout: 10s
       retries: 3
 
+  user-outbox-worker:
+    build:
+      context: ./user_service
+      dockerfile: Dockerfile
+      target: runtime
+    command: ["python", "outbox_worker.py"]
+    healthcheck:
+      disable: true
+    restart: unless-stopped
+    depends_on:
+      user-service:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${USER_SERVICE_DB}
+      RABBITMQ_BROKER_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@${RABBITMQ_HOST}:${RABBITMQ_PORT}
+    networks:
+      - usernet
+    volumes:
+      - ./shared:/app/shared:ro
+
   product-service:
     build:
       context: ./product_service
@@ -168,6 +192,8 @@ services:
       db:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
     env_file:
       - .env
@@ -198,7 +224,11 @@ services:
       dockerfile: Dockerfile.consumer
     restart: unless-stopped
     depends_on:
+      db:
+        condition: service_healthy
       rabbitmq:
+        condition: service_healthy
+      redis:
         condition: service_healthy
       product-service:
         condition: service_healthy
@@ -240,10 +270,6 @@ services:
     depends_on:
       db:
         condition: service_healthy
-      redis:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
     env_file:
       - .env
     environment:
@@ -266,13 +292,43 @@ services:
       timeout: 10s
       retries: 3
 
+  supplier-outbox-worker:
+    build:
+      context: ./supplier_service
+      dockerfile: Dockerfile
+      target: runtime
+    command: ["python", "outbox_worker.py"]
+    healthcheck:
+      disable: true
+    restart: unless-stopped
+    depends_on:
+      supplier-service:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${SUPPLIER_SERVICE_DB}
+      RABBITMQ_BROKER_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@${RABBITMQ_HOST}:${RABBITMQ_PORT}
+    networks:
+      - usernet
+    volumes:
+      - ./shared:/app/shared:ro
+
   supplier-consumer:
     build:
       context: ./supplier_service
       dockerfile: Dockerfile.consumer
     restart: unless-stopped
     depends_on:
+      db:
+        condition: service_healthy
       rabbitmq:
+        condition: service_healthy
+      redis:
         condition: service_healthy
       supplier-service:
         condition: service_healthy
@@ -289,6 +345,8 @@ services:
       dockerfile: Dockerfile.worker
     restart: unless-stopped
     depends_on:
+      db:
+        condition: service_healthy
       rabbitmq:
         condition: service_healthy
       redis:
@@ -310,6 +368,8 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
+      redis:
+        condition: service_healthy
       supplier-taskiq-worker:
         condition: service_started
     env_file:
@@ -327,10 +387,6 @@ services:
     restart: always
     depends_on:
       db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      rabbitmq:
         condition: service_healthy
     env_file:
       - .env
@@ -361,7 +417,11 @@ services:
       dockerfile: Dockerfile.consumer
     restart: unless-stopped
     depends_on:
+      db:
+        condition: service_healthy
       rabbitmq:
+        condition: service_healthy
+      redis:
         condition: service_healthy
       notification-service:
         condition: service_healthy
@@ -402,10 +462,6 @@ services:
     depends_on:
       db:
         condition: service_healthy
-      redis:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
     env_file:
       - .env
     environment:
@@ -428,13 +484,43 @@ services:
       timeout: 10s
       retries: 3
 
+  order-outbox-worker:
+    build:
+      context: ./order_service
+      dockerfile: Dockerfile
+      target: runtime
+    command: ["python", "outbox_worker.py"]
+    healthcheck:
+      disable: true
+    restart: unless-stopped
+    depends_on:
+      order-service:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${ORDER_SERVICE_DB}
+      RABBITMQ_BROKER_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@${RABBITMQ_HOST}:${RABBITMQ_PORT}
+    networks:
+      - usernet
+    volumes:
+      - ./shared:/app/shared:ro
+
   order-consumer:
     build:
       context: ./order_service
       dockerfile: Dockerfile.consumer
     restart: unless-stopped
     depends_on:
+      db:
+        condition: service_healthy
       rabbitmq:
+        condition: service_healthy
+      redis:
         condition: service_healthy
       order-service:
         condition: service_healthy
@@ -455,8 +541,6 @@ services:
       db:
         condition: service_healthy
       redis:
-        condition: service_healthy
-      rabbitmq:
         condition: service_healthy
     env_file:
       - .env
@@ -480,13 +564,43 @@ services:
       timeout: 10s
       retries: 3
 
+  payment-outbox-worker:
+    build:
+      context: ./payment_service
+      dockerfile: Dockerfile
+      target: runtime
+    command: ["python", "outbox_worker.py"]
+    healthcheck:
+      disable: true
+    restart: unless-stopped
+    depends_on:
+      payment-service:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${PAYMENT_SERVICE_DB}
+      RABBITMQ_BROKER_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@${RABBITMQ_HOST}:${RABBITMQ_PORT}
+    networks:
+      - usernet
+    volumes:
+      - ./shared:/app/shared:ro
+
   payment-consumer:
     build:
       context: ./payment_service
       dockerfile: Dockerfile.consumer
     restart: unless-stopped
     depends_on:
+      db:
+        condition: service_healthy
       rabbitmq:
+        condition: service_healthy
+      redis:
         condition: service_healthy
       payment-service:
         condition: service_healthy
@@ -505,10 +619,6 @@ services:
     restart: always
     depends_on:
       db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      rabbitmq:
         condition: service_healthy
     env_file:
       - .env
@@ -538,7 +648,11 @@ services:
       dockerfile: Dockerfile.consumer
     restart: unless-stopped
     depends_on:
+      db:
+        condition: service_healthy
       rabbitmq:
+        condition: service_healthy
+      redis:
         condition: service_healthy
       cart-service:
         condition: service_healthy
@@ -557,10 +671,6 @@ services:
     restart: always
     depends_on:
       db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      rabbitmq:
         condition: service_healthy
     env_file:
       - .env
@@ -590,7 +700,11 @@ services:
       dockerfile: Dockerfile.consumer
     restart: unless-stopped
     depends_on:
+      db:
+        condition: service_healthy
       rabbitmq:
+        condition: service_healthy
+      redis:
         condition: service_healthy
       wishlist-service:
         condition: service_healthy
@@ -609,8 +723,6 @@ services:
     restart: always
     depends_on:
       db:
-        condition: service_healthy
-      redis:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
@@ -642,7 +754,11 @@ services:
       dockerfile: Dockerfile.consumer
     restart: unless-stopped
     depends_on:
+      db:
+        condition: service_healthy
       rabbitmq:
+        condition: service_healthy
+      redis:
         condition: service_healthy
       shipping-service:
         condition: service_healthy

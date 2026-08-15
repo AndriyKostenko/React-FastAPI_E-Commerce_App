@@ -1,6 +1,4 @@
 import os
-import asyncio
-import contextlib
 from datetime import datetime
 from contextlib import asynccontextmanager
 from time import perf_counter
@@ -15,63 +13,33 @@ from prometheus_client import CollectorRegistry, generate_latest, multiprocess, 
 from prometheus_fastapi_instrumentator import Instrumentator
 
 from routes.supplier_routes import supplier_routes
+from models import Base
 from shared.exceptions.base_exceptions import BaseAPIException, RateLimitExceededError
 from shared.middleware.logging_middleware import add_logging_middleware
 from shared.telemetry import setup_tracing
-from shared.shared_instances import (
-    supplier_event_idempotency_service,
-    supplier_service_redis_manager,
-    supplier_service_database_session_manager,
-    logger,
-    settings,
-    base_event_publisher,
-)
-from tasks.broker import taskiq_broker
-from service_layer.outbox_poller_service import OutboxPollerService
-from service_layer.cj_api_client import CJDropshippingAPIClient
+from resources import logger, settings, supplier_api_resources
 from utils.seed_database import seed_default_supplier_config
-from asyncio import create_task
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup and shutdown lifecycle for the supplier service."""
     logger.info(f"Server is starting up on {settings.APP_HOST}:{settings.SUPPLIER_SERVICE_APP_PORT}...")
-    # await supplier_service_redis_manager.connect()
-    # logger.info("Supplier service redis manager is connected.")
-    await supplier_service_database_session_manager.init_db()
-    logger.info("Supplier service DB session is started.")
-    async with supplier_service_database_session_manager.transaction() as session:
-        await seed_default_supplier_config(session=session, settings=settings)
-        logger.info("Default supplier config seeded.")
-    await base_event_publisher.start()
-    logger.info("RabbitMQ Event publisher is started.")
-    if not taskiq_broker.is_worker_process:
-        await taskiq_broker.startup()
-        logger.info("TaskIQ broker started successfully.")
-    poller_task = create_task(OutboxPollerService.create().start_outbox_poller())
-    logger.info("Supplier service outbox poller is started.")
-    app.state.cj_api_client = CJDropshippingAPIClient(settings)
-    await app.state.cj_api_client.start()
-    logger.info("Shared CJ HTTP client created.")
-    logger.info("Supplier service startup complete!")
-
-    yield
-
-    await supplier_service_database_session_manager.close()
-    logger.warning("Database connection closed on shutdown!")
-    await base_event_publisher.stop()
-    logger.warning("RabbitMQ connection is closed")
-    if not taskiq_broker.is_worker_process:
-        await taskiq_broker.shutdown()
-        logger.info("TaskIQ broker shut down successfully.")
-    poller_task.cancel()
-    with contextlib.suppress(asyncio.CancelledError):
-        await poller_task
-    await app.state.cj_api_client.close()
-    logger.warning("Shared CJ HTTP client closed.")
-    # await supplier_service_redis_manager.close()
-    # logger.warning("Redis connection closed on shutdown!")
+    async with supplier_api_resources() as resources:
+        app.state.resources = resources
+        try:
+            await resources.database.init_db(Base.metadata)
+            logger.info("Supplier service tables are initialized from service-owned metadata.")
+            async with resources.database.transaction() as session:
+                await seed_default_supplier_config(
+                    session=session,
+                    settings=resources.settings,
+                )
+                logger.info("Default supplier config seeded.")
+            logger.info("Supplier service startup complete!")
+            yield
+        finally:
+            del app.state.resources
     logger.warning("Supplier service has shut down!")
 
 

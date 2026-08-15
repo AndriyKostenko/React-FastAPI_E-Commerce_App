@@ -7,7 +7,7 @@ from fastapi.responses import JSONResponse
 from starlette.datastructures import MutableHeaders
 
 from middleware.auth_middleware import AuthMiddleware
-from shared.shared_instances import settings
+from resources import settings
 
 
 def _make_request(path: str, method: str, headers: dict | None = None, cookies: dict | None = None) -> MagicMock:
@@ -33,7 +33,7 @@ class TestIsPublicEndpoint:
     def setup_method(self):
         """Re-create a fresh middleware instance (bypassing singleton for tests)."""
         self.mw = AuthMiddleware.__new__(AuthMiddleware)
-        self.mw.__init__(settings=settings, logger=MagicMock())
+        self.mw.__init__(settings=settings, logger=MagicMock(), token_manager=MagicMock())
 
     def test_health_endpoint_is_public(self):
         assert self.mw.is_public_endpoint("/health", "GET") is True
@@ -109,7 +109,7 @@ class TestMiddlewareAuth:
 
     def setup_method(self):
         self.mw = AuthMiddleware.__new__(AuthMiddleware)
-        self.mw.__init__(settings=settings, logger=MagicMock())
+        self.mw.__init__(settings=settings, logger=MagicMock(), token_manager=MagicMock())
 
     async def test_options_request_passes_through(self):
         req = _make_request("/api/v1/users", "OPTIONS")
@@ -148,7 +148,7 @@ class TestMiddlewareAuth:
         mock_user = MagicMock()
         mock_user.email = "user@example.com"
 
-        with patch("middleware.auth_middleware.token_manager.decode_token", return_value=mock_user):
+        with patch.object(self.mw.token_manager, "decode_token", return_value=mock_user):
             response = await self.mw.middleware(req, call_next)
 
         call_next.assert_awaited_once()
@@ -162,8 +162,9 @@ class TestMiddlewareAuth:
         )
         call_next = AsyncMock(return_value=JSONResponse(content={}, status_code=200))
 
-        with patch(
-            "middleware.auth_middleware.token_manager.decode_token",
+        with patch.object(
+            self.mw.token_manager,
+            "decode_token",
             side_effect=HTTPException(status_code=401, detail="Token expired"),
         ):
             response = await self.mw.middleware(req, call_next)
@@ -181,7 +182,7 @@ class TestMiddlewareAuth:
         mock_user = MagicMock()
         mock_user.email = "user@example.com"
 
-        with patch("middleware.auth_middleware.token_manager.decode_token", return_value=mock_user):
+        with patch.object(self.mw.token_manager, "decode_token", return_value=mock_user):
             response = await self.mw.middleware(req, call_next)
 
         call_next.assert_awaited_once()

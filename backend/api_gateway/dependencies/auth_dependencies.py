@@ -2,7 +2,7 @@ from uuid import UUID
 from collections.abc import Mapping
 from fastapi import HTTPException, status, Depends, Request
 from pydantic import EmailStr, ValidationError
-from shared.shared_instances import settings, logger
+from resources import logger, settings
 from shared.schemas.user_schemas import CurrentUserInfo
 
 

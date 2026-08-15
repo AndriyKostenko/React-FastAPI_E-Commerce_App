@@ -1,5 +1,7 @@
 """Test constants for api_gateway — sourced from shared TestSettings."""
-from shared.shared_instances import test_settings
+from shared.settings import get_test_settings
+
+test_settings = get_test_settings()
 
 TEST_USER_ID      = test_settings.TEST_USER_ID
 TEST_ADMIN_ID     = test_settings.TEST_ADMIN_ID

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Request, Depends
 
-from gateway.apigateway import api_gateway_manager
+from resources import api_gateway_manager
 from dependencies.auth_dependencies import require_admin
 
 

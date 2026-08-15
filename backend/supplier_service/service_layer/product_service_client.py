@@ -20,8 +20,19 @@ class ProductNotFoundError(ProductServiceError):
 class ProductServiceClient:
     """Lightweight client that queries product_service for CJ pid/vid mapping."""
 
-    def __init__(self, settings: Settings) -> None:
+    def __init__(self, settings: Settings, http_client: AsyncClient | None = None) -> None:
         self.settings: Settings = settings
+        self._http_client = http_client
+        self._owns_http_client = http_client is None
+
+    async def start(self) -> None:
+        if self._http_client is None:
+            self._http_client = AsyncClient(timeout=10.0)
+
+    async def close(self) -> None:
+        if self._http_client is not None and self._owns_http_client:
+            await self._http_client.aclose()
+            self._http_client = None
 
     def _build_url(self, product_id: UUID) -> str:
         base = self.settings.FULL_PRODUCT_SERVICE_URL.rstrip("/")
@@ -31,9 +42,10 @@ class ProductServiceClient:
         """Fetch a product by ID including its variant list."""
         url = self._build_url(product_id)
         try:
-            async with AsyncClient() as client:
-                response = await client.get(url, timeout=10.0)
-                response.raise_for_status()
+            await self.start()
+            assert self._http_client is not None
+            response = await self._http_client.get(url)
+            response.raise_for_status()
         except RequestError as exc:
             raise ProductServiceError(f"Network error calling product_service: {exc}") from exc
         except HTTPStatusError as exc:

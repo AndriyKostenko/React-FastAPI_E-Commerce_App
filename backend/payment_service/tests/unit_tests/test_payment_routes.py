@@ -154,24 +154,24 @@ class TestWebhookEndpoint:
         assert response.status_code == 200
 
     async def test_webhook_duplicate_event_returns_200_with_idempotency_flag(
-        self, client_for_unit_testing, mock_route_payment_service: MagicMock
+        self,
+        client_for_unit_testing,
+        mock_route_payment_service: MagicMock,
+        mock_idempotency_service: MagicMock,
     ) -> None:
         """Duplicate events (idempotency service returns False) are acknowledged silently."""
-        from unittest.mock import patch, AsyncMock
         mock_route_payment_service.construct_webhook_event.return_value = {
             "type": "payment_intent.succeeded",
             "id": "evt_duplicate",
             "data": {"object": {"id": TEST_STRIPE_INTENT_ID, "metadata": {}}},
         }
-        mock_idempotency = MagicMock()
-        mock_idempotency.try_claim_event = AsyncMock(return_value=False)
+        mock_idempotency_service.try_claim_event.return_value = False
 
-        with patch("routes.payment_routes.idempotency_service", mock_idempotency):
-            response = await client_for_unit_testing.post(
-                f"{TEST_API}/payments/webhook",
-                content=b"{}",
-                headers={"stripe-signature": "t=1,v1=fakesig"},
-            )
+        response = await client_for_unit_testing.post(
+            f"{TEST_API}/payments/webhook",
+            content=b"{}",
+            headers={"stripe-signature": "t=1,v1=fakesig"},
+        )
         assert response.status_code == 200
         assert response.json()["idempotency"] == "duplicate"
 

@@ -4,13 +4,12 @@ from uuid import UUID
 
 from sqlalchemy import asc, desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import DeclarativeBase, selectinload
 
 from shared.exceptions.base_exceptions import NoFieldInTheModelError
-from shared.models.models_base_class import Base
 
 
-ModelType = TypeVar("ModelType", bound=Base)
+ModelType = TypeVar("ModelType", bound=DeclarativeBase)
 
 
 class LockableRepositoryMixin(Generic[ModelType]):

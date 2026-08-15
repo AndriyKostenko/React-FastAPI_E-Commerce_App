@@ -6,7 +6,6 @@ from fastapi_mail.errors import ConnectionErrors
 from pydantic import ValidationError
 from jinja2 import Environment, FileSystemLoader, TemplateNotFound
 
-from shared.utils.metaclasses import SingletonMetaClass
 from shared.exceptions.base_exceptions import EmailServiceError
 from shared.settings import Settings
 from shared.schemas.event_schemas import (
@@ -20,7 +19,7 @@ from shared.schemas.event_schemas import (
     OrderCancelledEvent
 )
 
-class EmailService(metaclass=SingletonMetaClass):
+class EmailService:
     """Service for sending emails using FastAPI Mail and Jinja2 templates."""
     def __init__(self, settings: Settings, logger: Logger):
         self.settings: Settings = settings
@@ -78,7 +77,7 @@ class EmailService(metaclass=SingletonMetaClass):
                                template_body: dict[str, Any]) -> None:
         """Send email asynchronously - used directly by event consumers."""
         try:
-            self.logger.info(f"Preparing to send email to {recipients} with subject: {subject}")
+            self.logger.info("Preparing to send email with subject: %s", subject)
             rendered_html = self.render_template(template_name=template_name, template_body=template_body)
             message = self.create_message(recipients, subject, rendered_html)
             await self.fast_mail.send_message(message, template_name=template_name)
@@ -103,12 +102,12 @@ class UserRelatedNotifications(EmailService):
             template_body={
                 "app_name": self.settings.MAIL_FROM_NAME,
                 "email": event.user_email,
-                "activate_url": f"{self.settings.FRONTEND_URL}/activate/{event.token}"
+                "activate_url": f"{self.settings.FRONTEND_URL}/activate#token={event.token}"
             },
             recipients=[event.user_email],
             template_name="email_verification.html"
         )
-        self.logger.info("Sending verification email to: %s", event.user_email)
+        self.logger.info("Sending verification email")
 
     async def send_email_verified_notification(self, event: EmailVerificationEvent) -> None:
         """Send account activation confirmation email."""
@@ -131,13 +130,13 @@ class UserRelatedNotifications(EmailService):
             template_body={
                 "app_name": self.settings.MAIL_FROM_NAME,
                 "email": event.user_email,
-                "reset_url": f"http://{self.settings.APP_HOST}:{self.settings.USER_SERVICE_APP_PORT}{self.settings.NOTIFICATION_SERVICE_URL_API_VERSION}/password-reset/{event.reset_token}",
+                "reset_url": f"{self.settings.FRONTEND_URL}/password-reset#token={event.reset_token}",
                 "expiry_minutes": self.settings.RESET_TOKEN_EXPIRY_MINUTES
             },
             recipients=[event.user_email],
             template_name="password_reset.html"
         )
-        self.logger.info("Sending password reset email to: %s", event.user_email)
+        self.logger.info("Sending password reset email")
 
     async def send_password_reset_success_email(self, event: PasswordResetSuccessEvent) -> None:
         """Send password reset confirmation email."""
@@ -151,7 +150,7 @@ class UserRelatedNotifications(EmailService):
             recipients=[event.user_email],
             template_name="password_reset_confirmation.html"
         )
-        self.logger.info(f"Sending password reset confirmation email to: {event.user_email}")
+        self.logger.info("Sending password reset confirmation email")
 
     async def send_login_notification_email(self, event: UserLoginEvent) -> None:
         """Send login notification email."""
@@ -165,7 +164,7 @@ class UserRelatedNotifications(EmailService):
             recipients=[event.user_email],
             template_name="login_notification.html"
         )
-        self.logger.info(f"Sending login notification email to {event.user_email}")
+        self.logger.info("Sending login notification email")
 
 
 class OrderRelatedNotifications(EmailService):

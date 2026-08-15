@@ -50,12 +50,21 @@ from dependencies.dependencies import (
     get_product_image_service,
     get_image_generation_service,
 )
+from models.base import Base
+from models.category_models import ProductCategory
+from models.product_image_models import ProductImage
+from models.product_models import Product
+from models.product_variant_models import ProductVariant
+from models.review_models import ProductReview
 from service_layer.category_service import CategoryService
 from service_layer.product_service import ProductService
 from service_layer.review_service import ReviewService
 from service_layer.product_image_service import ProductImageService
 from service_layer.image_generation_service import ImageGenerationService
-from shared.shared_instances import settings, test_product_service_database_session_manager, test_settings
+from resources import ProductApiResources, logger
+from shared.managers.logger_manager import setup_logger
+from shared.managers.test_database_session_manager import TestDatabaseSessionManager
+from shared.settings import get_settings, get_test_settings
 from shared.schemas.product_schemas import ProductBase, ProductSchema
 from shared.schemas.category_schema import CategorySchema
 from shared.schemas.review_schemas import ReviewSchema
@@ -66,6 +75,10 @@ from shared.schemas.image_generation_schema import GenerateImageResponse, ImageG
 from shared.testing.helpers import allow_testserver_host
 
 
+settings = get_settings()
+test_settings = get_test_settings()
+
+
 # ---------------------------------------------------------------------------
 # Host-validation bypass for ASGI test client
 # ---------------------------------------------------------------------------
@@ -74,6 +87,20 @@ from shared.testing.helpers import allow_testserver_host
 def _allow_testserver_host() -> None:
     """Make the default httpx/TestClient host ('testserver') pass host checks."""
     allow_testserver_host()
+
+
+@pytest.fixture(scope="session")
+async def test_database_session_manager(
+) -> AsyncGenerator[TestDatabaseSessionManager, None]:
+    """Own and close the product test database manager for this session."""
+    manager = TestDatabaseSessionManager(
+        database_url=settings.PRODUCT_SERVICE_TEST_DATABASE_URL,
+        logger=setup_logger("product-service-tests"),
+    )
+    try:
+        yield manager
+    finally:
+        await manager.close()
 
 
 # ---------------------------------------------------------------------------
@@ -337,6 +364,13 @@ async def client_for_unit_testing(
 
     original_lifespan = app.router.lifespan_context
     app.router.lifespan_context = _noop_lifespan
+    app.state.resources = ProductApiResources(
+        settings=settings,
+        logger=logger,
+        database=MagicMock(),
+        cache=MagicMock(),
+        http_session=MagicMock(),
+    )
 
     app.dependency_overrides[get_product_service] = lambda: mock_route_product_service
     app.dependency_overrides[get_category_service] = lambda: mock_route_category_service
@@ -350,6 +384,7 @@ async def client_for_unit_testing(
             yield async_client
 
     app.dependency_overrides.clear()
+    del app.state.resources
     app.router.lifespan_context = original_lifespan
     settings.DEBUG_MODE = original_debug_mode
 
@@ -359,7 +394,9 @@ async def client_for_unit_testing(
 # ---------------------------------------------------------------------------
 
 @pytest.fixture
-async def integration_client() -> AsyncGenerator[AsyncClient, Any]:
+async def integration_client(
+    test_database_session_manager: TestDatabaseSessionManager,
+) -> AsyncGenerator[AsyncClient, Any]:
     """
     Async HTTP client for integration tests.
 
@@ -376,11 +413,11 @@ async def integration_client() -> AsyncGenerator[AsyncClient, Any]:
       - After  yield : TRUNCATE every table so the next test starts clean.
     """
     # ── 1. Ensure the test schema exists ────────────────────────────────────
-    await test_product_service_database_session_manager.init_db()
+    await test_database_session_manager.init_db(Base.metadata)
 
     # ── 2. Dependency overrides — wire real services to test DB session ──────
     async def _override_get_db_session() -> AsyncGenerator[AsyncSession, None]:
-        async with test_product_service_database_session_manager.transaction() as session:
+        async with test_database_session_manager.transaction() as session:
             yield session
 
     def _override_get_category_service(
@@ -423,6 +460,13 @@ async def integration_client() -> AsyncGenerator[AsyncClient, Any]:
 
     original_lifespan = app.router.lifespan_context
     app.router.lifespan_context = _noop_lifespan
+    app.state.resources = ProductApiResources(
+        settings=settings,
+        logger=logger,
+        database=test_database_session_manager,
+        cache=MagicMock(),
+        http_session=MagicMock(),
+    )
 
     app.dependency_overrides[get_db_session] = _override_get_db_session
     app.dependency_overrides[get_category_service] = _override_get_category_service
@@ -434,8 +478,9 @@ async def integration_client() -> AsyncGenerator[AsyncClient, Any]:
         yield async_client
 
     app.dependency_overrides.clear()
+    del app.state.resources
     app.router.lifespan_context = original_lifespan
     settings.DEBUG_MODE = original_debug_mode
 
     # ── 4. Wipe all rows so the next test starts with an empty database ─────
-    await test_product_service_database_session_manager.truncate_all_tables()
+    await test_database_session_manager.truncate_all_tables(Base.metadata)

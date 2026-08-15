@@ -7,7 +7,7 @@ from dependencies.dependencies import (
     product_service_dependency,
 )
 from models.product_models import Product
-from shared.shared_instances import settings
+from resources import settings
 from shared.schemas.product_schemas import (
     CustomTshirtPricingResponse,
     CreateProduct,

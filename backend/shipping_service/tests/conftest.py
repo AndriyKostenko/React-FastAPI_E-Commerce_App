@@ -14,21 +14,37 @@ from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from main import app
+from service_config import logger, settings
 from database_layer.shipping_repository import ShippingMethodRepository, ShipmentRepository
 from dependencies.dependencies import get_db_session, get_shipping_method_service, get_shipment_service
+from models.base import Base
 from models.shipping_models import ShippingMethod, Shipment
 from service_layer.shipping_method_service import ShippingMethodService
 from service_layer.shipment_service import ShipmentService
+from events_publisher.shipping_event_publisher import ShippingEventPublisher
+from shared.managers.test_database_session_manager import TestDatabaseSessionManager
 from shared.schemas.shipping_schemas import ShippingMethodSchema, ShipmentSchema
-from shared.shared_instances import settings, test_shipping_service_database_session_manager
 from shared.testing.helpers import allow_testserver_host
-from shared.shared_instances import test_settings
+from service_test_config import test_settings
 
 
 @pytest.fixture(autouse=True)
 def _allow_testserver_host() -> None:
     """Make the default httpx/TestClient host ('testserver') pass host checks."""
     allow_testserver_host()
+
+
+@pytest.fixture(scope="session")
+async def test_database_session_manager():
+    """Create the shipping test database manager only for integration tests."""
+    manager = TestDatabaseSessionManager(
+        database_url=settings.SHIPPING_SERVICE_TEST_DATABASE_URL,
+        logger=logger,
+    )
+    try:
+        yield manager
+    finally:
+        await manager.close()
 
 
 def _make_shipping_method_orm(
@@ -107,6 +123,16 @@ def mock_shipment_repository() -> MagicMock:
 
 
 @pytest.fixture
+def mock_event_publisher() -> MagicMock:
+    publisher = MagicMock(spec=ShippingEventPublisher)
+    publisher.publish_shipment_created = AsyncMock()
+    publisher.publish_shipment_shipped = AsyncMock()
+    publisher.publish_shipment_delivered = AsyncMock()
+    publisher.publish_shipment_cancelled = AsyncMock()
+    return publisher
+
+
+@pytest.fixture
 def shipping_method_service_unit(mock_method_repository: MagicMock) -> ShippingMethodService:
     return ShippingMethodService(repository=mock_method_repository)
 
@@ -115,10 +141,12 @@ def shipping_method_service_unit(mock_method_repository: MagicMock) -> ShippingM
 def shipment_service_unit(
     mock_shipment_repository: MagicMock,
     mock_method_repository: MagicMock,
+    mock_event_publisher: MagicMock,
 ) -> ShipmentService:
     return ShipmentService(
         shipment_repository=mock_shipment_repository,
         method_repository=mock_method_repository,
+        event_publisher=mock_event_publisher,
     )
 
 
@@ -198,12 +226,14 @@ async def client_for_unit_testing(
 
 
 @pytest.fixture
-async def integration_client() -> AsyncGenerator[AsyncClient, Any]:
+async def integration_client(
+    test_database_session_manager: TestDatabaseSessionManager,
+) -> AsyncGenerator[AsyncClient, Any]:
     """Async HTTP client for integration tests using the real test DB."""
-    await test_shipping_service_database_session_manager.init_db()
+    await test_database_session_manager.init_db(Base.metadata)
 
     async def _override_get_db_session() -> AsyncGenerator[AsyncSession, None]:
-        async with test_shipping_service_database_session_manager.transaction() as session:
+        async with test_database_session_manager.transaction() as session:
             yield session
 
     def _override_get_shipping_method_service(
@@ -214,9 +244,15 @@ async def integration_client() -> AsyncGenerator[AsyncClient, Any]:
     def _override_get_shipment_service(
         session: AsyncSession = Depends(_override_get_db_session),
     ) -> ShipmentService:
+        event_publisher = MagicMock(spec=ShippingEventPublisher)
+        event_publisher.publish_shipment_created = AsyncMock()
+        event_publisher.publish_shipment_shipped = AsyncMock()
+        event_publisher.publish_shipment_delivered = AsyncMock()
+        event_publisher.publish_shipment_cancelled = AsyncMock()
         return ShipmentService(
             shipment_repository=ShipmentRepository(session=session),
             method_repository=ShippingMethodRepository(session=session),
+            event_publisher=event_publisher,
         )
 
     original_debug_mode = settings.DEBUG_MODE
@@ -238,4 +274,4 @@ async def integration_client() -> AsyncGenerator[AsyncClient, Any]:
     app.router.lifespan_context = original_lifespan
     settings.DEBUG_MODE = original_debug_mode
 
-    await test_shipping_service_database_session_manager.truncate_all_tables()
+    await test_database_session_manager.truncate_all_tables(Base.metadata)

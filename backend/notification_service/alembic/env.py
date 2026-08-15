@@ -7,9 +7,11 @@ import asyncio
 
 from alembic import context # type: ignore
 
-from shared.models.models_base_class import Base
+from models.base import Base
 from models.notification_models import Notification
-from shared.shared_instances import settings
+from shared.settings import get_settings
+
+settings = get_settings()
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

@@ -11,9 +11,8 @@ Stripe API calls are patched at the service level in integration tests too.
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
-from uuid import UUID, uuid4
-from datetime import datetime
+from unittest.mock import AsyncMock, MagicMock
+from uuid import uuid4
 
 import pytest
 from fastapi import Depends
@@ -22,12 +21,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from main import app
 from database_layer.payment_repository import PaymentRepository
-from dependencies.dependencies import get_db_session, get_payment_service, get_outbox_service
+from dependencies.dependencies import (
+    get_db_session,
+    get_idempotency_service,
+    get_outbox_service,
+    get_payment_service,
+)
 from service_layer.payment_service import PaymentService
 from service_layer.outbox_event_service import OutboxEventService
 from shared.database_layer.outbox_repository import OutboxRepository
-from shared.shared_instances import settings, test_payment_service_database_session_manager
-from shared.schemas.payment_schemas import PaymentSchema
+from models.base import Base
+from models.outbox_models import OutboxEvent
+from models.payment_models import Payment
+from config import logger, settings
+from shared.managers.test_database_session_manager import TestDatabaseSessionManager
 from shared.enums.status_enums import PaymentStatus
 from tests.constants import (
     TEST_PAYMENT_ID,
@@ -55,6 +62,20 @@ from shared.testing.helpers import allow_testserver_host
 def _allow_testserver_host() -> None:
     """Make the default httpx/TestClient host ('testserver') pass host checks."""
     allow_testserver_host()
+
+
+@pytest.fixture(scope="session")
+async def test_database_session_manager(
+) -> AsyncGenerator[TestDatabaseSessionManager, None]:
+    """Own and close the payment test database manager for this session."""
+    manager = TestDatabaseSessionManager(
+        database_url=settings.PAYMENT_SERVICE_TEST_DATABASE_URL,
+        logger=logger,
+    )
+    try:
+        yield manager
+    finally:
+        await manager.close()
 
 
 # ---------------------------------------------------------------------------
@@ -202,6 +223,15 @@ def mock_route_payment_service() -> MagicMock:
     return svc
 
 
+@pytest.fixture
+def mock_idempotency_service() -> MagicMock:
+    service = MagicMock()
+    service.try_claim_event = AsyncMock(return_value=True)
+    service.mark_event_as_processed = AsyncMock(return_value=None)
+    service.release_claim = AsyncMock(return_value=None)
+    return service
+
+
 @asynccontextmanager
 async def _noop_lifespan(app):
     """No-op lifespan replaces the real one to avoid DB/Redis/RabbitMQ connections."""
@@ -211,29 +241,25 @@ async def _noop_lifespan(app):
 @pytest.fixture
 async def client_for_unit_testing(
     mock_route_payment_service: MagicMock,
+    mock_idempotency_service: MagicMock,
 ) -> AsyncGenerator[AsyncClient, Any]:
     """
     Async HTTP test client for route-level unit tests.
 
     - Replaces the FastAPI lifespan with a no-op.
     - Overrides the payment service dependency.
-    - Patches idempotency_service in the routes module so Redis is not needed.
+    - Overrides the idempotency dependency so Redis is not needed.
     """
     original_lifespan = app.router.lifespan_context
     app.router.lifespan_context = _noop_lifespan
     app.dependency_overrides[get_payment_service] = lambda: mock_route_payment_service
-
-    mock_idempotency = MagicMock()
-    mock_idempotency.try_claim_event = AsyncMock(return_value=True)
-    mock_idempotency.mark_event_as_processed = AsyncMock(return_value=None)
-    mock_idempotency.release_claim = AsyncMock(return_value=None)
+    app.dependency_overrides[get_idempotency_service] = lambda: mock_idempotency_service
 
     original_debug_mode = settings.DEBUG_MODE
     settings.DEBUG_MODE = True
 
-    with patch("routes.payment_routes.idempotency_service", mock_idempotency):
-        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as async_client:
-            yield async_client
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as async_client:
+        yield async_client
 
     app.dependency_overrides.clear()
     app.router.lifespan_context = original_lifespan
@@ -245,7 +271,9 @@ async def client_for_unit_testing(
 # ---------------------------------------------------------------------------
 
 @pytest.fixture
-async def integration_client() -> AsyncGenerator[AsyncClient, Any]:
+async def integration_client(
+    test_database_session_manager: TestDatabaseSessionManager,
+) -> AsyncGenerator[AsyncClient, Any]:
     """
     Async HTTP client for integration tests.
 
@@ -256,28 +284,27 @@ async def integration_client() -> AsyncGenerator[AsyncClient, Any]:
     What is mocked:
       - FastAPI lifespan (tables created directly)
       - Stripe API calls (patched on the service instance)
-      - Redis idempotency service in the routes module
+      - Redis idempotency dependency
 
     Isolation:
       - Before yield: init schema (idempotent)
       - After  yield: TRUNCATE all tables
     """
-    await test_payment_service_database_session_manager.init_db()
+    await test_database_session_manager.init_db(Base.metadata)
 
     async def _override_get_db_session() -> AsyncGenerator[AsyncSession, None]:
-        async with test_payment_service_database_session_manager.transaction() as session:
+        async with test_database_session_manager.transaction() as session:
             yield session
 
     def _override_get_outbox_service(
         session: AsyncSession = Depends(_override_get_db_session),
     ) -> OutboxEventService:
-        return OutboxEventService(repository=OutboxRepository(session=session))
+        return OutboxEventService(repository=OutboxRepository(session=session, model=OutboxEvent))
 
     def _override_get_payment_service(
         session: AsyncSession = Depends(_override_get_db_session),
         outbox_event_service: OutboxEventService = Depends(_override_get_outbox_service),
     ) -> PaymentService:
-        from shared.shared_instances import settings, logger
         svc = PaymentService(
             repository=PaymentRepository(session=session),
             outbox_event_service=outbox_event_service,
@@ -317,13 +344,13 @@ async def integration_client() -> AsyncGenerator[AsyncClient, Any]:
     mock_idempotency.try_claim_event = AsyncMock(return_value=True)
     mock_idempotency.mark_event_as_processed = AsyncMock(return_value=None)
     mock_idempotency.release_claim = AsyncMock(return_value=None)
+    app.dependency_overrides[get_idempotency_service] = lambda: mock_idempotency
 
-    with patch("routes.payment_routes.idempotency_service", mock_idempotency):
-        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as async_client:
-            yield async_client
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as async_client:
+        yield async_client
 
     app.dependency_overrides.clear()
     app.router.lifespan_context = original_lifespan
     settings.DEBUG_MODE = original_debug_mode
 
-    await test_payment_service_database_session_manager.truncate_all_tables()
+    await test_database_session_manager.truncate_all_tables(Base.metadata)

@@ -1,5 +1,7 @@
 """Test constants for notification_service — sourced from shared TestSettings."""
-from shared.shared_instances import test_settings
+from shared.settings import get_test_settings
+
+test_settings = get_test_settings()
 
 TEST_NOTIFICATION_ID = test_settings.TEST_NOTIFICATION_ID
 TEST_USER_ID        = test_settings.TEST_USER_ID

@@ -3,7 +3,7 @@ from sqlalchemy import Index, inspect
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 
-from shared.models.models_base_class import Base
+from models.base import Base
 from shared.utils.models_mixins import TimestampMixin
 
 

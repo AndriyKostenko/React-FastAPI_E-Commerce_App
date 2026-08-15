@@ -26,7 +26,7 @@ for _path in _IMPORT_ROOTS:
         sys.path.insert(0, _path_str)
 
 from shared.managers.database_session_manager import DatabaseSessionManager
-from shared.shared_instances import logger
+from shared.managers.logger_manager import setup_logger
 from shared.settings import get_settings
 from models.category_models import ProductCategory
 from models.product_models import Product
@@ -34,6 +34,8 @@ from models.review_models import ProductReview
 from database_layer.category_repository import CategoryRepository
 from database_layer.product_repository import ProductRepository
 from database_layer.product_image_repository import ProductImageRepository
+
+logger = setup_logger("product-seed")
 
 """
 Seed Utility — load fake categories, products, and product images into the

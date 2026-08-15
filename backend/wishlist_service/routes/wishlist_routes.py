@@ -1,9 +1,13 @@
 from uuid import UUID
 
-from fastapi import APIRouter, status, Request
+from fastapi import APIRouter, status
 
 from shared.schemas.wishlist_schemas import WishlistSchema, AddWishlistItem
-from dependencies.dependencies import wishlist_service_dependency, current_user_dependency
+from dependencies.dependencies import (
+    current_user_dependency,
+    http_client_dependency,
+    wishlist_service_dependency,
+)
 
 
 wishlist_routes = APIRouter(
@@ -27,18 +31,17 @@ async def get_my_wishlist(
                       response_model=WishlistSchema,
                       status_code=status.HTTP_200_OK)
 async def add_item_to_wishlist(
-    request: Request,
     item_data: AddWishlistItem,
     current_user: current_user_dependency,
     wishlist_service: wishlist_service_dependency,
+    http_client: http_client_dependency,
 ) -> WishlistSchema:
     """Add a product to the authenticated user's wishlist."""
     user_id = UUID(current_user["id"])
-    http_session = request.app.state.http_session
     return await wishlist_service.add_item_to_wishlist(
         user_id=user_id,
         item_data=item_data,
-        http_session=http_session,
+        http_session=http_client,
     )
 
 

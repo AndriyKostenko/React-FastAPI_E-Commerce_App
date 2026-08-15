@@ -3,13 +3,59 @@ from typing import Any
 from faststream import FastStream
 from faststream.rabbit import RabbitQueue
 
-from shared.shared_instances import rabbitmq_broker, inventory_exchange, payment_exchange, shipping_exchange, order_exchange
-from events_consumer.order_event_consumer import order_event_consumer
-from shared.enums.event_enums import OrderEvents, OrderSagaResponseQueue, ShippingEventsQueue
+from config import logger, settings
+from events_consumer.order_event_consumer import OrderEventConsumer
+from messaging import (
+    create_rabbitmq_broker,
+    inventory_exchange,
+    order_exchange,
+    payment_exchange,
+    shipping_exchange,
+)
+from resources import OrderConsumerResources, create_consumer_resources
+from shared.enums.event_enums import OrderEvents, OrderSagaResponseQueue
 
 
 # Create the FastStream app
+rabbitmq_broker = create_rabbitmq_broker(settings)
 app = FastStream(rabbitmq_broker)
+_resources: OrderConsumerResources | None = None
+_consumer: OrderEventConsumer | None = None
+
+
+def get_order_event_consumer() -> OrderEventConsumer:
+    if _consumer is None:
+        raise RuntimeError("Order consumer resources are not initialized")
+    return _consumer
+
+
+@app.on_startup
+async def startup() -> None:
+    global _consumer, _resources
+    resources = create_consumer_resources(rabbitmq_broker)
+    try:
+        await resources.start()
+    except Exception:
+        await resources.close()
+        raise
+    _resources = resources
+    _consumer = OrderEventConsumer(
+        logger=resources.logger,
+        database=resources.database,
+        idempotency_service=resources.idempotency,
+        event_publisher=resources.publisher,
+    )
+    logger.info("Order event consumer resources started")
+
+
+@app.on_shutdown
+async def shutdown() -> None:
+    global _consumer, _resources
+    resources, _resources = _resources, None
+    _consumer = None
+    if resources is not None:
+        await resources.close()
+    logger.info("Order event consumer resources closed")
 
 
 # inventory.reserve.* binds to inventory.reserve.succeeded and inventory.reserve.failed
@@ -46,7 +92,7 @@ async def handle_order_saga_responses(body: dict[str, Any]):
     - Proper FastStream integration with decorators
     - Clean separation of concerns
     """
-    await order_event_consumer.handle_order_saga_response(body)
+    await get_order_event_consumer().handle_order_saga_response(body)
 
 
 order_shipping_events_queue = RabbitQueue(
@@ -67,13 +113,13 @@ async def handle_order_payment_events(body: dict[str, Any]) -> None:
     Routes payment.failed to handle_payment_failed so the order is cancelled
     and any reserved inventory is released.
     """
-    await order_event_consumer.handle_payment_event(body)
+    await get_order_event_consumer().handle_payment_event(body)
 
 
 @rabbitmq_broker.subscriber(queue=order_shipping_events_queue, exchange=shipping_exchange)
 async def handle_order_shipping_events(body: dict[str, Any]) -> None:
     """FastStream subscriber for shipping events that affect order delivery status."""
-    await order_event_consumer.handle_shipping_event(body)
+    await get_order_event_consumer().handle_shipping_event(body)
 
 
 cj_order_created_queue = RabbitQueue(
@@ -90,4 +136,4 @@ cj_order_created_queue = RabbitQueue(
 @rabbitmq_broker.subscriber(queue=cj_order_created_queue, exchange=order_exchange)
 async def handle_cj_order_created(body: dict[str, Any]) -> None:
     """Persist the CJ Dropshipping order number on the local order."""
-    await order_event_consumer.handle_cj_order_created(body)
+    await get_order_event_consumer().handle_cj_order_created(body)

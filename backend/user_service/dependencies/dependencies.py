@@ -7,12 +7,13 @@ from fastapi.security import OAuth2PasswordBearer
 from httpx import AsyncClient
 
 from service_layer.user_service import UserService
+from models.outbox_models import OutboxEvent
 from database_layer.user_repository import UserRepository
 from shared.database_layer.outbox_repository import OutboxRepository
 from service_layer.outbox_event_service import OutboxEventService
 from shared.managers.token_manager import TokenManager
 from shared.managers.password_manager import PasswordManager
-from shared.shared_instances import user_service_database_session_manager, settings, user_service_redis_manager
+from resources import UserApiResources, get_user_api_resources, settings
 from shared.schemas.user_schemas import CurrentUserInfo
 
 
@@ -46,7 +47,7 @@ oauth2_scheme = OAuth2PasswordBearer(
     scheme_name="oauth2_scheme"
  )
 
-async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
+async def get_db_session(request: Request) -> AsyncGenerator[AsyncSession, None]:
     """
     Providing a transactional scope around for each series (request) of operations with database.
     FastAPI
@@ -54,39 +55,46 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
          └─ async with DatabaseSessionManager.transaction()
              └─ async with AsyncSession()
     """
-    async with user_service_database_session_manager.transaction() as session:
+    async with get_user_api_resources(request).database.transaction() as session:
         yield session
 
-def get_password_manager() -> PasswordManager:
+def get_password_manager(request: Request) -> PasswordManager:
     """Provide password manager instance"""
-    return PasswordManager(settings)
+    return get_user_api_resources(request).password_manager
 
-def get_token_manager() -> TokenManager:
+def get_token_manager(request: Request) -> TokenManager:
     """Provide token manager instance"""
-    return TokenManager(settings)
+    return get_user_api_resources(request).token_manager
 
 def get_outbox_event_service(session: AsyncSession = Depends(get_db_session)) -> OutboxEventService:
     """Dependency to provide OutboxEventService for transactional event publishing."""
-    return OutboxEventService(repository=OutboxRepository(session=session))
+    return OutboxEventService(repository=OutboxRepository(session=session, model=OutboxEvent))
 
 def get_google_http_client(request: Request) -> AsyncClient:
     """Provide the shared Google HTTP client from application state."""
-    return request.app.state.google_http_client
+    return get_user_api_resources(request).google_http_client
+
+
+def get_resources(request: Request) -> UserApiResources:
+    """Expose the typed resource container to dependency composition."""
+    return get_user_api_resources(request)
 
 
 def get_user_service(session: AsyncSession = Depends(get_db_session),
                      password_manager: PasswordManager = Depends(get_password_manager),
                      token_manager: TokenManager = Depends(get_token_manager),
                      outbox_event_service: OutboxEventService = Depends(get_outbox_event_service),
-                     google_http_client: AsyncClient = Depends(get_google_http_client)) -> UserService:
+                     google_http_client: AsyncClient = Depends(get_google_http_client),
+                     resources: UserApiResources = Depends(get_resources)) -> UserService:
     """Dependency to provide UserService with UserRepository for database operations."""
     return UserService(
         repository=UserRepository(session=session),
         password_manager=password_manager,
         token_manager=token_manager,
-        cache_manager=user_service_redis_manager,
+        cache_manager=resources.cache,
         outbox_event_service=outbox_event_service,
         http_client=google_http_client,
+        settings=resources.settings,
     )
 
 # Type annotations for dependency injection

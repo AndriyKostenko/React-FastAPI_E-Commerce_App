@@ -1,7 +1,7 @@
 from typing import Any
 from logging import Logger
 
-from faststream.rabbit import RabbitExchange
+from faststream.rabbit import RabbitBroker, RabbitExchange
 
 from shared.events.event_publisher import BaseEventPublisher
 from shared.schemas.event_schemas import (
@@ -13,7 +13,6 @@ from shared.schemas.event_schemas import (
     UserDeletedEvent,
 )
 from shared.settings import Settings
-from shared.shared_instances import rabbitmq_broker, logger, settings, user_exchange
 
 
 class UserEventPublisher(BaseEventPublisher):
@@ -26,9 +25,15 @@ class UserEventPublisher(BaseEventPublisher):
     - user.password.reset.success
     - user.email.verified
     """
-    def __init__(self, logger: Logger, settings: Settings) -> None:
+    def __init__(
+        self,
+        rabbitmq_broker: RabbitBroker,
+        exchange: RabbitExchange,
+        logger: Logger,
+        settings: Settings,
+    ) -> None:
         super().__init__(rabbitmq_broker, logger, settings)
-        self.exchange: RabbitExchange = user_exchange
+        self.exchange = exchange
 
     async def publish_user_registered(self, event_data: dict[str, Any]) -> None:
         """Publish user registration event"""
@@ -62,6 +67,3 @@ class UserEventPublisher(BaseEventPublisher):
         event = UserDeletedEvent(**event_data)
         await self.publish_an_event(event=event, exchange=self.exchange, routing_key=event.event_type)
         self.logger.info(f"Published user.deleted event for {event.user_email}")
-
-
-user_events_publisher = UserEventPublisher(logger=logger, settings=settings)

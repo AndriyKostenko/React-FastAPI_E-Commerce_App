@@ -3,14 +3,13 @@ from typing import Generic, Optional, TypeVar, Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import func, select
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import DeclarativeBase, selectinload
 
 from shared.exceptions.base_exceptions import NoFieldInTheModelError
-from shared.models.models_base_class import Base
 
 
 # Generic type for SQLAlchemy models
-ModelType = TypeVar("ModelType", bound=Base)
+ModelType = TypeVar("ModelType", bound=DeclarativeBase)
 
 
 class BaseRepository(Generic[ModelType]):

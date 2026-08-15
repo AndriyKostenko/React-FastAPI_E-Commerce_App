@@ -2,7 +2,7 @@ from typing import Annotated
 from collections.abc import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from fastapi import Depends
+from fastapi import Depends, Request
 
 from database_layer.order_address_repository import OrderAddressRepository
 from database_layer.order_item_repository import OrderItemRepository
@@ -11,12 +11,22 @@ from service_layer.order_service import OrderService
 from service_layer.order_item_service import OrderItemService
 from service_layer.order_address_service import OrderAddressService
 from service_layer.outbox_event_service import OutboxEventService
-from shared.shared_instances import order_service_database_session_manager
+from models.outbox_models import OutboxEvent
 from database_layer.order_repository import OrderRepository
+from resources import OrderApiResources
 
 
+def get_api_resources(request: Request) -> OrderApiResources:
+    """Return the resources owned by the active FastAPI lifespan."""
+    resources = getattr(request.app.state, "resources", None)
+    if not isinstance(resources, OrderApiResources):
+        raise RuntimeError("Order API resources are not initialized")
+    return resources
 
-async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
+
+async def get_db_session(
+    resources: OrderApiResources = Depends(get_api_resources),
+) -> AsyncGenerator[AsyncSession, None]:
     """
     Providing a transactional scope around for each series (request) of operations with database.
     FastAPI
@@ -24,7 +34,7 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
          └─ async with DatabaseSessionManager.transaction()
              └─ async with AsyncSession()
     """
-    async with order_service_database_session_manager.transaction() as session:
+    async with resources.database.transaction() as session:
         yield session
 
 def get_order_item_service(session: AsyncSession = Depends(get_db_session)) -> OrderItemService:
@@ -46,7 +56,7 @@ def get_outbox_service(session: AsyncSession = Depends(get_db_session)) -> Outbo
     Dependency to provide OutboxEventService (for buisiness logic and data validation),
     which operates OutboxRepository(inherits BaseRepository) for db session management.
     """
-    return OutboxEventService(repository=OutboxRepository(session=session))
+    return OutboxEventService(repository=OutboxRepository(session=session, model=OutboxEvent))
 
 def get_order_service(session: AsyncSession = Depends(get_db_session),
                       order_item_service: OrderItemService = Depends(get_order_item_service),

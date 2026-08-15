@@ -5,7 +5,7 @@ import pytest
 from httpx import Response as HttpxResponse
 
 from gateway.apigateway import ApiGateway
-from shared.shared_instances import settings, logger
+from resources import logger, settings
 
 
 def _make_gateway() -> ApiGateway:
@@ -74,7 +74,7 @@ class TestForwardRequest:
         mock_http_client = AsyncMock()
         mock_http_client.request = AsyncMock(return_value=mock_response)
 
-        with patch.object(ApiGateway, "_http_client", mock_http_client):
+        with patch.object(self.gw, "_http_client", mock_http_client):
             result = await self.gw.forward_request(request=req, service_name="product-service")
 
         assert result.status_code == 200
@@ -97,7 +97,7 @@ class TestForwardRequest:
         mock_http_client = AsyncMock()
         mock_http_client.request = AsyncMock(side_effect=RequestError("connection refused"))
 
-        with patch.object(ApiGateway, "_http_client", mock_http_client):
+        with patch.object(self.gw, "_http_client", mock_http_client):
             with pytest.raises(HTTPException) as exc_info:
                 await self.gw.forward_request(request=req, service_name="product-service")
 
@@ -115,7 +115,7 @@ class TestForwardRequest:
         mock_http_client.request = AsyncMock(return_value=mock_response)
 
         override = {"user_id": "abc", "total": 50}
-        with patch.object(ApiGateway, "_http_client", mock_http_client):
+        with patch.object(self.gw, "_http_client", mock_http_client):
             result = await self.gw.forward_request(
                 request=req,
                 service_name="order-service",
@@ -141,7 +141,7 @@ class TestForwardRequest:
         mock_http_client = AsyncMock()
         mock_http_client.request = AsyncMock(return_value=mock_response)
 
-        with patch.object(ApiGateway, "_http_client", mock_http_client):
+        with patch.object(self.gw, "_http_client", mock_http_client):
             await self.gw.forward_request(request=req, service_name="product-service")
 
         call_kwargs = mock_http_client.request.call_args.kwargs
@@ -158,7 +158,7 @@ class TestForwardRequest:
         mock_http_client = AsyncMock()
         mock_http_client.request = AsyncMock(return_value=mock_response)
 
-        with patch.object(ApiGateway, "_http_client", mock_http_client):
+        with patch.object(self.gw, "_http_client", mock_http_client):
             await self.gw.forward_request(request=req, service_name="product-service")
 
         call_kwargs = mock_http_client.request.call_args.kwargs

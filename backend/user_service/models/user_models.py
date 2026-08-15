@@ -1,11 +1,12 @@
 from uuid import UUID, uuid4
+from datetime import datetime
 from typing import Any, override
 
 from sqlalchemy.orm import Mapped, mapped_column
-from sqlalchemy import String, Index, inspect
+from sqlalchemy import CheckConstraint, DateTime, String, Index, inspect
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 
-from shared.models.models_base_class import Base
+from models.base import Base
 from shared.utils.models_mixins import TimestampMixin
 
 
@@ -15,8 +16,8 @@ class User(Base, TimestampMixin):
 
     # Creating indexes for the columns
     # to improve query performance, applied to often queried fields
-    __table_args__: tuple[Index, ...] = (
-        Index('idx_users_email', 'email'),
+    __table_args__ = (
+        CheckConstraint("role IN ('user', 'admin')", name="ck_users_role"),
         Index('idx_users_role', 'role'),
         Index('idx_users_is_active', 'is_active'),
         Index('idx_users_is_verified', 'is_verified'),
@@ -27,12 +28,13 @@ class User(Base, TimestampMixin):
     name: Mapped[str] = mapped_column(String(50),nullable=False)
     email: Mapped[str] = mapped_column(String(100),unique=True, nullable=False)
     hashed_password: Mapped[str | None] = mapped_column(nullable=True)
-    role: Mapped[str] = mapped_column(nullable=True)
+    role: Mapped[str] = mapped_column(String(20), nullable=False, default="user", server_default="user")
     phone_number: Mapped[str] = mapped_column(nullable=True)
     image: Mapped[str] = mapped_column(nullable=True)
     is_active: Mapped[bool] = mapped_column(default=True, nullable=False)
     is_verified: Mapped[bool] = mapped_column(default=False, nullable=False)
     token_version: Mapped[int] = mapped_column(default=1, nullable=False)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     @classmethod
     def get_search_fields(cls) -> list[str]:

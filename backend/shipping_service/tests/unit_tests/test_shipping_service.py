@@ -14,8 +14,7 @@ from models.shipping_models import ShippingMethod, Shipment
 from service_layer.shipping_method_service import ShippingMethodService
 from service_layer.shipment_service import ShipmentService
 from shared.schemas.shipping_schemas import CreateShipment, CreateShippingMethod, UpdateShipment
-from shared.shared_instances import test_settings
-from unittest.mock import patch
+from service_test_config import test_settings
 
 
 class TestShippingMethodService:
@@ -111,7 +110,14 @@ class TestShipmentService:
         with pytest.raises(ShipmentNotFoundError):
             await shipment_service_unit.get_shipment_by_id(test_settings.TEST_SHIPMENT_ID)
 
-    async def test_update_shipment_status_to_shipped(self, shipment_service_unit, mock_shipment_repository, mock_method_repository, mock_shipment_orm):
+    async def test_update_shipment_status_to_shipped(
+        self,
+        shipment_service_unit,
+        mock_shipment_repository,
+        mock_method_repository,
+        mock_shipment_orm,
+        mock_event_publisher,
+    ):
         mock_shipment_repository.get_by_id.return_value = mock_shipment_orm
         updated_orm = MagicMock(spec=Shipment)
         updated_orm.id = test_settings.TEST_SHIPMENT_ID
@@ -130,12 +136,11 @@ class TestShipmentService:
         mock_shipment_repository.update_by_id.return_value = updated_orm
 
         update_data = UpdateShipment(status="shipped", tracking_number="TRACK123")
-        with patch("service_layer.shipment_service.shipping_event_publisher.publish_shipment_shipped") as mock_publish:
-            result = await shipment_service_unit.update_shipment(test_settings.TEST_SHIPMENT_ID, update_data)
+        result = await shipment_service_unit.update_shipment(test_settings.TEST_SHIPMENT_ID, update_data)
 
         assert result.status == "shipped"
         assert result.tracking_number == "TRACK123"
-        mock_publish.assert_awaited_once()
+        mock_event_publisher.publish_shipment_shipped.assert_awaited_once()
 
     async def test_update_shipment_invalid_transition(self, shipment_service_unit, mock_shipment_repository, mock_method_repository, mock_shipment_orm):
         mock_shipment_orm.status = "delivered"

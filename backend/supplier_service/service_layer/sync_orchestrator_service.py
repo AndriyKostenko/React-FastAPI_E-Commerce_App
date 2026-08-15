@@ -12,7 +12,6 @@ from shared.schemas.dropshipping_schemas import CJProductsFilterParams
 from shared.schemas.event_schemas import SupplierProductsFetchedEvent
 from shared.schemas.supplier_schemas import GenericSupplierProduct
 from shared.settings import Settings
-from shared.shared_instances import supplier_service_database_session_manager
 from exceptions.cj_order_exceptions import ProviderNotFoundError, SyncAlreadyInProgressError
 
 

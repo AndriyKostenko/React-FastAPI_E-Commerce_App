@@ -1,11 +1,8 @@
 from logging import Logger
 from typing import Any
 
-from shared.shared_instances import (
-    logger,
-    cart_event_idempotency_service,
-    cart_service_database_session_manager,
-)
+from shared.idempotency.idempotency_service import IdempotencyEventService
+from shared.managers.database_session_manager import DatabaseSessionManager
 from shared.enums.event_enums import OrderEvents
 from shared.schemas.event_schemas import OrderCreatedEvent, OrderConfirmedEvent
 from database_layer.cart_repository import CartRepository
@@ -22,13 +19,20 @@ class CartEventConsumer:
       already emptied when the order was created.
     """
 
-    def __init__(self, logger: Logger) -> None:
+    def __init__(
+        self,
+        *,
+        logger: Logger,
+        database: DatabaseSessionManager,
+        idempotency: IdempotencyEventService,
+    ) -> None:
         self.logger: Logger = logger
-        self.idempotency_service = cart_event_idempotency_service
+        self.database = database
+        self.idempotency_service = idempotency
 
     async def _get_cart_service(self):
         """Create a CartService with a fresh database session."""
-        async with cart_service_database_session_manager.transaction() as session:
+        async with self.database.transaction() as session:
             yield CartService(repository=CartRepository(session=session))
 
     async def handle_order_event(self, message: dict[str, Any]) -> None:
@@ -135,6 +139,3 @@ class CartEventConsumer:
                 f"Error clearing cart on order confirmation {message.get('order_id')}: {e}"
             )
             raise
-
-
-cart_event_consumer = CartEventConsumer(logger=logger)

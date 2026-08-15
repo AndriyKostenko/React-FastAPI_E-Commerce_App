@@ -9,8 +9,10 @@ from shared.schemas.payment_schemas import (
     PaymentResponse,
     WebhookAckResponse,
 )
-from dependencies.dependencies import payment_service_dependency
-from shared.shared_instances import payment_event_idempotency_service as idempotency_service
+from dependencies.dependencies import (
+    idempotency_service_dependency,
+    payment_service_dependency,
+)
 
 
 payment_routes = APIRouter(tags=["payments"])
@@ -48,6 +50,7 @@ async def create_payment_intent(
 async def stripe_webhook(
     request: Request,
     payment_service: payment_service_dependency,
+    idempotency_service: idempotency_service_dependency,
 ) -> WebhookAckResponse:
     stripe_event = await payment_service.construct_webhook_event(request=request)
     event_type: str = stripe_event["type"]

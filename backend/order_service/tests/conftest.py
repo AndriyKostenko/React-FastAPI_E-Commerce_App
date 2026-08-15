@@ -34,7 +34,13 @@ from service_layer.order_item_service import OrderItemService
 from service_layer.order_address_service import OrderAddressService
 from service_layer.outbox_event_service import OutboxEventService
 from shared.database_layer.outbox_repository import OutboxRepository
-from shared.shared_instances import settings, test_order_service_database_session_manager
+from models.base import Base
+from models.order_address_models import OrderAddress
+from models.order_item_models import OrderItem
+from models.order_models import Order
+from models.outbox_models import OutboxEvent
+from config import logger, settings
+from shared.managers.test_database_session_manager import TestDatabaseSessionManager
 from shared.enums.status_enums import OrderStatus, OrderDeliveryStatus
 from tests.constants import (
     TEST_ORDER_ID,
@@ -62,6 +68,20 @@ from shared.testing.helpers import allow_testserver_host
 def _allow_testserver_host() -> None:
     """Make the default httpx/TestClient host ('testserver') pass host checks."""
     allow_testserver_host()
+
+
+@pytest.fixture(scope="session")
+async def test_database_session_manager(
+) -> AsyncGenerator[TestDatabaseSessionManager, None]:
+    """Own and close the order test database manager for this session."""
+    manager = TestDatabaseSessionManager(
+        database_url=settings.ORDER_SERVICE_TEST_DATABASE_URL,
+        logger=logger,
+    )
+    try:
+        yield manager
+    finally:
+        await manager.close()
 
 
 # ---------------------------------------------------------------------------
@@ -263,7 +283,9 @@ async def client_for_unit_testing(
 # ---------------------------------------------------------------------------
 
 @pytest.fixture
-async def integration_client() -> AsyncGenerator[AsyncClient, Any]:
+async def integration_client(
+    test_database_session_manager: TestDatabaseSessionManager,
+) -> AsyncGenerator[AsyncClient, Any]:
     """
     Async HTTP client for integration tests.
 
@@ -278,10 +300,10 @@ async def integration_client() -> AsyncGenerator[AsyncClient, Any]:
       - Before yield: init schema (idempotent)
       - After  yield: TRUNCATE all tables
     """
-    await test_order_service_database_session_manager.init_db()
+    await test_database_session_manager.init_db(Base.metadata)
 
     async def _override_get_db_session() -> AsyncGenerator[AsyncSession, None]:
-        async with test_order_service_database_session_manager.transaction() as session:
+        async with test_database_session_manager.transaction() as session:
             yield session
 
     def _override_get_order_item_service(
@@ -297,7 +319,7 @@ async def integration_client() -> AsyncGenerator[AsyncClient, Any]:
     def _override_get_outbox_service(
         session: AsyncSession = Depends(_override_get_db_session),
     ) -> OutboxEventService:
-        return OutboxEventService(repository=OutboxRepository(session=session))
+        return OutboxEventService(repository=OutboxRepository(session=session, model=OutboxEvent))
 
     def _override_get_order_service(
         session: AsyncSession = Depends(_override_get_db_session),
@@ -331,4 +353,4 @@ async def integration_client() -> AsyncGenerator[AsyncClient, Any]:
     app.router.lifespan_context = original_lifespan
     settings.DEBUG_MODE = original_debug_mode
 
-    await test_order_service_database_session_manager.truncate_all_tables()
+    await test_database_session_manager.truncate_all_tables(Base.metadata)

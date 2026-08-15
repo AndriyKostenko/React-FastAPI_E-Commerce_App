@@ -4,11 +4,6 @@ from uuid import UUID
 
 from shared.idempotency.idempotency_service import IdempotencyEventService
 from shared.managers.database_session_manager import DatabaseSessionManager
-from shared.shared_instances import (
-    logger,
-    notification_idempotency_service,
-    notification_service_database_session_manager,
-)
 from shared.schemas.event_schemas import (
     PaymentSucceededEvent,
     PaymentFailedEvent,
@@ -32,7 +27,7 @@ from tasks.email_tasks import (
 Base handler
 Composition over inheritance: handlers USE IdempotencyEventService and
 DatabaseSessionManager - they don't specialize them.
-Both handlers share the single notification_idempotency_service singleton
+All handlers receive the same consumer-owned idempotency resource
 (one Redis connection pool for the whole notification consumer process).
 """
 
@@ -214,24 +209,3 @@ class PaymentEventHandler(BaseEventHandler):
             self._logger.error(f"Error handling payment event {event_type}: {error}")
             await self._release_claim(event_id=event_id, event_type=event_type)
             raise
-
-
-# FastStream subscriber registration
-# Both handlers share the SAME notification_idempotency_service singleton -
-# one Redis connection pool for the entire notification consumer process.
-
-user_handler = UserEventHandler(
-    idempotency_service=notification_idempotency_service,
-    db_session_manager=notification_service_database_session_manager,
-    logger=logger,
-)
-order_handler = OrderEventHandler(
-    idempotency_service=notification_idempotency_service,
-    db_session_manager=notification_service_database_session_manager,
-    logger=logger,
-)
-payment_handler = PaymentEventHandler(
-    idempotency_service=notification_idempotency_service,
-    db_session_manager=notification_service_database_session_manager,
-    logger=logger,
-)

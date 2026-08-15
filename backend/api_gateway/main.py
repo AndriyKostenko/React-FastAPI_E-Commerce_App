@@ -22,13 +22,7 @@ from routes.payment_routes import payment_proxy
 from routes.cart_routes import cart_proxy
 from routes.shipping_routes import shipping_proxy
 from routes.wishlist_routes import wishlist_proxy
-from shared.shared_instances import (api_gateway_cache_manager,
-                                     api_gateway_rate_limit_manager,
-                                     logger,
-                                     settings)
-from middleware.auth_middleware import auth_middleware
-from gateway.apigateway import api_gateway_manager
-from middleware.cache_middleware import GatewayRequestMiddleware
+from resources import api_gateway_runtime, get_api_gateway_resources, logger, settings
 
 
 
@@ -66,30 +60,19 @@ async def lifespan(app: FastAPI):
 
 
     logger.info(f"Server is starting up on {settings.APP_HOST}:{settings.API_GATEWAY_SERVICE_APP_PORT}...")
-    await api_gateway_cache_manager.connect()
-    await api_gateway_rate_limit_manager.connect()
-    await api_gateway_manager.startup()
-    logger.info('Server startup complete!')
+    async with api_gateway_runtime() as resources:
+        app.state.resources = resources
+        logger.info('Server startup complete!')
+        try:
+            yield
+        finally:
+            del app.state.resources
 
-    yield
-
-    # Cleanup on shutdown
-    await api_gateway_manager.shutdown()
-    await api_gateway_cache_manager.close()
-    await api_gateway_rate_limit_manager.close()
-    logger.warning("Cache connection closed on shutdown!")
     logger.warning(f"Server has shut down !")
 
 
 # initializing the main app instance
 app = FastAPI(title="API Gateway", lifespan=lifespan)
-
-# Instantiate the class-based gateway middleware (holds CacheManager + RateLimitManager).
-gateway_request_middleware = GatewayRequestMiddleware(
-    cache_manager=api_gateway_cache_manager,
-    rate_limit_manager=api_gateway_rate_limit_manager,
-)
-
 
 # initializing the OpenTelemetry tracing
 setup_tracing(app, service_name="api-gateway", instrument_sqlalchemy=False)
@@ -109,9 +92,10 @@ async def gateway_middleware(request: Request, call_next):
     if request.url.path in ("/metrics", "/health"):
         return await call_next(request)
 
-    is_public = auth_middleware.is_public_endpoint(request.url.path, request.method)
+    resources = get_api_gateway_resources(request)
+    is_public = resources.auth.is_public_endpoint(request.url.path, request.method)
     start = perf_counter()
-    response = await gateway_request_middleware(request, call_next, is_public=is_public)
+    response = await resources.request_middleware(request, call_next, is_public=is_public)
     duration = perf_counter() - start
 
     if REQUEST_COUNTER and LATENCY_COUNTER:
@@ -136,7 +120,7 @@ async def authentication_middleware(request: Request, call_next):
     Authentication middleware to handle JWT tokens
     """
     logger.debug("Running authentication middleware...")
-    return await auth_middleware.middleware(request, call_next)
+    return await get_api_gateway_resources(request).auth.middleware(request, call_next)
 
 
 # CORS must be added AFTER @app.middleware decorators — Starlette builds the stack
@@ -190,7 +174,7 @@ def metrics():
 
 
 @app.get("/media/{file_path:path}", include_in_schema=False)
-async def proxy_product_media(file_path: str):
+async def proxy_product_media(request: Request, file_path: str):
     """
     Proxy product-service static media through API Gateway so frontend can use a
     single API origin (:8000) for both JSON APIs and generated image files.
@@ -201,9 +185,10 @@ async def proxy_product_media(file_path: str):
 
     upstream_url = f"{settings.PRODUCT_SERVICE_URL.rstrip('/')}/media/{normalized_path}"
     try:
-        upstream_response = await api_gateway_manager.client.get(
+        gateway = get_api_gateway_resources(request).gateway
+        upstream_response = await gateway.client.get(
             upstream_url,
-            timeout=api_gateway_manager._TIMEOUT,
+            timeout=gateway._TIMEOUT,
         )
     except RequestError as exc:
         logger.error(f"Failed to fetch media from product-service ({upstream_url}): {exc!r}")

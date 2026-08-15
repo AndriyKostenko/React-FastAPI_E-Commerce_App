@@ -2,18 +2,18 @@ from logging import Logger
 from fastapi import Request, HTTPException, Response
 from fastapi.responses import JSONResponse
 
-from shared.shared_instances import settings, logger, token_manager
-from shared.utils.metaclasses import SingletonMetaClass
 from shared.settings import Settings
+from shared.managers.token_manager import TokenManager
 from shared.enums.auth_enums import AuthCookies
 
-class AuthMiddleware(metaclass=SingletonMetaClass):
+class AuthMiddleware:
     """
     Middleware to handle proper access via JWT authentication by validating tokens with the User Service.
     """
-    def __init__(self, settings: Settings, logger: Logger):
+    def __init__(self, settings: Settings, logger: Logger, token_manager: TokenManager):
         self.settings: Settings = settings
         self.logger: Logger = logger
+        self.token_manager = token_manager
         self.PUBLIC_ENDPOINTS: dict[str, list[str] | None] = {
             "/health": None,
             "/metrics": None,
@@ -87,7 +87,7 @@ class AuthMiddleware(metaclass=SingletonMetaClass):
         # 3. Try to validate token if present (required for protected endpoints, optional for public)
         if token:
             try:
-                user_data = token_manager.decode_token(token)
+                user_data = self.token_manager.decode_token(token)
                 request.state.current_user = user_data
                 self.logger.info(f"Token is validated for: {user_data.email}")
             except HTTPException as exc:
@@ -146,6 +146,3 @@ class AuthMiddleware(metaclass=SingletonMetaClass):
         secure = self.settings.SECURE_COOKIES
         response.delete_cookie(key=AuthCookies.ACCESS_COOKIE, httponly=True, secure=secure, samesite="lax")
         response.delete_cookie(key=AuthCookies.REFRESH_COOKIE, httponly=True, secure=secure, samesite="lax")
-
-
-auth_middleware = AuthMiddleware(settings, logger)

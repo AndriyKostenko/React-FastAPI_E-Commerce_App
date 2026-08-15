@@ -1,11 +1,9 @@
 from logging import Logger
 from typing import Any
 
-from shared.shared_instances import (
-    logger,
-    wishlist_event_idempotency_service,
-    wishlist_service_database_session_manager,
-)
+from shared.idempotency.idempotency_service import IdempotencyEventService
+from shared.managers.database_session_manager import DatabaseSessionManager
+from shared.settings import Settings
 from shared.enums.event_enums import UserEvents
 from shared.schemas.event_schemas import UserDeletedEvent
 from database_layer.wishlist_repository import WishlistRepository
@@ -20,14 +18,27 @@ class WishlistEventConsumer:
     - user.deleted: deletes the user's wishlist and all its items.
     """
 
-    def __init__(self, logger: Logger) -> None:
+    def __init__(
+        self,
+        *,
+        logger: Logger,
+        settings: Settings,
+        database: DatabaseSessionManager,
+        idempotency: IdempotencyEventService,
+    ) -> None:
         self.logger: Logger = logger
-        self.idempotency_service = wishlist_event_idempotency_service
+        self.settings = settings
+        self.database = database
+        self.idempotency_service = idempotency
 
     async def _get_wishlist_service(self):
         """Create a WishlistService with a fresh database session."""
-        async with wishlist_service_database_session_manager.transaction() as session:
-            yield WishlistService(repository=WishlistRepository(session=session))
+        async with self.database.transaction() as session:
+            yield WishlistService(
+                repository=WishlistRepository(session=session),
+                settings=self.settings,
+                logger=self.logger,
+            )
 
     async def handle_user_event(self, message: dict[str, Any]) -> None:
         """Route user events to the appropriate handler."""
@@ -64,7 +75,7 @@ class WishlistEventConsumer:
             await self.idempotency_service.mark_event_as_processed(
                 event_id=event.event_id,
                 event_type=event.event_type,
-                user_id=event.user_id,
+                order_id=None,
                 result="wishlist_deleted",
             )
             self.logger.info(
@@ -80,6 +91,3 @@ class WishlistEventConsumer:
                 f"Error deleting wishlist for user {message.get('user_id')}: {e}"
             )
             raise
-
-
-wishlist_event_consumer = WishlistEventConsumer(logger=logger)

@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from asyncio import Lock
 import hashlib
 import secrets
@@ -30,7 +30,7 @@ from shared.schemas.event_schemas import (
     EmailVerificationEvent,
     UserDeletedEvent,
 )
-from shared.shared_instances import settings
+from shared.settings import Settings
 from shared.managers.cache_manager import CacheManager
 from shared.enums.event_enums import UserEvents
 from exceptions.user_exceptions import (
@@ -59,13 +59,15 @@ class UserService:
                 token_manager: TokenManager,
                 cache_manager: CacheManager,
                 outbox_event_service: OutboxEventService,
-                http_client: AsyncClient):
+                http_client: AsyncClient,
+                settings: Settings):
         self.repository: UserRepository = repository
         self.password_manager: PasswordManager = password_manager
         self.token_manager: TokenManager = token_manager
         self.cache_manager: CacheManager = cache_manager
         self.outbox_event_service: OutboxEventService = outbox_event_service
         self.httpx_client: AsyncClient = http_client
+        self.settings = settings
 
     def _token_hash(self, token: str) -> str:
         """Compute SHA-256 hash of a token for secure Redis storage."""
@@ -86,7 +88,7 @@ class UserService:
     async def _store_refresh(self, user_id: UUID | str, refresh_token: str) -> None:
         """Store hashed refresh token and index it in the user's active token set."""
         token_hash = self._token_hash(refresh_token)
-        ttl_seconds = settings.REFRESH_TOKEN_TIME_DELTA_DAYS * 86400
+        ttl_seconds = self.settings.REFRESH_TOKEN_TIME_DELTA_DAYS * 86400
         pipe = self.cache_manager.redis.pipeline()
         pipe.setex(self._refresh_key(token_hash), ttl_seconds, str(user_id))
         pipe.sadd(self._user_refresh_set_key(user_id), token_hash)
@@ -112,24 +114,25 @@ class UserService:
         Returns:
             tuple: (UserInfo, verification_token)
         """
-        existing_user = await self.repository.get_by_field("email", data.email)
-        if existing_user:
-            raise UserAlreadyExistsError(f"User with email: {data.email} already exists.")
+        email = str(data.email).strip().lower()
         hashed_password = self.password_manager.hash_password(data.password)
         new_user = User(
             name=data.name,
-            email=data.email,
+            email=email,
             hashed_password=hashed_password,
             is_verified=False,
             role="user",
             is_active=True,
             token_version=1
         )
-        user = await self.repository.create(new_user)
+        try:
+            user = await self.repository.create(new_user)
+        except IntegrityError as exc:
+            raise UserAlreadyExistsError("User with that email already exists.") from exc
 
         # Generate single-use opaque verification token and store hash in Redis
         verification_token = secrets.token_urlsafe(32)
-        ttl_seconds = settings.VERIFICATION_TOKEN_EXPIRY_MINUTES * 60
+        ttl_seconds = self.settings.VERIFICATION_TOKEN_EXPIRY_MINUTES * 60
         await self.cache_manager.redis.setex(
             self._verify_token_key(verification_token),
             ttl_seconds,
@@ -173,7 +176,7 @@ class UserService:
         Verify a Google ID token, then find or create the user, and issue backend JWT tokens.
         Validates aud, iss, and email_verified claims before trusting the token.
         """
-        if not settings.GOOGLE_CLIENT_ID:
+        if not self.settings.GOOGLE_CLIENT_ID:
             raise HTTPException(status_code=500, detail="Google authentication client ID is not configured")
 
         claims = await self._verify_google_id_token(id_token)
@@ -225,7 +228,7 @@ class UserService:
             email=email,
             user_id=user.id,
             role=user.role,
-            expires_delta=timedelta(minutes=settings.TOKEN_TIME_DELTA_MINUTES),
+            expires_delta=timedelta(minutes=self.settings.TOKEN_TIME_DELTA_MINUTES),
             purpose="access",
             extra_claims={"ver": user.token_version},
         )
@@ -258,7 +261,7 @@ class UserService:
                 id_token,
                 jwk.construct(key_data, algorithm="RS256"),
                 algorithms=["RS256"],
-                audience=settings.GOOGLE_CLIENT_ID,
+                audience=self.settings.GOOGLE_CLIENT_ID,
                 issuer="https://accounts.google.com",
             )
         except (JWTError, ValueError, KeyError, TypeError):
@@ -345,12 +348,15 @@ class UserService:
         return UserInfo.model_validate(updated_user)
 
     async def update_user_basic_info(self, user_id: UUID, update_data: UserBasicUpdate) -> UserInfo:
-        updated_user = await self.repository.update_by_id(item_id=user_id, data=update_data.model_dump())
+        changes = update_data.model_dump(exclude_unset=True)
+        if not changes:
+            raise HTTPException(status_code=400, detail="At least one field must be supplied")
+        updated_user = await self.repository.update_by_id(item_id=user_id, data=changes)
         if not updated_user:
             raise UserNotFoundError(f"User with id: {user_id} not found.")
         return UserInfo.model_validate(updated_user)
 
-    async def verify_email(self, token: str) -> tuple["UserInfo", str, int]:
+    async def verify_email(self, token: str) -> "UserInfo":
         """Verify user email using single-use opaque token."""
         key = self._verify_token_key(token)
         user_id_str = await self.cache_manager.redis.getdel(key)
@@ -370,15 +376,6 @@ class UserService:
         if not updated_user:
             raise UserNotFoundError("User not found for verification")
 
-        access_token, access_expiry = self.token_manager.create_access_token(
-            email=updated_user.email,
-            user_id=updated_user.id,
-            role=updated_user.role,
-            expires_delta=timedelta(minutes=settings.TOKEN_TIME_DELTA_MINUTES),
-            purpose="access",
-            extra_claims={"ver": updated_user.token_version}
-        )
-
         await self.outbox_event_service.add_outbox_event(
             event_type=UserEvents.USER_EMAIL_VERIFIED,
             payload=EmailVerificationEvent(
@@ -387,15 +384,21 @@ class UserService:
             )
         )
 
-        return UserInfo.model_validate(updated_user), access_token, access_expiry
+        return UserInfo.model_validate(updated_user)
 
     async def delete_user_by_id(self, user_id: UUID) -> None:
         user = await self.repository.get_by_id(user_id)
         if not user:
             raise UserNotFoundError(f"User with id: {user_id} not found.")
 
-        success = await self.repository.delete_by_id(user_id)
-        if not success:
+        anonymized_email = f"deleted+{user.id}@invalid.local"
+        updated_user = await self.repository.update_by_id(
+            item_id=user_id,
+            data={"name": "Deleted user", "email": anonymized_email, "hashed_password": None,
+                  "phone_number": None, "image": None, "is_active": False,
+                  "deleted_at": datetime.now(timezone.utc), "token_version": (user.token_version or 1) + 1},
+        )
+        if not updated_user:
             raise UserNotFoundError(f"User with id: {user_id} not found.")
 
         await self._revoke_all_refresh_for_user(user_id)
@@ -427,7 +430,7 @@ class UserService:
             return None, ""
 
         reset_token = secrets.token_urlsafe(32)
-        ttl_seconds = settings.RESET_TOKEN_EXPIRY_MINUTES * 60
+        ttl_seconds = self.settings.RESET_TOKEN_EXPIRY_MINUTES * 60
         await self.cache_manager.redis.setex(
             self._reset_token_key(reset_token),
             ttl_seconds,
@@ -501,7 +504,7 @@ class UserService:
             email=email,
             user_id=user.id,
             role=user.role,
-            expires_delta=timedelta(minutes=settings.TOKEN_TIME_DELTA_MINUTES),
+            expires_delta=timedelta(minutes=self.settings.TOKEN_TIME_DELTA_MINUTES),
             purpose="access",
             extra_claims={"ver": user.token_version}
         )
@@ -562,7 +565,7 @@ class UserService:
             email=user.email,
             user_id=user.id,
             role=user.role,
-            expires_delta=timedelta(minutes=settings.TOKEN_TIME_DELTA_MINUTES),
+            expires_delta=timedelta(minutes=self.settings.TOKEN_TIME_DELTA_MINUTES),
             purpose="access",
             extra_claims={"ver": user.token_version}
         )

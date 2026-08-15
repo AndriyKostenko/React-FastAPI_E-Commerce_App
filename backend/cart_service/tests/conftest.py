@@ -20,14 +20,16 @@ from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from main import app
+from service_config import logger, settings
 from database_layer.cart_repository import CartRepository
 from dependencies.dependencies import get_db_session, get_cart_service
+from models.base import Base
 from models.cart_models import Cart, CartItem
 from service_layer.cart_services import CartService
 from shared.schemas.cart_schemas import CartSchema, CartItemSchema, CartSummary
-from shared.shared_instances import settings, test_cart_service_database_session_manager
+from shared.managers.test_database_session_manager import TestDatabaseSessionManager
 from shared.testing.helpers import allow_testserver_host
-from shared.shared_instances import test_settings
+from service_test_config import test_settings
 
 
 # ---------------------------------------------------------------------------
@@ -38,6 +40,19 @@ from shared.shared_instances import test_settings
 def _allow_testserver_host() -> None:
     """Make the default httpx/TestClient host ('testserver') pass host checks."""
     allow_testserver_host()
+
+
+@pytest.fixture(scope="session")
+async def test_database_session_manager():
+    """Create the cart test database manager only for integration tests."""
+    manager = TestDatabaseSessionManager(
+        database_url=settings.CART_SERVICE_TEST_DATABASE_URL,
+        logger=logger,
+    )
+    try:
+        yield manager
+    finally:
+        await manager.close()
 
 
 # ---------------------------------------------------------------------------
@@ -208,7 +223,9 @@ async def client_for_unit_testing(
 # ---------------------------------------------------------------------------
 
 @pytest.fixture
-async def integration_client() -> AsyncGenerator[AsyncClient, Any]:
+async def integration_client(
+    test_database_session_manager: TestDatabaseSessionManager,
+) -> AsyncGenerator[AsyncClient, Any]:
     """
     Async HTTP client for integration tests.
 
@@ -223,10 +240,10 @@ async def integration_client() -> AsyncGenerator[AsyncClient, Any]:
       - Before yield : create all tables (idempotent) so the schema is fresh.
       - After  yield : TRUNCATE every table so the next test starts clean.
     """
-    await test_cart_service_database_session_manager.init_db()
+    await test_database_session_manager.init_db(Base.metadata)
 
     async def _override_get_db_session() -> AsyncGenerator[AsyncSession, None]:
-        async with test_cart_service_database_session_manager.transaction() as session:
+        async with test_database_session_manager.transaction() as session:
             yield session
 
     def _override_get_cart_service(
@@ -252,4 +269,4 @@ async def integration_client() -> AsyncGenerator[AsyncClient, Any]:
     app.router.lifespan_context = original_lifespan
     settings.DEBUG_MODE = original_debug_mode
 
-    await test_cart_service_database_session_manager.truncate_all_tables()
+    await test_database_session_manager.truncate_all_tables(Base.metadata)

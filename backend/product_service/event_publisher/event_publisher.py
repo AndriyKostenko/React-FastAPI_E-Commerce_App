@@ -2,9 +2,8 @@ from logging import Logger
 from uuid import UUID
 
 from pydantic import EmailStr
-from faststream.rabbit import RabbitExchange
+from faststream.rabbit import RabbitBroker, RabbitExchange
 
-from shared.shared_instances import logger, settings, rabbitmq_broker, inventory_exchange, supplier_exchange
 from shared.events.event_publisher import BaseEventPublisher
 from shared.settings import Settings
 from shared.schemas.event_schemas import (
@@ -20,8 +19,15 @@ from shared.enums.event_enums import SupplierEvents
 class ProductEventPublisher(BaseEventPublisher):
     """Event publisher for Product Service using FastStream"""
 
-    def __init__(self, logger: Logger, settings: Settings):
-        super().__init__(rabbitmq_broker, logger, settings)
+    def __init__(
+        self,
+        broker: RabbitBroker,
+        inventory_exchange: RabbitExchange,
+        supplier_exchange: RabbitExchange,
+        logger: Logger,
+        settings: Settings,
+    ):
+        super().__init__(broker, logger, settings)
         self.inventory_exchange: RabbitExchange = inventory_exchange
         self.supplier_exchange: RabbitExchange = supplier_exchange
 
@@ -74,6 +80,3 @@ class ProductEventPublisher(BaseEventPublisher):
             routing_key=SupplierEvents.SUPPLIER_PRODUCT_IMPORT_FAILED,
         )
         self.logger.info(f"Published supplier product import failed event for fetch_id: {event.fetch_id}")
-
-
-product_event_publisher = ProductEventPublisher(logger=logger, settings=settings)

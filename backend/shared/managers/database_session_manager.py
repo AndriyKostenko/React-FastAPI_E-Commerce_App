@@ -2,10 +2,9 @@ from contextlib import asynccontextmanager
 from logging import Logger
 from collections.abc import AsyncGenerator
 
-from sqlalchemy import URL
+from sqlalchemy import MetaData, URL
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker, AsyncEngine
 
-from shared.models.models_base_class import Base
 from shared.exceptions.base_exceptions import BaseAPIException, DatabaseConnectionError, DatabaseSessionError
 from shared.database_layer.pool_settings import PoolSettingsCalculator
 
@@ -59,18 +58,24 @@ class DatabaseSessionManager:
             )
             self.logger.info("Database engine initialized")
         except Exception as e:
-            self.logger.error(f"Failed to initialize database engine: {str(e)}")
-            self.async_engine = None
-            self.async_session = None
+            self.logger.exception("Failed to initialize database engine")
+            raise DatabaseConnectionError(
+                f"Failed to initialize database engine: {e}"
+            ) from e
 
-    async def init_db(self) -> None:
-        """Initialize the database and create all tables."""
+    async def init_db(self, metadata: MetaData) -> None:
+        """Create missing tables from one service's explicitly supplied metadata.
+
+        This is a bootstrap mechanism, not a migration engine: it deliberately
+        cannot alter existing columns.  Each caller must pass its own service
+        ``Base.metadata`` so schemas never bleed across service boundaries.
+        """
         if self.async_engine is None:
             self.logger.error("Database engine is not initialized.")
             raise DatabaseConnectionError("Database engine is not initialized.")
         try:
             async with self.async_engine.begin() as connection:
-                await connection.run_sync(Base.metadata.create_all)
+                await connection.run_sync(metadata.create_all)
             self.logger.info("Database tables initialized successfully")
         except Exception as e:
             self.logger.error(f"Unexpected error during database initialization: {str(e)}")

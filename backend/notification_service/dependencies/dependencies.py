@@ -1,16 +1,22 @@
 from typing import Annotated, AsyncGenerator
 
-from fastapi import Depends
+from fastapi import Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database_layer.notification_repository import NotificationRepository
 from service_layer.notification_service import NotificationService
-from shared.shared_instances import notification_service_database_session_manager
+from resources import NotificationApiResources
 
 
-async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
+def get_resources(request: Request) -> NotificationApiResources:
+    return request.app.state.resources
+
+
+async def get_db_session(
+    resources: NotificationApiResources = Depends(get_resources),
+) -> AsyncGenerator[AsyncSession, None]:
     """Yield a transactional DB session for the notification service."""
-    async with notification_service_database_session_manager.transaction() as session:
+    async with resources.database.transaction() as session:
         yield session
 
 

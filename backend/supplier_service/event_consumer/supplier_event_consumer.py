@@ -26,12 +26,9 @@ from shared.schemas.event_schemas import (
     OrderItemBase,
 )
 from shared.schemas.order_schemas import ConfirmedOrderAddress, ConfirmedOrderItem
-from shared.shared_instances import (
-    logger,
-    settings,
-    supplier_event_idempotency_service,
-    supplier_service_database_session_manager,
-)
+from shared.idempotency.idempotency_service import IdempotencyEventService
+from shared.managers.database_session_manager import DatabaseSessionManager
+from shared.settings import Settings
 
 
 class SupplierEventConsumer:
@@ -45,20 +42,23 @@ class SupplierEventConsumer:
     def __init__(
         self,
         logger: Logger,
-        idempotency_service=supplier_event_idempotency_service,
-        cj_api_client: CJDropshippingAPIClient | None = None,
-        product_service_client: ProductServiceClient | None = None,
-        publisher: SupplierEventPublisher | None = None,
+        settings: Settings,
+        database: DatabaseSessionManager,
+        idempotency_service: IdempotencyEventService,
+        cj_api_client: CJDropshippingAPIClient,
+        product_service_client: ProductServiceClient,
+        publisher: SupplierEventPublisher,
     ) -> None:
         self.logger: Logger = logger
         self.settings = settings
         self.idempotency_service = idempotency_service
-        self.cj_api_client: CJDropshippingAPIClient = cj_api_client or CJDropshippingAPIClient(settings)
-        self.product_service_client: ProductServiceClient = product_service_client or ProductServiceClient(settings)
-        self.publisher: SupplierEventPublisher = publisher or SupplierEventPublisher(logger=logger, settings=settings)
+        self.database = database
+        self.cj_api_client = cj_api_client
+        self.product_service_client = product_service_client
+        self.publisher = publisher
 
     async def _get_sync_state_repository(self):
-        async with supplier_service_database_session_manager.transaction() as session:
+        async with self.database.transaction() as session:
             yield SupplierSyncStateRepository(session=session)
 
     async def handle_import_feedback_event(self, message: dict[str, Any]) -> None:
@@ -104,7 +104,7 @@ class SupplierEventConsumer:
         error_message: str | None = None,
     ) -> None:
         try:
-            async with supplier_service_database_session_manager.transaction() as session:
+            async with self.database.transaction() as session:
                 repo = SupplierSyncStateRepository(session=session)
                 sync_state = await repo.get_by_fetch_id(fetch_id)
                 if sync_state:
@@ -363,6 +363,3 @@ class SupplierEventConsumer:
             }
         )
         self.logger.info(f"Published InventoryReleaseRequested for order: {event.order_id}")
-
-
-supplier_event_consumer = SupplierEventConsumer(logger=logger)

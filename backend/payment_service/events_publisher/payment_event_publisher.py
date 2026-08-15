@@ -1,18 +1,23 @@
 from typing import Any
 from logging import Logger
 
-from faststream.rabbit import RabbitExchange
+from faststream.rabbit import RabbitBroker, RabbitExchange
 
 from shared.settings import Settings
 from shared.events.event_publisher import BaseEventPublisher
-from shared.shared_instances import settings, logger, rabbitmq_broker, payment_exchange
+from messaging import payment_exchange
 from shared.schemas.event_schemas import PaymentSucceededEvent, PaymentFailedEvent, PaymentRefundedEvent, PaymentCancelledEvent
 
 
 class PaymentEventPublisher(BaseEventPublisher):
     """Event publisher for Payment Service using FastStream / RabbitMQ."""
 
-    def __init__(self, logger: Logger, settings: Settings):
+    def __init__(
+        self,
+        rabbitmq_broker: RabbitBroker,
+        logger: Logger,
+        settings: Settings,
+    ) -> None:
         super().__init__(rabbitmq_broker, logger, settings)
         self.payment_exchange: RabbitExchange = payment_exchange
 
@@ -55,6 +60,3 @@ class PaymentEventPublisher(BaseEventPublisher):
             routing_key=event.event_type,
         )
         self.logger.info(f"Published PaymentCancelledEvent for order {event.order_id}: {event.reason}")
-
-
-payment_event_publisher = PaymentEventPublisher(logger=logger, settings=settings)

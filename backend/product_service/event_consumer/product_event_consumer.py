@@ -13,8 +13,9 @@ from shared.schemas.event_schemas import (
     SupplierProductImportSucceededEvent,
     SupplierProductImportFailedEvent,
 )
-from shared.shared_instances import logger, product_service_database_session_manager, product_event_idempotency_service, product_service_redis_manager, api_gateway_cache_manager, settings
-from event_publisher.event_publisher import product_event_publisher
+from shared.managers.cache_manager import CacheManager
+from shared.managers.database_session_manager import DatabaseSessionManager
+from event_publisher.event_publisher import ProductEventPublisher
 from shared.idempotency.idempotency_service import IdempotencyEventService
 from shared.enums.event_enums import InventoryEvents, SupplierEvents
 from service_layer.supplier_product_mapper import SupplierProductMapper
@@ -34,16 +35,26 @@ The FastStream app will be executed via `faststream run`, so no manual uvicorn s
 
 class ProductEventConsumer:
     """Consumer for product-related SAGA events, primarily inventory reservation and release requests from Order Service."""
-    def __init__(self, logger: Logger) -> None:
+    def __init__(
+        self,
+        logger: Logger,
+        database: DatabaseSessionManager,
+        idempotency_service: IdempotencyEventService,
+        cache_manager: CacheManager,
+        publisher: ProductEventPublisher,
+    ) -> None:
         self.logger: Logger = logger
-        self.idempotency_service: IdempotencyEventService = product_event_idempotency_service
+        self.database = database
+        self.idempotency_service = idempotency_service
+        self.cache_manager = cache_manager
+        self.publisher = publisher
 
     async def _get_product_service(self):
         """
         Create a ProductService instance with a fresh database session.
         This mimics FastAPI's dependency injection but for FastStream consumers.
         """
-        async with product_service_database_session_manager.transaction() as session:
+        async with self.database.transaction() as session:
             product_image_service = ProductImageService(
                 repository=ProductImageRepository(session=session)
             )
@@ -104,7 +115,7 @@ class ProductEventConsumer:
                         result="failed"
                     )
                     # inventory reserv failed, publishing failure event
-                    await product_event_publisher.publish_inventory_reserve_failed(
+                    await self.publisher.publish_inventory_reserve_failed(
                         order_id=event.order_id,
                         user_id=event.user_id,
                         user_email=event.user_email,
@@ -122,9 +133,9 @@ class ProductEventConsumer:
                     result="succeeded"
                 )
                 self.logger.info(f"Successfully reserved inventory for order: {event.order_id}")
-                await api_gateway_cache_manager.invalidate_namespace(namespace="products")
+                await self.cache_manager.invalidate_namespace(namespace="products")
                 #5. publishing a success event to Order service
-                await product_event_publisher.publish_inventory_reserve_succeeded(
+                await self.publisher.publish_inventory_reserve_succeeded(
                     order_id=event.order_id,
                     user_id=event.user_id,
                     user_email=event.user_email,
@@ -137,7 +148,7 @@ class ProductEventConsumer:
             await self.idempotency_service.release_claim(event.event_id, event.event_type)
             # Critical error - log and publish failure event
             self.logger.error(f"Error handling inventory reserve request for order {event.order_id}: {str(error)}")
-            await product_event_publisher.publish_inventory_reserve_failed(
+            await self.publisher.publish_inventory_reserve_failed(
                 order_id=event.order_id,
                 user_id=event.user_id,
                 user_email=event.user_email,
@@ -174,7 +185,7 @@ class ProductEventConsumer:
             async for product_service in self._get_product_service():
                 # Release inventory (restore quantities)
                 await product_service.release_inventory(event.items)
-                await api_gateway_cache_manager.invalidate_namespace(namespace="products")
+                await self.cache_manager.invalidate_namespace(namespace="products")
                 # marking event as processed
                 await self.idempotency_service.mark_event_as_processed(event_id=event.event_id,
                                                                        event_type=event.event_type,
@@ -219,7 +230,7 @@ class ProductEventConsumer:
                     event_type=event.event_type,
                     result="succeeded",
                 )
-                await api_gateway_cache_manager.invalidate_namespace(namespace="products")
+                await self.cache_manager.invalidate_namespace(namespace="products")
 
                 success_event = SupplierProductImportSucceededEvent(
                     supplier_id=event.supplier_id,
@@ -228,7 +239,7 @@ class ProductEventConsumer:
                     updated=bulk_results.get("updated", 0),
                     failed=bulk_results.get("failed", 0),
                 )
-                await product_event_publisher.publish_supplier_product_import_succeeded(success_event)
+                await self.publisher.publish_supplier_product_import_succeeded(success_event)
                 self.logger.info(
                     f"Supplier product import completed for supplier: {event.supplier_id}, "
                     f"fetch_id: {event.fetch_id}: inserted={bulk_results.get('inserted')}, "
@@ -243,8 +254,5 @@ class ProductEventConsumer:
                 fetch_id=event.fetch_id,
                 reason=f"System error: {str(error)}",
             )
-            await product_event_publisher.publish_supplier_product_import_failed(failed_event)
+            await self.publisher.publish_supplier_product_import_failed(failed_event)
             raise
-
-
-product_event_consumer = ProductEventConsumer(logger=logger)

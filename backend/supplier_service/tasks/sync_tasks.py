@@ -8,8 +8,9 @@ from models.supplier_config_models import SupplierConfig
 from service_layer.outbox_event_service import OutboxEventService
 from service_layer.sync_orchestrator_service import SupplierSyncOrchestrator
 from shared.database_layer.outbox_repository import OutboxRepository
+from models.outbox_models import OutboxEvent
 from shared.schemas.dropshipping_schemas import CJProductsFilterParams
-from shared.shared_instances import logger, settings, supplier_service_database_session_manager
+from resources import create_database_manager, logger, settings
 from service_layer.cj_api_client import CJDropshippingAPIClient
 from service_layer.cj_product_provider import CJDropshippingProductProvider
 
@@ -22,8 +23,9 @@ async def scheduled_supplier_sync() -> dict[str, Any]:
     """
     results: list[dict[str, Any]] = []
     cj_api_client = CJDropshippingAPIClient(settings)
+    database = create_database_manager()
     try:
-        async with supplier_service_database_session_manager.transaction() as session:
+        async with database.transaction() as session:
             config_repository = SupplierConfigRepository(session=session)
             active_configs: list[SupplierConfig] = await config_repository.get_active()
 
@@ -32,7 +34,7 @@ async def scheduled_supplier_sync() -> dict[str, Any]:
             return {"synced_at": datetime.now(timezone.utc).isoformat(), "results": results}
 
         for config in active_configs:
-            async with supplier_service_database_session_manager.transaction() as session:
+            async with database.transaction() as session:
                 sync_state_repository = SupplierSyncStateRepository(session=session)
                 latest_run = await sync_state_repository.get_latest_by_supplier_id(config.supplier_id)
                 next_run_at = (
@@ -45,10 +47,10 @@ async def scheduled_supplier_sync() -> dict[str, Any]:
                     continue
 
             # Run sync outside long-lived transaction scope
-            async with supplier_service_database_session_manager.transaction() as session:
+            async with database.transaction() as session:
                 config_repository = SupplierConfigRepository(session=session)
                 sync_state_repository = SupplierSyncStateRepository(session=session)
-                outbox_event_service = OutboxEventService(repository=OutboxRepository(session=session))
+                outbox_event_service = OutboxEventService(repository=OutboxRepository(session=session, model=OutboxEvent))
                 orchestrator = SupplierSyncOrchestrator(
                     settings=settings,
                     config_repository=config_repository,
@@ -82,4 +84,7 @@ async def scheduled_supplier_sync() -> dict[str, Any]:
 
         return {"synced_at": datetime.now(timezone.utc).isoformat(), "results": results}
     finally:
-        await cj_api_client.close()
+        try:
+            await cj_api_client.close()
+        finally:
+            await database.close()

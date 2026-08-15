@@ -15,7 +15,7 @@ from exceptions.outbox_event_exceptions import (
     OutboxEventNotFoundError,
     OutboxEventUpdateError,
 )
-from shared.models.outbox_events import OutboxEvent
+from models.outbox_models import OutboxEvent
 
 
 # ---------------------------------------------------------------------------

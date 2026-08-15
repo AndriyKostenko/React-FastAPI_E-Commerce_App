@@ -9,7 +9,6 @@ from httpx import AsyncClient, HTTPStatusError, RequestError, Timeout, Limits
 from shared.utils.customized_json_response import JSONResponse
 
 from shared.settings import Settings
-from shared.shared_instances import settings, logger
 from shared.schemas.gateway_schemas import GatewayConfig, ServiceConfig
 
 
@@ -92,11 +91,8 @@ class UrlManager:
 class ApiGateway:
     """
     A class representing the API Gateway that forwards requests to microservices.
-    Uses a single shared AsyncClient with connection pooling for all upstream calls.
+    Uses one lifespan-owned AsyncClient with connection pooling for upstream calls.
     """
-
-    # Shared HTTP client — created once at startup, reused across all requests.
-    _http_client: AsyncClient | None = None
 
     # Upstream timeout configuration (seconds).
     _TIMEOUT: Timeout = Timeout(connect=5.0, read=30.0, write=10.0, pool=5.0)
@@ -108,6 +104,7 @@ class ApiGateway:
     def __init__(self, settings: Settings, logger: Logger):
         self.settings: Settings = settings
         self.logger: Logger = logger
+        self._http_client: AsyncClient | None = None
         self.config: GatewayConfig = GatewayConfig(
             services={
                 "user-service": ServiceConfig(
@@ -163,25 +160,27 @@ class ApiGateway:
         self.url_manager: UrlManager = UrlManager(config=self.config, logger=self.logger)
 
     async def startup(self) -> None:
-        """Create the shared HTTP client. Call once during application lifespan startup."""
-        ApiGateway._http_client = AsyncClient(
+        """Create this gateway instance's HTTP client during lifespan startup."""
+        if self._http_client is not None:
+            return
+        self._http_client = AsyncClient(
             timeout=self._TIMEOUT,
             limits=self._LIMITS,
         )
-        self.logger.info("ApiGateway shared HTTP client initialised.")
+        self.logger.info("ApiGateway HTTP client initialised.")
 
     async def shutdown(self) -> None:
-        """Close the shared HTTP client. Call once during application lifespan shutdown."""
-        if ApiGateway._http_client is not None:
-            await ApiGateway._http_client.aclose()
-            ApiGateway._http_client = None
-            self.logger.info("ApiGateway shared HTTP client closed.")
+        """Close this gateway instance's client during lifespan shutdown."""
+        if self._http_client is not None:
+            await self._http_client.aclose()
+            self._http_client = None
+            self.logger.info("ApiGateway HTTP client closed.")
 
     @property
     def client(self) -> AsyncClient:
-        if ApiGateway._http_client is None:
+        if self._http_client is None:
             raise RuntimeError("ApiGateway HTTP client is not initialised — call startup() first.")
-        return ApiGateway._http_client
+        return self._http_client
 
     async def _detect_and_prepare_body(self, request: Request, path: str):
         """
@@ -200,7 +199,7 @@ class ApiGateway:
                 body_data = await request.json()
                 return body_data, "application/json"
             except Exception as e:
-                logger.warning(f"Failed to parse JSON body for {path}: {e}")
+                self.logger.warning(f"Failed to parse JSON body for {path}: {e}")
                 return None, None
 
         elif "application/x-www-form-urlencoded" in content_type:
@@ -219,7 +218,7 @@ class ApiGateway:
 
                 return body_dict, "application/x-www-form-urlencoded"
             except Exception as e:
-                logger.warning(f"Failed to parse form-urlencoded body for {path}: {e}")
+                self.logger.warning(f"Failed to parse form-urlencoded body for {path}: {e}")
                 return None, None
 
         elif "multipart/form-data" in content_type:
@@ -228,7 +227,7 @@ class ApiGateway:
                 # For multipart, we need to handle files differently
                 return form_data, "multipart/form-data"
             except Exception as e:
-                logger.warning(f"Failed to parse multipart/form-data body for {path}: {e}")
+                self.logger.warning(f"Failed to parse multipart/form-data body for {path}: {e}")
                 return None, None
 
         else:
@@ -239,7 +238,7 @@ class ApiGateway:
                     return None, None
                 return raw_body, content_type
             except Exception as e:
-                logger.warning(f"Failed to read raw body for {path}: {e}")
+                self.logger.warning(f"Failed to read raw body for {path}: {e}")
                 return None, None
 
     def _prepare_headers(self, request_headers, new_content_type=None):
@@ -372,6 +371,3 @@ class ApiGateway:
         except Exception as e:
             self.logger.error(f"Unexpected error: {e}")
             raise HTTPException(status_code=500, detail="Internal Server Error")
-
-
-api_gateway_manager = ApiGateway(settings=settings, logger=logger)

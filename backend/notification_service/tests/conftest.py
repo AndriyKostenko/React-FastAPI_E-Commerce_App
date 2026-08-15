@@ -20,8 +20,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from main import app
 from database_layer.notification_repository import NotificationRepository
 from dependencies.dependencies import get_db_session, get_notification_service
+from models.base import Base
+from models.notification_models import Notification
 from service_layer.notification_service import NotificationService
-from shared.shared_instances import settings, test_notification_service_database_session_manager, test_settings
+from shared.managers.logger_manager import setup_logger
+from shared.managers.test_database_session_manager import TestDatabaseSessionManager
+from shared.settings import get_settings, get_test_settings
 from shared.schemas.notifications_schemas import NotificationInfo
 from tests.constants import (
     TEST_NOTIFICATION_ID,
@@ -36,6 +40,10 @@ from tests.constants import (
 from shared.testing.helpers import allow_testserver_host
 
 
+settings = get_settings()
+test_settings = get_test_settings()
+
+
 # ---------------------------------------------------------------------------
 # Host-validation bypass for ASGI test client
 # ---------------------------------------------------------------------------
@@ -44,6 +52,20 @@ from shared.testing.helpers import allow_testserver_host
 def _allow_testserver_host() -> None:
     """Make the default httpx/TestClient host ('testserver') pass host checks."""
     allow_testserver_host()
+
+
+@pytest.fixture(scope="session")
+async def test_database_session_manager(
+) -> AsyncGenerator[TestDatabaseSessionManager, None]:
+    """Own and close the notification test database manager for this session."""
+    manager = TestDatabaseSessionManager(
+        database_url=settings.NOTIFICATION_SERVICE_TEST_DATABASE_URL,
+        logger=setup_logger("notification-service-tests"),
+    )
+    try:
+        yield manager
+    finally:
+        await manager.close()
 
 
 # ---------------------------------------------------------------------------
@@ -148,7 +170,9 @@ async def client_for_unit_testing(
 # ---------------------------------------------------------------------------
 
 @pytest.fixture
-async def integration_client() -> AsyncGenerator[AsyncClient, Any]:
+async def integration_client(
+    test_database_session_manager: TestDatabaseSessionManager,
+) -> AsyncGenerator[AsyncClient, Any]:
     """
     Async HTTP client for integration tests.
 
@@ -163,10 +187,10 @@ async def integration_client() -> AsyncGenerator[AsyncClient, Any]:
       - Before yield: init schema (idempotent)
       - After  yield: TRUNCATE all tables
     """
-    await test_notification_service_database_session_manager.init_db()
+    await test_database_session_manager.init_db(Base.metadata)
 
     async def _override_get_db_session() -> AsyncGenerator[AsyncSession, None]:
-        async with test_notification_service_database_session_manager.transaction() as session:
+        async with test_database_session_manager.transaction() as session:
             yield session
 
     def _override_get_notification_service(
@@ -190,4 +214,4 @@ async def integration_client() -> AsyncGenerator[AsyncClient, Any]:
     app.router.lifespan_context = original_lifespan
     settings.DEBUG_MODE = original_debug_mode
 
-    await test_notification_service_database_session_manager.truncate_all_tables()
+    await test_database_session_manager.truncate_all_tables(Base.metadata)
