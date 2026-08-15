@@ -13,7 +13,7 @@ from fastapi import (
 
 from dependencies.dependencies import category_service_dependency
 from models.category_models import ProductCategory
-from shared.schemas.category_schema import (
+from schemas.category_schema import (
     CategoriesFilterParams,
     CategorySchema,
     CreateCategory,

@@ -2,7 +2,7 @@ from uuid import UUID
 
 from database_layer.order_item_repository import OrderItemRepository
 from models.order_item_models import OrderItem
-from shared.schemas.order_schemas import CreateOrder, OrderItemBase
+from schemas.order_schemas import CreateOrder, OrderItemBase
 
 
 class OrderItemService:

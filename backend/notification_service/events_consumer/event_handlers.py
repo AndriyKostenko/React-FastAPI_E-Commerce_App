@@ -4,7 +4,7 @@ from uuid import UUID
 
 from shared.idempotency.idempotency_service import IdempotencyEventService
 from shared.managers.database_session_manager import DatabaseSessionManager
-from shared.schemas.event_schemas import (
+from shared.contracts.events import (
     PaymentSucceededEvent,
     PaymentFailedEvent,
     PaymentRefundedEvent,

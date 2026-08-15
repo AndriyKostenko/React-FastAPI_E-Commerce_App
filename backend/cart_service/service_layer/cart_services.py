@@ -2,7 +2,7 @@ from uuid import UUID
 
 from database_layer.cart_repository import CartRepository
 from models.cart_models import Cart
-from shared.schemas.cart_schemas import CartSchema, CartSummary, AddCartItem, UpdateCartItem
+from schemas.cart_schemas import CartSchema, CartSummary, AddCartItem, UpdateCartItem
 from exceptions.cart_exceptions import CartNotFoundError, CartItemNotFoundError
 
 

@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from service_layer.order_address_service import OrderAddressService
-from shared.schemas.order_schemas import OrderAddressBase
+from schemas.order_schemas import OrderAddressBase
 from tests.constants import (
     TEST_USER_ID, TEST_ORDER_ADDRESS_ID, TEST_ORDER_ID
 )

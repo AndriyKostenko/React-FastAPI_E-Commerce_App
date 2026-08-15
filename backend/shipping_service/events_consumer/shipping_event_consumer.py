@@ -5,7 +5,7 @@ from events_publisher.shipping_event_publisher import ShippingEventPublisher
 from shared.idempotency.idempotency_service import IdempotencyEventService
 from shared.managers.database_session_manager import DatabaseSessionManager
 from shared.enums.event_enums import OrderEvents
-from shared.schemas.event_schemas import OrderConfirmedEvent, OrderCancelledEvent
+from shared.contracts.events import OrderConfirmedEvent, OrderCancelledEvent
 from database_layer.shipping_repository import ShipmentRepository, ShippingMethodRepository
 from service_layer.shipment_service import ShipmentService
 

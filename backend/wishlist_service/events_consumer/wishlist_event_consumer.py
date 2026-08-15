@@ -5,7 +5,7 @@ from shared.idempotency.idempotency_service import IdempotencyEventService
 from shared.managers.database_session_manager import DatabaseSessionManager
 from shared.settings import Settings
 from shared.enums.event_enums import UserEvents
-from shared.schemas.event_schemas import UserDeletedEvent
+from shared.contracts.events import UserDeletedEvent
 from database_layer.wishlist_repository import WishlistRepository
 from service_layer.wishlist_service import WishlistService
 

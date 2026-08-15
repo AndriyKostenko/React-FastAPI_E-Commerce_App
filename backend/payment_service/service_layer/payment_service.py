@@ -20,7 +20,7 @@ from exceptions.payment_exceptions import (
     PaymentRefundError,
     PaymentDataIsNotProvided
 )
-from shared.schemas.event_schemas import (
+from shared.contracts.events import (
     PaymentSucceededEvent,
     PaymentFailedEvent,
     PaymentRefundedEvent,
@@ -29,7 +29,7 @@ from shared.schemas.event_schemas import (
 from shared.enums.event_enums import PaymentEvents
 from shared.enums.status_enums import PaymentStatus
 from shared.enums.services_enums import Services
-from shared.schemas.payment_schemas import PaymentResponse
+from schemas.payment_schemas import PaymentResponse
 from shared.settings import Settings
 
 

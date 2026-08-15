@@ -26,7 +26,7 @@ from dependencies.dependencies import get_db_session, get_cart_service
 from models.base import Base
 from models.cart_models import Cart, CartItem
 from service_layer.cart_services import CartService
-from shared.schemas.cart_schemas import CartSchema, CartItemSchema, CartSummary
+from schemas.cart_schemas import CartSchema, CartItemSchema, CartSummary
 from shared.managers.test_database_session_manager import TestDatabaseSessionManager
 from shared.testing.helpers import allow_testserver_host
 from service_test_config import test_settings

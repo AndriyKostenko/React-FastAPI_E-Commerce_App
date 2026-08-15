@@ -7,7 +7,7 @@ from fastapi import HTTPException
 from pydantic import EmailStr
 
 from shared.settings import Settings
-from shared.schemas.user_schemas import DecodedTokenSchema
+from shared.contracts.auth import TokenClaims
 
 
 class TokenManager:
@@ -70,7 +70,7 @@ class TokenManager:
             extra_claims=extra_claims,
         )
 
-    def decode_token(self, token: str, required_purpose: str = "access") -> DecodedTokenSchema:
+    def decode_token(self, token: str, required_purpose: str = "access") -> TokenClaims:
         """
         Decode JWT token and validate its purpose.
 
@@ -102,7 +102,7 @@ class TokenManager:
                     detail=f"Invalid token purpose. Expected: {required_purpose}, got: {purpose}"
                 )
 
-            return DecodedTokenSchema(
+            return TokenClaims(
                 email=email,
                 id=user_id,
                 role=role,

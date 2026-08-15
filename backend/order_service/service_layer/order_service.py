@@ -7,9 +7,9 @@ from service_layer.order_item_service import OrderItemService
 from database_layer.order_repository import OrderRepository
 from models.order_models import Order
 from service_layer.outbox_event_service import OutboxEventService
-from shared.schemas.order_schemas import CreateOrder, OrderItemBase, OrderSchema, OrderAddressBase, UpdateOrder
+from schemas.order_schemas import CreateOrder, OrderItemBase, OrderSchema, OrderAddressBase, UpdateOrder
 from exceptions.order_exceptions import OrderNotFoundError, OrdersNotFoundError, DuplicatePaymentIntentError, OrderNotCancellableError
-from shared.schemas.event_schemas import (
+from shared.contracts.events import (
     OrderCreatedEvent,
     InventoryReserveRequested,
     OrderCancelledEvent,
@@ -195,7 +195,7 @@ class OrderService:
                 items = []
                 address = None
                 if confirmed_order:
-                    from shared.schemas.order_schemas import ConfirmedOrderItem, ConfirmedOrderAddress
+                    from schemas.order_schemas import ConfirmedOrderItem, ConfirmedOrderAddress
                     items = [
                         ConfirmedOrderItem(
                             product_id=item.product_id,

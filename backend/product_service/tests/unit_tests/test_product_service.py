@@ -16,8 +16,8 @@ from exceptions.product_exceptions import (
     ProductNotFoundError,
     ProductUpdateError,
 )
-from shared.schemas.order_schemas import OrderItemBase
-from shared.schemas.product_schemas import CreateProduct, UpdateProduct
+from shared.contracts.order import OrderItem as OrderItemBase
+from schemas.product_schemas import CreateProduct, UpdateProduct
 
 
 # ---------------------------------------------------------------------------
@@ -162,7 +162,7 @@ class TestGetAllProducts:
     ) -> None:
         mock_product_repository.get_all.return_value = [mock_product_orm]
 
-        from shared.schemas.product_schemas import ProductsFilterParams
+        from schemas.product_schemas import ProductsFilterParams
         filters = ProductsFilterParams()
         result = await product_service_unit.get_all_products_without_relations(filters)
 
@@ -176,7 +176,7 @@ class TestGetAllProducts:
     ) -> None:
         mock_product_repository.get_all.return_value = []
 
-        from shared.schemas.product_schemas import ProductsFilterParams
+        from schemas.product_schemas import ProductsFilterParams
         with pytest.raises(ProductNotFoundError):
             await product_service_unit.get_all_products_without_relations(ProductsFilterParams())
 

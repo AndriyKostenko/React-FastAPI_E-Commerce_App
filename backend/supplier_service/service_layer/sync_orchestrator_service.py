@@ -8,9 +8,9 @@ from models.supplier_config_models import SupplierConfig
 from models.supplier_sync_state_models import SupplierSyncState
 from service_layer.outbox_event_service import OutboxEventService
 from service_layer.supplier_provider import SupplierProvider
-from shared.schemas.dropshipping_schemas import CJProductsFilterParams
-from shared.schemas.event_schemas import SupplierProductsFetchedEvent
-from shared.schemas.supplier_schemas import GenericSupplierProduct
+from schemas.dropshipping_schemas import CJProductsFilterParams
+from shared.contracts.events import SupplierProductsFetchedEvent
+from shared.contracts.supplier import GenericSupplierProduct
 from shared.settings import Settings
 from exceptions.cj_order_exceptions import ProviderNotFoundError, SyncAlreadyInProgressError
 

@@ -6,7 +6,7 @@ from database_layer.product_repository import ProductRepository
 from exceptions.product_exceptions import ProductReleaseError
 from service_layer.product_service import ProductService
 from service_layer.product_image_service import ProductImageService
-from shared.schemas.event_schemas import (
+from shared.contracts.events import (
     InventoryReserveRequested,
     InventoryReleaseRequested,
     SupplierProductsFetchedEvent,

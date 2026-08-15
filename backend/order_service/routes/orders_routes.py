@@ -3,7 +3,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Request, status
 
-from shared.schemas.order_schemas import CreateOrder, UpdateOrder, OrderSchema, CancelOrder
+from schemas.order_schemas import CreateOrder, UpdateOrder, OrderSchema, CancelOrder
 from dependencies.dependencies import order_service_dependency
 from models.order_models import Order
 

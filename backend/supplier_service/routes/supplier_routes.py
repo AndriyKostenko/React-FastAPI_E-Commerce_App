@@ -3,9 +3,8 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Query, status
 
 from dependencies.dependencies import cj_provider_dependency, sync_orchestrator_dependency
-from shared.schemas.dropshipping_schemas import CJProductsFilterParams
-from shared.schemas.product_schemas import CJProductPreview
-from shared.schemas.supplier_schemas import SupplierSyncRunSummary
+from schemas.dropshipping_schemas import CJProductsFilterParams
+from schemas.supplier_schemas import CJProductPreview, SupplierSyncRunSummary
 
 
 supplier_routes = APIRouter(tags=["suppliers"])

@@ -3,7 +3,7 @@ from collections.abc import Mapping
 from fastapi import HTTPException, status, Depends, Request
 from pydantic import EmailStr, ValidationError
 from resources import logger, settings
-from shared.schemas.user_schemas import CurrentUserInfo
+from shared.contracts.auth import TokenClaims as CurrentUserInfo
 
 
 def get_current_user(request: Request) -> CurrentUserInfo:

@@ -65,11 +65,11 @@ from resources import ProductApiResources, logger
 from shared.managers.logger_manager import setup_logger
 from shared.managers.test_database_session_manager import TestDatabaseSessionManager
 from shared.settings import get_settings, get_test_settings
-from shared.schemas.product_schemas import ProductBase, ProductSchema
-from shared.schemas.category_schema import CategorySchema
-from shared.schemas.review_schemas import ReviewSchema
-from shared.schemas.product_image_schema import ImageType
-from shared.schemas.image_generation_schema import GenerateImageResponse, ImageGenerationJobStatusResponse
+from schemas.product_schemas import ProductBase, ProductSchema
+from schemas.category_schema import CategorySchema
+from schemas.review_schemas import ReviewSchema
+from schemas.product_image_schema import ImageType
+from schemas.image_generation_schema import GenerateImageResponse, ImageGenerationJobStatusResponse
 
 
 from shared.testing.helpers import allow_testserver_host
@@ -104,7 +104,7 @@ async def test_database_session_manager(
 
 
 # ---------------------------------------------------------------------------
-# Shared test-data constants — sourced from shared TestSettings
+# Service-local test-data constants.
 # ---------------------------------------------------------------------------
 
 TEST_PRODUCT_ID  = test_settings.TEST_PRODUCT_ID
@@ -114,10 +114,40 @@ TEST_USER_ID     = test_settings.TEST_USER_ID
 TEST_DATETIME    = test_settings.TEST_DATETIME
 TEST_API         = test_settings.API
 
-MOCK_CATEGORY_SCHEMA = test_settings.MOCK_CATEGORY_SCHEMA
-MOCK_PRODUCT_BASE    = test_settings.MOCK_PRODUCT_BASE
-MOCK_PRODUCT_SCHEMA  = test_settings.MOCK_PRODUCT_SCHEMA
-MOCK_REVIEW_SCHEMA   = test_settings.MOCK_REVIEW_SCHEMA
+MOCK_CATEGORY_SCHEMA = CategorySchema(
+    id=TEST_CATEGORY_ID,
+    name="electronics",
+    image_url=None,
+    date_created=TEST_DATETIME,
+    date_updated=None,
+)
+MOCK_PRODUCT_BASE = ProductBase(
+    id=TEST_PRODUCT_ID,
+    name="test laptop",
+    description="A high-quality test laptop for testing purposes",
+    category_id=TEST_CATEGORY_ID,
+    brand="testbrand",
+    quantity=10,
+    price=Decimal("999.99"),
+    in_stock=True,
+    date_created=TEST_DATETIME,
+    date_updated=None,
+)
+MOCK_PRODUCT_SCHEMA = ProductSchema(
+    **MOCK_PRODUCT_BASE.model_dump(),
+    reviews=[],
+    category=MOCK_CATEGORY_SCHEMA,
+    images=[],
+)
+MOCK_REVIEW_SCHEMA = ReviewSchema(
+    id=TEST_REVIEW_ID,
+    product_id=TEST_PRODUCT_ID,
+    user_id=TEST_USER_ID,
+    comment="Great product!",
+    rating=4.5,
+    date_created=TEST_DATETIME,
+    date_updated=None,
+)
 
 
 # ---------------------------------------------------------------------------

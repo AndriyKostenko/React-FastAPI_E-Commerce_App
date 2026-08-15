@@ -13,7 +13,7 @@ from exceptions.shipping_exceptions import (
 from models.shipping_models import ShippingMethod, Shipment
 from service_layer.shipping_method_service import ShippingMethodService
 from service_layer.shipment_service import ShipmentService
-from shared.schemas.shipping_schemas import CreateShipment, CreateShippingMethod, UpdateShipment
+from schemas.shipping_schemas import CreateShipment, CreateShippingMethod, UpdateShipment
 from service_test_config import test_settings
 
 

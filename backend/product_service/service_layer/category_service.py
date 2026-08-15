@@ -7,7 +7,7 @@ from pydantic import HttpUrl
 from database_layer.category_repository import CategoryRepository
 from exceptions.category_exceptions import CategoryCreationError, CategoryNotFoundError
 from models.category_models import ProductCategory
-from shared.schemas.category_schema import CategorySchema, CreateCategory, UpdateCategory
+from schemas.category_schema import CategorySchema, CreateCategory, UpdateCategory
 from utils.image_processing import image_processing_manager
 
 

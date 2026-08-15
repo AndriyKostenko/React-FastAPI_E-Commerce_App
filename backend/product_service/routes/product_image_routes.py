@@ -13,13 +13,13 @@ from exceptions.image_generation_exceptions import (
     ImageGenerationLimitExceededError,
 )
 from models.product_image_models import ProductImage
-from shared.schemas.image_generation_schema import (
+from schemas.image_generation_schema import (
     GenerateImageRequest,
     ImageGenerationJobSubmitResponse,
     ImageGenerationJobStatusResponse,
     ImageJobStatus,
 )
-from shared.schemas.product_image_schema import ProductImageSchema
+from schemas.product_image_schema import ProductImageSchema
 from tasks.image_tasks import generate_image_task
 
 

@@ -31,12 +31,31 @@ from shared.settings import get_test_settings
 from shared.managers.test_database_session_manager import TestDatabaseSessionManager
 from shared.managers.token_manager import TokenManager
 from shared.managers.password_manager import PasswordManager
+from schemas.user_schemas import CurrentUserInfo, UserInfo
 
 
 from shared.testing.helpers import allow_testserver_host
 
 
 test_settings = get_test_settings()
+
+TEST_USER_INFO = UserInfo(
+    id=test_settings.TEST_USER_ID,
+    name=test_settings.TEST_NAME,
+    email=test_settings.TEST_EMAIL,
+    role=test_settings.TEST_USER_ROLE,
+    phone_number=test_settings.TEST_PHONE_NUMBER,
+    image=None,
+    date_created=test_settings.TEST_DATETIME,
+    date_updated=test_settings.TEST_DATETIME,
+    is_verified=True,
+    is_active=True,
+)
+TEST_CURRENT_USER = CurrentUserInfo(
+    email=test_settings.TEST_EMAIL,
+    id=test_settings.TEST_USER_ID,
+    role=test_settings.TEST_USER_ROLE,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -210,13 +229,13 @@ def normal_user() -> dict[str, str|int]:
 def mock_route_service() -> MagicMock:
     """Full mock of UserService for use via app.dependency_overrides in route tests."""
     svc = MagicMock()
-    svc.create_user = AsyncMock(return_value=(test_settings.USER_INFO, "verification_token_abc"))
-    svc.verify_email = AsyncMock(return_value=test_settings.USER_INFO)
-    svc.request_password_reset = AsyncMock(return_value=(test_settings.USER_INFO, "reset_token_abc"))
-    svc.reset_password_with_token = AsyncMock(return_value=test_settings.USER_INFO)
+    svc.create_user = AsyncMock(return_value=(TEST_USER_INFO, "verification_token_abc"))
+    svc.verify_email = AsyncMock(return_value=TEST_USER_INFO)
+    svc.request_password_reset = AsyncMock(return_value=(TEST_USER_INFO, "reset_token_abc"))
+    svc.reset_password_with_token = AsyncMock(return_value=TEST_USER_INFO)
     svc.login_user = AsyncMock(
         return_value=(
-            test_settings.CURRENT_USER,
+            TEST_CURRENT_USER,
             "access_tok",
             9_999_999_999,
             "refresh_tok",
@@ -227,11 +246,11 @@ def mock_route_service() -> MagicMock:
         return_value=("new_access_tok", 9_999_999_999, "rotated_refresh_tok", 9_999_999_999)
     )
     svc.logout_user = AsyncMock(return_value=None)
-    svc.get_user_by_id = AsyncMock(return_value=test_settings.USER_INFO)
-    svc.get_all_users = AsyncMock(return_value=[test_settings.USER_INFO])
-    svc.update_user_basic_info = AsyncMock(return_value=test_settings.USER_INFO)
+    svc.get_user_by_id = AsyncMock(return_value=TEST_USER_INFO)
+    svc.get_all_users = AsyncMock(return_value=[TEST_USER_INFO])
+    svc.update_user_basic_info = AsyncMock(return_value=TEST_USER_INFO)
     svc.delete_user_by_id = AsyncMock(return_value=None)
-    svc.get_current_user_from_token = AsyncMock(return_value=test_settings.CURRENT_USER)
+    svc.get_current_user_from_token = AsyncMock(return_value=TEST_CURRENT_USER)
     return svc
 
 
@@ -271,7 +290,7 @@ async def client_for_unit_testing(mock_route_service: MagicMock) -> AsyncGenerat
     app.state.resources = test_resources
 
     app.dependency_overrides[get_user_service] = lambda: mock_route_service
-    app.dependency_overrides[get_current_user] = lambda: test_settings.CURRENT_USER
+    app.dependency_overrides[get_current_user] = lambda: TEST_CURRENT_USER
 
     async with AsyncClient(transport=ASGITransport(app=app),base_url="http://testserver") as async_client:
         yield async_client

@@ -6,7 +6,7 @@ from uuid import uuid4
 import pytest
 from httpx import AsyncClient
 
-from shared.schemas.cart_schemas import CartSchema, CartSummary
+from schemas.cart_schemas import CartSchema, CartSummary
 from service_test_config import test_settings
 
 

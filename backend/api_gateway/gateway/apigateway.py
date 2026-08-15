@@ -9,7 +9,7 @@ from httpx import AsyncClient, HTTPStatusError, RequestError, Timeout, Limits
 from shared.utils.customized_json_response import JSONResponse
 
 from shared.settings import Settings
-from shared.schemas.gateway_schemas import GatewayConfig, ServiceConfig
+from schemas.gateway_schemas import GatewayConfig, ServiceConfig
 
 
 class UrlManager:

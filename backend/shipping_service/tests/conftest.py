@@ -23,7 +23,7 @@ from service_layer.shipping_method_service import ShippingMethodService
 from service_layer.shipment_service import ShipmentService
 from events_publisher.shipping_event_publisher import ShippingEventPublisher
 from shared.managers.test_database_session_manager import TestDatabaseSessionManager
-from shared.schemas.shipping_schemas import ShippingMethodSchema, ShipmentSchema
+from schemas.shipping_schemas import ShippingMethodSchema, ShipmentSchema
 from shared.testing.helpers import allow_testserver_host
 from service_test_config import test_settings
 

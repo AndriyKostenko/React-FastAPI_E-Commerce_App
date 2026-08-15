@@ -5,7 +5,7 @@ from faststream.rabbit import RabbitBroker, RabbitExchange
 
 from shared.events.event_publisher import BaseEventPublisher
 from shared.settings import Settings
-from shared.schemas.event_schemas import (
+from shared.contracts.events import (
     CJOrderCreatedEvent,
     InventoryReleaseRequested,
     OrderCancelledEvent,

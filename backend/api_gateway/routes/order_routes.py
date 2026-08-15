@@ -7,7 +7,7 @@ from dependencies.auth_dependencies import (get_current_user,
                                             require_admin,
                                             require_user_or_admin)
 from shared.utils.customized_json_response import JSONResponse
-from shared.schemas.user_schemas import CurrentUserInfo
+from shared.contracts.auth import TokenClaims as CurrentUserInfo
 
 
 order_proxy = APIRouter(tags=["Order Service Proxy"])

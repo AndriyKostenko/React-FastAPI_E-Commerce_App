@@ -10,7 +10,7 @@ from exceptions.wishlist_exceptions import (
     WishlistItemNotFoundError,
 )
 from models.wishlist_models import Wishlist, WishlistItem
-from shared.schemas.wishlist_schemas import WishlistSchema, AddWishlistItem
+from schemas.wishlist_schemas import WishlistSchema, AddWishlistItem
 from service_test_config import test_settings
 
 

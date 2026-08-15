@@ -5,7 +5,7 @@ from uuid import uuid4
 import pytest
 
 from service_layer.order_item_service import OrderItemService
-from shared.schemas.order_schemas import OrderItemBase, CreateOrder
+from schemas.order_schemas import OrderItemBase, CreateOrder
 from tests.constants import TEST_ORDER_ID, TEST_PRODUCT_ID, TEST_USER_ID, TEST_EMAIL
 
 

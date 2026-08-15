@@ -8,8 +8,8 @@ from shared.database_layer.outbox_repository import OutboxRepository
 from events_publisher.order_event_publisher import OrderEventPublisher
 from service_layer.order_address_service import OrderAddressService
 from service_layer.order_item_service import OrderItemService
-from shared.schemas.order_schemas import UpdateOrder
-from shared.schemas.event_schemas import (
+from schemas.order_schemas import UpdateOrder
+from shared.contracts.events import (
     CJOrderCreatedEvent,
     InventoryReserveFailed,
     InventoryReserveSucceeded,

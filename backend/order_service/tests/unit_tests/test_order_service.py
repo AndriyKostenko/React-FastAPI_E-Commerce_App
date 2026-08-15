@@ -6,10 +6,10 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 
 from service_layer.order_service import OrderService
-from shared.schemas.order_schemas import (
+from schemas.order_schemas import (
     CreateOrder, UpdateOrder, OrderItemBase, OrderAddressBase, OrderSchema
 )
-from shared.schemas.event_schemas import OrderCreatedEvent
+from shared.contracts.events import OrderCreatedEvent
 from shared.enums.status_enums import OrderStatus, OrderDeliveryStatus
 from exceptions.order_exceptions import (
     OrderNotFoundError, OrdersNotFoundError, DuplicatePaymentIntentError, OrderNotCancellableError

@@ -8,7 +8,7 @@ from dependencies.dependencies import (
 )
 from models.product_models import Product
 from resources import settings
-from shared.schemas.product_schemas import (
+from schemas.product_schemas import (
     CustomTshirtPricingResponse,
     CreateProduct,
     ProductBase,

@@ -5,7 +5,7 @@ from uuid import uuid4
 import pytest
 
 from service_layer.notification_service import NotificationService
-from shared.schemas.notifications_schemas import NotificationInfo, NotificationsFilterParams
+from schemas.notifications_schemas import NotificationInfo, NotificationsFilterParams
 from exceptions.notification_exceptions import (
     NotificationNotFoundError,
     NotificationAccessDeniedError,

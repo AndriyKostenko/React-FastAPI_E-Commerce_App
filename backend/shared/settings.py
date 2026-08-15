@@ -9,11 +9,6 @@ from sqlalchemy.engine import URL
 from pydantic import HttpUrl, SecretStr, DirectoryPath, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from shared.schemas.user_schemas import UserInfo, CurrentUserInfo
-from shared.schemas.category_schema import CategorySchema
-from shared.schemas.product_schemas import ProductBase, ProductSchema
-from shared.schemas.review_schemas import ReviewSchema
-from shared.schemas.notifications_schemas import NotificationInfo
 from shared.enums.status_enums import OrderStatus, OrderDeliveryStatus
 
 # Resolve the single shared .env that lives one level above this file (backend/.env)
@@ -510,91 +505,6 @@ class TestSettings(BaseSettings):
     # ── Wishlist ─────────────────────────────────────────────────────────────
     TEST_WISHLIST_ID: UUID = uuid4()
     TEST_WISHLIST_ITEM_ID: UUID = uuid4()
-
-    # ── User schema objects ──────────────────────────────────────────────────
-    USER_INFO: UserInfo = UserInfo(
-        id=TEST_USER_ID,
-        name=TEST_NAME,
-        email=TEST_EMAIL,
-        role=TEST_USER_ROLE,
-        phone_number=TEST_PHONE_NUMBER,
-        image=None,
-        date_created=TEST_DATETIME,
-        date_updated=TEST_DATETIME,
-        is_verified=True,
-        is_active=True,
-    )
-
-    CURRENT_USER: CurrentUserInfo = CurrentUserInfo(
-        email=TEST_EMAIL,
-        id=TEST_USER_ID,
-        role=TEST_USER_ROLE,
-    )
-
-    ADMIN_USER: CurrentUserInfo = CurrentUserInfo(
-        email=TEST_ADMIN_EMAIL,
-        id=TEST_ADMIN_ID,
-        role=TEST_ADMIN_ROLE,
-    )
-
-    # ── Product schema objects ───────────────────────────────────────────────
-    MOCK_CATEGORY_SCHEMA: CategorySchema = CategorySchema(
-        id=TEST_CATEGORY_ID,
-        name="electronics",
-        image_url=None,
-        date_created=TEST_DATETIME,
-        date_updated=None,
-    )
-
-    MOCK_PRODUCT_BASE: ProductBase = ProductBase(
-        id=TEST_PRODUCT_ID,
-        name="test laptop",
-        description="A high-quality test laptop for testing purposes",
-        category_id=TEST_CATEGORY_ID,
-        brand="testbrand",
-        quantity=10,
-        price=Decimal("999.99"),
-        in_stock=True,
-        date_created=TEST_DATETIME,
-        date_updated=None,
-    )
-
-    MOCK_PRODUCT_SCHEMA: ProductSchema = ProductSchema(
-        id=TEST_PRODUCT_ID,
-        name="test laptop",
-        description="A high-quality test laptop for testing purposes",
-        category_id=TEST_CATEGORY_ID,
-        brand="testbrand",
-        quantity=10,
-        price=Decimal("999.99"),
-        in_stock=True,
-        date_created=TEST_DATETIME,
-        date_updated=None,
-        reviews=[],
-        category=MOCK_CATEGORY_SCHEMA,
-        images=[],
-    )
-
-    MOCK_REVIEW_SCHEMA: ReviewSchema = ReviewSchema(
-        id=TEST_REVIEW_ID,
-        product_id=TEST_PRODUCT_ID,
-        user_id=TEST_USER_ID,
-        comment="Great product!",
-        rating=4.5,
-        date_created=TEST_DATETIME,
-        date_updated=None,
-    )
-
-    # ── Notification schema objects ──────────────────────────────────────────
-    MOCK_NOTIFICATION_INFO: NotificationInfo = NotificationInfo(
-        id=TEST_NOTIFICATION_ID,
-        user_id=TEST_USER_ID,
-        message=TEST_MESSAGE,
-        notification_type=TEST_NOTIFICATION_TYPE,
-        is_read=False,
-        date_created=TEST_DATETIME,
-        date_updated=None,
-    )
 
     # ── Mock result dicts (for JSON response assertions) ─────────────────────
     MOCK_NOTIFICATION_RESULT: dict = {

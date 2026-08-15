@@ -1,5 +1,5 @@
 from models.order_address_models import OrderAddress
-from shared.schemas.order_schemas import OrderAddressBase, CreateOrder
+from schemas.order_schemas import OrderAddressBase, CreateOrder
 from database_layer.order_address_repository import OrderAddressRepository
 
 

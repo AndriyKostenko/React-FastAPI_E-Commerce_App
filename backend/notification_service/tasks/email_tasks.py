@@ -2,7 +2,7 @@ from typing import Any
 
 from resources import logger, settings
 from shared.email_service.email_service import UserRelatedNotifications, OrderRelatedNotifications
-from shared.schemas.event_schemas import (
+from shared.contracts.events import (
     UserRegisteredEvent,
     EmailVerificationEvent,
     PasswordResetRequestedEvent,

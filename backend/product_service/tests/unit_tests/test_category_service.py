@@ -10,7 +10,7 @@ from uuid import uuid4
 import pytest
 
 from exceptions.category_exceptions import CategoryCreationError, CategoryNotFoundError
-from shared.schemas.category_schema import CreateCategory
+from schemas.category_schema import CreateCategory
 
 
 # ---------------------------------------------------------------------------

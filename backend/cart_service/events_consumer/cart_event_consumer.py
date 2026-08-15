@@ -4,7 +4,7 @@ from typing import Any
 from shared.idempotency.idempotency_service import IdempotencyEventService
 from shared.managers.database_session_manager import DatabaseSessionManager
 from shared.enums.event_enums import OrderEvents
-from shared.schemas.event_schemas import OrderCreatedEvent, OrderConfirmedEvent
+from shared.contracts.events import OrderCreatedEvent, OrderConfirmedEvent
 from database_layer.cart_repository import CartRepository
 from service_layer.cart_services import CartService
 

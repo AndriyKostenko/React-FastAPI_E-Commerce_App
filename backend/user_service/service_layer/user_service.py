@@ -15,14 +15,14 @@ from sqlalchemy.exc import IntegrityError
 from jose import jwt as jose_jwt, jwk, JWTError
 
 from models.user_models import User
-from shared.schemas.user_schemas import CurrentUserInfo
-from shared.schemas.user_schemas import (
+from schemas.user_schemas import CurrentUserInfo
+from schemas.user_schemas import (
     UserSignUp,
     UserInfo,
     UserBasicUpdate,
     UsersFilterParams,
 )
-from shared.schemas.event_schemas import (
+from shared.contracts.events import (
     UserRegisteredEvent,
     UserLoginEvent,
     PasswordResetRequestedEvent,

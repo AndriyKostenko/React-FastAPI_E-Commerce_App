@@ -18,7 +18,7 @@ from shared.managers.test_database_session_manager import (
 )
 from service_layer.notification_service import NotificationService
 from database_layer.notification_repository import NotificationRepository
-from shared.schemas.notifications_schemas import NotificationInfo
+from schemas.notifications_schemas import NotificationInfo
 from tests.constants import TEST_USER_ID, TEST_MESSAGE, TEST_NOTIFICATION_TYPE, TEST_API
 
 

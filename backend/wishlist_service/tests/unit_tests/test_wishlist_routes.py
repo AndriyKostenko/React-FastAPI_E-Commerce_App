@@ -5,7 +5,7 @@ from uuid import uuid4
 import pytest
 from httpx import AsyncClient
 
-from shared.schemas.wishlist_schemas import WishlistSchema
+from schemas.wishlist_schemas import WishlistSchema
 from service_test_config import test_settings
 
 

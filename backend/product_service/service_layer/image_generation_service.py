@@ -6,7 +6,7 @@ from uuid import UUID
 from pydantic import BaseModel
 
 from shared.settings import Settings
-from shared.schemas.image_generation_schema import GenerateImageResponse
+from schemas.image_generation_schema import GenerateImageResponse
 from exceptions.image_generation_exceptions import ImageGenerationProviderError
 from service_layer.image_generation_quota import GenerationQuotaService
 from service_layer.image_job_store import ImageJobStore

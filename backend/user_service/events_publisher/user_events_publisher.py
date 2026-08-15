@@ -4,7 +4,7 @@ from logging import Logger
 from faststream.rabbit import RabbitBroker, RabbitExchange
 
 from shared.events.event_publisher import BaseEventPublisher
-from shared.schemas.event_schemas import (
+from shared.contracts.events import (
     PasswordResetRequestedEvent,
     PasswordResetSuccessEvent,
     UserLoginEvent,

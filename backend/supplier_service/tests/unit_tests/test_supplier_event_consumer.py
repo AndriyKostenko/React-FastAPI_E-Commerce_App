@@ -170,7 +170,7 @@ class TestHandleOrderConfirmed:
             create_order_response={"result": True, "code": 200, "data": {}},
         )
 
-        from shared.schemas.event_schemas import OrderConfirmedEvent
+        from shared.contracts.events import OrderConfirmedEvent
         event = OrderConfirmedEvent(**_make_order_confirmed_message())
         with pytest.raises(CJOrderCreationError):
             await consumer._create_cj_order(event)

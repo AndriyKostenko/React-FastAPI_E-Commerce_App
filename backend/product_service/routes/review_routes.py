@@ -3,7 +3,7 @@ from typing import Any, List
 
 from fastapi import APIRouter, status, Request
 
-from shared.schemas.review_schemas import ReviewSchema, CreateReview, UpdateReview
+from schemas.review_schemas import ReviewSchema, CreateReview, UpdateReview
 from dependencies.dependencies import review_service_dependency, product_service_dependency
 from models.review_models import ProductReview
 

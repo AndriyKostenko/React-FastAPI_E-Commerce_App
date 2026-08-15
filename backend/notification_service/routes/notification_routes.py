@@ -2,7 +2,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, status, Request, Query
 
-from shared.schemas.notifications_schemas import (
+from schemas.notifications_schemas import (
     NotificationInfo,
     NotificationsFilterParams,
     BulkMarkReadResponse,

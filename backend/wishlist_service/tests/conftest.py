@@ -31,7 +31,7 @@ from models.base import Base
 from models.wishlist_models import Wishlist, WishlistItem
 from service_layer.wishlist_service import WishlistService
 from shared.managers.test_database_session_manager import TestDatabaseSessionManager
-from shared.schemas.wishlist_schemas import WishlistSchema, WishlistItemSchema
+from schemas.wishlist_schemas import WishlistSchema, WishlistItemSchema
 from shared.testing.helpers import allow_testserver_host
 from service_test_config import test_settings
 

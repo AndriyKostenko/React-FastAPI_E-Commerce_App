@@ -5,7 +5,7 @@ import aiofiles
 from fastapi import UploadFile
 
 from exceptions.product_image_exceptions import ProductImageProcessingError
-from shared.schemas.product_image_schema import ImageType
+from schemas.product_image_schema import ImageType
 
 
 class ImageProcessingManager:

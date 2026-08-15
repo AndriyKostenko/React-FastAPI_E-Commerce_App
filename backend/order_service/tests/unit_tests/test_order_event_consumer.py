@@ -16,7 +16,7 @@ TEST_CJ_ORDER_NUMBER = "CJORDER123"
 
 def _make_order_schema(amount: float = 99.99):
     from datetime import datetime, timezone
-    from shared.schemas.order_schemas import OrderSchema
+    from schemas.order_schemas import OrderSchema
     return OrderSchema(
         id=TEST_ORDER_ID,
         user_id=TEST_USER_ID,

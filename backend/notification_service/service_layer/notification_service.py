@@ -4,7 +4,7 @@ from typing import Any
 from database_layer.notification_repository import NotificationRepository
 from exceptions.notification_exceptions import NotificationNotFoundError, NotificationAccessDeniedError
 from models.notification_models import Notification
-from shared.schemas.notifications_schemas import NotificationInfo, NotificationsFilterParams
+from schemas.notifications_schemas import NotificationInfo, NotificationsFilterParams
 
 
 class NotificationService:

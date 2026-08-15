@@ -14,7 +14,7 @@ from exceptions.shipping_exceptions import (
     ShippingMethodNotFoundError,
 )
 from models.shipping_models import Shipment
-from shared.schemas.shipping_schemas import (
+from schemas.shipping_schemas import (
     CreateShipment,
     ShipmentSchema,
     ShippingRateRequest,

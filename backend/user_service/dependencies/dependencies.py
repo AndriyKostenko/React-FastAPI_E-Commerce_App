@@ -14,7 +14,7 @@ from service_layer.outbox_event_service import OutboxEventService
 from shared.managers.token_manager import TokenManager
 from shared.managers.password_manager import PasswordManager
 from resources import UserApiResources, get_user_api_resources, settings
-from shared.schemas.user_schemas import CurrentUserInfo
+from schemas.user_schemas import CurrentUserInfo
 
 
 """

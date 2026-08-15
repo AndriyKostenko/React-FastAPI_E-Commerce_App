@@ -1,5 +1,5 @@
-from shared.schemas.product_schemas import CreateProduct, CreateProductVariant
-from shared.schemas.supplier_schemas import GenericSupplierProduct, SupplierProductVariant
+from schemas.product_schemas import CreateProduct, CreateProductVariant
+from shared.contracts.supplier import GenericSupplierProduct, SupplierProductVariant
 
 
 class SupplierProductMapper:

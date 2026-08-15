@@ -22,8 +22,8 @@ from models.product_models import Product
 from models.product_variant_models import ProductVariant
 from service_layer.category_service import CategoryService
 from service_layer.product_image_service import ProductImageService
-from shared.schemas.order_schemas import OrderItemBase
-from shared.schemas.product_schemas import (
+from shared.contracts.order import OrderItem as OrderItemBase
+from schemas.product_schemas import (
     CreateProduct,
     CreateProductVariant,
     ProductBase,

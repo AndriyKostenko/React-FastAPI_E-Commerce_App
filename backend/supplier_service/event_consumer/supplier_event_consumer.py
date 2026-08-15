@@ -18,14 +18,17 @@ from service_layer.product_service_client import (
     ProductServiceError,
 )
 from shared.enums.event_enums import InventoryEvents, OrderEvents, SupplierEvents
-from shared.schemas.event_schemas import (
+from shared.contracts.events import (
     CJOrderCreatedEvent,
     InventoryReleaseRequested,
     OrderCancelledEvent,
     OrderConfirmedEvent,
-    OrderItemBase,
 )
-from shared.schemas.order_schemas import ConfirmedOrderAddress, ConfirmedOrderItem
+from shared.contracts.order import (
+    ConfirmedOrderAddress,
+    ConfirmedOrderItem,
+    OrderItem as OrderItemBase,
+)
 from shared.idempotency.idempotency_service import IdempotencyEventService
 from shared.managers.database_session_manager import DatabaseSessionManager
 from shared.settings import Settings

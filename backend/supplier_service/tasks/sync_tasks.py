@@ -9,7 +9,7 @@ from service_layer.outbox_event_service import OutboxEventService
 from service_layer.sync_orchestrator_service import SupplierSyncOrchestrator
 from shared.database_layer.outbox_repository import OutboxRepository
 from models.outbox_models import OutboxEvent
-from shared.schemas.dropshipping_schemas import CJProductsFilterParams
+from schemas.dropshipping_schemas import CJProductsFilterParams
 from resources import create_database_manager, logger, settings
 from service_layer.cj_api_client import CJDropshippingAPIClient
 from service_layer.cj_product_provider import CJDropshippingProductProvider

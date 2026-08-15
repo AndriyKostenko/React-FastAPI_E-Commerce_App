@@ -14,7 +14,7 @@ from dependencies.dependencies import (
     self_or_admin_dependency,
 )
 from models.user_models import User
-from shared.schemas.user_schemas import (
+from schemas.user_schemas import (
     EmailVerificationResponse,
     ActivationRequest,
     ForgotPasswordRequest,

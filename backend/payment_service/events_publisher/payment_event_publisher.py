@@ -6,7 +6,7 @@ from faststream.rabbit import RabbitBroker, RabbitExchange
 from shared.settings import Settings
 from shared.events.event_publisher import BaseEventPublisher
 from messaging import payment_exchange
-from shared.schemas.event_schemas import PaymentSucceededEvent, PaymentFailedEvent, PaymentRefundedEvent, PaymentCancelledEvent
+from shared.contracts.events import PaymentSucceededEvent, PaymentFailedEvent, PaymentRefundedEvent, PaymentCancelledEvent
 
 
 class PaymentEventPublisher(BaseEventPublisher):

@@ -3,7 +3,7 @@ from uuid import UUID
 from fastapi import APIRouter, Request
 
 from dependencies.dependencies import shipment_service_dependency, shipping_method_service_dependency
-from shared.schemas.shipping_schemas import (
+from schemas.shipping_schemas import (
     CreateShipment,
     CreateShippingMethod,
     ShippingMethodSchema,

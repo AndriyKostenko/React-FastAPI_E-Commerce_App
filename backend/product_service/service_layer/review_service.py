@@ -1,7 +1,7 @@
 from uuid import UUID
 from typing import List
 
-from shared.schemas.review_schemas import CreateReview, ReviewSchema, UpdateReview
+from schemas.review_schemas import CreateReview, ReviewSchema, UpdateReview
 from exceptions.review_exceptions import ReviewNotFoundError, ReviewAlreadyExistsError
 from models.review_models import ProductReview
 from database_layer.review_repository import ReviewRepository

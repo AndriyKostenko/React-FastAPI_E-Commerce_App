@@ -26,7 +26,7 @@ from resources import (
     settings,
 )
 from shared.settings import get_test_settings
-from shared.schemas.user_schemas import CurrentUserInfo
+from shared.contracts.auth import TokenClaims as CurrentUserInfo
 from tests.constants import (
     TEST_USER_ID,
     TEST_ADMIN_ID,
@@ -55,11 +55,19 @@ def _allow_testserver_host() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Mock users — sourced directly from shared TestSettings
+# Gateway-local mock users.
 # ---------------------------------------------------------------------------
 
-TEST_REGULAR_USER = test_settings.CURRENT_USER
-TEST_ADMIN_USER   = test_settings.ADMIN_USER
+TEST_REGULAR_USER = CurrentUserInfo(
+    email=TEST_USER_EMAIL,
+    id=TEST_USER_ID,
+    role=TEST_USER_ROLE,
+)
+TEST_ADMIN_USER = CurrentUserInfo(
+    email=TEST_ADMIN_EMAIL,
+    id=TEST_ADMIN_ID,
+    role=TEST_ADMIN_ROLE,
+)
 
 
 # ---------------------------------------------------------------------------

@@ -4,7 +4,7 @@ from logging import Logger
 from shared.idempotency.idempotency_service import IdempotencyEventService
 from shared.managers.database_session_manager import DatabaseSessionManager
 from shared.enums.event_enums import OrderEvents
-from shared.schemas.event_schemas import OrderCancelledEvent
+from shared.contracts.events import OrderCancelledEvent
 from database_layer.payment_repository import PaymentRepository
 from shared.database_layer.outbox_repository import OutboxRepository
 from service_layer.payment_service import PaymentService

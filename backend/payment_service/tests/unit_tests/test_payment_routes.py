@@ -11,7 +11,7 @@ from uuid import uuid4
 
 import pytest
 
-from shared.schemas.payment_schemas import PaymentResponse
+from schemas.payment_schemas import PaymentResponse
 from tests.constants import TEST_PAYMENT_ID, TEST_ORDER_ID, TEST_USER_ID, TEST_EMAIL
 from tests.constants import TEST_STRIPE_INTENT_ID, TEST_CLIENT_SECRET, TEST_AMOUNT, TEST_CURRENCY
 from tests.constants import TEST_API, MOCK_PAYMENT_INTENT_RESULT

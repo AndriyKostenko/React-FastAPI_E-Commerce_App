@@ -2,7 +2,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, status
 
-from shared.schemas.wishlist_schemas import WishlistSchema, AddWishlistItem
+from schemas.wishlist_schemas import WishlistSchema, AddWishlistItem
 from dependencies.dependencies import (
     current_user_dependency,
     http_client_dependency,

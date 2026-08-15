@@ -11,6 +11,7 @@ from decimal import Decimal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+from shared.contracts.supplier import GenericSupplierProduct as EventSupplierProduct
 
 
 class SupplierProductVariant(BaseModel):
@@ -34,7 +35,7 @@ class SupplierProductVariant(BaseModel):
 class GenericSupplierProduct(BaseModel):
     """Normalized product representation emitted by supplier_service.
 
-    Fields mirror ``shared.schemas.product_schemas.CreateProduct`` but keep the
+    Fields mirror the product-service create-product payload but keep the
     supplier's original category identifier so product_service can resolve it.
     """
 
@@ -71,7 +72,7 @@ class SupplierProductsPage(BaseModel):
     page_size: int
     total_records: int | None = None
     total_pages: int | None = None
-    products: list[GenericSupplierProduct]
+    products: list[EventSupplierProduct]
 
 
 class SupplierConfigBase(BaseModel):
@@ -99,3 +100,16 @@ class SupplierSyncRunSummary(BaseModel):
     status: str = "pending"
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class CJProductPreview(BaseModel):
+    """Supplier-service response model for a CJ product list preview."""
+
+    pid: str
+    name: str
+    sku: str | None = None
+    image_url: str | None = None
+    price: Decimal
+    quantity: int
+    in_stock: bool
+    category_id: str | None = None

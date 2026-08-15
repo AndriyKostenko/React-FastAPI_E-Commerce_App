@@ -1,0 +1,1 @@
+"""Shipping-service schemas."""

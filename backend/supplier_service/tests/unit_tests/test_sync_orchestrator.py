@@ -5,8 +5,9 @@ import pytest
 
 from exceptions.cj_order_exceptions import ProviderNotFoundError, SyncAlreadyInProgressError
 from service_layer.sync_orchestrator_service import SupplierSyncOrchestrator
-from shared.schemas.dropshipping_schemas import CJProductsFilterParams
-from shared.schemas.supplier_schemas import GenericSupplierProduct, SupplierProductsPage
+from schemas.dropshipping_schemas import CJProductsFilterParams
+from shared.contracts.supplier import GenericSupplierProduct
+from schemas.supplier_schemas import SupplierProductsPage
 
 
 def _product(pid: str | None) -> GenericSupplierProduct:
@@ -118,4 +119,3 @@ async def test_sync_raises_when_already_in_progress() -> None:
 
     with pytest.raises(SyncAlreadyInProgressError, match="Sync already in progress"):
         await orchestrator.run_sync("cjdropshipping")
-

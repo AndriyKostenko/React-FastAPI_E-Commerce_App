@@ -3,12 +3,8 @@ from datetime import datetime, timezone
 
 from pydantic import BaseModel, EmailStr, PositiveFloat, Field
 
-from shared.schemas.order_schemas import (
-    ConfirmedOrderAddress,
-    ConfirmedOrderItem,
-    OrderItemBase,
-)
-from shared.schemas.supplier_schemas import GenericSupplierProduct
+from shared.contracts.order import ConfirmedOrderAddress, ConfirmedOrderItem, OrderItem
+from shared.contracts.supplier import GenericSupplierProduct
 from shared.enums.services_enums import Services
 from shared.enums.event_enums import UserEvents, OrderEvents, InventoryEvents, PaymentEvents, ShippingEvents, WishlistEvents, SupplierEvents
 
@@ -74,7 +70,7 @@ class OrderBaseEvent(BaseEvent):
 
 class OrderCreatedEvent(OrderBaseEvent):
     """Event published when an order is created (start of SAGA)"""
-    items: list[OrderItemBase]
+    items: list[OrderItem]
     total_amount: PositiveFloat
     event_type: str = Field(default_factory=lambda: OrderEvents.ORDER_CREATED)
 
@@ -95,27 +91,27 @@ class OrderCancelledEvent(OrderBaseEvent):
 class InventoryReserveRequested(OrderBaseEvent):
     """Event published when inventory reserve is requested"""
     event_type: str = Field(default_factory=lambda: InventoryEvents.INVENTORY_RESERVE_REQUESTED)
-    items: list[OrderItemBase]
+    items: list[OrderItem]
 
 
 class InventoryReleaseRequested(OrderBaseEvent):
     """Event published when inventory needs to be released (compensation)"""
     event_type: str = Field(default_factory=lambda: InventoryEvents.INVENTORY_RELEASE_REQUESTED)
-    items: list[OrderItemBase]
+    items: list[OrderItem]
     reason: str
 
 # ============== PRODUCT SAGA EVENTS ==============
 class InventoryReserveSucceeded(OrderBaseEvent):
     """Event published when inventory reserve succeeds"""
     event_type: str = Field(default_factory=lambda: InventoryEvents.INVENTORY_RESERVE_SUCCEEDED)
-    reserved_items: list[OrderItemBase]
+    reserved_items: list[OrderItem]
 
 
 class InventoryReserveFailed(OrderBaseEvent):
     """Event published when inventory reserve fails"""
     event_type: str = Field(default_factory=lambda: InventoryEvents.INVENTORY_RESERVE_FAILED)
     reasons: str
-    failed_items: list[OrderItemBase]
+    failed_items: list[OrderItem]
 
 
 # ============== PAYMENT SAGA EVENTS ==============

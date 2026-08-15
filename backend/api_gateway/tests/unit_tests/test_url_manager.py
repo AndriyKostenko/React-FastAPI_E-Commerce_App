@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from gateway.apigateway import UrlManager
-from shared.schemas.gateway_schemas import GatewayConfig, ServiceConfig
+from schemas.gateway_schemas import GatewayConfig, ServiceConfig
 
 
 def _make_url_manager(instances: list[str] | None = None) -> UrlManager:

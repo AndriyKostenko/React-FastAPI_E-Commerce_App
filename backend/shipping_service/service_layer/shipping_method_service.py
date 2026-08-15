@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from shared.schemas.shipping_schemas import ShippingMethodSchema, CreateShippingMethod, UpdateShippingMethod
+from schemas.shipping_schemas import ShippingMethodSchema, CreateShippingMethod, UpdateShippingMethod
 from database_layer.shipping_repository import ShippingMethodRepository
 from exceptions.shipping_exceptions import ShippingMethodNotFoundError
 from models.shipping_models import ShippingMethod

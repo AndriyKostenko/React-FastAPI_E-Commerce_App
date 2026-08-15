@@ -5,8 +5,9 @@ from service_layer.cj_api_client import CJDropshippingAPIClient
 from service_layer.cj_inventory_verifier import CJDropshippingInventoryVerifier, StockVerificationResult
 from service_layer.cj_to_supplier_mapper import CJToSupplierMapper
 from service_layer.supplier_provider import SupplierProvider
-from shared.schemas.dropshipping_schemas import CJProductsFilterParams
-from shared.schemas.supplier_schemas import GenericSupplierProduct, SupplierProductsPage
+from schemas.dropshipping_schemas import CJProductsFilterParams
+from shared.contracts.supplier import GenericSupplierProduct
+from schemas.supplier_schemas import SupplierProductsPage
 from shared.settings import Settings
 
 

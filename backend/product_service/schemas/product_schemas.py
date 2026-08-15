@@ -7,9 +7,9 @@ from uuid import UUID, uuid4
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from fastapi import UploadFile, Form, File
 
-from shared.schemas.category_schema import CategorySchema
-from shared.schemas.product_image_schema import ImageType
-from shared.schemas.review_schemas import ReviewSchema
+from schemas.category_schema import CategorySchema
+from schemas.product_image_schema import ImageType
+from schemas.review_schemas import ReviewSchema
 
 
 # --- Product Variant Schemas ---

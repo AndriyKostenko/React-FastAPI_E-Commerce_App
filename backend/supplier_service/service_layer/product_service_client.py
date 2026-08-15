@@ -3,7 +3,7 @@ from uuid import UUID
 
 from httpx import AsyncClient, HTTPStatusError, RequestError
 
-from shared.schemas.product_schemas import ProductSchema
+from shared.contracts.product import ProductWithVariants
 from shared.settings import Settings
 
 
@@ -38,7 +38,7 @@ class ProductServiceClient:
         base = self.settings.FULL_PRODUCT_SERVICE_URL.rstrip("/")
         return f"{base}/products/{product_id}/detailed"
 
-    async def get_product_with_variants(self, product_id: UUID) -> ProductSchema:
+    async def get_product_with_variants(self, product_id: UUID) -> ProductWithVariants:
         """Fetch a product by ID including its variant list."""
         url = self._build_url(product_id)
         try:
@@ -56,7 +56,7 @@ class ProductServiceClient:
             ) from exc
 
         try:
-            return ProductSchema(**response.json())
+            return ProductWithVariants(**response.json())
         except Exception as exc:
             raise ProductServiceError(f"Invalid product_service response: {exc}") from exc
 

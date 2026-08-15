@@ -10,7 +10,7 @@ from uuid import uuid4
 import pytest
 
 from exceptions.review_exceptions import ReviewAlreadyExistsError, ReviewNotFoundError
-from shared.schemas.review_schemas import CreateReview, UpdateReview
+from schemas.review_schemas import CreateReview, UpdateReview
 
 
 # ---------------------------------------------------------------------------

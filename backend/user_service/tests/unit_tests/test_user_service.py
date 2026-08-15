@@ -19,7 +19,7 @@ from exceptions.user_exceptions import (
     UserNotFoundError,
     UserUpdateError,
 )
-from shared.schemas.user_schemas import (
+from schemas.user_schemas import (
     DecodedTokenSchema,
     UserBasicUpdate,
     UserSignUp,

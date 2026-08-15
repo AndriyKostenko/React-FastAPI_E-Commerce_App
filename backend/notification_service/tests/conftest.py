@@ -26,7 +26,7 @@ from service_layer.notification_service import NotificationService
 from shared.managers.logger_manager import setup_logger
 from shared.managers.test_database_session_manager import TestDatabaseSessionManager
 from shared.settings import get_settings, get_test_settings
-from shared.schemas.notifications_schemas import NotificationInfo
+from schemas.notifications_schemas import NotificationInfo
 from tests.constants import (
     TEST_NOTIFICATION_ID,
     TEST_USER_ID,
@@ -42,6 +42,16 @@ from shared.testing.helpers import allow_testserver_host
 
 settings = get_settings()
 test_settings = get_test_settings()
+
+TEST_NOTIFICATION_INFO = NotificationInfo(
+    id=TEST_NOTIFICATION_ID,
+    user_id=TEST_USER_ID,
+    message=TEST_MESSAGE,
+    notification_type=TEST_NOTIFICATION_TYPE,
+    is_read=False,
+    date_created=TEST_DATETIME,
+    date_updated=None,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -124,7 +134,7 @@ def notification_service_unit(
 @pytest.fixture
 def mock_route_notification_service() -> MagicMock:
     """Full mock of NotificationService for app.dependency_overrides in route tests."""
-    _notif_info = test_settings.MOCK_NOTIFICATION_INFO
+    _notif_info = TEST_NOTIFICATION_INFO
     svc = MagicMock()
     svc.get_user_notifications = AsyncMock(return_value=[_notif_info])
     svc.get_unread_count = AsyncMock(return_value=3)

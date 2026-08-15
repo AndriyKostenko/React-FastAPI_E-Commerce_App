@@ -3,7 +3,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Request, status
 
-from shared.schemas.payment_schemas import (
+from schemas.payment_schemas import (
     PaymentSchema,
     PaymentIntentResponse,
     PaymentResponse,

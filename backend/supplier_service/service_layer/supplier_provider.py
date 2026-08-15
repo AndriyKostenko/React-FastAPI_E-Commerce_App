@@ -1,8 +1,9 @@
 from abc import ABC, abstractmethod
 from typing import Any
 
-from shared.schemas.dropshipping_schemas import CJProductsFilterParams
-from shared.schemas.supplier_schemas import GenericSupplierProduct, SupplierProductsPage
+from schemas.dropshipping_schemas import CJProductsFilterParams
+from shared.contracts.supplier import GenericSupplierProduct
+from schemas.supplier_schemas import SupplierProductsPage
 
 
 class SupplierProvider(ABC):

@@ -1,7 +1,7 @@
 from uuid import UUID
 from fastapi import APIRouter, status, Request
 
-from shared.schemas.cart_schemas import CartSchema, CartSummary, AddCartItem, UpdateCartItem
+from schemas.cart_schemas import CartSchema, CartSummary, AddCartItem, UpdateCartItem
 from dependencies.dependencies import cart_service_dependency
 
 cart_routes = APIRouter(

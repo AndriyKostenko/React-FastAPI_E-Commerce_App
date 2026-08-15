@@ -8,7 +8,7 @@ from jinja2 import Environment, FileSystemLoader, TemplateNotFound
 
 from shared.exceptions.base_exceptions import EmailServiceError
 from shared.settings import Settings
-from shared.schemas.event_schemas import (
+from shared.contracts.events import (
     EmailVerificationEvent,
     UserRegisteredEvent,
     PasswordResetRequestedEvent,
