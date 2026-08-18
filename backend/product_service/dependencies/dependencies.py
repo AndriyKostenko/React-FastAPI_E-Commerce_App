@@ -20,12 +20,12 @@ from service_layer.openrouter_client import OpenRouterClient
 from service_layer.product_image_service import ProductImageService
 from service_layer.product_service import ProductService
 from service_layer.review_service import ReviewService
-from resources import ProductApiResources
+from resources import ProductApiResources, get_product_api_resources
 
 
 def get_resources(request: Request) -> ProductApiResources:
     """Return resources owned by this FastAPI application instance."""
-    return request.app.state.resources
+    return get_product_api_resources(request)
 
 
 async def get_db_session(

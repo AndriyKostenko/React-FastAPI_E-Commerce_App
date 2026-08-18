@@ -1,5 +1,5 @@
 from datetime import datetime
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 import os
 from time import perf_counter
 
@@ -20,7 +20,7 @@ from prometheus_fastapi_instrumentator import Instrumentator
 from config import logger, settings
 from helpers.internal_access_helper import internal_access_helper
 from helpers.request_helper import request_metrics_helper
-from resources import payment_api_resources
+from resources import payment_api_runtime
 
 
 @asynccontextmanager
@@ -28,15 +28,14 @@ async def lifespan(app: FastAPI):
     request_metrics_helper.initialize()
 
     logger.info(f"Payment service starting on {settings.APP_HOST}:{settings.PAYMENT_SERVICE_APP_PORT}...")
-    async with payment_api_resources() as resources:
+    async with AsyncExitStack() as stack:
+        resources = await stack.enter_async_context(payment_api_runtime())
         app.state.resources = resources
-        try:
-            await resources.database.init_db(Base.metadata)
-            logger.info("Payment service tables are initialized from service-owned metadata.")
-            logger.info("Payment service startup complete!")
-            yield
-        finally:
-            del app.state.resources
+        stack.callback(delattr, app.state, "resources")
+        await resources.database.init_db(Base.metadata)
+        logger.info("Payment service tables are initialized from service-owned metadata.")
+        logger.info("Payment service startup complete!")
+        yield
 
     logger.warning("Payment service database and idempotency resources closed on shutdown!")
     logger.warning("Payment service shut down!")

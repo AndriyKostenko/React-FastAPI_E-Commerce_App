@@ -6,7 +6,7 @@ from starlette.requests import HTTPConnection
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database_layer.shipping_repository import ShippingMethodRepository, ShipmentRepository
-from resources import ShippingApiResources
+from resources import ShippingApiResources, get_shipping_api_resources
 from service_layer.shipping_method_service import ShippingMethodService
 from service_layer.shipment_service import ShipmentService
 
@@ -14,7 +14,7 @@ from service_layer.shipment_service import ShipmentService
 
 def get_resources(connection: HTTPConnection) -> ShippingApiResources:
     """Return resources owned by the current FastAPI lifespan."""
-    return connection.app.state.resources
+    return get_shipping_api_resources(connection)
 
 
 resources_dependency = Annotated[ShippingApiResources, Depends(get_resources)]

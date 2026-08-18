@@ -1,5 +1,5 @@
 from datetime import datetime
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 import os
 from time import perf_counter
 
@@ -20,7 +20,7 @@ from prometheus_fastapi_instrumentator import Instrumentator
 from config import logger, settings
 from helpers.internal_access_helper import internal_access_helper
 from helpers.request_helper import request_metrics_helper
-from resources import order_api_resources
+from resources import order_api_runtime
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -31,15 +31,14 @@ async def lifespan(app: FastAPI):
     request_metrics_helper.initialize()
 
     logger.info(f"Server is starting up on {settings.APP_HOST}:{settings.ORDER_SERVICE_APP_PORT}...")
-    async with order_api_resources() as resources:
+    async with AsyncExitStack() as stack:
+        resources = await stack.enter_async_context(order_api_runtime())
         app.state.resources = resources
-        try:
-            await resources.database.init_db(Base.metadata)
-            logger.info("Order service tables are initialized from service-owned metadata.")
-            logger.info('Server startup complete!')
-            yield
-        finally:
-            del app.state.resources
+        stack.callback(delattr, app.state, "resources")
+        await resources.database.init_db(Base.metadata)
+        logger.info("Order service tables are initialized from service-owned metadata.")
+        logger.info('Server startup complete!')
+        yield
 
     logger.warning("Order service database resources closed on shutdown!")
     logger.warning("Server has shut down !")

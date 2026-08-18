@@ -6,7 +6,7 @@ one typed container through ``app.state.resources``.
 """
 
 from collections.abc import AsyncIterator, Callable
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 from dataclasses import dataclass
 from functools import wraps
 from logging import Logger
@@ -87,21 +87,14 @@ async def user_api_runtime(
 ) -> AsyncIterator[UserApiResources]:
     """Start and reliably stop all resources owned by the API executable."""
     resources = create_user_api_resources(app_settings, app_logger)
-    try:
+    async with AsyncExitStack() as stack:
+        stack.push_async_callback(resources.database.close)
+        stack.push_async_callback(resources.cache.close)
+        stack.push_async_callback(resources.rate_limiter.close)
+        stack.push_async_callback(resources.google_http_client.aclose)
         await resources.cache.connect()
         await resources.rate_limiter.connect()
         yield resources
-    finally:
-        try:
-            await resources.google_http_client.aclose()
-        finally:
-            try:
-                await resources.rate_limiter.close()
-            finally:
-                try:
-                    await resources.cache.close()
-                finally:
-                    await resources.database.close()
 
 
 def get_user_api_resources(request: Request) -> UserApiResources:

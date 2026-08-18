@@ -13,15 +13,12 @@ from service_layer.order_address_service import OrderAddressService
 from service_layer.outbox_event_service import OutboxEventService
 from models.outbox_models import OutboxEvent
 from database_layer.order_repository import OrderRepository
-from resources import OrderApiResources
+from resources import OrderApiResources, get_order_api_resources
 
 
 def get_api_resources(request: Request) -> OrderApiResources:
     """Return the resources owned by the active FastAPI lifespan."""
-    resources = getattr(request.app.state, "resources", None)
-    if not isinstance(resources, OrderApiResources):
-        raise RuntimeError("Order API resources are not initialized")
-    return resources
+    return get_order_api_resources(request)
 
 
 async def get_db_session(

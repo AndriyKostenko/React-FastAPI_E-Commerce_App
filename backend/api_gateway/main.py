@@ -1,5 +1,5 @@
 import os
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 from datetime import datetime
 from time import perf_counter
 
@@ -60,13 +60,12 @@ async def lifespan(app: FastAPI):
 
 
     logger.info(f"Server is starting up on {settings.APP_HOST}:{settings.API_GATEWAY_SERVICE_APP_PORT}...")
-    async with api_gateway_runtime() as resources:
+    async with AsyncExitStack() as stack:
+        resources = await stack.enter_async_context(api_gateway_runtime())
         app.state.resources = resources
+        stack.callback(delattr, app.state, "resources")
         logger.info('Server startup complete!')
-        try:
-            yield
-        finally:
-            del app.state.resources
+        yield
 
     logger.warning(f"Server has shut down !")
 

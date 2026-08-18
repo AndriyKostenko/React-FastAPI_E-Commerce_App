@@ -1,6 +1,6 @@
 import os
 from datetime import datetime
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 from time import perf_counter
 
 from uvicorn import run
@@ -17,7 +17,7 @@ from models import Base
 from shared.exceptions.base_exceptions import BaseAPIException, RateLimitExceededError
 from shared.middleware.logging_middleware import add_logging_middleware
 from shared.telemetry import setup_tracing
-from resources import logger, settings, supplier_api_resources
+from resources import logger, settings, supplier_api_runtime
 from utils.seed_database import seed_default_supplier_config
 
 
@@ -25,21 +25,20 @@ from utils.seed_database import seed_default_supplier_config
 async def lifespan(app: FastAPI):
     """Startup and shutdown lifecycle for the supplier service."""
     logger.info(f"Server is starting up on {settings.APP_HOST}:{settings.SUPPLIER_SERVICE_APP_PORT}...")
-    async with supplier_api_resources() as resources:
+    async with AsyncExitStack() as stack:
+        resources = await stack.enter_async_context(supplier_api_runtime())
         app.state.resources = resources
-        try:
-            await resources.database.init_db(Base.metadata)
-            logger.info("Supplier service tables are initialized from service-owned metadata.")
-            async with resources.database.transaction() as session:
-                await seed_default_supplier_config(
-                    session=session,
-                    settings=resources.settings,
-                )
-                logger.info("Default supplier config seeded.")
-            logger.info("Supplier service startup complete!")
-            yield
-        finally:
-            del app.state.resources
+        stack.callback(delattr, app.state, "resources")
+        await resources.database.init_db(Base.metadata)
+        logger.info("Supplier service tables are initialized from service-owned metadata.")
+        async with resources.database.transaction() as session:
+            await seed_default_supplier_config(
+                session=session,
+                settings=resources.settings,
+            )
+            logger.info("Default supplier config seeded.")
+        logger.info("Supplier service startup complete!")
+        yield
     logger.warning("Supplier service has shut down!")
 
 

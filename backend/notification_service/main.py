@@ -1,5 +1,5 @@
 from datetime import datetime
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 import os
 from time import perf_counter
 
@@ -11,7 +11,7 @@ from pydantic import ValidationError
 from fastapi.exceptions import ResponseValidationError, RequestValidationError
 from prometheus_client import CollectorRegistry, generate_latest, multiprocess, REGISTRY
 
-from resources import logger, notification_api_resources, settings
+from resources import logger, notification_api_runtime, settings
 from models import Base
 from shared.exceptions.base_exceptions import (BaseAPIException, RateLimitExceededError)
 from shared.middleware.logging_middleware import add_logging_middleware
@@ -30,15 +30,14 @@ async def lifespan(app: FastAPI):
     request_metrics_helper.initialize()
 
     logger.info(f"Server is starting up on {settings.APP_HOST}:{settings.NOTIFICATION_SERVICE_APP_PORT}...")
-    async with notification_api_resources() as resources:
+    async with AsyncExitStack() as stack:
+        resources = await stack.enter_async_context(notification_api_runtime())
         app.state.resources = resources
-        try:
-            await resources.database.init_db(Base.metadata)
-            logger.info("Notification service tables are initialized from service-owned metadata.")
-            logger.info('Server startup complete!')
-            yield
-        finally:
-            del app.state.resources
+        stack.callback(delattr, app.state, "resources")
+        await resources.database.init_db(Base.metadata)
+        logger.info("Notification service tables are initialized from service-owned metadata.")
+        logger.info('Server startup complete!')
+        yield
     logger.warning("Server has shut down !")
 
 

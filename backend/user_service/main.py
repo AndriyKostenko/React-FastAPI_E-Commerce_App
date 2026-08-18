@@ -1,5 +1,6 @@
+from collections.abc import AsyncIterator
 from datetime import datetime, timezone
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 import os
 import ipaddress
 from time import perf_counter
@@ -24,24 +25,24 @@ from helpers.request_helper import request_metrics_helper
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
-    """
-    This is a context manager that will run the startup and shutdown
-    events of a FastAPI application.
-    """
-    logger.info(f"Server is starting up on {settings.APP_HOST}:{settings.USER_SERVICE_APP_PORT}...")
-    request_metrics_helper.initialize()
-    logger.info("User service Prometheus metrics are initialized!")
-    async with user_api_runtime() as resources:
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    """Attach one lifespan-owned resource container to this app instance."""
+    async with AsyncExitStack() as stack:
+        resources = await stack.enter_async_context(user_api_runtime())
         app.state.resources = resources
-        try:
-            await resources.database.init_db(Base.metadata)
-            logger.info("User service tables are initialized from service-owned metadata.")
-            logger.info("User service API resources are initialized.")
-            logger.info('Server startup complete!')
-            yield
-        finally:
-            del app.state.resources
+        stack.callback(delattr, app.state, "resources")
+        resources.logger.info(
+            "Server is starting up on %s:%s...",
+            resources.settings.APP_HOST,
+            resources.settings.USER_SERVICE_APP_PORT,
+        )
+        request_metrics_helper.initialize()
+        resources.logger.info("User service Prometheus metrics are initialized!")
+        await resources.database.init_db(Base.metadata)
+        resources.logger.info("User service tables are initialized from service-owned metadata.")
+        resources.logger.info("User service API resources are initialized.")
+        resources.logger.info("Server startup complete!")
+        yield
 
     logger.warning("Server has shut down!")
 

@@ -1,6 +1,6 @@
 import os
 from datetime import datetime
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 from time import perf_counter
 
 from uvicorn import run
@@ -20,32 +20,23 @@ from shared.telemetry import setup_tracing
 from service_config import logger, settings
 from helpers.internal_access_helper import internal_access_helper
 from helpers.request_helper import request_metrics_helper
-from resources import create_wishlist_api_resources
+from resources import wishlist_api_runtime
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    resources = create_wishlist_api_resources()
-    app.state.resources = resources
-    try:
-        logger.info(f"Server is starting up on {settings.APP_HOST}:{settings.WISHLIST_SERVICE_APP_PORT}...")
-        request_metrics_helper.initialize()
+    logger.info(f"Server is starting up on {settings.APP_HOST}:{settings.WISHLIST_SERVICE_APP_PORT}...")
+    request_metrics_helper.initialize()
+    async with AsyncExitStack() as stack:
+        resources = await stack.enter_async_context(wishlist_api_runtime())
+        app.state.resources = resources
+        stack.callback(delattr, app.state, "resources")
         await resources.database.init_db(Base.metadata)
         logger.info("Wishlist service tables are initialized from service-owned metadata.")
         logger.info("Wishlist HTTP client session created.")
         logger.info("Server startup complete!")
         yield
-    finally:
-        try:
-            try:
-                await resources.http_client.close()
-                logger.warning("Wishlist HTTP client session closed.")
-            finally:
-                await resources.database.close()
-                logger.warning("Database connection closed on shutdown!")
-        finally:
-            del app.state.resources
-        logger.warning("Server has shut down!")
+    logger.warning("Server has shut down!")
 
 
 app = FastAPI(

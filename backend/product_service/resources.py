@@ -1,11 +1,12 @@
 """Process-local resources owned by product-service entrypoints."""
 
 from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 from dataclasses import dataclass
 from logging import Logger
 
 from aiohttp import ClientSession
+from fastapi import Request
 from faststream.rabbit import RabbitBroker, RabbitExchange
 
 from event_publisher.event_publisher import ProductEventPublisher
@@ -20,23 +21,29 @@ settings: Settings = get_settings()
 logger: Logger = setup_logger("product-service")
 
 
-def create_database_manager() -> DatabaseSessionManager:
+def create_database_manager(
+    app_settings: Settings = settings,
+    app_logger: Logger = logger,
+) -> DatabaseSessionManager:
     return DatabaseSessionManager(
-        database_url=settings.PRODUCT_SERVICE_DATABASE_URL,
-        logger=logger,
-        echo=settings.DEBUG_MODE,
-        pg_max_connections=settings.PG_MAX_CONNECTIONS,
-        reserved_connections=settings.PG_RESERVED_CONNECTIONS,
-        num_db_services=settings.PG_DB_SERVICES_COUNT,
+        database_url=app_settings.PRODUCT_SERVICE_DATABASE_URL,
+        logger=app_logger,
+        echo=app_settings.DEBUG_MODE,
+        pg_max_connections=app_settings.PG_MAX_CONNECTIONS,
+        reserved_connections=app_settings.PG_RESERVED_CONNECTIONS,
+        num_db_services=app_settings.PG_DB_SERVICES_COUNT,
     )
 
 
-def create_cache_manager() -> CacheManager:
+def create_cache_manager(
+    app_settings: Settings = settings,
+    app_logger: Logger = logger,
+) -> CacheManager:
     return CacheManager(
         service_prefix="product-service",
-        redis_url=settings.PRODUCT_SERVICE_REDIS_URL,
-        logger=logger,
-        service_api_version=settings.PRODUCT_SERVICE_URL_API_VERSION,
+        redis_url=app_settings.PRODUCT_SERVICE_REDIS_URL,
+        logger=app_logger,
+        service_api_version=app_settings.PRODUCT_SERVICE_URL_API_VERSION,
     )
 
 
@@ -50,28 +57,40 @@ class ProductApiResources:
 
 
 @asynccontextmanager
-async def product_api_resources() -> AsyncIterator[ProductApiResources]:
-    """Create and close resources used by one product API process."""
-    database = create_database_manager()
-    cache = create_cache_manager()
-    http_session = ClientSession()
-    try:
-        await cache.connect()
-        yield ProductApiResources(
-            settings=settings,
-            logger=logger,
-            database=database,
-            cache=cache,
-            http_session=http_session,
-        )
-    finally:
-        try:
-            await http_session.close()
-        finally:
-            try:
-                await cache.close()
-            finally:
-                await database.close()
+async def product_api_runtime(
+    app_settings: Settings = settings,
+    app_logger: Logger = logger,
+) -> AsyncIterator[ProductApiResources]:
+    """Start and reliably stop resources owned by one product API process."""
+    resources = create_product_api_resources(app_settings, app_logger)
+    async with AsyncExitStack() as stack:
+        stack.push_async_callback(resources.database.close)
+        stack.push_async_callback(resources.cache.close)
+        stack.push_async_callback(resources.http_session.close)
+        await resources.cache.connect()
+        yield resources
+
+
+def create_product_api_resources(
+    app_settings: Settings = settings,
+    app_logger: Logger = logger,
+) -> ProductApiResources:
+    """Construct resources owned by one product-service ASGI process."""
+    return ProductApiResources(
+        settings=app_settings,
+        logger=app_logger,
+        database=create_database_manager(app_settings, app_logger),
+        cache=create_cache_manager(app_settings, app_logger),
+        http_session=ClientSession(),
+    )
+
+
+def get_product_api_resources(request: Request) -> ProductApiResources:
+    """Resolve the current app's lifespan-owned resource container."""
+    resources = getattr(request.app.state, "resources", None)
+    if not isinstance(resources, ProductApiResources):
+        raise RuntimeError("Product API resources are not initialized")
+    return resources
 
 
 @dataclass(slots=True)

@@ -9,16 +9,13 @@ from shared.database_layer.outbox_repository import OutboxRepository
 from service_layer.payment_service import PaymentService
 from service_layer.outbox_event_service import OutboxEventService
 from models.outbox_models import OutboxEvent
-from resources import PaymentApiResources
+from resources import PaymentApiResources, get_payment_api_resources
 from shared.idempotency.idempotency_service import IdempotencyEventService
 
 
 def get_api_resources(request: Request) -> PaymentApiResources:
     """Return the resources owned by the active FastAPI lifespan."""
-    resources = getattr(request.app.state, "resources", None)
-    if not isinstance(resources, PaymentApiResources):
-        raise RuntimeError("Payment API resources are not initialized")
-    return resources
+    return get_payment_api_resources(request)
 
 
 async def get_db_session(

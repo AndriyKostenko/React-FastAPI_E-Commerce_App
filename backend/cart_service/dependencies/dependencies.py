@@ -5,14 +5,14 @@ from fastapi import Depends
 from starlette.requests import HTTPConnection
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from resources import CartApiResources
+from resources import CartApiResources, get_cart_api_resources
 from service_layer.cart_services import CartService
 from database_layer.cart_repository import CartRepository
 
 
 def get_resources(connection: HTTPConnection) -> CartApiResources:
     """Return resources owned by the current FastAPI lifespan."""
-    return connection.app.state.resources
+    return get_cart_api_resources(connection)
 
 
 resources_dependency = Annotated[CartApiResources, Depends(get_resources)]

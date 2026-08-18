@@ -11,11 +11,11 @@ from service_layer.outbox_event_service import OutboxEventService
 from models.outbox_models import OutboxEvent
 from service_layer.sync_orchestrator_service import SupplierSyncOrchestrator
 from shared.database_layer.outbox_repository import OutboxRepository
-from resources import SupplierApiResources
+from resources import SupplierApiResources, get_supplier_api_resources
 
 
 def get_resources(request: Request) -> SupplierApiResources:
-    return request.app.state.resources
+    return get_supplier_api_resources(request)
 
 
 async def get_db_session(

@@ -5,11 +5,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from database_layer.notification_repository import NotificationRepository
 from service_layer.notification_service import NotificationService
-from resources import NotificationApiResources
+from resources import NotificationApiResources, get_notification_api_resources
 
 
 def get_resources(request: Request) -> NotificationApiResources:
-    return request.app.state.resources
+    return get_notification_api_resources(request)
 
 
 async def get_db_session(

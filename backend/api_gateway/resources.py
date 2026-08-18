@@ -1,7 +1,7 @@
 """API-gateway process resources and request-time accessors."""
 
 from collections.abc import AsyncIterator, Callable
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 from dataclasses import dataclass
 from functools import wraps
 from logging import Logger
@@ -76,19 +76,14 @@ async def api_gateway_runtime(
     app_logger: Logger = logger,
 ) -> AsyncIterator[ApiGatewayResources]:
     resources = create_api_gateway_resources(app_settings, app_logger)
-    try:
+    async with AsyncExitStack() as stack:
+        stack.push_async_callback(resources.cache.close)
+        stack.push_async_callback(resources.rate_limiter.close)
+        stack.push_async_callback(resources.gateway.shutdown)
         await resources.cache.connect()
         await resources.rate_limiter.connect()
         await resources.gateway.startup()
         yield resources
-    finally:
-        try:
-            await resources.gateway.shutdown()
-        finally:
-            try:
-                await resources.rate_limiter.close()
-            finally:
-                await resources.cache.close()
 
 
 def get_api_gateway_resources(request: Request) -> ApiGatewayResources:

@@ -6,7 +6,7 @@ from fastapi import Depends, Request
 from starlette.requests import HTTPConnection
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from resources import WishlistApiResources
+from resources import WishlistApiResources, get_wishlist_api_resources
 from service_layer.wishlist_service import WishlistService
 from database_layer.wishlist_repository import WishlistRepository
 
@@ -14,7 +14,7 @@ from database_layer.wishlist_repository import WishlistRepository
 
 def get_resources(connection: HTTPConnection) -> WishlistApiResources:
     """Return resources owned by the current FastAPI lifespan."""
-    return connection.app.state.resources
+    return get_wishlist_api_resources(connection)
 
 
 resources_dependency = Annotated[WishlistApiResources, Depends(get_resources)]

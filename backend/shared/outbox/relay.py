@@ -33,14 +33,14 @@ class OutboxRelay:
         base_retry_seconds: float = 5.0,
         max_retry_seconds: float = 300.0,
     ) -> None:
-        self.session_manager = session_manager
-        self.event_router = event_router
-        self.logger = logger
-        self.poll_interval = poll_interval
-        self.outbox_model = outbox_model
-        self.batch_size = batch_size
-        self.base_retry_seconds = base_retry_seconds
-        self.max_retry_seconds = max_retry_seconds
+        self.session_manager: DatabaseSessionManager = session_manager
+        self.event_router: EventRouter = event_router
+        self.logger: Logger = logger
+        self.poll_interval: float = poll_interval
+        self.outbox_model: type[DeclarativeBase] = outbox_model
+        self.batch_size: int = batch_size
+        self.base_retry_seconds: float = base_retry_seconds
+        self.max_retry_seconds: float = max_retry_seconds
 
     async def relay_once(self) -> int:
         """Publish one locked batch and return its number of successful events.

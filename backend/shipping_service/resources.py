@@ -1,7 +1,10 @@
+from collections.abc import AsyncIterator
+from contextlib import AsyncExitStack, asynccontextmanager
 from dataclasses import dataclass
 from logging import Logger
 
 from faststream.rabbit import ExchangeType, RabbitBroker, RabbitExchange
+from starlette.requests import HTTPConnection
 
 from events_publisher.shipping_event_publisher import ShippingEventPublisher
 from shared.managers.database_session_manager import DatabaseSessionManager
@@ -20,17 +23,20 @@ class ShippingApiResources:
     event_publisher: ShippingEventPublisher
 
 
-def create_shipping_api_resources() -> ShippingApiResources:
+def create_shipping_api_resources(
+    app_settings: Settings = settings,
+    app_logger: Logger = logger,
+) -> ShippingApiResources:
     """Build a fresh resource graph for one FastAPI lifespan."""
     database = DatabaseSessionManager(
-        database_url=settings.SHIPPING_SERVICE_DATABASE_URL,
-        logger=logger,
-        echo=settings.DEBUG_MODE,
-        pg_max_connections=settings.PG_MAX_CONNECTIONS,
-        reserved_connections=settings.PG_RESERVED_CONNECTIONS,
-        num_db_services=settings.PG_DB_SERVICES_COUNT,
+        database_url=app_settings.SHIPPING_SERVICE_DATABASE_URL,
+        logger=app_logger,
+        echo=app_settings.DEBUG_MODE,
+        pg_max_connections=app_settings.PG_MAX_CONNECTIONS,
+        reserved_connections=app_settings.PG_RESERVED_CONNECTIONS,
+        num_db_services=app_settings.PG_DB_SERVICES_COUNT,
     )
-    broker = RabbitBroker(url=settings.RABBITMQ_BROKER_URL)
+    broker = RabbitBroker(url=app_settings.RABBITMQ_BROKER_URL)
     exchange = RabbitExchange(
         name="shipping.events.exchange",
         durable=True,
@@ -39,12 +45,34 @@ def create_shipping_api_resources() -> ShippingApiResources:
     event_publisher = ShippingEventPublisher(
         broker=broker,
         exchange=exchange,
-        logger=logger,
-        settings=settings,
+        logger=app_logger,
+        settings=app_settings,
     )
     return ShippingApiResources(
-        settings=settings,
-        logger=logger,
+        settings=app_settings,
+        logger=app_logger,
         database=database,
         event_publisher=event_publisher,
     )
+
+
+@asynccontextmanager
+async def shipping_api_runtime(
+    app_settings: Settings = settings,
+    app_logger: Logger = logger,
+) -> AsyncIterator[ShippingApiResources]:
+    """Start and reliably stop resources owned by one shipping API process."""
+    resources = create_shipping_api_resources(app_settings, app_logger)
+    async with AsyncExitStack() as stack:
+        stack.push_async_callback(resources.database.close)
+        stack.push_async_callback(resources.event_publisher.stop)
+        await resources.event_publisher.start()
+        yield resources
+
+
+def get_shipping_api_resources(connection: HTTPConnection) -> ShippingApiResources:
+    """Resolve the current app's lifespan-owned resource container."""
+    resources = getattr(connection.app.state, "resources", None)
+    if not isinstance(resources, ShippingApiResources):
+        raise RuntimeError("Shipping API resources are not initialized")
+    return resources

@@ -1,6 +1,6 @@
 import os
 from datetime import datetime
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 from time import perf_counter
 
 from uvicorn import run
@@ -20,27 +20,22 @@ from shared.telemetry import setup_tracing
 from service_config import logger, settings
 from helpers.internal_access_helper import internal_access_helper
 from helpers.request_helper import request_metrics_helper
-from resources import create_cart_api_resources
+from resources import cart_api_runtime
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    resources = create_cart_api_resources()
-    app.state.resources = resources
-    try:
-        logger.info(f"Server is starting up on {settings.APP_HOST}:{settings.CART_SERVICE_APP_PORT}...")
-        request_metrics_helper.initialize()
+    logger.info(f"Server is starting up on {settings.APP_HOST}:{settings.CART_SERVICE_APP_PORT}...")
+    request_metrics_helper.initialize()
+    async with AsyncExitStack() as stack:
+        resources = await stack.enter_async_context(cart_api_runtime())
+        app.state.resources = resources
+        stack.callback(delattr, app.state, "resources")
         await resources.database.init_db(Base.metadata)
         logger.info("Cart service tables are initialized from service-owned metadata.")
         logger.info("Server startup complete!")
         yield
-    finally:
-        try:
-            await resources.database.close()
-            logger.warning("Database connection closed on shutdown!")
-        finally:
-            del app.state.resources
-        logger.warning("Server has shut down!")
+    logger.warning("Server has shut down!")
 
 
 app = FastAPI(

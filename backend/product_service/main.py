@@ -1,6 +1,6 @@
 import os
 from datetime import datetime
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 from time import perf_counter
 from pathlib import Path
 
@@ -22,7 +22,7 @@ from models import Base
 from shared.exceptions.base_exceptions import (BaseAPIException,RateLimitExceededError)
 from shared.middleware.logging_middleware import add_logging_middleware
 from shared.telemetry import setup_tracing
-from resources import logger, product_api_resources, settings
+from resources import logger, product_api_runtime, settings
 from helpers.internal_access_helper import internal_access_helper
 from helpers.request_helper import request_metrics_helper
 from tasks.broker import taskiq_broker
@@ -37,25 +37,18 @@ async def lifespan(app: FastAPI):
 
     logger.info(f"Server is starting up on {settings.APP_HOST}:{settings.PRODUCT_SERVICE_APP_PORT}...")
     request_metrics_helper.initialize()
-    async with product_api_resources() as resources:
+    async with AsyncExitStack() as stack:
+        resources = await stack.enter_async_context(product_api_runtime())
         app.state.resources = resources
-        taskiq_start_attempted = False
-        try:
-            await resources.database.init_db(Base.metadata)
-            logger.info("Product service tables are initialized from service-owned metadata.")
-            if not taskiq_broker.is_worker_process:
-                taskiq_start_attempted = True
-                await taskiq_broker.startup()
-                logger.info("TaskIQ broker started successfully.")
-            logger.info('Server startup complete!')
-            yield
-        finally:
-            try:
-                if taskiq_start_attempted:
-                    await taskiq_broker.shutdown()
-                    logger.info("TaskIQ broker shut down successfully.")
-            finally:
-                del app.state.resources
+        stack.callback(delattr, app.state, "resources")
+        await resources.database.init_db(Base.metadata)
+        logger.info("Product service tables are initialized from service-owned metadata.")
+        if not taskiq_broker.is_worker_process:
+            stack.push_async_callback(taskiq_broker.shutdown)
+            await taskiq_broker.startup()
+            logger.info("TaskIQ broker started successfully.")
+        logger.info('Server startup complete!')
+        yield
     logger.warning(f"Server has shut down !")
 
 

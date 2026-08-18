@@ -1,10 +1,11 @@
 """Lifecycle-owned resources for each payment-service process role."""
 
 from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 from dataclasses import dataclass
 from logging import Logger
 
+from fastapi import Request
 from faststream.rabbit import RabbitBroker
 
 from config import logger, settings
@@ -15,24 +16,30 @@ from shared.managers.database_session_manager import DatabaseSessionManager
 from shared.settings import Settings
 
 
-def create_database_session_manager() -> DatabaseSessionManager:
+def create_database_session_manager(
+    app_settings: Settings = settings,
+    app_logger: Logger = logger,
+) -> DatabaseSessionManager:
     return DatabaseSessionManager(
-        database_url=settings.PAYMENT_SERVICE_DATABASE_URL,
-        logger=logger,
-        echo=settings.DEBUG_MODE,
-        pg_max_connections=settings.PG_MAX_CONNECTIONS,
-        reserved_connections=settings.PG_RESERVED_CONNECTIONS,
-        num_db_services=settings.PG_DB_SERVICES_COUNT,
+        database_url=app_settings.PAYMENT_SERVICE_DATABASE_URL,
+        logger=app_logger,
+        echo=app_settings.DEBUG_MODE,
+        pg_max_connections=app_settings.PG_MAX_CONNECTIONS,
+        reserved_connections=app_settings.PG_RESERVED_CONNECTIONS,
+        num_db_services=app_settings.PG_DB_SERVICES_COUNT,
     )
 
 
-def create_idempotency_service() -> IdempotencyEventService:
+def create_idempotency_service(
+    app_settings: Settings = settings,
+    app_logger: Logger = logger,
+) -> IdempotencyEventService:
     return IdempotencyEventService(
         service_prefix="payment-service",
-        redis_url=settings.PAYMENT_SERVICE_REDIS_URL,
-        logger=logger,
-        service_api_version=settings.PAYMENT_SERVICE_URL_API_VERSION,
-        ttl_hours=settings.IDEMPOTENCY_EVENT_SERVICE_HOURS,
+        redis_url=app_settings.PAYMENT_SERVICE_REDIS_URL,
+        logger=app_logger,
+        service_api_version=app_settings.PAYMENT_SERVICE_URL_API_VERSION,
+        ttl_hours=app_settings.IDEMPOTENCY_EVENT_SERVICE_HOURS,
     )
 
 
@@ -43,33 +50,40 @@ class PaymentApiResources:
     database: DatabaseSessionManager
     idempotency: IdempotencyEventService
 
-    async def start(self) -> None:
-        await self.idempotency.connect()
 
-    async def close(self) -> None:
-        try:
-            await self.idempotency.close()
-        finally:
-            await self.database.close()
-
-
-def create_api_resources() -> PaymentApiResources:
+def create_payment_api_resources(
+    app_settings: Settings = settings,
+    app_logger: Logger = logger,
+) -> PaymentApiResources:
+    """Construct resources owned by one payment-service ASGI process."""
     return PaymentApiResources(
-        settings=settings,
-        logger=logger,
-        database=create_database_session_manager(),
-        idempotency=create_idempotency_service(),
+        settings=app_settings,
+        logger=app_logger,
+        database=create_database_session_manager(app_settings, app_logger),
+        idempotency=create_idempotency_service(app_settings, app_logger),
     )
 
 
 @asynccontextmanager
-async def payment_api_resources() -> AsyncIterator[PaymentApiResources]:
-    resources = create_api_resources()
-    try:
-        await resources.start()
+async def payment_api_runtime(
+    app_settings: Settings = settings,
+    app_logger: Logger = logger,
+) -> AsyncIterator[PaymentApiResources]:
+    """Start and reliably stop resources owned by one payment API process."""
+    resources = create_payment_api_resources(app_settings, app_logger)
+    async with AsyncExitStack() as stack:
+        stack.push_async_callback(resources.database.close)
+        stack.push_async_callback(resources.idempotency.close)
+        await resources.idempotency.connect()
         yield resources
-    finally:
-        await resources.close()
+
+
+def get_payment_api_resources(request: Request) -> PaymentApiResources:
+    """Resolve the current app's lifespan-owned resource container."""
+    resources = getattr(request.app.state, "resources", None)
+    if not isinstance(resources, PaymentApiResources):
+        raise RuntimeError("Payment API resources are not initialized")
+    return resources
 
 
 @dataclass(slots=True)

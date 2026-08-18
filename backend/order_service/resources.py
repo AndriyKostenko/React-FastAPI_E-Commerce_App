@@ -1,10 +1,11 @@
 """Lifecycle-owned resources for each order-service process role."""
 
 from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 from dataclasses import dataclass
 from logging import Logger
 
+from fastapi import Request
 from faststream.rabbit import RabbitBroker
 
 from config import logger, settings
@@ -15,14 +16,17 @@ from shared.managers.database_session_manager import DatabaseSessionManager
 from shared.settings import Settings
 
 
-def create_database_session_manager() -> DatabaseSessionManager:
+def create_database_session_manager(
+    app_settings: Settings = settings,
+    app_logger: Logger = logger,
+) -> DatabaseSessionManager:
     return DatabaseSessionManager(
-        database_url=settings.ORDER_SERVICE_DATABASE_URL,
-        logger=logger,
-        echo=settings.DEBUG_MODE,
-        pg_max_connections=settings.PG_MAX_CONNECTIONS,
-        reserved_connections=settings.PG_RESERVED_CONNECTIONS,
-        num_db_services=settings.PG_DB_SERVICES_COUNT,
+        database_url=app_settings.ORDER_SERVICE_DATABASE_URL,
+        logger=app_logger,
+        echo=app_settings.DEBUG_MODE,
+        pg_max_connections=app_settings.PG_MAX_CONNECTIONS,
+        reserved_connections=app_settings.PG_RESERVED_CONNECTIONS,
+        num_db_services=app_settings.PG_DB_SERVICES_COUNT,
     )
 
 
@@ -42,25 +46,37 @@ class OrderApiResources:
     logger: Logger
     database: DatabaseSessionManager
 
-    async def close(self) -> None:
-        await self.database.close()
 
-
-def create_api_resources() -> OrderApiResources:
+def create_order_api_resources(
+    app_settings: Settings = settings,
+    app_logger: Logger = logger,
+) -> OrderApiResources:
+    """Construct resources owned by one order-service ASGI process."""
     return OrderApiResources(
-        settings=settings,
-        logger=logger,
-        database=create_database_session_manager(),
+        settings=app_settings,
+        logger=app_logger,
+        database=create_database_session_manager(app_settings, app_logger),
     )
 
 
 @asynccontextmanager
-async def order_api_resources() -> AsyncIterator[OrderApiResources]:
-    resources = create_api_resources()
-    try:
+async def order_api_runtime(
+    app_settings: Settings = settings,
+    app_logger: Logger = logger,
+) -> AsyncIterator[OrderApiResources]:
+    """Start and reliably stop resources owned by one order API process."""
+    resources = create_order_api_resources(app_settings, app_logger)
+    async with AsyncExitStack() as stack:
+        stack.push_async_callback(resources.database.close)
         yield resources
-    finally:
-        await resources.close()
+
+
+def get_order_api_resources(request: Request) -> OrderApiResources:
+    """Resolve the current app's lifespan-owned resource container."""
+    resources = getattr(request.app.state, "resources", None)
+    if not isinstance(resources, OrderApiResources):
+        raise RuntimeError("Order API resources are not initialized")
+    return resources
 
 
 @dataclass(slots=True)

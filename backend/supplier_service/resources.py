@@ -1,11 +1,12 @@
 """Process-local resources owned by supplier-service entrypoints."""
 
 from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 from dataclasses import dataclass
 from logging import Logger
 
 from faststream.rabbit import RabbitBroker, RabbitExchange
+from fastapi import Request
 
 from event_publisher.supplier_event_publisher import SupplierEventPublisher
 from service_layer.cj_api_client import CJDropshippingAPIClient
@@ -20,14 +21,17 @@ settings: Settings = get_settings()
 logger: Logger = setup_logger("supplier-service")
 
 
-def create_database_manager() -> DatabaseSessionManager:
+def create_database_manager(
+    app_settings: Settings = settings,
+    app_logger: Logger = logger,
+) -> DatabaseSessionManager:
     return DatabaseSessionManager(
-        database_url=settings.SUPPLIER_SERVICE_DATABASE_URL,
-        logger=logger,
-        echo=settings.DEBUG_MODE,
-        pg_max_connections=settings.PG_MAX_CONNECTIONS,
-        reserved_connections=settings.PG_RESERVED_CONNECTIONS,
-        num_db_services=settings.PG_DB_SERVICES_COUNT,
+        database_url=app_settings.SUPPLIER_SERVICE_DATABASE_URL,
+        logger=app_logger,
+        echo=app_settings.DEBUG_MODE,
+        pg_max_connections=app_settings.PG_MAX_CONNECTIONS,
+        reserved_connections=app_settings.PG_RESERVED_CONNECTIONS,
+        num_db_services=app_settings.PG_DB_SERVICES_COUNT,
     )
 
 
@@ -40,23 +44,38 @@ class SupplierApiResources:
 
 
 @asynccontextmanager
-async def supplier_api_resources() -> AsyncIterator[SupplierApiResources]:
-    """Create and close resources used by one supplier API process."""
-    database = create_database_manager()
-    cj_api_client = CJDropshippingAPIClient(settings)
-    try:
-        await cj_api_client.start()
-        yield SupplierApiResources(
-            settings=settings,
-            logger=logger,
-            database=database,
-            cj_api_client=cj_api_client,
-        )
-    finally:
-        try:
-            await cj_api_client.close()
-        finally:
-            await database.close()
+async def supplier_api_runtime(
+    app_settings: Settings = settings,
+    app_logger: Logger = logger,
+) -> AsyncIterator[SupplierApiResources]:
+    """Start and reliably stop resources owned by one supplier API process."""
+    resources = create_supplier_api_resources(app_settings, app_logger)
+    async with AsyncExitStack() as stack:
+        stack.push_async_callback(resources.database.close)
+        stack.push_async_callback(resources.cj_api_client.close)
+        await resources.cj_api_client.start()
+        yield resources
+
+
+def create_supplier_api_resources(
+    app_settings: Settings = settings,
+    app_logger: Logger = logger,
+) -> SupplierApiResources:
+    """Construct resources owned by one supplier-service ASGI process."""
+    return SupplierApiResources(
+        settings=app_settings,
+        logger=app_logger,
+        database=create_database_manager(app_settings, app_logger),
+        cj_api_client=CJDropshippingAPIClient(app_settings),
+    )
+
+
+def get_supplier_api_resources(request: Request) -> SupplierApiResources:
+    """Resolve the current app's lifespan-owned resource container."""
+    resources = getattr(request.app.state, "resources", None)
+    if not isinstance(resources, SupplierApiResources):
+        raise RuntimeError("Supplier API resources are not initialized")
+    return resources
 
 
 @dataclass(slots=True)
