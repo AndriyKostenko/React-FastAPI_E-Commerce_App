@@ -72,9 +72,8 @@ async def payment_api_runtime(
     """Start and reliably stop resources owned by one payment API process."""
     resources = create_payment_api_resources(app_settings, app_logger)
     async with AsyncExitStack() as stack:
-        stack.push_async_callback(resources.database.close)
-        stack.push_async_callback(resources.idempotency.close)
-        await resources.idempotency.connect()
+        await stack.enter_async_context(resources.database)
+        await stack.enter_async_context(resources.idempotency)
         yield resources
 
 

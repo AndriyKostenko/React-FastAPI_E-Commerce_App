@@ -64,9 +64,8 @@ async def shipping_api_runtime(
     """Start and reliably stop resources owned by one shipping API process."""
     resources = create_shipping_api_resources(app_settings, app_logger)
     async with AsyncExitStack() as stack:
-        stack.push_async_callback(resources.database.close)
-        stack.push_async_callback(resources.event_publisher.stop)
-        await resources.event_publisher.start()
+        await stack.enter_async_context(resources.database)
+        await stack.enter_async_context(resources.event_publisher)
         yield resources
 
 

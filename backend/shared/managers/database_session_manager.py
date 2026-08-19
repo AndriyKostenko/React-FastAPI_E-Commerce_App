@@ -1,6 +1,8 @@
 from contextlib import asynccontextmanager
 from logging import Logger
 from collections.abc import AsyncGenerator
+from types import TracebackType
+from typing import Self
 
 from sqlalchemy import MetaData, URL
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker, AsyncEngine
@@ -43,6 +45,19 @@ class DatabaseSessionManager:
         self.engine_settings: dict[str ,str|int] = pool.as_dict(echo=echo)
 
         self._initialize_engine()
+
+    async def __aenter__(self) -> Self:
+        """Register this manager with an async resource-owning context."""
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
+        """Dispose the database engine when leaving its owning async context."""
+        await self.close()
 
     def _initialize_engine(self) -> None:
         """Initialize the engine and session maker."""

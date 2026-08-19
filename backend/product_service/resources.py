@@ -64,10 +64,9 @@ async def product_api_runtime(
     """Start and reliably stop resources owned by one product API process."""
     resources = create_product_api_resources(app_settings, app_logger)
     async with AsyncExitStack() as stack:
-        stack.push_async_callback(resources.database.close)
-        stack.push_async_callback(resources.cache.close)
-        stack.push_async_callback(resources.http_session.close)
-        await resources.cache.connect()
+        await stack.enter_async_context(resources.database)
+        await stack.enter_async_context(resources.cache)
+        await stack.enter_async_context(resources.http_session)
         yield resources
 
 

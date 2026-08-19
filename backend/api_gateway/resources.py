@@ -77,12 +77,9 @@ async def api_gateway_runtime(
 ) -> AsyncIterator[ApiGatewayResources]:
     resources = create_api_gateway_resources(app_settings, app_logger)
     async with AsyncExitStack() as stack:
-        stack.push_async_callback(resources.cache.close)
-        stack.push_async_callback(resources.rate_limiter.close)
-        stack.push_async_callback(resources.gateway.shutdown)
-        await resources.cache.connect()
-        await resources.rate_limiter.connect()
-        await resources.gateway.startup()
+        await stack.enter_async_context(resources.cache)
+        await stack.enter_async_context(resources.rate_limiter)
+        await stack.enter_async_context(resources.gateway)
         yield resources
 
 

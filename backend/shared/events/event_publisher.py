@@ -1,4 +1,6 @@
 from logging import Logger
+from types import TracebackType
+from typing import Self
 
 from faststream.rabbit import RabbitBroker, RabbitExchange
 from pydantic import BaseModel
@@ -13,12 +15,26 @@ class BaseEventPublisher:
         self._is_started: bool = False
         self.logger: Logger = logger
 
+    async def __aenter__(self) -> Self:
+        """Start the publisher and return it to its owning async context."""
+        await self.start()
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
+        """Stop the publisher when leaving its owning async context."""
+        await self.stop()
+
     async def start(self):
         """Start the broker connection"""
         if not self._is_started:
             try:
                 await self.broker.start()
-            except Exception:
+            except BaseException:
                 try:
                     await self.broker.stop()
                 except Exception:

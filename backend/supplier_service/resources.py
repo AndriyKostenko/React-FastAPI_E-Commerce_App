@@ -51,9 +51,8 @@ async def supplier_api_runtime(
     """Start and reliably stop resources owned by one supplier API process."""
     resources = create_supplier_api_resources(app_settings, app_logger)
     async with AsyncExitStack() as stack:
-        stack.push_async_callback(resources.database.close)
-        stack.push_async_callback(resources.cj_api_client.close)
-        await resources.cj_api_client.start()
+        await stack.enter_async_context(resources.database)
+        await stack.enter_async_context(resources.cj_api_client)
         yield resources
 
 

@@ -1,4 +1,5 @@
-from typing import Any
+from types import TracebackType
+from typing import Any, Self
 from time import perf_counter
 from logging import Logger
 
@@ -17,6 +18,24 @@ class RedisBase:
         self.redis_url: str = redis_url
         self.logger: Logger = logger
         self._redis: aioredis.Redis | None = None
+
+    async def __aenter__(self) -> Self:
+        """Connect this manager and clean up a partially opened client on failure."""
+        try:
+            await self.connect()
+        except BaseException:
+            await self.close()
+            raise
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
+        """Close the Redis client when leaving its owning async context."""
+        await self.close()
 
     @property
     def redis(self) -> aioredis.Redis:

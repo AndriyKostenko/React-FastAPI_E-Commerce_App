@@ -45,7 +45,7 @@ async def notification_api_runtime(
     """Start and reliably stop resources owned by one notification API process."""
     resources = create_notification_api_resources(app_settings, app_logger)
     async with AsyncExitStack() as stack:
-        stack.push_async_callback(resources.database.close)
+        await stack.enter_async_context(resources.database)
         yield resources
 
 

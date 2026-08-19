@@ -1,5 +1,6 @@
 import random
-from typing import Any
+from types import TracebackType
+from typing import Any, Self
 from urllib.parse import urlparse, urlunparse
 from logging import Logger
 
@@ -158,6 +159,24 @@ class ApiGateway:
             }
         )
         self.url_manager: UrlManager = UrlManager(config=self.config, logger=self.logger)
+
+    async def __aenter__(self) -> Self:
+        """Start the owned HTTP client and clean up if startup fails."""
+        try:
+            await self.startup()
+        except BaseException:
+            await self.shutdown()
+            raise
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
+        """Close the owned HTTP client when leaving its async context."""
+        await self.shutdown()
 
     async def startup(self) -> None:
         """Create this gateway instance's HTTP client during lifespan startup."""

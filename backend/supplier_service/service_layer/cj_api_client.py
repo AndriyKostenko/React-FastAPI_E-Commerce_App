@@ -1,4 +1,5 @@
-from typing import Any
+from types import TracebackType
+from typing import Any, Self
 from urllib.parse import urlencode
 
 from httpx import AsyncClient, HTTPStatusError, RequestError
@@ -28,6 +29,24 @@ class CJDropshippingAPIClient:
         self._access_token: str | None = None
         self._http_client = http_client
         self._owns_http_client = http_client is None
+
+    async def __aenter__(self) -> Self:
+        """Start the owned HTTP client and clean up if startup fails."""
+        try:
+            await self.start()
+        except BaseException:
+            await self.close()
+            raise
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
+        """Close the owned HTTP client when leaving its async context."""
+        await self.close()
 
     async def start(self) -> None:
         """Create the reusable HTTP client when one was not injected."""
