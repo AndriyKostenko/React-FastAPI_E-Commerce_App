@@ -1,5 +1,6 @@
 import os
-from contextlib import AsyncExitStack, asynccontextmanager
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from datetime import datetime
 from time import perf_counter
 
@@ -36,11 +37,8 @@ REQUEST_COUNTER: Counter | None = None
 LATENCY_COUNTER: Histogram | None = None
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
-    """
-    This is a context manager that will run the startup and shutdown
-    events of a FastAPI application.
-    """
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    """Attach one lifespan-owned resource container to this app instance."""
     global REQUEST_COUNTER
     global LATENCY_COUNTER
 
@@ -57,17 +55,16 @@ async def lifespan(app: FastAPI):
         buckets=(0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 5),
     )
 
-
-
     logger.info(f"Server is starting up on {settings.APP_HOST}:{settings.API_GATEWAY_SERVICE_APP_PORT}...")
-    async with AsyncExitStack() as stack:
-        resources = await stack.enter_async_context(api_gateway_runtime())
+    async with api_gateway_runtime() as resources:
         app.state.resources = resources
-        stack.callback(delattr, app.state, "resources")
-        logger.info('Server startup complete!')
-        yield
+        try:
+            logger.info("Server startup complete!")
+            yield
+        finally:
+            del app.state.resources
 
-    logger.warning(f"Server has shut down !")
+    logger.warning("Server has shut down !")
 
 
 # initializing the main app instance

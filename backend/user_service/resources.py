@@ -88,6 +88,7 @@ async def user_api_runtime(
     """Start and reliably stop all resources owned by the API executable."""
     resources = create_user_api_resources(app_settings, app_logger)
     async with AsyncExitStack() as stack:
+    	# registering the  clean up functions which will be called in LIFO order
         stack.push_async_callback(resources.database.close)
         stack.push_async_callback(resources.cache.close)
         stack.push_async_callback(resources.rate_limiter.close)

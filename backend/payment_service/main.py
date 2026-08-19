@@ -1,5 +1,6 @@
+from collections.abc import AsyncIterator
 from datetime import datetime
-from contextlib import AsyncExitStack, asynccontextmanager
+from contextlib import asynccontextmanager
 import os
 from time import perf_counter
 
@@ -24,18 +25,20 @@ from resources import payment_api_runtime
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    """Attach one lifespan-owned resource container to this app instance."""
     request_metrics_helper.initialize()
 
     logger.info(f"Payment service starting on {settings.APP_HOST}:{settings.PAYMENT_SERVICE_APP_PORT}...")
-    async with AsyncExitStack() as stack:
-        resources = await stack.enter_async_context(payment_api_runtime())
+    async with payment_api_runtime() as resources:
         app.state.resources = resources
-        stack.callback(delattr, app.state, "resources")
-        await resources.database.init_db(Base.metadata)
-        logger.info("Payment service tables are initialized from service-owned metadata.")
-        logger.info("Payment service startup complete!")
-        yield
+        try:
+            await resources.database.init_db(Base.metadata)
+            logger.info("Payment service tables are initialized from service-owned metadata.")
+            logger.info("Payment service startup complete!")
+            yield
+        finally:
+            del app.state.resources
 
     logger.warning("Payment service database and idempotency resources closed on shutdown!")
     logger.warning("Payment service shut down!")

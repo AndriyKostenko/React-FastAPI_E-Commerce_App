@@ -1,6 +1,7 @@
 import os
+from collections.abc import AsyncIterator
 from datetime import datetime
-from contextlib import AsyncExitStack, asynccontextmanager
+from contextlib import asynccontextmanager
 from time import perf_counter
 from pathlib import Path
 
@@ -29,27 +30,29 @@ from tasks.broker import taskiq_broker
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
-    """
-    This is a context manager that will run the startup and shutdown
-    events of a FastAPI application.
-    """
-
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    """Attach one lifespan-owned resource container to this app instance."""
     logger.info(f"Server is starting up on {settings.APP_HOST}:{settings.PRODUCT_SERVICE_APP_PORT}...")
     request_metrics_helper.initialize()
-    async with AsyncExitStack() as stack:
-        resources = await stack.enter_async_context(product_api_runtime())
+    async with product_api_runtime() as resources:
         app.state.resources = resources
-        stack.callback(delattr, app.state, "resources")
-        await resources.database.init_db(Base.metadata)
-        logger.info("Product service tables are initialized from service-owned metadata.")
-        if not taskiq_broker.is_worker_process:
-            stack.push_async_callback(taskiq_broker.shutdown)
-            await taskiq_broker.startup()
-            logger.info("TaskIQ broker started successfully.")
-        logger.info('Server startup complete!')
-        yield
-    logger.warning(f"Server has shut down !")
+        taskiq_started = False
+        try:
+            await resources.database.init_db(Base.metadata)
+            logger.info("Product service tables are initialized from service-owned metadata.")
+            if not taskiq_broker.is_worker_process:
+                taskiq_started = True
+                await taskiq_broker.startup()
+                logger.info("TaskIQ broker started successfully.")
+            logger.info("Server startup complete!")
+            yield
+        finally:
+            try:
+                if taskiq_started:
+                    await taskiq_broker.shutdown()
+            finally:
+                del app.state.resources
+    logger.warning("Server has shut down !")
 
 
 

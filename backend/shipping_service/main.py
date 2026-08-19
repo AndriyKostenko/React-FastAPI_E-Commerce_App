@@ -1,6 +1,7 @@
 import os
+from collections.abc import AsyncIterator
 from datetime import datetime
-from contextlib import AsyncExitStack, asynccontextmanager
+from contextlib import asynccontextmanager
 from time import perf_counter
 
 from uvicorn import run
@@ -24,18 +25,20 @@ from resources import shipping_api_runtime
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    """Attach one lifespan-owned resource container to this app instance."""
     logger.info(f"Server is starting up on {settings.APP_HOST}:{settings.SHIPPING_SERVICE_APP_PORT}...")
     request_metrics_helper.initialize()
-    async with AsyncExitStack() as stack:
-        resources = await stack.enter_async_context(shipping_api_runtime())
+    async with shipping_api_runtime() as resources:
         app.state.resources = resources
-        stack.callback(delattr, app.state, "resources")
-        await resources.database.init_db(Base.metadata)
-        logger.info("Shipping service tables are initialized from service-owned metadata.")
-        logger.info("Shipping event publisher started.")
-        logger.info("Server startup complete!")
-        yield
+        try:
+            await resources.database.init_db(Base.metadata)
+            logger.info("Shipping service tables are initialized from service-owned metadata.")
+            logger.info("Shipping event publisher started.")
+            logger.info("Server startup complete!")
+            yield
+        finally:
+            del app.state.resources
     logger.warning("Server has shut down!")
 
 

@@ -1,5 +1,6 @@
+from collections.abc import AsyncIterator
 from datetime import datetime
-from contextlib import AsyncExitStack, asynccontextmanager
+from contextlib import asynccontextmanager
 import os
 from time import perf_counter
 
@@ -23,22 +24,20 @@ from helpers.request_helper import request_metrics_helper
 from resources import order_api_runtime
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
-    """
-    This is a context manager that will run the startup and shutdown
-    events of a FastAPI application.
-    """
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    """Attach one lifespan-owned resource container to this app instance."""
     request_metrics_helper.initialize()
 
     logger.info(f"Server is starting up on {settings.APP_HOST}:{settings.ORDER_SERVICE_APP_PORT}...")
-    async with AsyncExitStack() as stack:
-        resources = await stack.enter_async_context(order_api_runtime())
+    async with order_api_runtime() as resources:
         app.state.resources = resources
-        stack.callback(delattr, app.state, "resources")
-        await resources.database.init_db(Base.metadata)
-        logger.info("Order service tables are initialized from service-owned metadata.")
-        logger.info('Server startup complete!')
-        yield
+        try:
+            await resources.database.init_db(Base.metadata)
+            logger.info("Order service tables are initialized from service-owned metadata.")
+            logger.info("Server startup complete!")
+            yield
+        finally:
+            del app.state.resources
 
     logger.warning("Order service database resources closed on shutdown!")
     logger.warning("Server has shut down !")
