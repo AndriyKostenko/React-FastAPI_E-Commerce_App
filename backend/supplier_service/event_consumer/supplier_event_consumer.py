@@ -23,6 +23,8 @@ from shared.contracts.events import (
     InventoryReleaseRequested,
     OrderCancelledEvent,
     OrderConfirmedEvent,
+    SupplierProductImportFailedEvent,
+    SupplierProductImportCompletedEvent,
 )
 from shared.contracts.order import (
     ConfirmedOrderAddress,
@@ -66,58 +68,108 @@ class SupplierEventConsumer:
 
     async def handle_import_feedback_event(self, message: dict[str, Any]) -> None:
         event_type = message.get("event_type")
-        raw_fetch_id = message.get("fetch_id")
-        fetch_id: UUID | None = None
-        if raw_fetch_id:
+        if event_type == SupplierEvents.SUPPLIER_PRODUCT_IMPORT_COMPLETED:
+            event = SupplierProductImportCompletedEvent(**message)
+            if not await self.idempotency_service.try_claim_event(event.event_id, event.event_type):
+                return
             try:
-                fetch_id = UUID(str(raw_fetch_id))
-            except (ValueError, TypeError):
-                fetch_id = None
-
-        match event_type:
-            case SupplierEvents.SUPPLIER_PRODUCT_IMPORT_SUCCEEDED:
                 self.logger.info(
-                    f"Product import succeeded for supplier {message.get('supplier_id')}, "
-                    f"fetch_id {fetch_id}: "
-                    f"imported={message.get('imported')}, updated={message.get('updated')}, failed={message.get('failed')}"
+                    f"Product import batch {event.batch_number}/{event.total_batches} completed "
+                    f"for supplier {event.supplier_id}, fetch_id {event.fetch_id}: "
+                    f"imported={event.imported}, updated={event.updated}, failed={event.failed}"
                 )
-                if fetch_id:
-                    await self._update_sync_state_on_feedback(
-                        fetch_id=fetch_id,
-                        status="completed",
-                    )
-            case SupplierEvents.SUPPLIER_PRODUCT_IMPORT_FAILED:
+                await self._update_sync_state_on_feedback(event=event)
+                await self.idempotency_service.mark_event_as_processed(
+                    event_id=event.event_id,
+                    event_type=event.event_type,
+                    order_id=None,
+                    result="recorded",
+                )
+            except Exception:
+                await self.idempotency_service.release_claim(event.event_id, event.event_type)
+                raise
+        elif event_type == SupplierEvents.SUPPLIER_PRODUCT_IMPORT_FAILED:
+            event = SupplierProductImportFailedEvent(**message)
+            if not await self.idempotency_service.try_claim_event(event.event_id, event.event_type):
+                return
+            try:
                 self.logger.error(
-                    f"Product import failed for supplier {message.get('supplier_id')}, "
-                    f"fetch_id {fetch_id}: {message.get('reason')}"
+                    f"Product import failed for supplier {event.supplier_id}, "
+                    f"fetch_id {event.fetch_id}, batch {event.batch_number}: {event.reason}"
                 )
-                if fetch_id:
-                    await self._update_sync_state_on_feedback(
-                        fetch_id=fetch_id,
-                        status="import_failed",
-                        error_message=str(message.get("reason") or "Import failed"),
-                    )
-            case _:
-                self.logger.warning(f"Unhandled supplier feedback event type: {event_type}")
+                await self._update_sync_state_on_failure(event)
+                await self.idempotency_service.mark_event_as_processed(
+                    event_id=event.event_id,
+                    event_type=event.event_type,
+                    order_id=None,
+                    result="recorded",
+                )
+            except Exception:
+                await self.idempotency_service.release_claim(event.event_id, event.event_type)
+                raise
+        else:
+            self.logger.warning(f"Unhandled supplier feedback event type: {event_type}")
 
     async def _update_sync_state_on_feedback(
         self,
-        fetch_id: UUID,
-        status: str,
-        error_message: str | None = None,
+        event: SupplierProductImportCompletedEvent,
     ) -> None:
-        try:
-            async with self.database.transaction() as session:
-                repo = SupplierSyncStateRepository(session=session)
-                sync_state = await repo.get_by_fetch_id(fetch_id)
-                if sync_state:
-                    sync_state.status = status
-                    sync_state.finished_at = datetime.now(timezone.utc)
-                    if error_message:
-                        sync_state.error_message = error_message
-                    await repo.update(sync_state)
-        except Exception as exc:
-            self.logger.error(f"Failed to update sync_state for fetch_id {fetch_id}: {exc}")
+        async with self.database.transaction() as session:
+            repo = SupplierSyncStateRepository(session=session)
+            sync_state = await repo.get_by_fetch_id_for_update(event.fetch_id)
+            if not sync_state:
+                self.logger.warning(f"No sync state found for fetch_id {event.fetch_id}")
+                return
+
+            batch_id = str(event.batch_id)
+            if batch_id in (sync_state.acknowledged_batch_ids or []):
+                return
+            sync_state.acknowledged_batch_ids = [
+                *(sync_state.acknowledged_batch_ids or []),
+                batch_id,
+            ]
+
+            sync_state.processed_batches += 1
+            sync_state.products_imported += event.imported
+            sync_state.products_updated += event.updated
+            sync_state.products_failed += event.failed
+            if event.errors:
+                details = "; ".join(event.errors[:10])
+                sync_state.error_message = "; ".join(
+                    part for part in [sync_state.error_message, details] if part
+                )[:10000]
+
+            if sync_state.processed_batches >= sync_state.total_batches:
+                sync_state.status = (
+                    "completed_with_errors"
+                    if sync_state.products_failed or sync_state.error_message
+                    else "completed"
+                )
+                sync_state.finished_at = datetime.now(timezone.utc)
+            else:
+                sync_state.status = "importing"
+            await repo.update(sync_state)
+
+    async def _update_sync_state_on_failure(
+        self,
+        event: SupplierProductImportFailedEvent,
+    ) -> None:
+        async with self.database.transaction() as session:
+            repo = SupplierSyncStateRepository(session=session)
+            sync_state = await repo.get_by_fetch_id_for_update(event.fetch_id)
+            if not sync_state:
+                return
+            batch_id = str(event.batch_id)
+            if batch_id in (sync_state.acknowledged_batch_ids or []):
+                return
+            sync_state.acknowledged_batch_ids = [
+                *(sync_state.acknowledged_batch_ids or []),
+                batch_id,
+            ]
+            sync_state.status = "import_failed"
+            sync_state.finished_at = datetime.now(timezone.utc)
+            sync_state.error_message = event.reason[:10000]
+            await repo.update(sync_state)
 
     async def handle_order_event(self, message: dict[str, Any]) -> None:
         """Route order events to the appropriate handler."""

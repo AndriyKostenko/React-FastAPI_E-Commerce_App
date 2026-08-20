@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 class ProductVariantLookup(BaseModel):
     id: UUID
     vid: str
+    active: bool = True
 
 
 class ProductWithVariants(BaseModel):

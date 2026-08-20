@@ -52,30 +52,9 @@ class ProductService:
         self.product_search_fileds: list[str] = Product.get_search_fields()
         self.filter_parser: FilterParser = FilterParser()
 
-    async def _resolve_category_id(self, category_id: UUID | str | None) -> UUID:
-        """Resolve a category identifier to a local category UUID.
-
-        If category_id is already a UUID, return it. If it is a CJ category ID
-        string, look it up (or auto-create) via CategoryService.
-        """
-        if category_id is None:
-            if self.category_service is None:
-                raise ProductCreationError("No category provided and no category service available.")
-            return await self.category_service.get_or_create_by_cj_id(None)
-
-        if isinstance(category_id, UUID):
-            return category_id
-
-        # Try to parse as UUID first (some CJ IDs happen to be UUID-shaped)
-        try:
-            return UUID(category_id)
-        except ValueError:
-            pass
-
-        if self.category_service is None:
-            raise ProductCreationError(f"Cannot resolve CJ category id '{category_id}' without category service.")
-
-        return await self.category_service.get_or_create_by_cj_id(category_id)
+    async def _resolve_category_id(self, category_id: UUID) -> UUID:
+        """Accept only product-service category UUIDs at the persistence boundary."""
+        return category_id
 
     async def _create_variants(self, product_id: UUID, variants: list[CreateProductVariant] | None) -> None:
         """Persist variants for a product."""
@@ -93,6 +72,46 @@ class ProductService:
             return
         image_models = [ProductImage(product_id=product_id, image_url=url) for url in image_urls]
         await self.image_repository.create_many(image_models)
+
+    async def _sync_variants(self, product_id: UUID, variants: list[CreateProductVariant] | None) -> None:
+        """Upsert supplier variants by VID while preserving local UUIDs."""
+        existing = {variant.vid: variant for variant in await self.variant_repository.get_by_product_id(product_id)}
+        incoming = {variant.vid: variant for variant in (variants or []) if variant.vid}
+
+        for vid, variant_data in incoming.items():
+            variant = existing.get(vid)
+            if variant is None:
+                await self.variant_repository.create(
+                    ProductVariant(product_id=product_id, active=True, **variant_data.model_dump())
+                )
+                continue
+            for field, value in variant_data.model_dump().items():
+                setattr(variant, field, value)
+            variant.active = True
+            await self.variant_repository.update(variant)
+
+        for vid, variant in existing.items():
+            if vid not in incoming and variant.active:
+                variant.active = False
+                await self.variant_repository.update(variant)
+
+    async def _sync_images(self, product_id: UUID, image_urls: list[str] | None) -> None:
+        """Reconcile image URLs without recreating unchanged image records."""
+        normalized_urls = list(dict.fromkeys(url for url in (image_urls or []) if url))
+        existing = await self.image_repository.get_by_product_id(product_id)
+        existing_by_url = {image.image_url: image for image in existing}
+        incoming = set(normalized_urls)
+
+        missing = [
+            ProductImage(product_id=product_id, image_url=url)
+            for url in normalized_urls
+            if url not in existing_by_url
+        ]
+        if missing:
+            await self.image_repository.create_many(missing)
+        for url, image in existing_by_url.items():
+            if url not in incoming:
+                await self.image_repository.delete(image)
 
     async def create_product_item(self, product_data: CreateProduct) -> ProductBase:
         existing_id = await self.repository.get_by_id(item_id=product_data.id)
@@ -127,16 +146,20 @@ class ProductService:
             raise ProductCreationError(f"Failed to create product: {str(e)}")
 
     async def upsert_product_by_pid(self, product_data: CreateProduct) -> ProductBase:
-        """Create or update a product keyed by its CJ pid."""
-        if not product_data.pid:
-            raise ProductCreationError("Cannot upsert product without a pid.")
+        """Create or update a product keyed by supplier plus external PID."""
+        if not product_data.pid or not product_data.supplier_id:
+            raise ProductCreationError("Cannot upsert supplier product without supplier_id and pid.")
 
         category_id = await self._resolve_category_id(product_data.category_id)
-        existing = await self.repository.get_by_pid(product_data.pid)
+        existing = await self.repository.get_by_supplier_pid(
+            product_data.supplier_id,
+            product_data.pid,
+        )
 
         if existing:
             # Update scalar fields
             existing.name = product_data.name
+            existing.supplier_category_id = product_data.supplier_category_id
             existing.description = product_data.description
             existing.category_id = category_id
             existing.brand = product_data.brand
@@ -146,11 +169,8 @@ class ProductService:
             existing.sku = product_data.sku
             existing.image_url = product_data.image_url
 
-            # Replace variants and images
-            await self.variant_repository.delete_by_product_id(existing.id)
-            await self.image_repository.delete_by_product_id(existing.id)
-            await self._create_variants(existing.id, product_data.variants)
-            await self._create_images(existing.id, product_data.images)
+            await self._sync_variants(existing.id, product_data.variants)
+            await self._sync_images(existing.id, product_data.images)
 
             await self.repository.update(existing)
             return ProductBase.model_validate(existing)
@@ -159,16 +179,18 @@ class ProductService:
         new_product = Product(
             id=uuid4(),
             pid=product_data.pid,
+            supplier_id=product_data.supplier_id,
+            supplier_category_id=product_data.supplier_category_id,
             sku=product_data.sku,
             image_url=product_data.image_url,
-            **product_data.model_dump(exclude={"id", "pid", "sku", "image_url", "category_id", "variants", "images"})
+            **product_data.model_dump(exclude={"id", "pid", "supplier_id", "supplier_category_id", "sku", "image_url", "category_id", "variants", "images"})
         )
         new_product.category_id = category_id
 
         try:
             new_db_product = await self.repository.create(new_product)
-            await self._create_variants(new_db_product.id, product_data.variants)
-            await self._create_images(new_db_product.id, product_data.images)
+            await self._sync_variants(new_db_product.id, product_data.variants)
+            await self._sync_images(new_db_product.id, product_data.images)
             return ProductBase.model_validate(new_db_product)
         except IntegrityError as e:
             if "products_category_id_fkey" in str(e):
@@ -180,8 +202,13 @@ class ProductService:
         results: dict[str, int] = {"inserted": 0, "updated": 0, "failed": 0}
         for product_data in products:
             try:
-                existing = await self.repository.get_by_pid(product_data.pid) if product_data.pid else None
-                await self.upsert_product_by_pid(product_data)
+                existing = (
+                    await self.repository.get_by_supplier_pid(product_data.supplier_id, product_data.pid)
+                    if product_data.pid and product_data.supplier_id
+                    else None
+                )
+                async with self.repository.session.begin_nested():
+                    await self.upsert_product_by_pid(product_data)
                 if existing:
                     results["updated"] += 1
                 else:

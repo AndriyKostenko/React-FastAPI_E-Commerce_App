@@ -20,7 +20,8 @@ class Product(Base, TimestampMixin):
         Index('idx_product_category',   'category_id'),
         Index('idx_product_in_stock',   'in_stock'),
         Index('idx_product_price',      'price'),          # range queries (min_price/max_price)
-        Index('idx_product_pid',        'pid', unique=True),
+        Index('idx_product_pid',        'pid'),
+        Index('idx_product_supplier_pid', 'supplier_id', 'pid', unique=True),
 
         # ── Composite indexes for the most common query patterns ─────────────
         # "Show in-stock products" sorted by newest — the default browse query
@@ -40,7 +41,9 @@ class Product(Base, TimestampMixin):
     )
 
     id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, unique=True)
-    pid: Mapped[str | None] = mapped_column(nullable=True, unique=True)
+    pid: Mapped[str | None] = mapped_column(nullable=True)
+    supplier_id: Mapped[str | None] = mapped_column(nullable=True)
+    supplier_category_id: Mapped[str | None] = mapped_column(nullable=True)
     name: Mapped[str] = mapped_column(nullable=False)
     description: Mapped[str | None] = mapped_column(nullable=True)
     category_id: Mapped[UUID] = mapped_column(ForeignKey('product_categories.id'), nullable=False)

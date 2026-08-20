@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import String, Integer, DateTime, Text, Index, ForeignKey, inspect, func
+from sqlalchemy import String, Integer, DateTime, Text, Index, ForeignKey, JSON, inspect, func, text
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -17,6 +17,16 @@ class SupplierSyncState(Base, TimestampMixin):
     __table_args__: tuple = (
         Index("idx_supplier_sync_state_supplier_id", "supplier_id"),
         Index("idx_supplier_sync_state_status", "status"),
+        Index("idx_supplier_sync_state_fetch_id", "fetch_id", unique=True),
+        Index(
+            "uq_supplier_sync_state_active_supplier",
+            "supplier_id",
+            unique=True,
+            postgresql_where=text(
+                "status IN ('running', 'awaiting_import', "
+                "'awaiting_import_with_errors', 'importing')"
+            ),
+        ),
     )
 
     id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4, unique=True)
@@ -25,6 +35,12 @@ class SupplierSyncState(Base, TimestampMixin):
     status: Mapped[str] = mapped_column(String(50), nullable=False, default="pending")
     products_fetched: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     products_emitted: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    total_batches: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    processed_batches: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    products_imported: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    products_updated: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    products_failed: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    acknowledged_batch_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)

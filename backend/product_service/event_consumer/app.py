@@ -42,6 +42,7 @@ async def startup() -> None:
             idempotency_service=resources.idempotency,
             cache_manager=resources.cache,
             publisher=resources.publisher,
+            settings=resources.settings,
         )
     except Exception:
         await resources.close()

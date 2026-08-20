@@ -9,7 +9,7 @@ from shared.settings import Settings
 from shared.contracts.events import (
     InventoryReserveSucceeded,
     InventoryReserveFailed,
-    SupplierProductImportSucceededEvent,
+    SupplierProductImportCompletedEvent,
     SupplierProductImportFailedEvent,
 )
 from shared.contracts.order import OrderItem as OrderItemBase
@@ -63,14 +63,14 @@ class ProductEventPublisher(BaseEventPublisher):
         await self.publish_an_event(event=event, exchange=self.inventory_exchange, routing_key=event.event_type)
         self.logger.info(f"Published inventory reserve failed event for order id: {event.order_id}")
 
-    async def publish_supplier_product_import_succeeded(self, event: SupplierProductImportSucceededEvent):
-        """Notify supplier_service that products were imported successfully."""
+    async def publish_supplier_product_import_completed(self, event: SupplierProductImportCompletedEvent):
+        """Notify supplier_service that a product import batch committed."""
         await self.publish_an_event(
             event=event,
             exchange=self.supplier_exchange,
-            routing_key=SupplierEvents.SUPPLIER_PRODUCT_IMPORT_SUCCEEDED,
+            routing_key=SupplierEvents.SUPPLIER_PRODUCT_IMPORT_COMPLETED,
         )
-        self.logger.info(f"Published supplier product import succeeded event for fetch_id: {event.fetch_id}")
+        self.logger.info(f"Published supplier product import completed event for fetch_id: {event.fetch_id}")
 
     async def publish_supplier_product_import_failed(self, event: SupplierProductImportFailedEvent):
         """Notify supplier_service that product import failed."""

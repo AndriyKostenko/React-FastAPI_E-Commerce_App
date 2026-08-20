@@ -24,3 +24,11 @@ class SupplierSyncStateRepository(BaseRepository[SupplierSyncState]):
 
     async def get_by_fetch_id(self, fetch_id: UUID) -> SupplierSyncState | None:
         return await self.get_by_field("fetch_id", fetch_id)
+
+    async def get_by_fetch_id_for_update(self, fetch_id: UUID) -> SupplierSyncState | None:
+        result = await self.session.execute(
+            select(SupplierSyncState)
+            .where(SupplierSyncState.fetch_id == fetch_id)
+            .with_for_update()
+        )
+        return result.scalar_one_or_none()

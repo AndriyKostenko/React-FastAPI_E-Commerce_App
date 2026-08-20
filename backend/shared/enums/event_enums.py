@@ -108,5 +108,5 @@ class WishlistEvents(StrEnum):
 
 class SupplierEvents(StrEnum):
     SUPPLIER_PRODUCTS_FETCHED = "supplier.products.fetched"
-    SUPPLIER_PRODUCT_IMPORT_SUCCEEDED = "supplier.product.import.succeeded"
+    SUPPLIER_PRODUCT_IMPORT_COMPLETED = "supplier.product.import.completed"
     SUPPLIER_PRODUCT_IMPORT_FAILED = "supplier.product.import.failed"

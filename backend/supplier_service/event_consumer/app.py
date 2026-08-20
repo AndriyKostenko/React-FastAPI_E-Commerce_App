@@ -67,7 +67,7 @@ def get_consumer() -> SupplierEventConsumer:
 
 
 # Supplier-service–specific queue for import-feedback events
-# (supplier.product.import.succeeded / supplier.product.import.failed).
+# (supplier.product.import.completed / supplier.product.import.failed).
 # Must NOT share the name "product.supplier.events" with product_service —
 # that would cause RabbitMQ to merge both services' bindings on a single
 # physical queue and drop ~50 % of messages in each direction.

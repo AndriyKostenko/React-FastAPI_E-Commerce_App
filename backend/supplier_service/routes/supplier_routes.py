@@ -18,6 +18,11 @@ def _to_sync_summary(sync_state) -> SupplierSyncRunSummary:
         finished_at=sync_state.finished_at,
         products_fetched=sync_state.products_fetched,
         products_emitted=sync_state.products_emitted,
+        total_batches=sync_state.total_batches,
+        processed_batches=sync_state.processed_batches,
+        products_imported=sync_state.products_imported,
+        products_updated=sync_state.products_updated,
+        products_failed=sync_state.products_failed,
         status=sync_state.status,
         errors=[sync_state.error_message] if sync_state.error_message else [],
     )
@@ -44,7 +49,7 @@ async def get_products_from_cjdropshipping(
             price=product.price,
             quantity=product.quantity,
             in_stock=product.in_stock,
-            category_id=str(product.category_id) if product.category_id else None,
+            supplier_category_id=product.supplier_category_id,
         )
         for product in page.products
     ]
@@ -67,19 +72,18 @@ async def get_cjdropshipping_product_details(
 @supplier_routes.post(
     "/cjdropshipping/sync",
     response_model=SupplierSyncRunSummary,
-    status_code=status.HTTP_200_OK,
+    status_code=status.HTTP_202_ACCEPTED,
     summary="Synchronize CJ Dropshipping products",
 )
 async def sync_cjdropshipping_products(
     sync_orchestrator: sync_orchestrator_dependency,
     filters_query: Annotated[CJProductsFilterParams, Query()],
-    fetch_details: bool = Query(default=True, description="Fetch full details/variants for each product"),
 ) -> SupplierSyncRunSummary:
     """Pull products from CJDropshipping and emit import events to product_service."""
     sync_state = await sync_orchestrator.run_sync(
         supplier_id="cjdropshipping",
         filters=filters_query,
-        fetch_details=fetch_details,
+        fetch_details=True,
     )
     return _to_sync_summary(sync_state)
 
@@ -87,19 +91,18 @@ async def sync_cjdropshipping_products(
 @supplier_routes.post(
     "/suppliers/{supplier_id}/sync",
     response_model=SupplierSyncRunSummary,
-    status_code=status.HTTP_200_OK,
+    status_code=status.HTTP_202_ACCEPTED,
     summary="Trigger a manual supplier sync",
 )
 async def sync_supplier_products(
     supplier_id: str,
     sync_orchestrator: sync_orchestrator_dependency,
     filters_query: Annotated[CJProductsFilterParams, Query()],
-    fetch_details: bool = Query(default=True, description="Fetch full details/variants for each product"),
 ) -> SupplierSyncRunSummary:
     """Manually trigger a supplier sync and emit product import events."""
     sync_state = await sync_orchestrator.run_sync(
         supplier_id=supplier_id,
         filters=filters_query,
-        fetch_details=fetch_details,
+        fetch_details=True,
     )
     return _to_sync_summary(sync_state)

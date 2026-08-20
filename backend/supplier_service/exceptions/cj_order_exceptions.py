@@ -30,3 +30,9 @@ class SyncAlreadyInProgressError(BaseAPIException):
     def __init__(self, detail: str = "Sync already in progress for supplier."):
         super().__init__(status_code=409, detail=detail)
 
+
+class SupplierSyncConfigurationError(BaseAPIException):
+    """Raised when a supplier sync policy is incomplete or unsafe."""
+
+    def __init__(self, detail: str = "Supplier sync configuration is invalid."):
+        super().__init__(status_code=422, detail=detail)

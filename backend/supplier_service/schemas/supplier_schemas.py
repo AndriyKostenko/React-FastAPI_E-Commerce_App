@@ -50,9 +50,9 @@ class GenericSupplierProduct(BaseModel):
     in_stock: bool = True
     image_url: str | None = None
     images: list[str] = Field(default_factory=list)
-    category_id: str | UUID | None = Field(
+    supplier_category_id: str | None = Field(
         default=None,
-        description="Supplier category id or existing product_service category UUID.",
+        description="Category identifier in the supplier catalog.",
     )
     category_name: str | None = Field(default=None, description="Human-readable category name for auto-creation.")
     variants: list[SupplierProductVariant] = Field(default_factory=list)
@@ -96,6 +96,11 @@ class SupplierSyncRunSummary(BaseModel):
     finished_at: datetime | None = None
     products_fetched: int = 0
     products_emitted: int = 0
+    total_batches: int = 0
+    processed_batches: int = 0
+    products_imported: int = 0
+    products_updated: int = 0
+    products_failed: int = 0
     errors: list[str] = Field(default_factory=list)
     status: str = "pending"
 
@@ -112,4 +117,4 @@ class CJProductPreview(BaseModel):
     price: Decimal
     quantity: int
     in_stock: bool
-    category_id: str | None = None
+    supplier_category_id: str | None = None

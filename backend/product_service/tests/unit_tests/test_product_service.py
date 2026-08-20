@@ -5,6 +5,7 @@ All external dependencies (repository, product_image_service) are mocked
 so every test runs without a live database.
 """
 from decimal import Decimal
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
@@ -17,7 +18,8 @@ from exceptions.product_exceptions import (
     ProductUpdateError,
 )
 from shared.contracts.order import OrderItem as OrderItemBase
-from schemas.product_schemas import CreateProduct, UpdateProduct
+from schemas.product_schemas import CreateProduct, CreateProductVariant, UpdateProduct
+from service_layer.product_service import ProductService
 
 
 # ---------------------------------------------------------------------------
@@ -358,6 +360,61 @@ class TestReleaseInventory:
         item = OrderItemBase(order_id=uuid4(), product_id=uuid4(), quantity=1, price=9.99)
         with pytest.raises(ProductReleaseError):
             await product_service_unit.release_inventory([item])
+
+
+class TestSupplierReconciliation:
+    async def test_sync_variants_preserves_ids_and_deactivates_missing(self) -> None:
+        product_id = uuid4()
+        retained = SimpleNamespace(id=uuid4(), vid="v1", active=True)
+        removed = SimpleNamespace(id=uuid4(), vid="v2", active=True)
+        variant_repository = MagicMock()
+        variant_repository.get_by_product_id = AsyncMock(return_value=[retained, removed])
+        variant_repository.create = AsyncMock()
+        variant_repository.update = AsyncMock()
+        image_repository = MagicMock()
+        image_repository.get_by_product_id = AsyncMock(return_value=[])
+
+        service = ProductService(
+            repository=MagicMock(session=MagicMock()),
+            product_image_service=MagicMock(),
+            variant_repository=variant_repository,
+            image_repository=image_repository,
+        )
+        await service._sync_variants(
+            product_id,
+            [CreateProductVariant(vid="v1", variant_sku="updated")],
+        )
+
+        assert retained.id is not None
+        assert retained.variant_sku == "updated"
+        assert retained.active is True
+        assert removed.active is False
+        variant_repository.create.assert_not_awaited()
+        assert variant_repository.update.await_count == 2
+
+    async def test_sync_images_keeps_unchanged_rows(self) -> None:
+        product_id = uuid4()
+        kept = SimpleNamespace(id=uuid4(), image_url="https://example.com/keep.jpg")
+        removed = SimpleNamespace(id=uuid4(), image_url="https://example.com/remove.jpg")
+        image_repository = MagicMock()
+        image_repository.get_by_product_id = AsyncMock(return_value=[kept, removed])
+        image_repository.create_many = AsyncMock()
+        image_repository.delete = AsyncMock()
+
+        service = ProductService(
+            repository=MagicMock(session=MagicMock()),
+            product_image_service=MagicMock(),
+            variant_repository=MagicMock(),
+            image_repository=image_repository,
+        )
+        await service._sync_images(
+            product_id,
+            ["https://example.com/keep.jpg", "https://example.com/new.jpg"],
+        )
+
+        created = image_repository.create_many.await_args.args[0]
+        assert [image.image_url for image in created] == ["https://example.com/new.jpg"]
+        image_repository.delete.assert_awaited_once_with(removed)
 
 
 # ---------------------------------------------------------------------------

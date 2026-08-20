@@ -3,7 +3,7 @@ from typing import Any
 from uuid import UUID, uuid4
 
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import ForeignKey, Index, inspect, UniqueConstraint
+from sqlalchemy import Boolean, ForeignKey, Index, inspect, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 
 from models.base import Base
@@ -34,6 +34,7 @@ class ProductVariant(Base, TimestampMixin):
     variant_sell_price: Mapped[Decimal | None] = mapped_column(nullable=True)
     variant_sug_sell_price: Mapped[Decimal | None] = mapped_column(nullable=True)
     inventory_num: Mapped[int | None] = mapped_column(nullable=True)
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
 
     product: Mapped['Product'] = relationship('Product', back_populates='variants') # pyright: ignore[reportUndefinedVariable]
 

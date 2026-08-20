@@ -153,3 +153,46 @@ def create_product_consumer_resources(
             settings=settings,
         ),
     )
+
+
+@dataclass(slots=True)
+class ProductOutboxResources:
+    settings: Settings
+    logger: Logger
+    database: DatabaseSessionManager
+    publisher: ProductEventPublisher
+
+    async def start(self) -> None:
+        await self.publisher.start()
+
+    async def close(self) -> None:
+        try:
+            await self.publisher.stop()
+        finally:
+            await self.database.close()
+
+
+@asynccontextmanager
+async def product_outbox_resources(
+    *,
+    broker: RabbitBroker,
+    inventory_exchange: RabbitExchange,
+    supplier_exchange: RabbitExchange,
+) -> AsyncIterator[ProductOutboxResources]:
+    resources = ProductOutboxResources(
+        settings=settings,
+        logger=logger,
+        database=create_database_manager(),
+        publisher=ProductEventPublisher(
+            broker=broker,
+            inventory_exchange=inventory_exchange,
+            supplier_exchange=supplier_exchange,
+            logger=logger,
+            settings=settings,
+        ),
+    )
+    try:
+        await resources.start()
+        yield resources
+    finally:
+        await resources.close()

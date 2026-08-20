@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from schemas.product_schemas import CreateProduct, CreateProductVariant
 from shared.contracts.supplier import GenericSupplierProduct, SupplierProductVariant
 
@@ -6,14 +8,20 @@ class SupplierProductMapper:
     """Maps generic supplier product schemas to product_service CreateProduct schemas."""
 
     @classmethod
-    def map_supplier_product(cls, supplier_product: GenericSupplierProduct) -> CreateProduct:
+    def map_supplier_product(
+        cls,
+        supplier_product: GenericSupplierProduct,
+        local_category_id: UUID,
+    ) -> CreateProduct:
         """Convert a GenericSupplierProduct to a CreateProduct."""
         return CreateProduct(
             id=None,
             pid=supplier_product.supplier_pid,
+            supplier_id=supplier_product.supplier_id,
+            supplier_category_id=supplier_product.supplier_category_id,
             name=supplier_product.name,
             description=supplier_product.description or "",
-            category_id=supplier_product.category_id,
+            category_id=local_category_id,
             brand=supplier_product.brand,
             quantity=supplier_product.quantity,
             price=supplier_product.price,
@@ -25,9 +33,13 @@ class SupplierProductMapper:
         )
 
     @classmethod
-    def map_supplier_products(cls, supplier_products: list[GenericSupplierProduct]) -> list[CreateProduct]:
+    def map_supplier_products(
+        cls,
+        supplier_products: list[GenericSupplierProduct],
+        local_category_id: UUID,
+    ) -> list[CreateProduct]:
         """Convert a list of GenericSupplierProduct to a list of CreateProduct."""
-        return [cls.map_supplier_product(product) for product in supplier_products]
+        return [cls.map_supplier_product(product, local_category_id) for product in supplier_products]
 
     @classmethod
     def _map_variant(cls, variant: SupplierProductVariant) -> CreateProductVariant:

@@ -3,15 +3,23 @@ from typing import Any
 
 from database_layer.product_image_repository import ProductImageRepository
 from database_layer.product_repository import ProductRepository
-from exceptions.product_exceptions import ProductReleaseError
+from database_layer.product_variant_repository import ProductVariantRepository
+from database_layer.category_repository import CategoryRepository
+from database_layer.supplier_import_repository import SupplierImportBatchRepository
+from exceptions.product_exceptions import ProductCreationError, ProductReleaseError
+from pydantic import ValidationError
+from sqlalchemy.exc import IntegrityError
+from models.outbox_models import OutboxEvent
+from models.supplier_import_models import SupplierImportBatch
 from service_layer.product_service import ProductService
 from service_layer.product_image_service import ProductImageService
+from service_layer.category_service import CategoryService
+from shared.database_layer.outbox_repository import OutboxRepository
 from shared.contracts.events import (
     InventoryReserveRequested,
     InventoryReleaseRequested,
     SupplierProductsFetchedEvent,
-    SupplierProductImportSucceededEvent,
-    SupplierProductImportFailedEvent,
+    SupplierProductImportCompletedEvent,
 )
 from shared.managers.cache_manager import CacheManager
 from shared.managers.database_session_manager import DatabaseSessionManager
@@ -19,6 +27,7 @@ from event_publisher.event_publisher import ProductEventPublisher
 from shared.idempotency.idempotency_service import IdempotencyEventService
 from shared.enums.event_enums import InventoryEvents, SupplierEvents
 from service_layer.supplier_product_mapper import SupplierProductMapper
+from shared.settings import Settings
 
 """
 Product Event Consumer - SAGA Orchestrator
@@ -42,12 +51,14 @@ class ProductEventConsumer:
         idempotency_service: IdempotencyEventService,
         cache_manager: CacheManager,
         publisher: ProductEventPublisher,
+        settings: Settings,
     ) -> None:
         self.logger: Logger = logger
         self.database = database
         self.idempotency_service = idempotency_service
         self.cache_manager = cache_manager
         self.publisher = publisher
+        self.settings = settings
 
     async def _get_product_service(self):
         """
@@ -61,6 +72,12 @@ class ProductEventConsumer:
             product_service = ProductService(
                 repository=ProductRepository(session=session),
                 product_image_service=product_image_service,
+                variant_repository=ProductVariantRepository(session=session),
+                image_repository=ProductImageRepository(session=session),
+                category_service=CategoryService(
+                    CategoryRepository(session=session),
+                    default_category_name=self.settings.CJ_DROPSHIPPING_DEFAULT_CATEGORY_NAME,
+                ),
             )
             yield product_service
 
@@ -208,51 +225,115 @@ class ProductEventConsumer:
         2. Check idempotency
         3. Map generic supplier products to CreateProduct DTOs
         4. Persist via bulk_upsert_products
-        5. Publish import succeeded/failed event back to supplier_service
+        5. Persist import completed/failed feedback in the transactional outbox
         6. Invalidate product cache
         """
         event = SupplierProductsFetchedEvent(**message)
         try:
-            if not await self.idempotency_service.try_claim_event(event.event_id, event.event_type):
-                self.logger.info(f"Skipping duplicate supplier products fetch for supplier: {event.supplier_id}, fetch_id: {event.fetch_id}")
-                return
-
             self.logger.info(f"Processing supplier products fetched event for supplier: {event.supplier_id}, fetch_id: {event.fetch_id}, products: {len(event.products)}")
+            async with self.database.transaction() as session:
+                inbox_repository = SupplierImportBatchRepository(session)
+                if await inbox_repository.get_by_event_id(event.event_id):
+                    self.logger.info(
+                        f"Skipping durable duplicate supplier import event {event.event_id}"
+                    )
+                    return
 
-            products_to_upsert = SupplierProductMapper.map_supplier_products(event.products)
-
-            async for product_service in self._get_product_service():
-                bulk_results = await product_service.bulk_upsert_products(products_to_upsert)
-
-                await self.idempotency_service.mark_event_as_processed(
-                    order_id=None,
-                    event_id=event.event_id,
-                    event_type=event.event_type,
-                    result="succeeded",
+                inbox = await inbox_repository.create(
+                    SupplierImportBatch(
+                        event_id=event.event_id,
+                        supplier_id=event.supplier_id,
+                        fetch_id=event.fetch_id,
+                        batch_id=event.batch_id,
+                        batch_number=event.batch_number,
+                        total_batches=event.total_batches,
+                        imported=0,
+                        updated=0,
+                        failed=0,
+                        errors=[],
+                    )
                 )
-                await self.cache_manager.invalidate_namespace(namespace="products")
 
-                success_event = SupplierProductImportSucceededEvent(
+                product_repository = ProductRepository(session)
+                image_repository = ProductImageRepository(session)
+                category_service = CategoryService(
+                    CategoryRepository(session),
+                    default_category_name=self.settings.CJ_DROPSHIPPING_DEFAULT_CATEGORY_NAME,
+                )
+                product_service = ProductService(
+                    repository=product_repository,
+                    product_image_service=ProductImageService(image_repository),
+                    variant_repository=ProductVariantRepository(session),
+                    image_repository=image_repository,
+                    category_service=category_service,
+                )
+
+                errors: list[str] = []
+                for supplier_product in event.products:
+                    pid = supplier_product.supplier_pid or "<missing>"
+                    try:
+                        local_category_id = await category_service.get_or_create_by_name(
+                            supplier_product.category_name
+                        )
+                        product_data = SupplierProductMapper.map_supplier_product(
+                            supplier_product,
+                            local_category_id,
+                        )
+                        existing = await product_repository.get_by_supplier_pid(
+                            supplier_product.supplier_id,
+                            pid,
+                        )
+                        async with session.begin_nested():
+                            await product_service.upsert_product_by_pid(product_data)
+                        if existing:
+                            inbox.updated += 1
+                        else:
+                            inbox.imported += 1
+                    except (
+                        ProductCreationError,
+                        ValidationError,
+                        IntegrityError,
+                        ValueError,
+                        ArithmeticError,
+                    ) as product_error:
+                        inbox.failed += 1
+                        errors.append(f"{pid}: {product_error}")
+                        self.logger.warning(
+                            f"Rejected supplier product {pid} in batch {event.batch_id}: {product_error}"
+                        )
+
+                inbox.errors = errors[:100]
+                await inbox_repository.update(inbox)
+
+                completed_event = SupplierProductImportCompletedEvent(
                     supplier_id=event.supplier_id,
                     fetch_id=event.fetch_id,
-                    imported=bulk_results.get("inserted", 0),
-                    updated=bulk_results.get("updated", 0),
-                    failed=bulk_results.get("failed", 0),
+                    batch_id=event.batch_id,
+                    batch_number=event.batch_number,
+                    total_batches=event.total_batches,
+                    imported=inbox.imported,
+                    updated=inbox.updated,
+                    failed=inbox.failed,
+                    errors=inbox.errors,
                 )
-                await self.publisher.publish_supplier_product_import_succeeded(success_event)
-                self.logger.info(
-                    f"Supplier product import completed for supplier: {event.supplier_id}, "
-                    f"fetch_id: {event.fetch_id}: inserted={bulk_results.get('inserted')}, "
-                    f"updated={bulk_results.get('updated')}, failed={bulk_results.get('failed')}"
+                await OutboxRepository(session=session, model=OutboxEvent).create(
+                    OutboxEvent(
+                        event_type=completed_event.event_type,
+                        payload=completed_event.model_dump(mode="json"),
+                    )
                 )
 
-        except Exception as error:
-            await self.idempotency_service.release_claim(event.event_id, event.event_type)
-            self.logger.error(f"Error handling supplier products fetched event for supplier {event.supplier_id}, fetch_id {event.fetch_id}: {str(error)}")
-            failed_event = SupplierProductImportFailedEvent(
-                supplier_id=event.supplier_id,
-                fetch_id=event.fetch_id,
-                reason=f"System error: {str(error)}",
+            try:
+                await self.cache_manager.invalidate_namespace(namespace="products")
+            except Exception:
+                self.logger.exception(
+                    "Supplier import committed but product cache invalidation failed"
+                )
+            self.logger.info(
+                f"Supplier import batch committed for supplier {event.supplier_id}, "
+                f"fetch_id {event.fetch_id}, batch {event.batch_number}/{event.total_batches}"
             )
-            await self.publisher.publish_supplier_product_import_failed(failed_event)
+
+        except Exception as error:
+            self.logger.error(f"Error handling supplier products fetched event for supplier {event.supplier_id}, fetch_id {event.fetch_id}: {str(error)}")
             raise

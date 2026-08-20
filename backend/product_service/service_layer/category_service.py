@@ -79,6 +79,13 @@ class CategoryService:
         created = await self.repository.create(new_category)
         return created.id
 
+    async def get_or_create_by_name(self, name: str | None) -> UUID:
+        """Resolve an application category without interpreting supplier IDs as UUIDs."""
+        normalized = (name or self.default_category_name).lower().strip()
+        if not normalized:
+            normalized = self.default_category_name.lower().strip()
+        return await self.repository.get_or_create_id_by_name(normalized)
+
     async def get_all_categories(self) -> list[CategorySchema]:
         categories = await self.repository.get_all()
         if not categories or len(categories) == 0:

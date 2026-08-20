@@ -239,6 +239,29 @@ services:
     volumes:
       - ./shared:/app/shared:ro
 
+  product-outbox-worker:
+    build:
+      context: ./product_service
+      dockerfile: Dockerfile
+      target: runtime
+    command: ["python", "outbox_worker.py"]
+    healthcheck:
+      disable: true
+    restart: unless-stopped
+    depends_on:
+      product-service:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    env_file:
+      - .env
+    networks:
+      - usernet
+    volumes:
+      - ./shared:/app/shared:ro
+
   product-taskiq-worker:
     build:
       context: ./product_service

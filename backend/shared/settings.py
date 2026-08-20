@@ -214,6 +214,7 @@ class Settings(BaseSettings):
     CJ_DROPSHIPPING_BASE_URL: str = "https://developers.cjdropshipping.com/api2.0/v1"
     CJ_DROPSHIPPING_USE_DEFAULT_CATEGORY: bool = False
     CJ_DROPSHIPPING_DEFAULT_CATEGORY_NAME: str = "t-shirts"
+    CJ_DROPSHIPPING_TSHIRT_CATEGORY_IDS: list[str] = Field(default_factory=list)
 
     # Live inventory verification before order confirmation
     CJ_DROPSHIPPING_VERIFY_INVENTORY: bool = True

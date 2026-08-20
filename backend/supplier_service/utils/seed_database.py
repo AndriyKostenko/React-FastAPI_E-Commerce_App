@@ -22,6 +22,8 @@ async def seed_default_supplier_config(session: AsyncSession, settings: Settings
         is_active=True,
         sync_interval_minutes=60,
         default_category_name=settings.CJ_DROPSHIPPING_DEFAULT_CATEGORY_NAME,
-        config={},
+        config={
+            "allowed_category_ids": settings.CJ_DROPSHIPPING_TSHIRT_CATEGORY_IDS,
+        },
     )
     await repository.create(default_config)

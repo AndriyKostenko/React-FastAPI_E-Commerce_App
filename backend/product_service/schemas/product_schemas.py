@@ -32,6 +32,7 @@ class ProductVariantBase(BaseModel):
     variant_sell_price: Decimal | None = None
     variant_sug_sell_price: Decimal | None = None
     inventory_num: int | None = None
+    active: bool = True
     date_created: datetime
     date_updated: datetime | None = None
 
@@ -136,9 +137,11 @@ class CreateProduct(BaseModel):
 
     id: UUID | str | None = Field(default_factory=lambda: uuid4())
     pid: str | None = None
+    supplier_id: str | None = Field(default=None, max_length=100)
+    supplier_category_id: str | None = Field(default=None, max_length=200)
     name: str = Field(..., min_length=3, max_length=200)
     description: str | None = Field(default=None, max_length=2000)
-    category_id: UUID | str | None
+    category_id: UUID
     brand: str = Field(default="cjdropshipping", min_length=1, max_length=50)
     quantity: int = Field(..., ge=0, le=1000000)
     price: Decimal = Field(..., gt=0, le=9000)

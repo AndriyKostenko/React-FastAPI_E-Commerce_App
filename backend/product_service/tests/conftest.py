@@ -98,6 +98,7 @@ async def test_database_session_manager(
         logger=setup_logger("product-service-tests"),
     )
     try:
+        await manager.recreate_schema(Base.metadata)
         yield manager
     finally:
         await manager.close()
@@ -218,7 +219,7 @@ def mock_product_repository() -> MagicMock:
     repo.create = AsyncMock()
     repo.get_all = AsyncMock()
     repo.get_by_id = AsyncMock(return_value=None)
-    repo.get_by_pid = AsyncMock(return_value=None)
+    repo.get_by_supplier_pid = AsyncMock(return_value=None)
     repo.update_by_id = AsyncMock()
     repo.delete_by_id = AsyncMock()
     repo.get_many_by_field = AsyncMock()

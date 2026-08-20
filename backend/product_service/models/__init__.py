@@ -4,6 +4,8 @@ from .review_models import ProductReview
 from .product_image_models import ProductImage
 from .product_variant_models import ProductVariant
 from .category_models import ProductCategory
+from .outbox_models import OutboxEvent
+from .supplier_import_models import SupplierImportBatch
 
 __all__ = [
     "Base",
@@ -12,4 +14,6 @@ __all__ = [
     "ProductImage",
     "ProductVariant",
     "ProductCategory",
+    "OutboxEvent",
+    "SupplierImportBatch",
 ]

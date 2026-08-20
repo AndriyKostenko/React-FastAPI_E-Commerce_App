@@ -42,6 +42,15 @@ class TestDatabaseSessionManager(DatabaseSessionManager):
             )
         self.logger.info(f"Truncated test tables: {table_names}")
 
+    async def recreate_schema(self, metadata: MetaData) -> None:
+        """Drop and recreate service-owned tables in the configured test database."""
+        if self.async_engine is None:
+            raise RuntimeError("Test database engine is not initialized")
+        async with self.async_engine.begin() as connection:
+            await connection.run_sync(metadata.drop_all)
+            await connection.run_sync(metadata.create_all)
+        self.logger.info("Recreated test database schema from current metadata")
+
     async def get_session(self) -> AsyncGenerator[AsyncSession, None]:
         """Yield a transactional AsyncSession for dependency override use."""
         async with self.transaction() as session:

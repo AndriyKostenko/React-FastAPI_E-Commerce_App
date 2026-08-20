@@ -217,18 +217,25 @@ class SupplierProductsFetchedEvent(SupplierBaseEvent):
     """Event published when supplier_service fetches products from a supplier."""
     event_type: str = Field(default_factory=lambda: SupplierEvents.SUPPLIER_PRODUCTS_FETCHED)
     fetch_id: UUID
+    batch_id: UUID = Field(default_factory=uuid4)
+    batch_number: int = Field(ge=1)
+    total_batches: int = Field(ge=1)
     products: list["GenericSupplierProduct"]
 
 
-class SupplierProductImportSucceededEvent(BaseEvent):
-    """Event published by product_service when supplier products were imported."""
+class SupplierProductImportCompletedEvent(BaseEvent):
+    """Event published after a batch commits, including any item rejections."""
     service: str = Field(default_factory=lambda: Services.PRODUCT_SERVICE)
-    event_type: str = Field(default_factory=lambda: SupplierEvents.SUPPLIER_PRODUCT_IMPORT_SUCCEEDED)
+    event_type: str = Field(default_factory=lambda: SupplierEvents.SUPPLIER_PRODUCT_IMPORT_COMPLETED)
     supplier_id: str
     fetch_id: UUID
+    batch_id: UUID
+    batch_number: int = Field(ge=1)
+    total_batches: int = Field(ge=1)
     imported: int
     updated: int
     failed: int
+    errors: list[str] = Field(default_factory=list)
 
 
 class SupplierProductImportFailedEvent(BaseEvent):
@@ -237,4 +244,7 @@ class SupplierProductImportFailedEvent(BaseEvent):
     event_type: str = Field(default_factory=lambda: SupplierEvents.SUPPLIER_PRODUCT_IMPORT_FAILED)
     supplier_id: str
     fetch_id: UUID
+    batch_id: UUID
+    batch_number: int = Field(ge=1)
+    total_batches: int = Field(ge=1)
     reason: str

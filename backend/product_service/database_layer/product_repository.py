@@ -22,9 +22,17 @@ class ProductRepository(AdvancedQueryMixin[Product], BaseRepository[Product]):
     def __init__(self, session: AsyncSession):
         super().__init__(session, Product)
 
-    async def get_by_pid(self, pid: str, load_relations: list[str] | None = None) -> Product | None:
-        """Get a product by its CJ Dropshipping pid."""
-        query = select(Product).where(Product.pid == pid)
+    async def get_by_supplier_pid(
+        self,
+        supplier_id: str,
+        pid: str,
+        load_relations: list[str] | None = None,
+    ) -> Product | None:
+        """Get a product by its stable supplier identity."""
+        query = select(Product).where(
+            Product.supplier_id == supplier_id,
+            Product.pid == pid,
+        )
         if load_relations:
             from sqlalchemy.orm import selectinload
             for relation in load_relations:

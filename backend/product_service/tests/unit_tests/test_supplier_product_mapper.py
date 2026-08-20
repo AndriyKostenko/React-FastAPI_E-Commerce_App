@@ -23,7 +23,7 @@ class TestSupplierProductMapper:
             in_stock=True,
             image_url="https://example.com/image.jpg",
             images=["https://example.com/image2.jpg"],
-            category_id="cat-123",
+            supplier_category_id="cat-123",
             variants=[
                 SupplierProductVariant(
                     vid="v1",
@@ -34,7 +34,11 @@ class TestSupplierProductMapper:
             ],
         )
 
-        create_product = SupplierProductMapper.map_supplier_product(supplier_product)
+        local_category_id = uuid4()
+        create_product = SupplierProductMapper.map_supplier_product(
+            supplier_product,
+            local_category_id,
+        )
 
         assert isinstance(create_product, CreateProduct)
         assert create_product.pid == "p123"
@@ -43,7 +47,8 @@ class TestSupplierProductMapper:
         assert create_product.price == Decimal("12.34")
         assert create_product.quantity == 5
         assert create_product.in_stock is True
-        assert create_product.category_id == "cat-123"
+        assert create_product.category_id == local_category_id
+        assert create_product.supplier_category_id == "cat-123"
         assert len(create_product.images) == 1
         assert len(create_product.variants) == 1
         assert create_product.variants[0].vid == "v1"
@@ -68,7 +73,7 @@ class TestSupplierProductMapper:
             ),
         ]
 
-        result = SupplierProductMapper.map_supplier_products(products)
+        result = SupplierProductMapper.map_supplier_products(products, uuid4())
 
         assert len(result) == 2
         assert result[0].pid == "p1"

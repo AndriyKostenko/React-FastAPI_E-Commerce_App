@@ -80,7 +80,7 @@ class ProductServiceClient:
         if not product.pid:
             raise ProductServiceError(f"Product {product_id} has no CJ pid")
 
-        variants = product.variants or []
+        variants = [variant for variant in (product.variants or []) if variant.active]
         if not variants:
             raise ProductServiceError(f"Product {product_id} has no variants")
 

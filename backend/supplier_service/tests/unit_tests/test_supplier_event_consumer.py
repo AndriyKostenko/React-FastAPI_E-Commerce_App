@@ -1,4 +1,6 @@
 """Unit tests for supplier_service event consumer."""
+from contextlib import asynccontextmanager
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 from uuid import UUID, uuid4
 
@@ -9,6 +11,7 @@ from exceptions.cj_order_exceptions import CJOrderCreationError
 from service_layer.cj_api_client import CJDropshippingAPIError
 from shared.enums.event_enums import InventoryEvents, OrderEvents, SupplierEvents
 from shared.settings import get_settings
+from shared.contracts.events import SupplierProductImportCompletedEvent
 
 
 TEST_ORDER_ID = uuid4()
@@ -182,9 +185,12 @@ class TestHandleImportFeedback:
         consumer = _make_consumer()
         fetch_id = uuid4()
         message = {
-            "event_type": SupplierEvents.SUPPLIER_PRODUCT_IMPORT_SUCCEEDED,
+            "event_type": SupplierEvents.SUPPLIER_PRODUCT_IMPORT_COMPLETED,
             "supplier_id": "cjdropshipping",
             "fetch_id": str(fetch_id),
+            "batch_id": str(uuid4()),
+            "batch_number": 1,
+            "total_batches": 1,
             "imported": 10,
             "updated": 2,
             "failed": 0,
@@ -195,10 +201,9 @@ class TestHandleImportFeedback:
 
         await consumer.handle_import_feedback_event(message)
 
-        mock_update.assert_awaited_once_with(
-            fetch_id=fetch_id,
-            status="completed",
-        )
+        event = mock_update.await_args.kwargs["event"]
+        assert event.fetch_id == fetch_id
+        assert event.batch_number == 1
 
     @pytest.mark.asyncio
     async def test_handle_import_feedback_failure(self, monkeypatch) -> None:
@@ -208,16 +213,66 @@ class TestHandleImportFeedback:
             "event_type": SupplierEvents.SUPPLIER_PRODUCT_IMPORT_FAILED,
             "supplier_id": "cjdropshipping",
             "fetch_id": str(fetch_id),
+            "batch_id": str(uuid4()),
+            "batch_number": 1,
+            "total_batches": 1,
             "reason": "Invalid JSON",
         }
 
         mock_update = AsyncMock()
-        monkeypatch.setattr(consumer, "_update_sync_state_on_feedback", mock_update)
+        monkeypatch.setattr(consumer, "_update_sync_state_on_failure", mock_update)
 
         await consumer.handle_import_feedback_event(message)
 
-        mock_update.assert_awaited_once_with(
-            fetch_id=fetch_id,
-            status="import_failed",
-            error_message="Invalid JSON",
+        event = mock_update.await_args.args[0]
+        assert event.fetch_id == fetch_id
+        assert event.reason == "Invalid JSON"
+
+    @pytest.mark.asyncio
+    async def test_completed_feedback_is_durably_idempotent(self, monkeypatch) -> None:
+        consumer = _make_consumer()
+        state = SimpleNamespace(
+            acknowledged_batch_ids=[],
+            processed_batches=0,
+            total_batches=1,
+            products_imported=0,
+            products_updated=0,
+            products_failed=0,
+            error_message=None,
+            status="awaiting_import",
+            finished_at=None,
         )
+        repository = MagicMock()
+        repository.get_by_fetch_id_for_update = AsyncMock(return_value=state)
+        repository.update = AsyncMock()
+        monkeypatch.setattr(
+            "event_consumer.supplier_event_consumer.SupplierSyncStateRepository",
+            lambda session: repository,
+        )
+
+        @asynccontextmanager
+        async def transaction():
+            yield MagicMock()
+
+        consumer.database.transaction = transaction
+        event = SupplierProductImportCompletedEvent(
+            supplier_id="cjdropshipping",
+            fetch_id=uuid4(),
+            batch_id=uuid4(),
+            batch_number=1,
+            total_batches=1,
+            imported=2,
+            updated=1,
+            failed=1,
+            errors=["bad product"],
+        )
+
+        await consumer._update_sync_state_on_feedback(event)
+        await consumer._update_sync_state_on_feedback(event)
+
+        assert state.processed_batches == 1
+        assert state.products_imported == 2
+        assert state.products_updated == 1
+        assert state.products_failed == 1
+        assert state.status == "completed_with_errors"
+        assert state.acknowledged_batch_ids == [str(event.batch_id)]

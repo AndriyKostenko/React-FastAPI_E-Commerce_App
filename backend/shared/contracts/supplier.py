@@ -1,8 +1,6 @@
 """Supplier-product payload fragments embedded in cross-service events."""
 
 from decimal import Decimal
-from uuid import UUID
-
 from pydantic import BaseModel, Field, field_validator
 
 
@@ -34,7 +32,10 @@ class GenericSupplierProduct(BaseModel):
     in_stock: bool = True
     image_url: str | None = None
     images: list[str] = Field(default_factory=list)
-    category_id: str | UUID | None = None
+    supplier_category_id: str | None = Field(
+        default=None,
+        description="Category identifier in the supplier catalog.",
+    )
     category_name: str | None = None
     variants: list[SupplierProductVariant] = Field(default_factory=list)
 
