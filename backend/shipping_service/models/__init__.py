@@ -2,5 +2,6 @@
 
 from .base import Base
 from .shipping_models import Shipment, ShippingMethod
+from .outbox_models import OutboxEvent
 
-__all__ = ["Base", "Shipment", "ShippingMethod"]
+__all__ = ["Base", "Shipment", "ShippingMethod", "OutboxEvent"]

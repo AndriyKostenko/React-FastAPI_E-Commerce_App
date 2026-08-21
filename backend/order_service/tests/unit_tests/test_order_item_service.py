@@ -7,6 +7,7 @@ import pytest
 from service_layer.order_item_service import OrderItemService
 from schemas.order_schemas import OrderItemBase, CreateOrder
 from tests.constants import TEST_ORDER_ID, TEST_PRODUCT_ID, TEST_USER_ID, TEST_EMAIL
+from service_layer.order_pricing_service import CanonicalOrderQuote, QuotedOrderLine
 
 
 def _make_create_order_mock(num_products: int = 2) -> MagicMock:
@@ -17,6 +18,23 @@ def _make_create_order_mock(num_products: int = 2) -> MagicMock:
     order_mock = MagicMock()
     order_mock.products = products
     return order_mock
+
+
+def _make_quote(num_products: int = 2) -> CanonicalOrderQuote:
+    lines = [
+        QuotedOrderLine(
+            product_id=uuid4(),
+            product_name=f"Product {index}",
+            quantity=index + 1,
+            unit_price=9.99 * (index + 1),
+            fulfillment_type="catalog",
+        )
+        for index in range(num_products)
+    ]
+    return CanonicalOrderQuote(
+        items=lines,
+        total_amount=sum(line.unit_price * line.quantity for line in lines),
+    )
 
 
 class TestCreateOrderItems:
@@ -33,10 +51,10 @@ class TestCreateOrderItems:
 
         svc.repository.create_many = AsyncMock(return_value=[item_orm])
 
-        order_data = _make_create_order_mock(num_products=1)
-        order_data.products[0].id = TEST_PRODUCT_ID
-        order_data.products[0].quantity = 2
-        order_data.products[0].price = 49.99
+        order_data = _make_quote(num_products=1)
+        order_data.items[0].product_id = TEST_PRODUCT_ID
+        order_data.items[0].quantity = 2
+        order_data.items[0].unit_price = 49.99
 
         result = await svc.create_order_items(TEST_ORDER_ID, order_data)
 
@@ -69,7 +87,7 @@ class TestCreateOrderItems:
 
         svc.repository.create_many = AsyncMock(return_value=[orm_a, orm_b])
 
-        order_data = _make_create_order_mock(num_products=2)
+        order_data = _make_quote(num_products=2)
         result = await svc.create_order_items(TEST_ORDER_ID, order_data)
 
         assert len(result) == 2
@@ -81,7 +99,7 @@ class TestCreateOrderItems:
         svc = mock_order_item_service
         svc.repository.create_many = AsyncMock(return_value=[])
 
-        order_data = _make_create_order_mock(num_products=0)
+        order_data = _make_quote(num_products=0)
         result = await svc.create_order_items(TEST_ORDER_ID, order_data)
 
         assert result == []
@@ -97,22 +115,27 @@ class TestGetItemsByOrderId:
         mock_order_item_orm.quantity = 2
         mock_order_item_orm.price = 49.99
 
-        svc.repository.get_many_by_field = AsyncMock(return_value=[mock_order_item_orm])
+        fulfillment = MagicMock(
+            fulfillment_type="catalog",
+            product_name="Widget",
+            customization=None,
+            variant_snapshot=None,
+        )
+        mock_order_item_orm.fulfillment = fulfillment
+        svc.repository.get_by_order_id_with_fulfillment = AsyncMock(return_value=[mock_order_item_orm])
 
         result = await svc.get_items_by_order_id(TEST_ORDER_ID)
 
         assert len(result) == 1
         assert isinstance(result[0], OrderItemBase)
-        svc.repository.get_many_by_field.assert_awaited_once_with(
-            field_name="order_id", value=TEST_ORDER_ID
-        )
+        svc.repository.get_by_order_id_with_fulfillment.assert_awaited_once_with(TEST_ORDER_ID)
 
     async def test_get_items_by_order_id_returns_empty_when_none(
         self, mock_order_item_service: OrderItemService
     ):
         """get_items_by_order_id returns [] when repository returns None."""
         svc = mock_order_item_service
-        svc.repository.get_many_by_field = AsyncMock(return_value=None)
+        svc.repository.get_by_order_id_with_fulfillment = AsyncMock(return_value=[])
 
         result = await svc.get_items_by_order_id(TEST_ORDER_ID)
 

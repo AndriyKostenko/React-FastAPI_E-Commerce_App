@@ -29,12 +29,17 @@ export type CheckoutAddress = {
     city: string;
     state: string;
     postal_code: string;
+    country: string;
+    country_code: string;
+    name: string;
+    phone: string;
 };
 
 export interface CheckoutFormProps {
     onCreateOrder: (address: CheckoutAddress) => Promise<boolean>;
     onPaymentConfirmed: () => Promise<void>;
     onPaymentFailed: () => Promise<void>;
+    totalAmount: number;
 }
 
 export interface CheckoutClientProps {

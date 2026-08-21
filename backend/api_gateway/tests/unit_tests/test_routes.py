@@ -30,7 +30,8 @@ class TestOrderRoutes:
         self, client: AsyncClient, mock_forward: AsyncMock
     ):
         response = await client.get(f"{TEST_API}/orders")
-        mock_forward.assert_awaited_once()
+        assert response.status_code == 403
+        mock_forward.assert_not_awaited()
 
     async def test_get_orders_by_user_own_id_calls_forward(
         self, client: AsyncClient, mock_forward: AsyncMock
@@ -47,10 +48,11 @@ class TestOrderRoutes:
         mock_forward.assert_not_awaited()
 
     async def test_get_order_by_id_authenticated_calls_forward(
-        self, client: AsyncClient, mock_forward: AsyncMock
+        self, client: AsyncClient, mock_forward: AsyncMock, mock_service_request: AsyncMock
     ):
         response = await client.get(f"{TEST_API}/orders/{TEST_ORDER_ID}")
-        mock_forward.assert_awaited_once()
+        mock_service_request.assert_awaited_once()
+        mock_forward.assert_not_awaited()
 
     async def test_cancel_order_authenticated_calls_forward(
         self, client: AsyncClient, mock_forward: AsyncMock
@@ -58,11 +60,12 @@ class TestOrderRoutes:
         response = await client.patch(f"{TEST_API}/orders/{TEST_ORDER_ID}/cancel")
         mock_forward.assert_awaited_once()
 
-    async def test_update_order_authenticated_calls_forward(
+    async def test_update_order_requires_admin(
         self, client: AsyncClient, mock_forward: AsyncMock
     ):
         response = await client.patch(f"{TEST_API}/orders/{TEST_ORDER_ID}", json={"status": "confirmed"})
-        mock_forward.assert_awaited_once()
+        assert response.status_code == 403
+        mock_forward.assert_not_awaited()
 
     async def test_delete_order_as_admin_calls_forward(
         self, admin_client: AsyncClient, mock_forward: AsyncMock
@@ -132,7 +135,7 @@ class TestPaymentRoutes:
     ):
         response = await client.post(
             f"{TEST_API}/payments/create-intent",
-            json={"order_id": str(TEST_ORDER_ID), "amount": 99.99, "currency": "USD"},
+            json={"order_id": str(TEST_ORDER_ID), "products": [{"id": str(uuid4()), "quantity": 1}]},
         )
         mock_forward.assert_awaited_once()
         assert response.status_code == 200
@@ -142,7 +145,7 @@ class TestPaymentRoutes:
     ):
         await client.post(
             f"{TEST_API}/payments/create-intent",
-            json={"order_id": str(TEST_ORDER_ID), "amount": 50.0, "currency": "USD"},
+            json={"order_id": str(TEST_ORDER_ID), "products": [{"id": str(uuid4()), "quantity": 1}]},
         )
         call_kwargs = mock_forward.call_args.kwargs
         assert call_kwargs["override_body"]["user_id"] == str(TEST_USER_ID)

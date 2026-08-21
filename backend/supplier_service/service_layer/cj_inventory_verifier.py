@@ -19,7 +19,7 @@ class StockVerificationResult:
 
 
 class CJDropshippingInventoryVerifier:
-    """Verifies product-level inventory against the live CJ Dropshipping API."""
+    """Verifies exact variant inventory against the live CJ Dropshipping API."""
 
     def __init__(self, api_client: CJDropshippingAPIClient, settings: Settings,logger: Logger | None = None) -> None:
         self.api_client: CJDropshippingAPIClient = api_client
@@ -57,6 +57,64 @@ class CJDropshippingInventoryVerifier:
         raise CJDropshippingAPIError(
             f"CJ inventory verification failed for pid={pid} after {retries + 1} attempts: {last_error}"
         ) from last_error
+
+    async def verify_variant_stock(
+        self, vid: str, requested_quantity: int
+    ) -> StockVerificationResult:
+        """Fetch live stock for the exact size/color VID being ordered."""
+        last_error: Exception | None = None
+        retries = max(0, self.settings.CJ_DROPSHIPPING_VERIFY_RETRIES)
+        for attempt in range(retries + 1):
+            try:
+                raw = await self.api_client.request(
+                    "GET",
+                    self.api_client.build_url(
+                        self.settings.CJ_DROPSHIPPING_VARIANT_INVENTORY_URL,
+                        {"vid": vid},
+                    ),
+                    timeout=self.settings.CJ_DROPSHIPPING_VERIFY_TIMEOUT_SECONDS,
+                )
+                return self._parse_variant_response(raw, requested_quantity)
+            except CJDropshippingAPIError as exc:
+                last_error = exc
+                if self.logger:
+                    self.logger.warning(
+                        "CJ variant inventory verification failed for vid=%s "
+                        "(attempt %s/%s): %s",
+                        vid,
+                        attempt + 1,
+                        retries + 1,
+                        exc,
+                    )
+                if attempt < retries:
+                    await asyncio.sleep(0.5 * (attempt + 1))
+        raise CJDropshippingAPIError(
+            f"CJ inventory verification failed for vid={vid} after "
+            f"{retries + 1} attempts: {last_error}"
+        ) from last_error
+
+    def _parse_variant_response(
+        self, raw: dict[str, Any], requested_quantity: int
+    ) -> StockVerificationResult:
+        data = raw.get("data") if isinstance(raw, dict) else None
+        if not raw.get("result") or not isinstance(data, list):
+            raise CJDropshippingAPIError(
+                "CJ variant inventory response missing successful 'data' list"
+            )
+        total_available = sum(
+            int(entry.get("totalInventoryNum", 0) or 0)
+            for entry in data
+            if isinstance(entry, dict)
+        )
+        buffer = max(0, self.settings.CJ_DROPSHIPPING_INVENTORY_BUFFER)
+        buffered_available = max(0, total_available - buffer)
+        return StockVerificationResult(
+            requested=requested_quantity,
+            available=total_available,
+            sufficient=buffered_available >= requested_quantity,
+            buffered_available=buffered_available,
+            warehouses_checked=len(data),
+        )
 
     def _parse_response(self, raw: dict[str, Any], requested_quantity: int) -> StockVerificationResult:
         data = raw.get("data") if isinstance(raw, dict) else None

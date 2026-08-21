@@ -88,6 +88,12 @@ class OrderCancelledEvent(OrderBaseEvent):
     reason: str
 
 
+class CJOrderFailedEvent(OrderBaseEvent):
+    """Definitive pre-creation CJ failure requiring central Saga compensation."""
+    event_type: str = Field(default_factory=lambda: OrderEvents.CJ_ORDER_FAILED)
+    reason: str
+
+
 class InventoryReserveRequested(OrderBaseEvent):
     """Event published when inventory reserve is requested"""
     event_type: str = Field(default_factory=lambda: InventoryEvents.INVENTORY_RESERVE_REQUESTED)

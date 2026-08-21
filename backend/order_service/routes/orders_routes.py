@@ -3,11 +3,45 @@ from uuid import UUID
 
 from fastapi import APIRouter, Request, status
 
-from schemas.order_schemas import CreateOrder, UpdateOrder, OrderSchema, CancelOrder
+from schemas.order_schemas import (
+    AddressType,
+    CreateOrder,
+    UpdateOrder,
+    OrderSchema,
+    CancelOrder,
+    QuoteOrderRequest,
+    QuoteOrderResponse,
+)
 from dependencies.dependencies import order_service_dependency
 from models.order_models import Order
 
 order_routes = APIRouter(tags=["orders"])
+
+
+@order_routes.post(
+    "/orders/quote",
+    response_model=QuoteOrderResponse,
+    summary="Build a canonical order quote",
+)
+async def quote_order(
+    request: Request,
+    order_service: order_service_dependency,
+    quote_data: QuoteOrderRequest,
+) -> QuoteOrderResponse:
+    if order_service.pricing_service is None:
+        raise RuntimeError("Order pricing service is unavailable")
+    synthetic = CreateOrder(
+        user_id=request.state.user_id if hasattr(request.state, "user_id") else UUID(int=0),
+        user_email="quote@example.com",
+        products=quote_data.products,
+        address=AddressType(street="quote", city="quote", province="quote", postal_code="quote"),
+    )
+    quote = await order_service.pricing_service.build_quote(synthetic)
+    return QuoteOrderResponse(
+        amount=quote.total_amount,
+        currency=quote.currency.lower(),
+        products=[line.model_dump(mode="json") for line in quote.items],
+    )
 
 
 @order_routes.post(

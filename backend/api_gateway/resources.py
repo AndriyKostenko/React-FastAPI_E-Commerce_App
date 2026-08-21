@@ -109,6 +109,22 @@ class RequestScopedGateway:
             override_body=override_body,
         )
 
+    async def request_service(
+        self,
+        request: Request,
+        service_name: str,
+        path: str,
+        *,
+        method: str = "GET",
+        json: dict[str, Any] | None = None,
+    ) -> Any:
+        return await get_api_gateway(request).request_service(
+            service_name,
+            path,
+            method=method,
+            json=json,
+        )
+
 
 api_gateway_manager = RequestScopedGateway()
 

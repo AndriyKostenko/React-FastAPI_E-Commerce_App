@@ -1,9 +1,16 @@
 """Integration tests for order endpoints using a real PostgreSQL test database."""
-from uuid import uuid4
+from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
+from uuid import UUID, uuid4
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import select
 
+from models.order_fulfillment_models import OrderLineFulfillment
+from models.order_saga_models import OrderSagaState
+from saga_timeout_worker import expire_once
+from shared.managers.test_database_session_manager import TestDatabaseSessionManager
 from shared.enums.status_enums import OrderStatus, OrderDeliveryStatus
 from tests.constants import (
     TEST_USER_ID, TEST_EMAIL, TEST_AMOUNT, TEST_CURRENCY,
@@ -67,6 +74,65 @@ class TestCreateOrderIntegration:
 
         assert response.status_code == 409
 
+    async def test_custom_tshirt_persists_snapshot_without_inventory_gate(
+        self,
+        integration_client: AsyncClient,
+        test_database_session_manager: TestDatabaseSessionManager,
+    ):
+        product_id = uuid4()
+        payload = _order_payload(
+            products=[
+                {
+                    "id": str(product_id),
+                    "price": "0.01",
+                    "quantity": 2,
+                    "fulfillment_type": "custom",
+                    "customization": {
+                        "design_url": "/media/generated/design.png",
+                        "prompt": "Mountain sunrise",
+                        "style": "Watercolor",
+                        "size": "M",
+                        "garment_color": "black",
+                        "placement": "Full Back",
+                        "gender": "X",
+                    },
+                }
+            ]
+        )
+
+        response = await integration_client.post(f"{TEST_API}/orders", json=payload)
+
+        assert response.status_code == 201
+        order_id = UUID(response.json()["id"])
+        async with test_database_session_manager.transaction() as session:
+            saga = await session.get(OrderSagaState, order_id)
+            fulfillment = (
+                await session.execute(select(OrderLineFulfillment))
+            ).scalar_one()
+        assert saga.inventory_status == "not_required"
+        assert fulfillment.fulfillment_type == "custom"
+        assert fulfillment.customization["design_url"] == "/media/generated/design.png"
+
+    async def test_cj_order_requires_complete_fulfillment_address(
+        self, integration_client: AsyncClient
+    ):
+        payload = _order_payload(
+            products=[
+                {
+                    "id": str(TEST_PRODUCT_ID),
+                    "variant_id": str(uuid4()),
+                    "price": "20.00",
+                    "quantity": 1,
+                    "fulfillment_type": "cj",
+                }
+            ]
+        )
+
+        response = await integration_client.post(f"{TEST_API}/orders", json=payload)
+
+        assert response.status_code == 422
+        assert "country" in response.json()["detail"]
+
 
 class TestGetOrdersIntegration:
     async def test_get_orders_returns_200(self, integration_client: AsyncClient):
@@ -127,12 +193,12 @@ class TestUpdateOrderIntegration:
 
         response = await integration_client.patch(
             f"{TEST_API}/orders/{order_id}",
-            json={"delivery_status": OrderDeliveryStatus.DELIVERED, "amount": TEST_AMOUNT},
+            json={"delivery_status": OrderDeliveryStatus.DELIVERED},
         )
         assert response.status_code == 200
         assert response.json()["delivery_status"] == OrderDeliveryStatus.DELIVERED
 
-    async def test_update_order_status_to_confirmed(
+    async def test_update_order_cannot_force_confirmed(
         self, integration_client: AsyncClient
     ):
         create_resp = await integration_client.post(
@@ -142,10 +208,10 @@ class TestUpdateOrderIntegration:
 
         response = await integration_client.patch(
             f"{TEST_API}/orders/{order_id}",
-            json={"status": OrderStatus.CONFIRMED, "amount": TEST_AMOUNT},
+            json={"status": OrderStatus.CONFIRMED},
         )
         assert response.status_code == 200
-        assert response.json()["status"] == OrderStatus.CONFIRMED
+        assert response.json()["status"] == OrderStatus.PENDING
 
 
 class TestCancelOrderIntegration:
@@ -181,6 +247,30 @@ class TestCancelOrderIntegration:
             json={"reason": "Second cancellation"},
         )
         assert response.status_code == 409
+
+    async def test_timeout_worker_cancels_abandoned_pending_saga(
+        self,
+        integration_client: AsyncClient,
+        test_database_session_manager: TestDatabaseSessionManager,
+    ):
+        create_response = await integration_client.post(
+            f"{TEST_API}/orders", json=_order_payload()
+        )
+        order_id = UUID(create_response.json()["id"])
+        async with test_database_session_manager.transaction() as session:
+            saga = await session.get(OrderSagaState, order_id)
+            saga.date_created = datetime.now(timezone.utc) - timedelta(hours=1)
+
+        expired = await expire_once(
+            SimpleNamespace(
+                database=test_database_session_manager,
+                settings=SimpleNamespace(ORDER_SAGA_TIMEOUT_SECONDS=60),
+            )
+        )
+
+        response = await integration_client.get(f"{TEST_API}/orders/{order_id}")
+        assert expired == 1
+        assert response.json()["status"] == OrderStatus.CANCELLED
 
 
 class TestDeleteOrderIntegration:

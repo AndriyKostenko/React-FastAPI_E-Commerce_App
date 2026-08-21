@@ -9,6 +9,9 @@ from database_layer.shipping_repository import ShippingMethodRepository, Shipmen
 from resources import ShippingApiResources, get_shipping_api_resources
 from service_layer.shipping_method_service import ShippingMethodService
 from service_layer.shipment_service import ShipmentService
+from service_layer.outbox_event_service import OutboxEventService
+from shared.database_layer.outbox_repository import OutboxRepository
+from models.outbox_models import OutboxEvent
 
 
 
@@ -42,6 +45,9 @@ def get_shipment_service(
         shipment_repository=ShipmentRepository(session=session),
         method_repository=ShippingMethodRepository(session=session),
         event_publisher=resources.event_publisher,
+        outbox_event_service=OutboxEventService(
+            OutboxRepository(session=session, model=OutboxEvent)
+        ),
     )
 
 

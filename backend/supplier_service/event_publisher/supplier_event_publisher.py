@@ -7,6 +7,7 @@ from shared.events.event_publisher import BaseEventPublisher
 from shared.settings import Settings
 from shared.contracts.events import (
     CJOrderCreatedEvent,
+    CJOrderFailedEvent,
     InventoryReleaseRequested,
     OrderCancelledEvent,
     SupplierProductsFetchedEvent,
@@ -50,6 +51,14 @@ class SupplierEventPublisher(BaseEventPublisher):
             routing_key=OrderEvents.CJ_ORDER_CREATED,
         )
         self.logger.info(f"Published CJOrderCreatedEvent for order: {event.order_id}")
+
+    async def publish_cj_order_failed(self, event_data: dict[str, Any]) -> None:
+        event = CJOrderFailedEvent(**event_data)
+        await self.publish_an_event(
+            event=event,
+            exchange=self.order_exchange,
+            routing_key=OrderEvents.CJ_ORDER_FAILED,
+        )
 
     async def publish_order_cancelled(self, event_data: dict[str, Any]) -> None:
         """Publish an OrderCancelledEvent to the order events exchange."""

@@ -6,6 +6,14 @@ from sqlalchemy.exc import IntegrityError
 
 from database_layer.shipping_repository import ShipmentRepository, ShippingMethodRepository
 from events_publisher.shipping_event_publisher import ShippingEventPublisher
+from service_layer.outbox_event_service import OutboxEventService
+from shared.contracts.events import (
+    ShipmentCancelledEvent,
+    ShipmentCreatedEvent,
+    ShipmentDeliveredEvent,
+    ShipmentShippedEvent,
+)
+from shared.enums.event_enums import ShippingEvents
 from exceptions.shipping_exceptions import (
     DuplicateShipmentError,
     InvalidShipmentStatusError,
@@ -38,10 +46,12 @@ class ShipmentService:
         shipment_repository: ShipmentRepository,
         method_repository: ShippingMethodRepository,
         event_publisher: ShippingEventPublisher,
+        outbox_event_service: OutboxEventService | None = None,
     ):
         self.shipment_repository: ShipmentRepository = shipment_repository
         self.method_repository: ShippingMethodRepository = method_repository
         self.event_publisher = event_publisher
+        self.outbox_event_service = outbox_event_service
 
     def _now(self) -> datetime:
         return datetime.now(timezone.utc)
@@ -76,8 +86,7 @@ class ShipmentService:
         except IntegrityError:
             raise DuplicateShipmentError(order_id=order_id)
 
-        await self.event_publisher.publish_shipment_created(
-            event_data={
+        event_data = {
                 "shipment_id": str(created.id),
                 "order_id": str(created.order_id),
                 "user_id": str(created.user_id),
@@ -85,7 +94,12 @@ class ShipmentService:
                 "method_id": str(created.method_id),
                 "estimated_delivery": created.estimated_delivery.isoformat(),
             }
-        )
+        if self.outbox_event_service:
+            await self.outbox_event_service.add_outbox_event(
+                ShippingEvents.SHIPMENT_CREATED, ShipmentCreatedEvent(**event_data)
+            )
+        else:
+            await self.event_publisher.publish_shipment_created(event_data=event_data)
 
         return ShipmentSchema.model_validate(created)
 
@@ -156,8 +170,7 @@ class ShipmentService:
         updated = await self.shipment_repository.update_by_id(shipment_id, update_dict)
 
         if new_status == "shipped":
-            await self.event_publisher.publish_shipment_shipped(
-                event_data={
+            event_data = {
                     "shipment_id": str(updated.id),
                     "order_id": str(updated.order_id),
                     "user_id": str(updated.user_id),
@@ -165,17 +178,26 @@ class ShipmentService:
                     "tracking_number": updated.tracking_number or "",
                     "shipped_at": (updated.shipped_at or self._now()).isoformat(),
                 }
-            )
+            if self.outbox_event_service:
+                await self.outbox_event_service.add_outbox_event(
+                    ShippingEvents.SHIPMENT_SHIPPED, ShipmentShippedEvent(**event_data)
+                )
+            else:
+                await self.event_publisher.publish_shipment_shipped(event_data=event_data)
         elif new_status == "delivered":
-            await self.event_publisher.publish_shipment_delivered(
-                event_data={
+            event_data = {
                     "shipment_id": str(updated.id),
                     "order_id": str(updated.order_id),
                     "user_id": str(updated.user_id),
                     "user_email": user_email,
                     "delivered_at": (updated.delivered_at or self._now()).isoformat(),
                 }
-            )
+            if self.outbox_event_service:
+                await self.outbox_event_service.add_outbox_event(
+                    ShippingEvents.SHIPMENT_DELIVERED, ShipmentDeliveredEvent(**event_data)
+                )
+            else:
+                await self.event_publisher.publish_shipment_delivered(event_data=event_data)
 
         return ShipmentSchema.model_validate(updated)
 
@@ -203,15 +225,19 @@ class ShipmentService:
             },
         )
 
-        await self.event_publisher.publish_shipment_cancelled(
-            event_data={
+        event_data = {
                 "shipment_id": str(updated.id),
                 "order_id": str(updated.order_id),
                 "user_id": str(updated.user_id),
                 "user_email": user_email,
                 "reason": reason,
             }
-        )
+        if self.outbox_event_service:
+            await self.outbox_event_service.add_outbox_event(
+                ShippingEvents.SHIPMENT_CANCELLED, ShipmentCancelledEvent(**event_data)
+            )
+        else:
+            await self.event_publisher.publish_shipment_cancelled(event_data=event_data)
 
         return ShipmentSchema.model_validate(updated)
 

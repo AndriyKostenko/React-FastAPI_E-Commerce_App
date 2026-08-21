@@ -1,9 +1,11 @@
 from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
-from typing import Optional
+from typing import Any, Optional
 
-from pydantic import BaseModel, PositiveFloat, PositiveInt, ConfigDict, EmailStr
+from pydantic import BaseModel, PositiveFloat, PositiveInt, ConfigDict, EmailStr, Field, model_validator
+
+from shared.contracts.order import CustomTshirtSpecification, FulfillmentType
 
 
 class OrderSchema(BaseModel):
@@ -14,7 +16,7 @@ class OrderSchema(BaseModel):
     currency: str
     status: str
     delivery_status: str
-    payment_intent_id: str
+    payment_intent_id: str | None = None
     address_id: UUID
     cj_order_number: str | None = None
     date_created: datetime
@@ -39,11 +41,22 @@ class OrderAddressBase(AddressType):
     user_id: UUID
 
 class OrderProductItem(BaseModel):
-    id: UUID
+    id: UUID | None = None
     variant_id: UUID | None = None
-    name: str
-    price: Decimal
-    quantity: PositiveInt
+    name: str | None = None
+    price: Decimal | None = None
+    quantity: PositiveInt = Field(le=99)
+    fulfillment_type: FulfillmentType | None = None
+    customization: CustomTshirtSpecification | None = None
+
+    @model_validator(mode="after")
+    def validate_identity(self):
+        if self.fulfillment_type == "custom":
+            if self.customization is None:
+                raise ValueError("customization is required for custom order items")
+        elif self.id is None:
+            raise ValueError("id is required for catalog order items")
+        return self
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -52,11 +65,21 @@ class CreateOrder(BaseModel):
     id: UUID | None = None
     user_id: UUID
     user_email: EmailStr
-    amount: PositiveFloat
-    currency: str
-    payment_intent_id: str
-    products: list[OrderProductItem]
+    amount: PositiveFloat | None = None
+    currency: str = "cad"
+    payment_intent_id: str | None = None
+    products: list[OrderProductItem] = Field(min_length=1, max_length=50)
     address: AddressType
+
+
+class QuoteOrderRequest(BaseModel):
+    products: list[OrderProductItem] = Field(min_length=1, max_length=50)
+
+
+class QuoteOrderResponse(BaseModel):
+    amount: Decimal
+    currency: str
+    products: list[dict[str, Any]]
 
 class OrderItemBase(BaseModel):
     order_id: UUID
@@ -64,6 +87,10 @@ class OrderItemBase(BaseModel):
     variant_id: UUID | None = None
     quantity: PositiveInt
     price: PositiveFloat
+    fulfillment_type: FulfillmentType = "catalog"
+    product_name: str | None = None
+    customization: CustomTshirtSpecification | None = None
+    variant_snapshot: dict[str, Any] | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -73,6 +100,10 @@ class ConfirmedOrderItem(BaseModel):
     variant_id: UUID | None = None
     quantity: int
     price: PositiveFloat
+    fulfillment_type: FulfillmentType = "catalog"
+    product_name: str | None = None
+    customization: CustomTshirtSpecification | None = None
+    variant_snapshot: dict[str, Any] | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -93,8 +124,6 @@ class ConfirmedOrderAddress(BaseModel):
 
 class UpdateOrder(BaseModel):
     delivery_status: str | None = None
-    status: str | None = None
-    amount: float
     cj_order_number: str | None = None
 
 

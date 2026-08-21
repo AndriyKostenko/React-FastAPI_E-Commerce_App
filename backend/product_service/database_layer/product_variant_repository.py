@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.product_variant_models import ProductVariant
@@ -23,3 +23,30 @@ class ProductVariantRepository(BaseRepository[ProductVariant]):
             select(ProductVariant).where(ProductVariant.product_id == product_id)
         )
         return list(result.scalars().all())
+
+    async def atomic_decrement_inventory(
+        self, variant_id: UUID, requested: int
+    ) -> ProductVariant | None:
+        result = await self.session.execute(
+            update(ProductVariant)
+            .where(
+                ProductVariant.id == variant_id,
+                ProductVariant.active.is_(True),
+                ProductVariant.inventory_num.is_not(None),
+                ProductVariant.inventory_num >= requested,
+            )
+            .values(inventory_num=ProductVariant.inventory_num - requested)
+            .returning(ProductVariant)
+        )
+        return result.scalar_one_or_none()
+
+    async def atomic_increment_inventory(
+        self, variant_id: UUID, amount: int
+    ) -> ProductVariant | None:
+        result = await self.session.execute(
+            update(ProductVariant)
+            .where(ProductVariant.id == variant_id)
+            .values(inventory_num=ProductVariant.inventory_num + amount)
+            .returning(ProductVariant)
+        )
+        return result.scalar_one_or_none()

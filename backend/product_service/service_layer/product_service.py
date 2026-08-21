@@ -1,3 +1,4 @@
+from decimal import Decimal
 from typing import Annotated, Any
 from uuid import UUID, uuid4
 
@@ -9,6 +10,7 @@ from database_layer.category_repository import CategoryRepository
 from database_layer.product_image_repository import ProductImageRepository
 from database_layer.product_repository import ProductRepository
 from database_layer.product_variant_repository import ProductVariantRepository
+from database_layer.inventory_reservation_repository import InventoryReservationRepository
 from exceptions.product_exceptions import (
     ProductCreationError,
     ProductNotFoundError,
@@ -20,6 +22,7 @@ from models.category_models import ProductCategory
 from models.product_image_models import ProductImage
 from models.product_models import Product
 from models.product_variant_models import ProductVariant
+from models.inventory_reservation_models import InventoryReservation
 from service_layer.category_service import CategoryService
 from service_layer.product_image_service import ProductImageService
 from shared.contracts.order import OrderItem as OrderItemBase
@@ -30,7 +33,10 @@ from schemas.product_schemas import (
     ProductSchema,
     ProductsFilterParams,
     UpdateProduct,
-    ProductUploadForm
+    ProductUploadForm,
+    OrderQuoteLine,
+    OrderQuoteLineRequest,
+    OrderQuoteResponse,
 )
 from utils.image_processing import image_processing_manager
 
@@ -42,12 +48,16 @@ class ProductService:
                  product_image_service: ProductImageService,
                  variant_repository: ProductVariantRepository | None = None,
                  image_repository: ProductImageRepository | None = None,
-                 category_service: CategoryService | None = None):
+                 category_service: CategoryService | None = None,
+                 reservation_repository: InventoryReservationRepository | None = None):
         self.repository: ProductRepository = repository
         self.product_image_service: ProductImageService = product_image_service
         self.variant_repository: ProductVariantRepository = variant_repository or ProductVariantRepository(repository.session)
         self.image_repository: ProductImageRepository = image_repository or ProductImageRepository(repository.session)
         self.category_service: CategoryService | None = category_service
+        self.reservation_repository = reservation_repository or InventoryReservationRepository(
+            repository.session
+        )
         self.product_relations: list[str] = Product.get_relations()
         self.product_search_fileds: list[str] = Product.get_search_fields()
         self.filter_parser: FilterParser = FilterParser()
@@ -296,6 +306,127 @@ class ProductService:
         if not success:
             raise ProductNotFoundError(f"Product with id: {product_id} not found")
 
+    async def quote_order_items(
+        self,
+        items: list[OrderQuoteLineRequest],
+    ) -> OrderQuoteResponse:
+        """Return a canonical, inventory-aware quote for catalog order lines.
+
+        CJ products with variants require an explicit active variant. Prices and
+        availability are read from product_service; client-supplied values are
+        never part of the quote.
+        """
+        quoted: list[OrderQuoteLine] = []
+        total = Decimal("0.00")
+        requested_products: dict[UUID, int] = {}
+        requested_variants: dict[UUID, int] = {}
+        for requested_item in items:
+            requested_products[requested_item.product_id] = (
+                requested_products.get(requested_item.product_id, 0)
+                + requested_item.quantity
+            )
+            if requested_item.variant_id:
+                requested_variants[requested_item.variant_id] = (
+                    requested_variants.get(requested_item.variant_id, 0)
+                    + requested_item.quantity
+                )
+
+        for item in items:
+            product = await self.repository.get_by_id(
+                item.product_id,
+                load_relations=["variants"],
+            )
+            if product is None:
+                raise ProductNotFoundError(f"Product with id {item.product_id} not found")
+            if (
+                not product.in_stock
+                or product.quantity < requested_products[item.product_id]
+            ):
+                raise ProductNotFoundError(
+                    f"Insufficient inventory for product {item.product_id}"
+                )
+
+            fulfillment_type = "cj" if product.supplier_id == "cjdropshipping" else "catalog"
+            variant = None
+            variant_snapshot = None
+            unit_price = Decimal(product.price)
+
+            active_variants = [candidate for candidate in (product.variants or []) if candidate.active]
+            if fulfillment_type == "cj":
+                if not active_variants:
+                    raise ProductNotFoundError(
+                        f"CJ product {item.product_id} has no active variants"
+                    )
+                if item.variant_id is None:
+                    raise ProductNotFoundError(
+                        f"A variant is required for CJ product {item.product_id}"
+                    )
+                variant = next(
+                    (candidate for candidate in active_variants if candidate.id == item.variant_id),
+                    None,
+                )
+                if variant is None:
+                    raise ProductNotFoundError(
+                        f"Variant {item.variant_id} is not active for product {item.product_id}"
+                    )
+                if (
+                    variant.inventory_num is not None
+                    and variant.inventory_num < requested_variants[variant.id]
+                ):
+                    raise ProductNotFoundError(
+                        f"Insufficient inventory for variant {item.variant_id}"
+                    )
+                candidate_price = variant.variant_sug_sell_price or variant.variant_sell_price
+                if candidate_price is not None and candidate_price > 0:
+                    unit_price = Decimal(candidate_price)
+                variant_snapshot = {
+                    "vid": variant.vid,
+                    "name": variant.variant_name_en,
+                    "sku": variant.variant_sku,
+                    "key": variant.variant_key,
+                    "image": variant.variant_image,
+                }
+            elif item.variant_id is not None:
+                variant = next(
+                    (candidate for candidate in active_variants if candidate.id == item.variant_id),
+                    None,
+                )
+                if variant is None:
+                    raise ProductNotFoundError(
+                        f"Variant {item.variant_id} is not active for product {item.product_id}"
+                    )
+                if (
+                    variant.inventory_num is not None
+                    and variant.inventory_num < requested_variants[variant.id]
+                ):
+                    raise ProductNotFoundError(
+                        f"Insufficient inventory for variant {item.variant_id}"
+                    )
+                candidate_price = variant.variant_sug_sell_price or variant.variant_sell_price
+                if candidate_price is not None and candidate_price > 0:
+                    unit_price = Decimal(candidate_price)
+
+            unit_price = unit_price.quantize(Decimal("0.01"))
+            total += unit_price * item.quantity
+            quoted.append(
+                OrderQuoteLine(
+                    product_id=product.id,
+                    variant_id=variant.id if variant else None,
+                    product_name=product.name,
+                    quantity=item.quantity,
+                    unit_price=unit_price,
+                    fulfillment_type=fulfillment_type,
+                    supplier_id=product.supplier_id,
+                    variant_snapshot=variant_snapshot,
+                )
+            )
+
+        return OrderQuoteResponse(
+            currency="CAD",
+            items=quoted,
+            total_amount=total.quantize(Decimal("0.01")),
+        )
+
     async def reserve_inventory(self, items: list[OrderItemBase]) -> dict[str, Any]:
         """
         Reserve inventory via atomic per-row decrements.
@@ -304,67 +435,93 @@ class ProductService:
         reserved locally, all previously reserved items in this request are rolled
         back so the reservation is all-or-nothing.
         """
-        failed_items: list[OrderItemBase] = []
-        reasons: set[str] = set()
-        reserved_items: list[tuple[OrderItemBase, Product]] = []
+        if not items:
+            return {"success": True, "products": []}
 
-        # 1. Local atomic reservation
+        order_id = items[0].order_id
+        if any(item.order_id != order_id for item in items):
+            return {
+                "success": False,
+                "reasons": "All inventory lines must belong to one order",
+                "failed_products": items,
+            }
+        grouped: dict[tuple[UUID, UUID | None], OrderItemBase] = {}
         for item in items:
-            updated = await self.repository.atomic_decrement_quantity(
-                item_id=item.product_id,
-                requested=item.quantity,
-            )
-
-            if updated is None:
-                # Roll back any items we already reserved in this request.
-                await self._rollback_reserved_items(reserved_items)
-
-                # Build a helpful reason message.
-                product = await self.repository.get_by_id(item.product_id)
-                if product is None:
-                    reasons.add(f"Product with ID: {item.product_id} not found")
-                elif not product.in_stock:
-                    reasons.add(f"Product: {product.name}, ID: {product.id} is out of stock")
-                else:
-                    reasons.add(
-                        f"Insufficient quantity for product: {product.name}, ID: {product.id}, "
-                        f"requested: {item.quantity}, available: {product.quantity}"
-                    )
-                failed_items.append(item)
-                break
-
-            reserved_items.append((item, updated))
-
-        if failed_items:
-            return {
-                "success": False,
-                "reasons": "; ".join(reasons),
-                "failed_products": failed_items,
-            }
-
-        if failed_items:
-            return {
-                "success": False,
-                "reasons": "; ".join(reasons),
-                "failed_products": failed_items,
-            }
-
-        return {
-            "success": True,
-            "products": [item for item, _ in reserved_items],
-        }
-
-    async def _rollback_reserved_items(self,reserved_items: list[tuple[OrderItemBase, Product]]) -> None:
-        """Release locally reserved items during a failed reservation attempt."""
-        for item, _ in reserved_items:
-            try:
-                await self.repository.atomic_increment_quantity(
-                    item_id=item.product_id,
-                    amount=item.quantity,
+            key = (item.product_id, item.variant_id)
+            if key in grouped:
+                grouped[key] = grouped[key].model_copy(
+                    update={"quantity": grouped[key].quantity + item.quantity}
                 )
-            except Exception:
-                # Best-effort rollback; the SAGA compensation path can also clean up.
-                pass
+            else:
+                grouped[key] = item
+        reservation_items = list(grouped.values())
+        existing = await self.reservation_repository.get_order_for_update(order_id)
+        if existing:
+            if all(row.status == "reserved" for row in existing):
+                return {"success": True, "products": items}
+            return {
+                "success": False,
+                "reasons": "Inventory reservation was already released",
+                "failed_products": items,
+            }
+
+        class ReservationRejected(Exception):
+            def __init__(self, item: OrderItemBase, reason: str):
+                self.item = item
+                self.reason = reason
+
+        try:
+            async with self.repository.session.begin_nested():
+                for item in reservation_items:
+                    if item.fulfillment_type == "cj" and item.variant_id is None:
+                        raise ReservationRejected(
+                            item, f"CJ product {item.product_id} requires a variant"
+                        )
+                    if item.variant_id is not None:
+                        variant = await self.variant_repository.atomic_decrement_inventory(
+                            item.variant_id, item.quantity
+                        )
+                        if variant is None:
+                            raise ReservationRejected(
+                                item,
+                                f"Insufficient inventory for variant {item.variant_id}",
+                            )
+
+                    updated = await self.repository.atomic_decrement_quantity(
+                        item_id=item.product_id,
+                        requested=item.quantity,
+                    )
+                    if updated is None:
+                        current = await self.repository.get_by_id(item.product_id)
+                        if current is None:
+                            reason = f"Product {item.product_id} not found"
+                        elif not current.in_stock:
+                            reason = f"Product {item.product_id} is out of stock"
+                        else:
+                            reason = f"Product {item.product_id} has insufficient inventory"
+                        raise ReservationRejected(
+                            item,
+                            reason,
+                        )
+
+                    await self.reservation_repository.create(
+                        InventoryReservation(
+                            order_id=order_id,
+                            product_id=item.product_id,
+                            variant_id=item.variant_id,
+                            line_key=f"{item.product_id}:{item.variant_id or '-'}",
+                            quantity=item.quantity,
+                            status="reserved",
+                        )
+                    )
+        except ReservationRejected as exc:
+            return {
+                "success": False,
+                "reasons": exc.reason,
+                "failed_products": [exc.item],
+            }
+
+        return {"success": True, "products": items}
 
     async def release_inventory(self, products: list[OrderItemBase]):
         """
@@ -373,12 +530,29 @@ class ProductService:
         Each item is incremented with a single ``UPDATE … SET quantity = quantity + amount``
         statement so concurrent release events cannot double-add stock.
         """
-        for item in products:
+        if not products:
+            return
+        reservations = await self.reservation_repository.get_order_for_update(
+            products[0].order_id
+        )
+        for reservation in reservations:
+            if reservation.status != "reserved":
+                continue
             updated = await self.repository.atomic_increment_quantity(
-                item_id=item.product_id,
-                amount=item.quantity,
+                item_id=reservation.product_id,
+                amount=reservation.quantity,
             )
             if updated is None:
                 raise ProductReleaseError(
-                    f"Cannot release inventory for product: {item.product_id} — product not found"
+                    f"Cannot release inventory for product: {reservation.product_id} — product not found"
                 )
+            if reservation.variant_id is not None:
+                variant = await self.variant_repository.atomic_increment_inventory(
+                    reservation.variant_id, reservation.quantity
+                )
+                if variant is None:
+                    raise ProductReleaseError(
+                        f"Cannot release inventory for variant: {reservation.variant_id}"
+                    )
+            reservation.status = "released"
+            await self.reservation_repository.update(reservation)

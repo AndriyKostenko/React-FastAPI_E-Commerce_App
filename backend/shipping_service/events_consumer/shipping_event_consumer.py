@@ -8,6 +8,9 @@ from shared.enums.event_enums import OrderEvents
 from shared.contracts.events import OrderConfirmedEvent, OrderCancelledEvent
 from database_layer.shipping_repository import ShipmentRepository, ShippingMethodRepository
 from service_layer.shipment_service import ShipmentService
+from service_layer.outbox_event_service import OutboxEventService
+from shared.database_layer.outbox_repository import OutboxRepository
+from models.outbox_models import OutboxEvent
 
 
 class ShippingEventConsumer:
@@ -33,6 +36,9 @@ class ShippingEventConsumer:
                 shipment_repository=ShipmentRepository(session=session),
                 method_repository=ShippingMethodRepository(session=session),
                 event_publisher=self.event_publisher,
+                outbox_event_service=OutboxEventService(
+                    OutboxRepository(session=session, model=OutboxEvent)
+                ),
             )
 
     async def handle_order_event(self, message: dict[str, Any]) -> None:
@@ -48,7 +54,7 @@ class ShippingEventConsumer:
                 self.logger.warning(f"Unhandled shipping consumer event type: {event_type}")
 
     async def handle_order_confirmed(self, message: dict[str, Any]) -> None:
-        """Create a shipment when an order is confirmed."""
+        """Create a shipment only for lines fulfilled by this application."""
         event = OrderConfirmedEvent(**message)
 
         try:
@@ -58,6 +64,23 @@ class ShippingEventConsumer:
             )
             if not claimed:
                 self.logger.info(f"Skipping duplicate order.confirmed event for shipping — order: {event.order_id}")
+                return
+
+            # CJ owns delivery for CJ lines, while custom lines first need a
+            # production-complete event. Creating a local shipment here would
+            # incorrectly present either kind as ready to ship.
+            if event.items and not any(
+                item.fulfillment_type == "catalog" for item in event.items
+            ):
+                await self.idempotency_service.mark_event_as_processed(
+                    event_id=event.event_id,
+                    event_type=event.event_type,
+                    order_id=event.order_id,
+                    result="external_or_production_fulfillment",
+                )
+                self.logger.info(
+                    f"Skipped local shipment for externally fulfilled order {event.order_id}"
+                )
                 return
 
             self.logger.info(f"Creating shipment for order {event.order_id}")

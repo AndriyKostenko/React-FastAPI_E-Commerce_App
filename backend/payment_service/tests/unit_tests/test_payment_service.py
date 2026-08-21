@@ -265,7 +265,12 @@ class TestHandlePaymentRefund:
 
         result = await payment_service_unit.handle_payment_refund(mock_payment_orm.order_id)
 
-        mock_stripe_client.v1.refunds.create.assert_called_once()
+        mock_stripe_client.v1.refunds.create.assert_called_once_with(
+            {"payment_intent": mock_payment_orm.stripe_payment_intent_id},
+            options={
+                "idempotency_key": f"payment_refund:create:{mock_payment_orm.order_id}"
+            },
+        )
         update_call = mock_payment_repository.update_by_id.call_args
         assert update_call[1]["data"]["status"] == PaymentStatus.REFUNDED
         assert result is not None
@@ -307,6 +312,33 @@ class TestHandlePaymentRefund:
 
         with pytest.raises(PaymentRefundError):
             await payment_service_unit.handle_payment_refund(mock_payment_orm.order_id)
+
+    async def test_pending_payment_reconciles_already_cancelled_stripe_intent(
+        self,
+        payment_service_unit,
+        mock_payment_repository: MagicMock,
+        mock_outbox_event_service,
+        mock_payment_orm: MagicMock,
+        mock_stripe_client: MagicMock,
+    ) -> None:
+        from stripe import StripeError
+
+        mock_payment_orm.status = PaymentStatus.PENDING
+        mock_payment_repository.get_by_field.return_value = mock_payment_orm
+        mock_payment_repository.update_by_id.return_value = mock_payment_orm
+        mock_outbox_event_service.repository.create.return_value = MagicMock()
+        mock_stripe_client.v1.payment_intents.cancel.side_effect = StripeError(
+            "already cancelled"
+        )
+        mock_stripe_client.v1.payment_intents.retrieve.return_value.status = "canceled"
+
+        await payment_service_unit.handle_payment_refund(mock_payment_orm.order_id)
+
+        assert (
+            mock_payment_repository.update_by_id.await_args.kwargs["data"]["status"]
+            == PaymentStatus.CANCELLED
+        )
+        mock_stripe_client.v1.refunds.create.assert_not_called()
 
 
 # ---------------------------------------------------------------------------

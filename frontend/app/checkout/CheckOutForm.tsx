@@ -1,7 +1,6 @@
 'use client';
 
 import { CheckoutFormProps } from "@/types/cart";
-import { useCart } from "@/hooks/useCart";
 import { formatPrice } from "@/utils/formatPrice";
 import { useElements, useStripe, PaymentElement, AddressElement } from "@stripe/react-stripe-js";
 import { useState } from "react";
@@ -9,12 +8,11 @@ import toast from "react-hot-toast";
 import Heading from "@/components/ui/Heading";
 import Button from "@/components/ui/Button";
 
-const CheckoutForm: React.FC<CheckoutFormProps> = ({ onCreateOrder, onPaymentConfirmed, onPaymentFailed }) => {
-    const { cartTotalAmount } = useCart();
+const CheckoutForm: React.FC<CheckoutFormProps> = ({ onCreateOrder, onPaymentConfirmed, onPaymentFailed, totalAmount }) => {
     const stripe = useStripe();
     const elements = useElements();
     const [isLoading, setIsLoading] = useState(false);
-    const formattedPrice = formatPrice(cartTotalAmount);
+    const formattedPrice = formatPrice(totalAmount);
 
     const handleSubmit = async (event: React.FormEvent) => {
         event.preventDefault();
@@ -34,9 +32,19 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({ onCreateOrder, onPaymentCon
                 return;
             }
 
-            const { line1, city, state, postal_code } = addressValue.value.address;
+            const { line1, city, state, postal_code, country } = addressValue.value.address;
+            const { name, phone } = addressValue.value;
 
-            const orderCreated = await onCreateOrder({ line1, city, state, postal_code });
+            const orderCreated = await onCreateOrder({
+                line1,
+                city,
+                state,
+                postal_code,
+                country,
+                country_code: country,
+                name,
+                phone: phone ?? "",
+            });
             if (!orderCreated) {
                 return;
             }
@@ -52,7 +60,11 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({ onCreateOrder, onPaymentCon
                 return;
             }
 
-            await onPaymentConfirmed();
+            if (result.paymentIntent.status === "succeeded") {
+                await onPaymentConfirmed();
+            } else {
+                toast.success("Payment submitted. Your order will update after confirmation.");
+            }
         } catch (e) {
             console.error("Checkout error:", e);
             toast.error("An unexpected error occurred. Please try again.");
@@ -72,6 +84,8 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({ onCreateOrder, onPaymentCon
             <AddressElement options={{
                 mode: "shipping",
                 allowedCountries: ["CA"],
+                fields: { phone: "always" },
+                validation: { phone: { required: "always" } },
             }} />
             <h2 className="font-semibold mt-4 mb-2">
                 Payment Information

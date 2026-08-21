@@ -203,6 +203,7 @@ class Settings(BaseSettings):
     SECRET_ROLE: str
     POLLING_INTERVAL_FROM_DB: int | float
     CUSTOM_TSHIRT_BASE_PRICE: float
+    ORDER_SAGA_TIMEOUT_SECONDS: int = 1800
 
     # CJDropshipping
     CJ_DROPSHIPPING_API_KEY: str
@@ -211,6 +212,7 @@ class Settings(BaseSettings):
     CJ_DROPSHIPPING_CATEGORY_LIST_URL: str = "https://developers.cjdropshipping.com/api2.0/v1/product/getCategory"
     CJ_DROPSHIPPING_PRODUCT_INFO_URL: str = "https://developers.cjdropshipping.com/api2.0/v1/product/query"
     CJ_DROPSHIPPING_INVENTORY_URL: str = "https://developers.cjdropshipping.com/api2.0/v1/product/stock/getInventoryByPid"
+    CJ_DROPSHIPPING_VARIANT_INVENTORY_URL: str = "https://developers.cjdropshipping.com/api2.0/v1/product/stock/queryByVid"
     CJ_DROPSHIPPING_BASE_URL: str = "https://developers.cjdropshipping.com/api2.0/v1"
     CJ_DROPSHIPPING_USE_DEFAULT_CATEGORY: bool = False
     CJ_DROPSHIPPING_DEFAULT_CATEGORY_NAME: str = "t-shirts"
@@ -225,6 +227,8 @@ class Settings(BaseSettings):
 
     # CJ Dropshipping order creation
     CJ_DROPSHIPPING_CREATE_ORDER_URL: str = "https://developers.cjdropshipping.com/api2.0/v1/shopping/order/createOrderV2"
+    CJ_DROPSHIPPING_ORDER_DETAIL_URL: str = "https://developers.cjdropshipping.com/api2.0/v1/shopping/order/getOrderDetail"
+    CJ_DROPSHIPPING_DELETE_ORDER_URL: str = "https://developers.cjdropshipping.com/api2.0/v1/shopping/order/deleteOrder"
     CJ_DROPSHIPPING_DEFAULT_LOGISTIC_NAME: str = "CJPacket"
     CJ_DROPSHIPPING_DEFAULT_FROM_COUNTRY_CODE: str = "CN"
     CJ_DROPSHIPPING_PAY_TYPE: int = 3  # 1=page payment, 2=balance, 3=create only
@@ -537,6 +541,8 @@ class TestSettings(BaseSettings):
         "stripe_payment_intent_id": TEST_STRIPE_INTENT_ID,
         "payment_id": str(TEST_PAYMENT_ID),
         "order_id": str(TEST_ORDER_ID),
+        "amount": TEST_AMOUNT_CENTS,
+        "currency": TEST_CURRENCY,
     }
 
     MOCK_CART_RESULT: dict = {

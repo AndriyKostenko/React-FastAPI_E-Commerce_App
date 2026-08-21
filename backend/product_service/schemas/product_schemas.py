@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Literal
 from datetime import datetime
 from decimal import Decimal
 from typing import List
@@ -73,6 +73,7 @@ class ProductBase(BaseModel):
 
     id: UUID
     pid: str | None = None
+    supplier_id: str | None = None
     name: str = Field(..., min_length=3, max_length=200)
     description: str | None = Field(default=None, max_length=2000)
     category_id: UUID
@@ -292,3 +293,30 @@ class CJProductPreview(BaseModel):
 class CustomTshirtPricingResponse(BaseModel):
     base_price: float = Field(..., ge=0)
     currency: str = Field(default="USD", min_length=3, max_length=3)
+
+
+class OrderQuoteLineRequest(BaseModel):
+    product_id: UUID
+    variant_id: UUID | None = None
+    quantity: int = Field(gt=0, le=99)
+
+
+class OrderQuoteRequest(BaseModel):
+    items: list[OrderQuoteLineRequest] = Field(min_length=1, max_length=50)
+
+
+class OrderQuoteLine(BaseModel):
+    product_id: UUID
+    variant_id: UUID | None = None
+    product_name: str
+    quantity: int
+    unit_price: Decimal
+    fulfillment_type: Literal["catalog", "cj"]
+    supplier_id: str | None = None
+    variant_snapshot: dict | None = None
+
+
+class OrderQuoteResponse(BaseModel):
+    currency: str = "CAD"
+    items: list[OrderQuoteLine]
+    total_amount: Decimal

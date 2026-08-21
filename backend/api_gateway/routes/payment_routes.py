@@ -22,13 +22,32 @@ async def create_payment_intent(
     request: Request,
     current_user: CurrentUserInfo = Depends(get_current_user),
 ) -> JSONResponse:
-    payload: dict[str, str] = await request.json()
+    payload: dict = await request.json()
+    products = payload.get("products")
+    if not isinstance(products, list) or not products:
+        return JSONResponse(
+            content={"detail": "At least one product is required"},
+            status_code=422,
+        )
+    quote_response = await api_gateway_manager.request_service(
+        request,
+        "order-service",
+        "/orders/quote",
+        method="POST",
+        json={"products": products},
+    )
+    if not quote_response.is_success:
+        return JSONResponse(
+            content=quote_response.json(),
+            status_code=quote_response.status_code,
+        )
+    quote = quote_response.json()
     override_body = {
         "order_id": payload.get("order_id") or str(uuid4()),
         "user_id": str(current_user.id),
         "user_email": current_user.email,
-        "amount": payload.get("amount"),
-        "currency": payload.get("currency"),
+        "amount": round(float(quote["amount"]) * 100),
+        "currency": quote["currency"],
     }
     return await api_gateway_manager.forward_request(
         request=request,

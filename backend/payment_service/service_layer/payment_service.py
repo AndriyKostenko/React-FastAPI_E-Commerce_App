@@ -53,6 +53,16 @@ class PaymentService:
     def _create_intent_idempotency_key(self, order_id: UUID) -> str:
         return f"payment_intent:create:{order_id}"
 
+    def _refund_idempotency_key(self, order_id: UUID) -> str:
+        return f"payment_refund:create:{order_id}"
+
+    def _create_refund(self, payment: Payment) -> Any:
+        """Create at most one Stripe refund across retries and worker crashes."""
+        return self._stripe.v1.refunds.create(
+            {"payment_intent": payment.stripe_payment_intent_id},
+            options={"idempotency_key": self._refund_idempotency_key(payment.order_id)},
+        )
+
     def _create_stripe_payment_intent(
         self,
         order_id: UUID,
@@ -99,6 +109,8 @@ class PaymentService:
                     "stripe_payment_intent_id": existing_payment.stripe_payment_intent_id,
                     "payment_id": str(existing_payment.id),
                     "order_id": str(order_id),
+                    "amount": existing_payment.amount,
+                    "currency": existing_payment.currency,
                 }
 
             intent = self._create_stripe_payment_intent(
@@ -149,6 +161,8 @@ class PaymentService:
             "stripe_payment_intent_id": intent.id,
             "payment_id": str(payment.id),
             "order_id": str(order_id),
+            "amount": amount,
+            "currency": currency,
         }
 
     async def construct_webhook_event(self, request: Request) -> StripeEvent:
@@ -261,14 +275,72 @@ class PaymentService:
             )
             return None
 
+        if payment.status == PaymentStatus.PENDING:
+            try:
+                self._stripe.v1.payment_intents.cancel(
+                    payment.stripe_payment_intent_id
+                )
+            except StripeError as exc:
+                # A success webhook may race cancellation. If Stripe says the
+                # intent succeeded, refund it instead of leaving a charge behind.
+                try:
+                    intent = self._stripe.v1.payment_intents.retrieve(
+                        payment.stripe_payment_intent_id
+                    )
+                    if intent.status == "canceled":
+                        new_status = PaymentStatus.CANCELLED
+                    elif intent.status != "succeeded":
+                        raise PaymentRefundError(detail=str(exc))
+                    else:
+                        self._create_refund(payment)
+                        new_status = PaymentStatus.REFUNDED
+                except StripeError as reconcile_exc:
+                    raise PaymentRefundError(detail=str(reconcile_exc)) from reconcile_exc
+            else:
+                new_status = PaymentStatus.CANCELLED
+
+            async with self.repository.session.begin_nested():
+                updated = await self.repository.update_by_id(
+                    item_id=payment.id,
+                    data={"status": new_status},
+                )
+                if new_status == PaymentStatus.CANCELLED:
+                    await self.outbox_event_service.add_outbox_event(
+                        event_type=PaymentEvents.PAYMENT_CANCELLED,
+                        payload=PaymentCancelledEvent(
+                            service=Services.PAYMENT_SERVICE,
+                            event_type=PaymentEvents.PAYMENT_CANCELLED,
+                            order_id=payment.order_id,
+                            user_id=payment.user_id,
+                            user_email=payment.user_email,
+                            payment_intent_id=payment.stripe_payment_intent_id,
+                            amount=payment.amount,
+                            currency=payment.currency,
+                            reason="Order cancelled before payment completed",
+                        ),
+                    )
+                else:
+                    await self.outbox_event_service.add_outbox_event(
+                        event_type=PaymentEvents.PAYMENT_REFUNDED,
+                        payload=PaymentRefundedEvent(
+                            service=Services.PAYMENT_SERVICE,
+                            event_type=PaymentEvents.PAYMENT_REFUNDED,
+                            order_id=payment.order_id,
+                            user_id=payment.user_id,
+                            user_email=payment.user_email,
+                            payment_intent_id=payment.stripe_payment_intent_id,
+                            amount=payment.amount,
+                            currency=payment.currency,
+                        ),
+                    )
+            return updated
+
         if payment.status != PaymentStatus.SUCCEEDED:
             # Nothing to refund — payment was never charged or already refunded/failed
             return payment
 
         try:
-            _ = self._stripe.v1.refunds.create(
-                {"payment_intent": payment.stripe_payment_intent_id}
-            )
+            _ = self._create_refund(payment)
         except StripeError as exc:
             raise PaymentRefundError(detail=str(exc))
 

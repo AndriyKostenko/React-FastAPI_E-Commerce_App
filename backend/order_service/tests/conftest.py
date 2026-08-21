@@ -33,6 +33,7 @@ from service_layer.order_service import OrderService
 from service_layer.order_item_service import OrderItemService
 from service_layer.order_address_service import OrderAddressService
 from service_layer.outbox_event_service import OutboxEventService
+from service_layer.order_pricing_service import CanonicalOrderQuote, QuotedOrderLine
 from shared.database_layer.outbox_repository import OutboxRepository
 from models.base import Base
 from models.order_address_models import OrderAddress
@@ -161,8 +162,10 @@ def mock_order_repository() -> MagicMock:
     repo.get_by_id = AsyncMock()
     repo.get_all = AsyncMock()
     repo.get_many_by_field = AsyncMock()
+    repo.get_with_fulfillment = AsyncMock()
     repo.create = AsyncMock()
     repo.update_by_id = AsyncMock()
+    repo.update = AsyncMock(side_effect=lambda order: order)
     repo.delete_by_id = AsyncMock()
     repo.session = MagicMock()
     repo.session.begin_nested = MagicMock(return_value=_AsyncContextManagerMock())
@@ -175,6 +178,8 @@ def mock_order_item_repository() -> MagicMock:
     repo = MagicMock()
     repo.create_many = AsyncMock()
     repo.get_many_by_field = AsyncMock()
+    repo.get_by_order_id_with_fulfillment = AsyncMock()
+    repo.session = MagicMock()
     return repo
 
 
@@ -210,7 +215,12 @@ def mock_outbox_event_service(mock_outbox_repository: MagicMock) -> OutboxEventS
 @pytest.fixture
 def mock_order_item_service(mock_order_item_repository: MagicMock) -> OrderItemService:
     """OrderItemService wired with a mocked repository."""
-    return OrderItemService(repository=mock_order_item_repository)
+    fulfillment_repository = MagicMock()
+    fulfillment_repository.create_many = AsyncMock(side_effect=lambda rows: rows)
+    return OrderItemService(
+        repository=mock_order_item_repository,
+        fulfillment_repository=fulfillment_repository,
+    )
 
 
 @pytest.fixture
@@ -227,11 +237,43 @@ def order_service_unit(
     mock_outbox_event_service: OutboxEventService,
 ) -> OrderService:
     """OrderService wired with all mocked dependencies."""
+    pricing_service = MagicMock()
+    pricing_service.build_quote = AsyncMock(
+        return_value=CanonicalOrderQuote(
+            items=[
+                QuotedOrderLine(
+                    product_id=TEST_PRODUCT_ID,
+                    product_name="Widget",
+                    quantity=2,
+                    unit_price="49.99",
+                    fulfillment_type="catalog",
+                )
+            ],
+            total_amount="99.98",
+        )
+    )
+    saga_repository = MagicMock()
+    saga_repository.create = AsyncMock()
+    saga = MagicMock(
+        inventory_status="pending",
+        payment_status="pending",
+        fulfillment_status="pending",
+        cancellation_reason=None,
+        version=0,
+    )
+    saga_repository.get_for_update = AsyncMock(return_value=saga)
+    saga_repository.update = AsyncMock()
+    production_repository = MagicMock()
+    production_repository.get_many_by_field = AsyncMock(return_value=[])
+    production_repository.update = AsyncMock()
     return OrderService(
         repository=mock_order_repository,
         order_item_service=mock_order_item_service,
         order_address_service=mock_order_address_service,
         outbox_event_service=mock_outbox_event_service,
+        pricing_service=pricing_service,
+        saga_repository=saga_repository,
+        production_repository=production_repository,
     )
 
 
@@ -300,7 +342,9 @@ async def integration_client(
       - Before yield: init schema (idempotent)
       - After  yield: TRUNCATE all tables
     """
-    await test_database_session_manager.init_db(Base.metadata)
+    # Integration databases can outlive model changes. Rebuild this service's
+    # test-only schema so create_all() cannot leave stale columns behind.
+    await test_database_session_manager.recreate_schema(Base.metadata)
 
     async def _override_get_db_session() -> AsyncGenerator[AsyncSession, None]:
         async with test_database_session_manager.transaction() as session:
@@ -327,11 +371,40 @@ async def integration_client(
         order_address_service: OrderAddressService = Depends(_override_get_order_address_service),
         outbox_event_service: OutboxEventService = Depends(_override_get_outbox_service),
     ) -> OrderService:
+        pricing_service = MagicMock()
+
+        async def _quote(order_data):
+            lines = [
+                QuotedOrderLine(
+                    product_id=item.id,
+                    variant_id=item.variant_id,
+                    product_name=item.name or "Test product",
+                    quantity=item.quantity,
+                    unit_price=item.price or 1,
+                    fulfillment_type=item.fulfillment_type or "catalog",
+                    supplier_id=(
+                        "cjdropshipping"
+                        if item.fulfillment_type == "cj"
+                        else None
+                    ),
+                    customization=item.customization,
+                )
+                for item in order_data.products
+            ]
+            return CanonicalOrderQuote(
+                items=lines,
+                total_amount=sum(
+                    line.unit_price * line.quantity for line in lines
+                ),
+            )
+
+        pricing_service.build_quote = AsyncMock(side_effect=_quote)
         return OrderService(
             repository=OrderRepository(session=session),
             order_item_service=order_item_service,
             order_address_service=order_address_service,
             outbox_event_service=outbox_event_service,
+            pricing_service=pricing_service,
         )
 
     original_debug_mode = settings.DEBUG_MODE

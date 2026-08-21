@@ -16,10 +16,25 @@ from schemas.product_schemas import (
     ProductUploadForm,
     ProductsFilterParams,
     UpdateProduct,
+    OrderQuoteRequest,
+    OrderQuoteResponse,
 )
 
 
 product_routes = APIRouter(tags=["products"])
+
+
+@product_routes.post(
+    "/products/order-quote",
+    response_model=OrderQuoteResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Build a canonical order quote",
+)
+async def quote_order_items(
+    quote: OrderQuoteRequest,
+    product_service: product_service_dependency,
+) -> OrderQuoteResponse:
+    return await product_service.quote_order_items(quote.items)
 
 
 @product_routes.get("/customization/pricing",

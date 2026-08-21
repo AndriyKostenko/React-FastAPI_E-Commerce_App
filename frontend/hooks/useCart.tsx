@@ -7,6 +7,10 @@ import { toast } from 'react-hot-toast';
 
 export const CartContext = createContext<CartContextType | null>(null);
 
+const isSameCartLine = (left: ProductProps, right: ProductProps) =>
+    left.id === right.id &&
+    (left.selected_variant_id ?? null) === (right.selected_variant_id ?? null);
+
 interface Props {
     [propName: string] : any
 };
@@ -65,7 +69,9 @@ export const CartContextProvider = (props: Props) => {
             let updatedCart;
 
             if (previousState) {
-                const indexOfExistProduct = previousState.findIndex(prod => prod.id === product.id);
+                const indexOfExistProduct = previousState.findIndex((item) =>
+                    isSameCartLine(item, product),
+                );
                 if (indexOfExistProduct !== -1) {
                     previousState[indexOfExistProduct].quantity = product.quantity;
                     updatedCart = [...previousState];
@@ -88,7 +94,7 @@ export const CartContextProvider = (props: Props) => {
     const handleRemoveProductFromCart = useCallback((product: ProductProps) => {
         if (cartProducts) {
             const filteredProducts = cartProducts.filter((item) => {
-                return item.id !== product.id
+                return !isSameCartLine(item, product)
             })
 
             setCartProducts(filteredProducts)
@@ -106,7 +112,9 @@ export const CartContextProvider = (props: Props) => {
 
         if (cartProducts) {
             updatedCart = [...cartProducts]
-            const existingIndexProduct = cartProducts.findIndex((item) => item.id === product.id)
+            const existingIndexProduct = cartProducts.findIndex((item) =>
+                isSameCartLine(item, product),
+            )
 
             if (existingIndexProduct > -1) {
                 updatedCart[existingIndexProduct].quantity = ++updatedCart[existingIndexProduct].quantity
@@ -126,7 +134,9 @@ export const CartContextProvider = (props: Props) => {
 
         if (cartProducts) {
             updatedCart = [...cartProducts]
-            const existingIndexProduct = cartProducts.findIndex((item) => item.id === product.id)
+            const existingIndexProduct = cartProducts.findIndex((item) =>
+                isSameCartLine(item, product),
+            )
 
             if (existingIndexProduct > -1) {
                 updatedCart[existingIndexProduct].quantity = --updatedCart[existingIndexProduct].quantity

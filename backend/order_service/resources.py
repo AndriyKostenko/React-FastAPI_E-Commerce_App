@@ -14,6 +14,7 @@ from messaging import create_rabbitmq_broker
 from shared.idempotency.idempotency_service import IdempotencyEventService
 from shared.managers.database_session_manager import DatabaseSessionManager
 from shared.settings import Settings
+from service_layer.order_pricing_service import CatalogQuoteClient
 
 
 def create_database_session_manager(
@@ -45,6 +46,7 @@ class OrderApiResources:
     settings: Settings
     logger: Logger
     database: DatabaseSessionManager
+    catalog_client: CatalogQuoteClient
 
 
 def create_order_api_resources(
@@ -56,6 +58,7 @@ def create_order_api_resources(
         settings=app_settings,
         logger=app_logger,
         database=create_database_session_manager(app_settings, app_logger),
+        catalog_client=CatalogQuoteClient(app_settings),
     )
 
 
@@ -68,6 +71,7 @@ async def order_api_runtime(
     resources = create_order_api_resources(app_settings, app_logger)
     async with AsyncExitStack() as stack:
         await stack.enter_async_context(resources.database)
+        await stack.enter_async_context(resources.catalog_client)
         yield resources
 
 

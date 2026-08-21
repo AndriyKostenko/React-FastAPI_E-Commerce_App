@@ -69,6 +69,7 @@ class AppSettings {
             imageGenerations: string;
             imageGenerationsStatus: (jobId: string) => string;
             orders: string;
+            ordersQuote: string;
             orderById: (orderId: string) => string;
             cancelOrder: (orderId: string) => string;
             ordersByUserId: (userId: string) => string;
@@ -117,6 +118,7 @@ class AppSettings {
             imageGenerations: AppSettings.joinUrl(baseUrl, "images/generations"),
             imageGenerationsStatus: (jobId: string) => AppSettings.joinUrl(baseUrl, `images/generations/${jobId}/status`),
             orders:               AppSettings.joinUrl(baseUrl, "orders"),
+            ordersQuote:          AppSettings.joinUrl(baseUrl, "orders/quote"),
             orderById:            (orderId: string)   => AppSettings.joinUrl(baseUrl, `orders/${orderId}`),
             cancelOrder:          (orderId: string)   => AppSettings.joinUrl(baseUrl, `orders/${orderId}/cancel`),
             ordersByUserId:       (userId: string)    => AppSettings.joinUrl(baseUrl, `orders/user/${userId}`),

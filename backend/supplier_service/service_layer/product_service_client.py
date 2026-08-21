@@ -67,7 +67,8 @@ class ProductServiceClient:
 
         Args:
             product_id: Local product UUID.
-            variant_id: Local variant UUID. If omitted, the product's first variant is used.
+            variant_id: Local variant UUID. Required so fulfillment cannot silently
+                substitute a different SKU.
 
         Returns:
             Tuple of (CJ pid, CJ vid).
@@ -85,10 +86,9 @@ class ProductServiceClient:
             raise ProductServiceError(f"Product {product_id} has no variants")
 
         if variant_id is None:
-            variant = variants[0]
-        else:
-            variant = next((v for v in variants if v.id == variant_id), None)
-            if variant is None:
-                raise ProductNotFoundError(variant_id)
+            raise ProductServiceError(f"Product {product_id} requires an explicit variant")
+        variant = next((v for v in variants if v.id == variant_id), None)
+        if variant is None:
+            raise ProductNotFoundError(variant_id)
 
         return product.pid, variant.vid

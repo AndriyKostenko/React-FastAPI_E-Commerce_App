@@ -168,9 +168,8 @@ class TestCancelOrder:
 
         result = await svc.cancel_order(TEST_ORDER_ID, reason="Changed mind")
 
-        svc.repository.update_by_id.assert_awaited_once_with(
-            TEST_ORDER_ID, data={"status": OrderStatus.CANCELLED}
-        )
+        svc.repository.update.assert_awaited_once_with(mock_order_orm)
+        assert result.status == OrderStatus.CANCELLED
         assert svc.outbox_event_service.add_outbox_event.call_count == 1
 
     async def test_cancel_confirmed_order_also_releases_inventory(
@@ -198,6 +197,9 @@ class TestCancelOrder:
         svc.repository.update_by_id = AsyncMock(return_value=cancelled_orm)
         svc.order_item_service.get_items_by_order_id = AsyncMock(return_value=[item_base])
         svc.outbox_event_service.add_outbox_event = AsyncMock(return_value=None)
+        saga = await svc.saga_repository.get_for_update(TEST_ORDER_ID)
+        saga.inventory_status = "reserved"
+        svc.saga_repository.get_for_update.reset_mock()
 
         await svc.cancel_order(TEST_ORDER_ID, reason="Fraud")
 
@@ -332,16 +334,16 @@ class TestUpdateOrder:
         svc.repository.update_by_id = AsyncMock(return_value=updated_orm)
         svc.outbox_event_service.add_outbox_event = AsyncMock(return_value=None)
 
-        order_data = UpdateOrder(delivery_status=OrderDeliveryStatus.DELIVERED, amount=TEST_AMOUNT)
+        order_data = UpdateOrder(delivery_status=OrderDeliveryStatus.DELIVERED)
         result = await svc.update_order(TEST_ORDER_ID, order_data)
 
         assert isinstance(result, OrderSchema)
         svc.outbox_event_service.add_outbox_event.assert_not_awaited()
 
-    async def test_update_order_with_confirmed_transition_emits_event(
+    async def test_update_order_cannot_force_confirmed_transition(
         self, order_service_unit: OrderService, mock_order_orm: MagicMock
     ):
-        """update_order status→CONFIRMED emits ORDER_CONFIRMED outbox event."""
+        """Administrative metadata cannot bypass the payment+inventory gate."""
         svc = order_service_unit
         mock_order_orm.status = OrderStatus.PENDING
         confirmed_orm = MagicMock()
@@ -374,12 +376,11 @@ class TestUpdateOrder:
         svc.repository.update_by_id = AsyncMock(return_value=confirmed_orm)
         svc.outbox_event_service.add_outbox_event = AsyncMock(return_value=None)
 
-        order_data = UpdateOrder(status=OrderStatus.CONFIRMED, amount=TEST_AMOUNT)
+        order_data = UpdateOrder(status=OrderStatus.CONFIRMED)
         await svc.update_order(TEST_ORDER_ID, order_data)
 
-        svc.outbox_event_service.add_outbox_event.assert_awaited_once()
-        call_kwargs = svc.outbox_event_service.add_outbox_event.call_args.kwargs
-        assert call_kwargs["event_type"] == "order.confirmed"
+        svc.outbox_event_service.add_outbox_event.assert_not_awaited()
+        svc.repository.update_by_id.assert_not_awaited()
 
     async def test_update_order_already_confirmed_does_not_re_emit(
         self, order_service_unit: OrderService, mock_order_orm: MagicMock
@@ -405,17 +406,17 @@ class TestUpdateOrder:
         svc.repository.update_by_id = AsyncMock(return_value=confirmed_orm)
         svc.outbox_event_service.add_outbox_event = AsyncMock(return_value=None)
 
-        order_data = UpdateOrder(status=OrderStatus.CONFIRMED, amount=TEST_AMOUNT)
+        order_data = UpdateOrder(status=OrderStatus.CONFIRMED)
         await svc.update_order(TEST_ORDER_ID, order_data)
 
         svc.outbox_event_service.add_outbox_event.assert_not_awaited()
 
     async def test_update_order_not_found_raises(self, order_service_unit: OrderService):
         svc = order_service_unit
-        svc.repository.get_by_id = AsyncMock(return_value=None)
+        svc.repository.update_by_id = AsyncMock(return_value=None)
 
         with pytest.raises(OrderNotFoundError):
-            await svc.update_order(TEST_ORDER_ID, UpdateOrder(amount=TEST_AMOUNT))
+            await svc.update_order(TEST_ORDER_ID, UpdateOrder(cj_order_number="CJ-1"))
 
 
 # ---------------------------------------------------------------------------
@@ -434,7 +435,7 @@ class TestUpdateOrderStatus:
 
         assert isinstance(result, OrderSchema)
         svc.repository.update_by_id.assert_awaited_once_with(
-            TEST_ORDER_ID, data={"status": OrderStatus.CONFIRMED}
+            TEST_ORDER_ID, {"status": OrderStatus.CONFIRMED}
         )
 
 

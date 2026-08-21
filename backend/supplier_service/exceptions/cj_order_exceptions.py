@@ -19,6 +19,11 @@ class CJOrderConfigurationError(BaseAPIException):
         super().__init__(status_code=500, detail=detail)
 
 
+class CJOrderAmbiguousError(Exception):
+    """CJ may have accepted the order, so automatic compensation is unsafe."""
+
+
+
 class ProviderNotFoundError(BaseAPIException):
     """Raised when the provider is not found."""
     def __init__(self, detail: str = "Provider not found."):

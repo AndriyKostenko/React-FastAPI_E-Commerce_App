@@ -92,6 +92,16 @@ order_confirmed_queue = RabbitQueue(
     },
 )
 
+order_cancelled_queue = RabbitQueue(
+    "supplier.order.cancelled.queue",
+    durable=True,
+    routing_key=OrderEvents.ORDER_CANCELLED,
+    arguments={
+        "x-dead-letter-exchange": "dlx",
+        "x-dead-letter-routing-key": "supplier.order.cancelled.dlq",
+    },
+)
+
 
 @rabbitmq_broker.subscriber(queue=product_supplier_events_queue, exchange=supplier_exchange)
 async def handle_product_supplier_events(body: dict[str, Any]):
@@ -100,4 +110,9 @@ async def handle_product_supplier_events(body: dict[str, Any]):
 
 @rabbitmq_broker.subscriber(queue=order_confirmed_queue, exchange=order_exchange)
 async def handle_order_confirmed(body: dict[str, Any]):
+    await get_consumer().handle_order_event(body)
+
+
+@rabbitmq_broker.subscriber(queue=order_cancelled_queue, exchange=order_exchange)
+async def handle_order_cancelled(body: dict[str, Any]):
     await get_consumer().handle_order_event(body)

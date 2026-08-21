@@ -13,6 +13,18 @@ from shared.contracts.auth import TokenClaims as CurrentUserInfo
 order_proxy = APIRouter(tags=["Order Service Proxy"])
 
 
+@order_proxy.post("/orders/quote", summary="Build a canonical order quote")
+@rate_limited(times=30, seconds=60)
+async def quote_order(
+    request: Request,
+    current_user: CurrentUserInfo = Depends(get_current_user),
+):
+    return await api_gateway_manager.forward_request(
+        service_name="order-service",
+        request=request,
+    )
+
+
 # ==================== PUBLIC ENDPOINTS ====================
 
 @order_proxy.post("/orders", summary="Create a new order")
@@ -35,7 +47,10 @@ async def create_order(
 
 
 @order_proxy.get("/orders", summary="Get all orders")
-async def get_all_orders(request: Request):
+async def get_all_orders(
+    request: Request,
+    current_user: CurrentUserInfo = Depends(require_admin),
+):
     return await api_gateway_manager.forward_request(
         service_name="order-service",
         request=request,
@@ -59,10 +74,13 @@ async def get_order_by_id(
     order_id: UUID,
     current_user: CurrentUserInfo = Depends(get_current_user),
 ):
-    return await api_gateway_manager.forward_request(
-        service_name="order-service",
-        request=request,
+    upstream = await api_gateway_manager.request_service(
+        request, "order-service", f"/orders/{order_id}"
     )
+    content = upstream.json()
+    if upstream.is_success:
+        require_user_or_admin(current_user, target_user_id=UUID(content["user_id"]))
+    return JSONResponse(content=content, status_code=upstream.status_code)
 
 
 # ==================== AUTHENTICATED ENDPOINTS ====================
@@ -73,6 +91,15 @@ async def cancel_order(
     order_id: UUID,
     current_user: CurrentUserInfo = Depends(get_current_user),
 ):
+    upstream = await api_gateway_manager.request_service(
+        request, "order-service", f"/orders/{order_id}"
+    )
+    if upstream.is_success:
+        require_user_or_admin(
+            current_user, target_user_id=UUID(upstream.json()["user_id"])
+        )
+    else:
+        return JSONResponse(content=upstream.json(), status_code=upstream.status_code)
     return await api_gateway_manager.forward_request(
         service_name="order-service",
         request=request,
@@ -83,7 +110,7 @@ async def cancel_order(
 async def update_order(
     request: Request,
     order_id: UUID,
-    current_user: CurrentUserInfo = Depends(get_current_user),
+    current_user: CurrentUserInfo = Depends(require_admin),
 ):
     return await api_gateway_manager.forward_request(
         service_name="order-service",

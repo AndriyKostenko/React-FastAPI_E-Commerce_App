@@ -201,6 +201,25 @@ class ApiGateway:
             raise RuntimeError("ApiGateway HTTP client is not initialised — call startup() first.")
         return self._http_client
 
+    async def request_service(
+        self,
+        service_name: str,
+        path: str,
+        *,
+        method: str = "GET",
+        json: dict[str, Any] | None = None,
+    ):
+        """Make a service-to-service request without deriving the path from a client request."""
+        if service_name not in self.config.services:
+            raise HTTPException(status_code=404, detail="Service not found")
+        url = self.url_manager.build_url(service_name, path)
+        return await self.client.request(
+            method=method,
+            url=url,
+            json=json,
+            timeout=self._resolve_timeout(service_name, path),
+        )
+
     async def _detect_and_prepare_body(self, request: Request, path: str):
         """
         Detects the content type of the body and prepares it for forwarding.

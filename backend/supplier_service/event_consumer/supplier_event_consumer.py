@@ -1,36 +1,38 @@
 from datetime import datetime, timezone
-import asyncio
 from logging import Logger
 from typing import Any
 from uuid import UUID
 
 from database_layer.supplier_sync_state_repository import SupplierSyncStateRepository
+from database_layer.cj_order_attempt_repository import CJOrderAttemptRepository
+from models.cj_order_attempt_models import CJOrderAttempt
+from models.outbox_models import OutboxEvent
+from shared.database_layer.outbox_repository import OutboxRepository
 from event_publisher.supplier_event_publisher import SupplierEventPublisher
 from exceptions.cj_order_exceptions import (
     CJOrderCreationError,
+    CJOrderAmbiguousError,
     CJOrderConfigurationError,
     CJProductMappingError,
 )
 from service_layer.cj_api_client import CJDropshippingAPIClient, CJDropshippingAPIError
+from service_layer.cj_inventory_verifier import CJDropshippingInventoryVerifier
+from service_layer.outbox_event_service import OutboxEventService
 from service_layer.product_service_client import (
     ProductNotFoundError,
     ProductServiceClient,
     ProductServiceError,
 )
-from shared.enums.event_enums import InventoryEvents, OrderEvents, SupplierEvents
+from shared.enums.event_enums import OrderEvents, SupplierEvents
 from shared.contracts.events import (
     CJOrderCreatedEvent,
-    InventoryReleaseRequested,
+    CJOrderFailedEvent,
     OrderCancelledEvent,
     OrderConfirmedEvent,
     SupplierProductImportFailedEvent,
     SupplierProductImportCompletedEvent,
 )
-from shared.contracts.order import (
-    ConfirmedOrderAddress,
-    ConfirmedOrderItem,
-    OrderItem as OrderItemBase,
-)
+from shared.contracts.order import ConfirmedOrderAddress, ConfirmedOrderItem
 from shared.idempotency.idempotency_service import IdempotencyEventService
 from shared.managers.database_session_manager import DatabaseSessionManager
 from shared.settings import Settings
@@ -61,6 +63,9 @@ class SupplierEventConsumer:
         self.cj_api_client = cj_api_client
         self.product_service_client = product_service_client
         self.publisher = publisher
+        self.inventory_verifier = CJDropshippingInventoryVerifier(
+            cj_api_client, settings, logger
+        )
 
     async def _get_sync_state_repository(self):
         async with self.database.transaction() as session:
@@ -177,25 +182,49 @@ class SupplierEventConsumer:
         match event_type:
             case OrderEvents.ORDER_CONFIRMED:
                 await self.handle_order_confirmed(message)
+            case OrderEvents.ORDER_CANCELLED:
+                await self.handle_order_cancelled(message)
             case _:
                 self.logger.warning(f"Unhandled order event type in supplier consumer: {event_type}")
 
+    async def handle_order_cancelled(self, message: dict[str, Any]) -> None:
+        """Cancel a previously created CJ order when the local Saga compensates."""
+        event = OrderCancelledEvent(**message)
+        if not await self.idempotency_service.try_claim_event(
+            event.event_id, event.event_type
+        ):
+            return
+        try:
+            attempt = await self._get_attempt(event.order_id)
+            if not attempt or not attempt.cj_order_number:
+                result = "no_cj_order"
+            elif attempt.status == "cancelled":
+                result = "already_cancelled"
+            else:
+                response = await self.cj_api_client.delete_order(
+                    attempt.cj_order_number
+                )
+                if response.get("code") != 200 or not response.get("result"):
+                    reason = response.get("message") or "CJ rejected order deletion"
+                    await self._mark_reconciliation(event.order_id, reason)
+                    raise CJOrderAmbiguousError(reason)
+                await self._set_attempt_status(event.order_id, "cancelled")
+                result = "cj_order_cancelled"
+            await self.idempotency_service.mark_event_as_processed(
+                event.event_id, event.event_type, event.order_id, result
+            )
+        except Exception:
+            await self.idempotency_service.release_claim(event.event_id, event.event_type)
+            raise
+
     async def handle_order_confirmed(self, message: dict[str, Any]) -> None:
-        """Create a CJ Dropshipping order when an order is confirmed.
-
-        On success publishes cj.order.created.
-        On failure publishes order.cancelled + inventory.release.requested so the
-        SAGA can be compensated.
-
-        Safety properties guaranteed:
-        - CJ creation failed -> compensate and mark processed.
-        - CJ succeeded but cj.order.created publish failed -> release_claim so
-          the message is redelivered; a CRITICAL alert is logged for manual
-          reconciliation. Compensation is intentionally skipped (CJ has the order).
-        - Compensation itself raises -> release_claim so the broker redelivers;
-          the event is never permanently stamped processed in a broken state.
-        """
+        """Create exactly the CJ portion of an order with a durable boundary."""
         event = OrderConfirmedEvent(**message)
+        cj_items = [item for item in event.items if item.fulfillment_type == "cj"]
+        if not cj_items:
+            self.logger.info("Order %s has no CJ lines; supplier fulfillment skipped", event.order_id)
+            return
+        event = event.model_copy(update={"items": cj_items})
         claimed = await self.idempotency_service.try_claim_event(
             event_id=event.event_id,
             event_type=event.event_type,
@@ -204,102 +233,62 @@ class SupplierEventConsumer:
             self.logger.info(f"Skipping duplicate order.confirmed event for order: {event.order_id}")
             return
 
-        result: str = "cj_order_created"
-        # Track whether the CJ order was placed so we can distinguish between
-        # "creation failed - safe to compensate" and "creation succeeded but
-        # publish failed - must NOT compensate" (Bug 5 fix).
-        cj_order_number: str | None = None
-        # Track whether compensation completed so the finally block knows
-        # whether to mark processed or release for retry (Bug 4 fix).
-        compensation_succeeded: bool = False
         try:
-            cj_order_number = await self._create_cj_order(event)
-
-            # --- Bug 5 boundary ---
-            # CJ accepted the order. Any exception from here on must NOT trigger
-            # compensation (the order exists at CJ and may ship).
-            await self.publisher.publish_cj_order_created(
-                event_data={
-                    "service": event.service,
-                    "event_type": OrderEvents.CJ_ORDER_CREATED,
-                    "order_id": str(event.order_id),
-                    "user_id": str(event.user_id),
-                    "user_email": event.user_email,
-                    "cj_order_number": cj_order_number,
-                }
-            )
-            self.logger.info(f"Published CJOrderCreatedEvent for order: {event.order_id}, CJ order: {cj_order_number}")
-
-        except (CJOrderConfigurationError, CJProductMappingError, CJOrderCreationError) as exc:
-            # _create_cj_order failed - CJ was never called (or all retries failed
-            # before any order was placed). Safe to compensate.
-            self.logger.error(f"CJ order creation failed for order {event.order_id}: {exc}")
-            await self._compensate_order(event, reason=str(exc))
-            compensation_succeeded = True
-            result = f"compensated: {exc}"
-
-        except Exception as exc:
-            if cj_order_number is not None:
-                # Bug 5: CJ accepted the order but publishing cj.order.created
-                # failed. Compensating here would refund + restock an order that
-                # CJ may fulfil. Instead: log for manual reconciliation, release
-                # the idempotency claim, and re-raise so the broker redelivers.
-                self.logger.critical(
-                    f"RECONCILIATION REQUIRED: CJ order {cj_order_number!r} was "
-                    f"placed for local order {event.order_id} but "
-                    f"cj.order.created publish failed: {exc}. "
-                    f"Do NOT compensate - verify CJ order status manually."
-                )
-                await self.idempotency_service.release_claim(
-                    event_id=event.event_id,
-                    event_type=event.event_type,
-                )
-                raise
-
-            # cj_order_number is None - _create_cj_order raised an unexpected
-            # error before placing anything; compensate normally.
-            self.logger.error(f"Unexpected error creating CJ order for order {event.order_id}: {exc}")
-            await self._compensate_order(event, reason=f"Unexpected CJ order error: {exc}")
-            compensation_succeeded = True
-            result = f"cj_unexpected_error: {exc}"
-
-        finally:
-            # Bug 4: only stamp "processed" when we have a definitive outcome
-            # (success or a completed compensation). If compensation itself raised,
-            # release the claim so the broker redelivers and retries - the event
-            # must never be permanently marked processed in an unresolved state.
-            if cj_order_number is not None and not compensation_succeeded:
-                # We are inside the publish-failed re-raise path; release_claim
-                # was already called above - nothing more to do here.
-                pass
-            elif compensation_succeeded or cj_order_number is not None:
-                await self.idempotency_service.mark_event_as_processed(
-                    event_id=event.event_id,
-                    event_type=event.event_type,
-                    order_id=event.order_id,
-                    result=result,
-                )
+            existing = await self._get_attempt(event.order_id)
+            if existing and existing.status == "created":
+                result = "cj_order_already_created"
             else:
-                # Compensation was attempted but raised (cj_order_number is None
-                # and compensation_succeeded is False) - release so retry is possible.
-                try:
-                    await self.idempotency_service.release_claim(
-                        event_id=event.event_id,
-                        event_type=event.event_type,
-                    )
-                except Exception:
-                    pass  # never mask the original exception
+                if existing and existing.status in {"creating", "reconciliation_required"}:
+                    cj_order_number = await self._query_existing_cj_order(event.order_id)
+                    if not cj_order_number:
+                        await self._mark_reconciliation(
+                            event.order_id, "CJ creation outcome remains unknown"
+                        )
+                        raise CJOrderAmbiguousError("CJ creation outcome remains unknown")
+                else:
+                    payload = await self._build_cj_order_payload(event)
+                    await self._record_creating(event, payload)
+                    cj_order_number = await self._submit_cj_order(event, payload)
+                await self._record_created(event, cj_order_number)
+                result = "cj_order_created"
+        except (CJOrderConfigurationError, CJProductMappingError, CJOrderCreationError) as exc:
+            self.logger.error(f"CJ order creation failed for order {event.order_id}: {exc}")
+            await self._record_failed(event, str(exc))
+            result = f"cj_order_failed: {exc}"
+        except CJOrderAmbiguousError as exc:
+            self.logger.critical(
+                "RECONCILIATION REQUIRED for local order %s: %s. Automatic refund is blocked.",
+                event.order_id,
+                exc,
+            )
+            await self.idempotency_service.release_claim(event.event_id, event.event_type)
+            raise
+        except Exception:
+            await self.idempotency_service.release_claim(event.event_id, event.event_type)
+            raise
 
-    async def _create_cj_order(self, event: OrderConfirmedEvent) -> str:
-        """Build and send a createOrderV2 request to CJ Dropshipping.
+        await self.idempotency_service.mark_event_as_processed(
+            event_id=event.event_id,
+            event_type=event.event_type,
+            order_id=event.order_id,
+            result=result,
+        )
 
-        Returns the CJ order id from the response.
-        """
+    async def _build_cj_order_payload(self, event: OrderConfirmedEvent) -> dict[str, Any]:
         address = event.address
         if not address:
             raise CJOrderConfigurationError(f"Order {event.order_id} has no shipping address")
 
-        required_address_fields = [address.street, address.city, address.province, address.postal_code]
+        required_address_fields = [
+            address.street,
+            address.city,
+            address.province,
+            address.postal_code,
+            address.country,
+            address.country_code,
+            address.name,
+            address.phone,
+        ]
         if not all(required_address_fields):
             raise CJOrderConfigurationError(f"Order {event.order_id} has incomplete shipping address")
 
@@ -313,6 +302,7 @@ class SupplierEventConsumer:
         )
 
         products = []
+        requested_by_vid: dict[str, int] = {}
         for item in event.items:
             try:
                 pid, vid = await self.product_service_client.resolve_cj_ids(
@@ -328,11 +318,28 @@ class SupplierEventConsumer:
                 "vid": vid,
                 "quantity": item.quantity,
             })
+            requested_by_vid[vid] = requested_by_vid.get(vid, 0) + item.quantity
 
         if not products:
             raise CJProductMappingError(f"Order {event.order_id} has no mappable products")
 
-        payload = {
+        if self.settings.CJ_DROPSHIPPING_VERIFY_INVENTORY:
+            for vid, requested in requested_by_vid.items():
+                try:
+                    verification = await self.inventory_verifier.verify_variant_stock(
+                        vid, requested
+                    )
+                except CJDropshippingAPIError as exc:
+                    raise CJOrderCreationError(
+                        f"Unable to verify live CJ stock for variant {vid}: {exc}"
+                    ) from exc
+                if not verification.sufficient:
+                    raise CJOrderCreationError(
+                        f"Insufficient live CJ stock for variant {vid}: requested "
+                        f"{requested}, buffered available {verification.buffered_available}"
+                    )
+
+        return {
             "orderNumber": str(event.order_id),
             "shippingZip": address.postal_code,
             "shippingCountryCode": address.country_code or "",
@@ -351,19 +358,146 @@ class SupplierEventConsumer:
             "products": products,
         }
 
-        last_error: Exception | None = None
-        max_retries = max(0, self.settings.CJ_DROPSHIPPING_ORDER_CREATE_RETRIES)
-        for attempt in range(max_retries + 1):
-            try:
-                response = await self.cj_api_client.create_order_v2(payload)
-                return self._extract_cj_order_number(response)
-            except CJDropshippingAPIError as exc:
-                last_error = exc
-                self.logger.warning(f"CJ createOrderV2 attempt {attempt + 1} failed for order {event.order_id}: {exc}")
-                if attempt < max_retries:
-                    await asyncio.sleep(0.5 * (2 ** attempt))
+    async def _submit_cj_order(
+        self, event: OrderConfirmedEvent, payload: dict[str, Any]
+    ) -> str:
+        try:
+            response = await self.cj_api_client.create_order_v2(payload)
+            return self._extract_cj_order_number(response)
+        except CJOrderCreationError:
+            raise
+        except CJDropshippingAPIError as exc:
+            # The POST may have reached CJ. Query by our stable orderNumber before
+            # doing anything that could refund a real remote order.
+            existing = await self._query_existing_cj_order(event.order_id)
+            if existing:
+                return existing
+            raise CJOrderAmbiguousError(str(exc)) from exc
 
-        raise CJOrderCreationError(f"Failed after {max_retries + 1} attempts: {last_error}") from last_error
+    async def _query_existing_cj_order(self, order_id: UUID) -> str | None:
+        try:
+            response = await self.cj_api_client.get_order_detail(str(order_id))
+        except CJDropshippingAPIError as exc:
+            raise CJOrderAmbiguousError(
+                f"Unable to reconcile CJ order {order_id}: {exc}"
+            ) from exc
+        if response.get("code") != 200 or not response.get("result"):
+            return None
+        data = response.get("data") or {}
+        value = data.get("cjOrderId") or data.get("orderId") or data.get("orderNum")
+        return str(value) if value else None
+
+    async def _get_attempt(self, order_id: UUID) -> CJOrderAttempt | None:
+        async with self.database.transaction() as session:
+            return await CJOrderAttemptRepository(session).get_by_field(
+                "order_id", order_id
+            )
+
+    async def _record_creating(
+        self, event: OrderConfirmedEvent, payload: dict[str, Any]
+    ) -> None:
+        async with self.database.transaction() as session:
+            repository = CJOrderAttemptRepository(session)
+            attempt = await repository.get_for_update(event.order_id)
+            if attempt is None:
+                await repository.create(
+                    CJOrderAttempt(
+                        order_id=event.order_id,
+                        user_id=event.user_id,
+                        status="creating",
+                        request_payload=payload,
+                    )
+                )
+            elif attempt.status != "created":
+                attempt.status = "creating"
+                attempt.request_payload = payload
+                attempt.last_error = None
+                await repository.update(attempt)
+
+    async def _record_created(
+        self, event: OrderConfirmedEvent, cj_order_number: str
+    ) -> None:
+        async with self.database.transaction() as session:
+            repository = CJOrderAttemptRepository(session)
+            attempt = await repository.get_for_update(event.order_id)
+            if attempt is None:
+                attempt = await repository.create(
+                    CJOrderAttempt(
+                        order_id=event.order_id,
+                        user_id=event.user_id,
+                        status="created",
+                        cj_order_number=cj_order_number,
+                    )
+                )
+            else:
+                attempt.status = "created"
+                attempt.cj_order_number = cj_order_number
+                attempt.last_error = None
+                await repository.update(attempt)
+            outbox_service = OutboxEventService(
+                OutboxRepository(session=session, model=OutboxEvent)
+            )
+            await outbox_service.add_outbox_event(
+                event_type=OrderEvents.CJ_ORDER_CREATED,
+                payload=CJOrderCreatedEvent(
+                    service="supplier-service",
+                    event_type=OrderEvents.CJ_ORDER_CREATED,
+                    order_id=event.order_id,
+                    user_id=event.user_id,
+                    user_email=event.user_email,
+                    cj_order_number=cj_order_number,
+                ),
+            )
+
+    async def _record_failed(self, event: OrderConfirmedEvent, reason: str) -> None:
+        async with self.database.transaction() as session:
+            repository = CJOrderAttemptRepository(session)
+            attempt = await repository.get_for_update(event.order_id)
+            if attempt is None:
+                attempt = await repository.create(
+                    CJOrderAttempt(
+                        order_id=event.order_id,
+                        user_id=event.user_id,
+                        status="failed",
+                        last_error=reason[:2000],
+                    )
+                )
+            else:
+                attempt.status = "failed"
+                attempt.last_error = reason[:2000]
+                await repository.update(attempt)
+            outbox_service = OutboxEventService(
+                OutboxRepository(session=session, model=OutboxEvent)
+            )
+            await outbox_service.add_outbox_event(
+                event_type=OrderEvents.CJ_ORDER_FAILED,
+                payload=CJOrderFailedEvent(
+                    service="supplier-service",
+                    event_type=OrderEvents.CJ_ORDER_FAILED,
+                    order_id=event.order_id,
+                    user_id=event.user_id,
+                    user_email=event.user_email,
+                    reason=reason,
+                ),
+            )
+
+    async def _mark_reconciliation(self, order_id: UUID, reason: str) -> None:
+        async with self.database.transaction() as session:
+            repository = CJOrderAttemptRepository(session)
+            attempt = await repository.get_for_update(order_id)
+            if attempt:
+                attempt.status = "reconciliation_required"
+                attempt.last_error = reason[:2000]
+                await repository.update(attempt)
+
+    async def _set_attempt_status(self, order_id: UUID, status: str) -> None:
+        async with self.database.transaction() as session:
+            repository = CJOrderAttemptRepository(session)
+            attempt = await repository.get_for_update(order_id)
+            if attempt:
+                attempt.status = status
+                attempt.last_error = None
+                await repository.update(attempt)
 
     def _extract_cj_order_number(self, response: dict[str, Any]) -> str:
         """Pull the CJ order id out of a createOrderV2 response."""
@@ -381,40 +515,3 @@ class SupplierEventConsumer:
         if not value:
             raise CJOrderConfigurationError(f"Missing required CJ setting: {name}")
         return value
-
-    async def _compensate_order(self, event: OrderConfirmedEvent, reason: str) -> None:
-        """Publish compensation events when CJ order creation fails."""
-        await self.publisher.publish_order_cancelled(
-            event_data={
-                "service": event.service,
-                "event_type": OrderEvents.ORDER_CANCELLED,
-                "order_id": str(event.order_id),
-                "user_id": str(event.user_id),
-                "user_email": event.user_email,
-                "reason": reason,
-            }
-        )
-        self.logger.info(f"Published OrderCancelledEvent for order: {event.order_id}")
-
-        release_items = [
-            OrderItemBase(
-                order_id=event.order_id,
-                product_id=item.product_id,
-                variant_id=item.variant_id,
-                quantity=item.quantity,
-                price=item.price,
-            )
-            for item in event.items
-        ]
-        await self.publisher.publish_inventory_release_requested(
-            event_data={
-                "service": event.service,
-                "event_type": InventoryEvents.INVENTORY_RELEASE_REQUESTED,
-                "order_id": str(event.order_id),
-                "user_id": str(event.user_id),
-                "user_email": event.user_email,
-                "items": [item.model_dump() for item in release_items],
-                "reason": reason,
-            }
-        )
-        self.logger.info(f"Published InventoryReleaseRequested for order: {event.order_id}")

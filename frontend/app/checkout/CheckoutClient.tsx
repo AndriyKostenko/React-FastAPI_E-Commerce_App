@@ -16,6 +16,23 @@ import { settings } from "@/lib/config";
 
 const stripePromise = loadStripe(settings.stripe.publishableKey);
 
+const buildOrderProducts = (products: ProductProps[]) =>
+    products.map((product) =>
+        product.fulfillment_type === "custom"
+            ? {
+                  id: product.id,
+                  quantity: product.quantity,
+                  fulfillment_type: "custom" as const,
+                  customization: product.customization,
+              }
+            : {
+                  id: product.id,
+                  variant_id: product.selected_variant_id ?? undefined,
+                  quantity: product.quantity,
+                  fulfillment_type: product.fulfillment_type ?? "catalog",
+              },
+    );
+
 const CheckoutClient: React.FC<CheckoutClientProps> = ({ currentUserJWT }) => {
     const { cartProducts, cartTotalAmount, handleSetPaymentIntent, paymentIntent, handleClearCart } = useCart();
     const [loading, setLoading] = useState(false);
@@ -24,6 +41,7 @@ const CheckoutClient: React.FC<CheckoutClientProps> = ({ currentUserJWT }) => {
     const [draftOrderId, setDraftOrderId] = useState<string | null>(null);
     const [createdOrderId, setCreatedOrderId] = useState<string | null>(null);
     const [paymentSuccess, setPaymentSuccess] = useState(false);
+    const [canonicalTotal, setCanonicalTotal] = useState<number | null>(null);
     const router = useRouter();
 
     useEffect(() => {
@@ -44,8 +62,7 @@ const CheckoutClient: React.FC<CheckoutClientProps> = ({ currentUserJWT }) => {
                     },
                     body: JSON.stringify({
                         order_id: draftOrderId,
-                        amount: Math.round(cartTotalAmount * 100),
-                        currency: "cad",
+                        products: buildOrderProducts(cartProducts),
                     }),
                 });
 
@@ -62,6 +79,7 @@ const CheckoutClient: React.FC<CheckoutClientProps> = ({ currentUserJWT }) => {
                 const data = await response.json();
                 setClientSecret(data.client_secret);
                 setDraftOrderId(data.order_id);
+                setCanonicalTotal(Number(data.amount) / 100);
                 handleSetPaymentIntent(data.stripe_payment_intent_id);
             } catch (fetchError) {
                 console.error("Create payment intent error:", fetchError);
@@ -92,12 +110,7 @@ const CheckoutClient: React.FC<CheckoutClientProps> = ({ currentUserJWT }) => {
             return false;
         }
 
-        const products = cartProducts.map((product: ProductProps) => ({
-            id: product.id,
-            name: product.name,
-            price: product.price,
-            quantity: product.quantity,
-        }));
+        const products = buildOrderProducts(cartProducts);
 
         try {
             setLoading(true);
@@ -111,8 +124,6 @@ const CheckoutClient: React.FC<CheckoutClientProps> = ({ currentUserJWT }) => {
                 },
                 body: JSON.stringify({
                     id: draftOrderId,
-                    amount: cartTotalAmount,
-                    currency: "cad",
                     payment_intent_id: paymentIntent,
                     products,
                     address: {
@@ -120,6 +131,10 @@ const CheckoutClient: React.FC<CheckoutClientProps> = ({ currentUserJWT }) => {
                         city: address.city,
                         province: address.state,
                         postal_code: address.postal_code,
+                        country: address.country,
+                        country_code: address.country_code,
+                        name: address.name,
+                        phone: address.phone,
                     },
                 }),
             });
@@ -144,7 +159,7 @@ const CheckoutClient: React.FC<CheckoutClientProps> = ({ currentUserJWT }) => {
         } finally {
             setLoading(false);
         }
-    }, [createdOrderId, cartProducts, currentUserJWT, paymentIntent, draftOrderId, cartTotalAmount, router]);
+    }, [createdOrderId, cartProducts, currentUserJWT, paymentIntent, draftOrderId, router]);
 
     const cancelOrderAfterFailure = useCallback(async (): Promise<void> => {
         if (!draftOrderId || !currentUserJWT) return;
@@ -163,6 +178,7 @@ const CheckoutClient: React.FC<CheckoutClientProps> = ({ currentUserJWT }) => {
             setClientSecret(undefined);
             setDraftOrderId(null);
             setCreatedOrderId(null);
+            setCanonicalTotal(null);
             handleSetPaymentIntent(null);
         }
     }, [draftOrderId, currentUserJWT, handleSetPaymentIntent]);
@@ -182,6 +198,7 @@ const CheckoutClient: React.FC<CheckoutClientProps> = ({ currentUserJWT }) => {
                 <Elements options={options} stripe={stripePromise}>
                     <CheckoutForm
                         onCreateOrder={createOrderBeforePayment}
+                        totalAmount={canonicalTotal ?? cartTotalAmount}
                         onPaymentFailed={cancelOrderAfterFailure}
                         onPaymentConfirmed={async () => {
                             handleClearCart();
@@ -189,6 +206,7 @@ const CheckoutClient: React.FC<CheckoutClientProps> = ({ currentUserJWT }) => {
                             setDraftOrderId(null);
                             setCreatedOrderId(null);
                             setClientSecret(undefined);
+                            setCanonicalTotal(null);
                             setPaymentSuccess(true);
                             toast.success("Payment successful. Order created.");
                         }}

@@ -1,14 +1,15 @@
 """Unit tests for supplier_service event consumer."""
 from contextlib import asynccontextmanager
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import ANY, AsyncMock, MagicMock
 from uuid import UUID, uuid4
 
 import pytest
 
 from event_consumer.supplier_event_consumer import SupplierEventConsumer
-from exceptions.cj_order_exceptions import CJOrderCreationError
+from exceptions.cj_order_exceptions import CJOrderCreationError, CJOrderAmbiguousError
 from service_layer.cj_api_client import CJDropshippingAPIError
+from service_layer.product_service_client import ProductServiceError
 from shared.enums.event_enums import InventoryEvents, OrderEvents, SupplierEvents
 from shared.settings import get_settings
 from shared.contracts.events import SupplierProductImportCompletedEvent
@@ -36,6 +37,9 @@ def _make_consumer(
     idempotency.release_claim = AsyncMock()
 
     cj_client = MagicMock()
+    cj_client.get_order_detail = AsyncMock(
+        return_value={"result": False, "code": 1600300, "data": None}
+    )
     if isinstance(create_order_response, Exception):
         cj_client.create_order_v2 = AsyncMock(side_effect=create_order_response)
     else:
@@ -61,6 +65,14 @@ def _make_consumer(
         product_service_client=product_client,
         publisher=publisher,
     )
+    consumer.inventory_verifier.verify_variant_stock = AsyncMock(
+        return_value=SimpleNamespace(sufficient=True, buffered_available=100)
+    )
+    consumer._get_attempt = AsyncMock(return_value=None)
+    consumer._record_creating = AsyncMock()
+    consumer._record_created = AsyncMock()
+    consumer._record_failed = AsyncMock()
+    consumer._mark_reconciliation = AsyncMock()
     return consumer
 
 
@@ -79,6 +91,7 @@ def _make_order_confirmed_message(**overrides) -> dict:
                 "variant_id": str(TEST_VARIANT_ID),
                 "quantity": 2,
                 "price": 49.99,
+                "fulfillment_type": "cj",
             }
         ],
         "address": {
@@ -97,6 +110,16 @@ def _make_order_confirmed_message(**overrides) -> dict:
 
 
 class TestHandleOrderConfirmed:
+    async def test_non_cj_lines_are_ignored(self):
+        consumer = _make_consumer(resolve_cj_ids=(TEST_PID, TEST_VID))
+        message = _make_order_confirmed_message()
+        message["items"][0]["fulfillment_type"] = "custom"
+
+        await consumer.handle_order_confirmed(message)
+
+        consumer.product_service_client.resolve_cj_ids.assert_not_awaited()
+        consumer.cj_api_client.create_order_v2.assert_not_awaited()
+
     async def test_creates_cj_order_and_publishes_event(self):
         consumer = _make_consumer(
             resolve_cj_ids=(TEST_PID, TEST_VID),
@@ -113,12 +136,15 @@ class TestHandleOrderConfirmed:
             product_id=TEST_PRODUCT_ID,
             variant_id=TEST_VARIANT_ID,
         )
+        consumer.inventory_verifier.verify_variant_stock.assert_awaited_once_with(
+            TEST_VID, 2
+        )
         consumer.cj_api_client.create_order_v2.assert_awaited_once()
-        consumer.publisher.publish_cj_order_created.assert_awaited_once()
+        consumer._record_created.assert_awaited_once_with(
+            ANY, TEST_CJ_ORDER_NUMBER
+        )
         consumer.publisher.publish_order_cancelled.assert_not_awaited()
         consumer.publisher.publish_inventory_release_requested.assert_not_awaited()
-        call_kwargs = consumer.publisher.publish_cj_order_created.call_args.kwargs["event_data"]
-        assert call_kwargs["cj_order_number"] == TEST_CJ_ORDER_NUMBER
 
     async def test_duplicate_event_is_skipped(self):
         consumer = _make_consumer(claim_event=False)
@@ -129,22 +155,18 @@ class TestHandleOrderConfirmed:
         consumer.cj_api_client.create_order_v2.assert_not_awaited()
         consumer.publisher.publish_cj_order_created.assert_not_awaited()
 
-    async def test_cj_api_failure_triggers_compensation(self):
+    async def test_ambiguous_cj_api_failure_never_compensates(self):
         consumer = _make_consumer(
             resolve_cj_ids=(TEST_PID, TEST_VID),
             create_order_response=CJDropshippingAPIError("CJ API error"),
         )
 
-        await consumer.handle_order_confirmed(_make_order_confirmed_message())
+        with pytest.raises(CJOrderAmbiguousError):
+            await consumer.handle_order_confirmed(_make_order_confirmed_message())
 
         consumer.publisher.publish_cj_order_created.assert_not_awaited()
-        consumer.publisher.publish_order_cancelled.assert_awaited_once()
-        consumer.publisher.publish_inventory_release_requested.assert_awaited_once()
-
-        release_call = consumer.publisher.publish_inventory_release_requested.call_args.kwargs["event_data"]
-        assert release_call["event_type"] == InventoryEvents.INVENTORY_RELEASE_REQUESTED
-        assert len(release_call["items"]) == 1
-        assert release_call["items"][0]["product_id"] == TEST_PRODUCT_ID
+        consumer._record_failed.assert_not_awaited()
+        consumer.idempotency_service.release_claim.assert_awaited_once()
 
     async def test_missing_address_triggers_compensation(self):
         consumer = _make_consumer(resolve_cj_ids=(TEST_PID, TEST_VID))
@@ -153,19 +175,17 @@ class TestHandleOrderConfirmed:
         await consumer.handle_order_confirmed(message)
 
         consumer.cj_api_client.create_order_v2.assert_not_awaited()
-        consumer.publisher.publish_order_cancelled.assert_awaited_once()
-        consumer.publisher.publish_inventory_release_requested.assert_awaited_once()
+        consumer._record_failed.assert_awaited_once()
 
     async def test_product_mapping_error_triggers_compensation(self):
         consumer = _make_consumer(
-            resolve_cj_ids=CJDropshippingAPIError("product not found"),
+            resolve_cj_ids=ProductServiceError("product not found"),
         )
 
         await consumer.handle_order_confirmed(_make_order_confirmed_message())
 
         consumer.cj_api_client.create_order_v2.assert_not_awaited()
-        consumer.publisher.publish_order_cancelled.assert_awaited_once()
-        consumer.publisher.publish_inventory_release_requested.assert_awaited_once()
+        consumer._record_failed.assert_awaited_once()
 
     async def test_cj_response_missing_order_id_raises(self):
         consumer = _make_consumer(
@@ -175,8 +195,9 @@ class TestHandleOrderConfirmed:
 
         from shared.contracts.events import OrderConfirmedEvent
         event = OrderConfirmedEvent(**_make_order_confirmed_message())
+        payload = await consumer._build_cj_order_payload(event)
         with pytest.raises(CJOrderCreationError):
-            await consumer._create_cj_order(event)
+            await consumer._submit_cj_order(event, payload)
 
 
 class TestHandleImportFeedback:

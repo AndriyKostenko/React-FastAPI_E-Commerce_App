@@ -533,6 +533,29 @@ services:
     volumes:
       - ./shared:/app/shared:ro
 
+  order-saga-timeout-worker:
+    build:
+      context: ./order_service
+      dockerfile: Dockerfile
+      target: runtime
+    command: ["python", "saga_timeout_worker.py"]
+    healthcheck:
+      disable: true
+    restart: unless-stopped
+    depends_on:
+      order-service:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    env_file:
+      - .env
+    networks:
+      - usernet
+    volumes:
+      - ./shared:/app/shared:ro
+
   order-consumer:
     build:
       context: ./order_service
@@ -784,6 +807,29 @@ services:
       redis:
         condition: service_healthy
       shipping-service:
+        condition: service_healthy
+    env_file:
+      - .env
+    networks:
+      - usernet
+    volumes:
+      - ./shared:/app/shared:ro
+
+  shipping-outbox-worker:
+    build:
+      context: ./shipping_service
+      dockerfile: Dockerfile
+      target: runtime
+    command: ["python", "outbox_worker.py"]
+    healthcheck:
+      disable: true
+    restart: unless-stopped
+    depends_on:
+      shipping-service:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
     env_file:
       - .env

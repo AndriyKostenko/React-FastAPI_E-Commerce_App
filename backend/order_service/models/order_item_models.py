@@ -26,6 +26,12 @@ class OrderItem(Base, TimestampMixin):
     price: Mapped[float] = mapped_column(nullable=False)
 
     order: Mapped['Order'] = relationship('Order', back_populates='items')
+    fulfillment: Mapped['OrderLineFulfillment | None'] = relationship(
+        'OrderLineFulfillment',
+        back_populates='order_item',
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
 
     @classmethod
     def get_search_fields(cls) -> list[str]:
@@ -67,3 +73,6 @@ class OrderItem(Base, TimestampMixin):
 
         type_name = sql_type.__class__.__name__.upper()
         return type_mapping.get(type_name, 'string')
+
+
+from models.order_fulfillment_models import OrderLineFulfillment  # noqa: E402,F401

@@ -12,6 +12,12 @@ class CJDropshippingAPIError(Exception):
     pass
 
 
+class CJDropshippingNetworkError(CJDropshippingAPIError):
+    """The request outcome is unknown because no authoritative response arrived."""
+
+    pass
+
+
 class CJDropshippingAPIClient:
     """Low-level HTTP client for CJ Dropshipping API 2.0.
 
@@ -109,7 +115,7 @@ class CJDropshippingAPIClient:
             response.raise_for_status()
             return response.json()
         except RequestError as exc:
-            raise CJDropshippingAPIError(f"Network error calling CJ API: {exc}") from exc
+            raise CJDropshippingNetworkError(f"Network error calling CJ API: {exc}") from exc
         except HTTPStatusError as exc:
             if exc.response.status_code == 401 and _retry_on_401 and url != self.settings.CJ_DROPSHIPPING_ACCESS_TOKEN_URL:
                 new_token = await self.ensure_access_token(force_refresh=True)
@@ -162,4 +168,20 @@ class CJDropshippingAPIClient:
             json=payload,
             access_token=self._access_token,
             timeout=self.settings.CJ_DROPSHIPPING_ORDER_CREATE_TIMEOUT_SECONDS,
+        )
+
+    async def get_order_detail(self, order_id: str) -> dict[str, Any]:
+        """Query by the merchant order number or CJ order id."""
+        return await self.request(
+            "GET",
+            self.settings.CJ_DROPSHIPPING_ORDER_DETAIL_URL,
+            params={"orderId": order_id},
+        )
+
+    async def delete_order(self, order_id: str) -> dict[str, Any]:
+        """Delete a CJ order while it is still in CREATED/IN_CART state."""
+        return await self.request(
+            "DELETE",
+            self.settings.CJ_DROPSHIPPING_DELETE_ORDER_URL,
+            params={"orderId": order_id},
         )

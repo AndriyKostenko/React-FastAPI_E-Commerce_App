@@ -123,9 +123,9 @@ async def handle_order_shipping_events(body: dict[str, Any]) -> None:
 
 
 cj_order_created_queue = RabbitQueue(
-    name="order.cj.order.created.queue",
+    name="order.cj.order.events.queue",
     durable=True,
-    routing_key=OrderEvents.CJ_ORDER_CREATED,
+    routing_key="cj.order.*",
     arguments={
         "x-dead-letter-exchange": "dlx",
         "x-dead-letter-routing-key": "order.cj.order.created.dlq",
@@ -135,5 +135,5 @@ cj_order_created_queue = RabbitQueue(
 
 @rabbitmq_broker.subscriber(queue=cj_order_created_queue, exchange=order_exchange)
 async def handle_cj_order_created(body: dict[str, Any]) -> None:
-    """Persist the CJ Dropshipping order number on the local order."""
-    await get_order_event_consumer().handle_cj_order_created(body)
+    """Persist CJ success or compensate a definitive CJ failure."""
+    await get_order_event_consumer().handle_cj_order_event(body)

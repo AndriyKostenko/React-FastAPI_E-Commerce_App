@@ -19,6 +19,8 @@ class PaymentIntentResponse(BaseModel):
     stripe_payment_intent_id: str
     payment_id: str
     order_id: str
+    amount: int
+    currency: str
 
 
 class WebhookAckResponse(BaseModel):

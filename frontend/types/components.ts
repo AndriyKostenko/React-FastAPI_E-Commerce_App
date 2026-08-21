@@ -1,4 +1,4 @@
-import type { MouseEvent, ReactNode } from "react";
+import type { MouseEventHandler, ReactNode } from "react";
 import type { IconType } from "react-icons";
 
 export interface ContainerProps {
@@ -16,9 +16,9 @@ export interface AvatarProps {
 
 export interface ActionBtnProps {
     icon: IconType;
-    
+    onClick?: MouseEventHandler<HTMLButtonElement>;
+    disabled?: boolean;
     variant?: "default" | "keyboard" | "secondary";
-    
 }
 
 export interface StatusProps {

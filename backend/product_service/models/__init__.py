@@ -2,6 +2,7 @@ from .base import Base
 from .product_models import Product
 from .review_models import ProductReview
 from .product_image_models import ProductImage
+from .inventory_reservation_models import InventoryReservation
 from .product_variant_models import ProductVariant
 from .category_models import ProductCategory
 from .outbox_models import OutboxEvent
@@ -16,4 +17,5 @@ __all__ = [
     "ProductCategory",
     "OutboxEvent",
     "SupplierImportBatch",
+    "InventoryReservation",
 ]

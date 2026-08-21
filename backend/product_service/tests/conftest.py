@@ -56,6 +56,7 @@ from models.product_image_models import ProductImage
 from models.product_models import Product
 from models.product_variant_models import ProductVariant
 from models.review_models import ProductReview
+from database_layer.inventory_reservation_repository import InventoryReservationRepository
 from service_layer.category_service import CategoryService
 from service_layer.product_service import ProductService
 from service_layer.review_service import ReviewService
@@ -77,6 +78,14 @@ from shared.testing.helpers import allow_testserver_host
 
 settings = get_settings()
 test_settings = get_test_settings()
+
+
+class _AsyncContextManagerMock:
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *args):
+        return None
 
 
 # ---------------------------------------------------------------------------
@@ -161,6 +170,7 @@ def mock_product_orm() -> MagicMock:
     product = MagicMock()
     product.id = TEST_PRODUCT_ID
     product.pid = None
+    product.supplier_id = None
     product.name = "test laptop"
     product.description = "A high-quality test laptop for testing purposes"
     product.category_id = TEST_CATEGORY_ID
@@ -225,6 +235,8 @@ def mock_product_repository() -> MagicMock:
     repo.get_many_by_field = AsyncMock()
     repo.atomic_decrement_quantity = AsyncMock()
     repo.atomic_increment_quantity = AsyncMock()
+    repo.session = MagicMock()
+    repo.session.begin_nested = MagicMock(return_value=_AsyncContextManagerMock())
     return repo
 
 
@@ -278,9 +290,18 @@ def product_service_unit(
     mock_product_image_service: MagicMock,
 ) -> ProductService:
     """ProductService wired with all mocked dependencies."""
+    variant_repository = MagicMock()
+    variant_repository.atomic_decrement_inventory = AsyncMock()
+    variant_repository.atomic_increment_inventory = AsyncMock()
+    reservation_repository = MagicMock(spec=InventoryReservationRepository)
+    reservation_repository.get_order_for_update = AsyncMock(return_value=[])
+    reservation_repository.create = AsyncMock(side_effect=lambda row: row)
+    reservation_repository.update = AsyncMock(side_effect=lambda row: row)
     return ProductService(
         repository=mock_product_repository,
         product_image_service=mock_product_image_service,
+        variant_repository=variant_repository,
+        reservation_repository=reservation_repository,
     )
 
 

@@ -1,6 +1,6 @@
 import { settings } from "@/lib/config";
 
-export const resolveImageUrl = (url: string): string => {
+export const resolveImageUrl = (url: string | null | undefined): string => {
     if (!url) return "";
     // Already absolute (e.g. Firebase Storage, external CDN)
     if (url.startsWith("http")) return url;

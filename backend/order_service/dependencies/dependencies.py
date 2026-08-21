@@ -11,6 +11,7 @@ from service_layer.order_service import OrderService
 from service_layer.order_item_service import OrderItemService
 from service_layer.order_address_service import OrderAddressService
 from service_layer.outbox_event_service import OutboxEventService
+from service_layer.order_pricing_service import OrderPricingService
 from models.outbox_models import OutboxEvent
 from database_layer.order_repository import OrderRepository
 from resources import OrderApiResources, get_order_api_resources
@@ -55,7 +56,8 @@ def get_outbox_service(session: AsyncSession = Depends(get_db_session)) -> Outbo
     """
     return OutboxEventService(repository=OutboxRepository(session=session, model=OutboxEvent))
 
-def get_order_service(session: AsyncSession = Depends(get_db_session),
+def get_order_service(resources: OrderApiResources = Depends(get_api_resources),
+                      session: AsyncSession = Depends(get_db_session),
                       order_item_service: OrderItemService = Depends(get_order_item_service),
                       order_address_service: OrderAddressService = Depends(get_order_address_service),
                       outbox_event_service: OutboxEventService = Depends(get_outbox_service)) -> OrderService:
@@ -66,7 +68,11 @@ def get_order_service(session: AsyncSession = Depends(get_db_session),
     return OrderService(repository=OrderRepository(session=session),
                         outbox_event_service=outbox_event_service,
                         order_item_service=order_item_service,
-                        order_address_service=order_address_service)
+                        order_address_service=order_address_service,
+                        pricing_service=OrderPricingService(
+                            settings=resources.settings,
+                            catalog_client=resources.catalog_client,
+                        ))
 
 order_address_dependency = Annotated[OrderAddressService, Depends(get_order_address_service)]
 order_item_dependency = Annotated[OrderItemService, Depends(get_order_item_service)]

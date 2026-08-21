@@ -80,27 +80,9 @@ const HeroSection = ({isRegisteredUser, currentUserJWT}: HeroSectionProps) => {
         return Math.round(unitPrice * quantity * 100) / 100;
     }, [basePrice, placement, quantity, size]);
 
-    const getStableHash = (value: string): string => {
-        let hash = 0;
-        for (let index = 0; index < value.length; index += 1) {
-            hash = (hash << 5) - hash + value.charCodeAt(index);
-            hash |= 0;
-        }
-        return Math.abs(hash).toString(16);
-    };
-
     const handleAddToCart = () => {
         const promptLabel = selectedPrompt.trim() || currentDesign.title;
-        const customKey = [
-            promptLabel,
-            selectedStyle,
-            placement,
-            size,
-            garmentColor,
-            gender,
-            currentDesign.image,
-        ].join("|");
-        const customId = `custom-${getStableHash(customKey)}`;
+        const customId = crypto.randomUUID();
         const unitPrice =
             Math.round((finalPrice / Math.max(quantity, 1)) * 100) / 100;
 
@@ -120,6 +102,16 @@ const HeroSection = ({isRegisteredUser, currentUserJWT}: HeroSectionProps) => {
             price: unitPrice,
             quantity,
             brand: "AIGEN Custom",
+            fulfillment_type: "custom",
+            customization: {
+                design_url: currentDesign.image,
+                prompt: promptLabel,
+                style: selectedStyle,
+                size,
+                garment_color: garmentColor === "bg-black" ? "black" : "white",
+                placement,
+                gender: gender as "Male" | "Female" | "X",
+            },
             in_stock: true,
             date_created: new Date().toISOString(),
             selected_image: selectedImage,

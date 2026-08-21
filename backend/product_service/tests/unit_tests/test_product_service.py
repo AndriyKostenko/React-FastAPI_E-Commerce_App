@@ -18,8 +18,82 @@ from exceptions.product_exceptions import (
     ProductUpdateError,
 )
 from shared.contracts.order import OrderItem as OrderItemBase
-from schemas.product_schemas import CreateProduct, CreateProductVariant, UpdateProduct
+from schemas.product_schemas import (
+    CreateProduct,
+    CreateProductVariant,
+    OrderQuoteLineRequest,
+    UpdateProduct,
+)
 from service_layer.product_service import ProductService
+
+
+class TestOrderQuote:
+    async def test_catalog_quote_uses_server_price_and_selected_variant(
+        self, product_service_unit, mock_product_orm
+    ) -> None:
+        variant_id = uuid4()
+        variant = SimpleNamespace(
+            id=variant_id,
+            active=True,
+            inventory_num=5,
+            variant_sug_sell_price=Decimal("27.50"),
+            variant_sell_price=Decimal("25.00"),
+            vid="supplier-variant",
+            variant_name_en="Black / M",
+            variant_sku="SKU-M-BLK",
+            variant_key="Black-M",
+            variant_image="/variant.png",
+        )
+        mock_product_orm.price = Decimal("999.99")
+        mock_product_orm.quantity = 5
+        mock_product_orm.variants = [variant]
+        product_service_unit.repository.get_by_id = AsyncMock(
+            return_value=mock_product_orm
+        )
+
+        quote = await product_service_unit.quote_order_items(
+            [
+                OrderQuoteLineRequest(
+                    product_id=mock_product_orm.id,
+                    variant_id=variant_id,
+                    quantity=2,
+                )
+            ]
+        )
+
+        assert quote.items[0].unit_price == Decimal("27.50")
+        assert quote.total_amount == Decimal("55.00")
+
+    async def test_cj_quote_rejects_product_without_active_variant(
+        self, product_service_unit, mock_product_orm
+    ) -> None:
+        mock_product_orm.supplier_id = "cjdropshipping"
+        mock_product_orm.variants = []
+        product_service_unit.repository.get_by_id = AsyncMock(
+            return_value=mock_product_orm
+        )
+
+        with pytest.raises(ProductNotFoundError, match="no active variants"):
+            await product_service_unit.quote_order_items(
+                [
+                    OrderQuoteLineRequest(
+                        product_id=mock_product_orm.id,
+                        quantity=1,
+                    )
+                ]
+            )
+
+    async def test_quote_aggregates_duplicate_line_inventory(
+        self, product_service_unit, mock_product_orm
+    ) -> None:
+        mock_product_orm.quantity = 3
+        product_service_unit.repository.get_by_id = AsyncMock(
+            return_value=mock_product_orm
+        )
+        line = OrderQuoteLineRequest(product_id=mock_product_orm.id, quantity=2)
+
+        with pytest.raises(ProductNotFoundError, match="Insufficient inventory"):
+            await product_service_unit.quote_order_items([line, line])
 
 
 # ---------------------------------------------------------------------------
@@ -343,11 +417,40 @@ class TestReleaseInventory:
         mock_product_repository.atomic_increment_quantity.return_value = mock_product_orm
 
         item = OrderItemBase(order_id=uuid4(), product_id=mock_product_orm.id, quantity=3, price=9.99)
+        product_service_unit.reservation_repository.get_order_for_update.return_value = [
+            SimpleNamespace(
+                product_id=item.product_id,
+                variant_id=None,
+                quantity=item.quantity,
+                status="reserved",
+            )
+        ]
         await product_service_unit.release_inventory([item])
 
         mock_product_repository.atomic_increment_quantity.assert_awaited_once_with(
             item_id=mock_product_orm.id, amount=3
         )
+
+    async def test_release_is_idempotent_across_distinct_events(
+        self, product_service_unit, mock_product_repository, mock_product_orm
+    ) -> None:
+        item = OrderItemBase(
+            order_id=uuid4(), product_id=mock_product_orm.id, quantity=3, price=9.99
+        )
+        reservation = SimpleNamespace(
+            product_id=item.product_id,
+            variant_id=None,
+            quantity=item.quantity,
+            status="reserved",
+        )
+        product_service_unit.reservation_repository.get_order_for_update.return_value = [reservation]
+        mock_product_repository.atomic_increment_quantity.return_value = mock_product_orm
+
+        await product_service_unit.release_inventory([item])
+        await product_service_unit.release_inventory([item])
+
+        assert mock_product_repository.atomic_increment_quantity.await_count == 1
+        assert reservation.status == "released"
 
     async def test_release_raises_when_product_not_found(
         self,
@@ -358,6 +461,14 @@ class TestReleaseInventory:
 
         from exceptions.product_exceptions import ProductReleaseError
         item = OrderItemBase(order_id=uuid4(), product_id=uuid4(), quantity=1, price=9.99)
+        product_service_unit.reservation_repository.get_order_for_update.return_value = [
+            SimpleNamespace(
+                product_id=item.product_id,
+                variant_id=None,
+                quantity=item.quantity,
+                status="reserved",
+            )
+        ]
         with pytest.raises(ProductReleaseError):
             await product_service_unit.release_inventory([item])
 
@@ -428,8 +539,9 @@ class TestReserveInventoryRollback:
         mock_product_repository: MagicMock,
         mock_product_orm: MagicMock,
     ) -> None:
-        first_item = OrderItemBase(order_id=uuid4(), product_id=uuid4(), quantity=1, price=9.99)
-        second_item = OrderItemBase(order_id=uuid4(), product_id=uuid4(), quantity=5, price=9.99)
+        order_id = uuid4()
+        first_item = OrderItemBase(order_id=order_id, product_id=uuid4(), quantity=1, price=9.99)
+        second_item = OrderItemBase(order_id=order_id, product_id=uuid4(), quantity=5, price=9.99)
 
         # First decrement succeeds, second fails.
         mock_product_repository.atomic_decrement_quantity.side_effect = [mock_product_orm, None]
@@ -440,6 +552,4 @@ class TestReserveInventoryRollback:
         assert result["success"] is False
         assert result["failed_products"] == [second_item]
         assert "not found" in result["reasons"].lower()
-        mock_product_repository.atomic_increment_quantity.assert_awaited_once_with(
-            item_id=first_item.product_id, amount=first_item.quantity
-        )
+        mock_product_repository.atomic_increment_quantity.assert_not_awaited()

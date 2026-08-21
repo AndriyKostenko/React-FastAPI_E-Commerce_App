@@ -25,7 +25,7 @@ class Order(Base, TimestampMixin):
     currency: Mapped[str] = mapped_column(nullable=False)
     status: Mapped[str] = mapped_column(nullable=False)
     delivery_status: Mapped[str] = mapped_column(nullable=False)
-    payment_intent_id: Mapped[str] = mapped_column(unique=True, nullable=True)
+    payment_intent_id: Mapped[str | None] = mapped_column(unique=True, nullable=True)
     address_id: Mapped[UUID] = mapped_column(ForeignKey('order_addresses.id'), nullable=False)
     cj_order_number: Mapped[str | None] = mapped_column(nullable=True)
 

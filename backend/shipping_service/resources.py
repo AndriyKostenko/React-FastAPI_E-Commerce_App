@@ -75,3 +75,26 @@ def get_shipping_api_resources(connection: HTTPConnection) -> ShippingApiResourc
     if not isinstance(resources, ShippingApiResources):
         raise RuntimeError("Shipping API resources are not initialized")
     return resources
+
+
+@dataclass(slots=True)
+class ShippingOutboxResources:
+    settings: Settings
+    logger: Logger
+    database: DatabaseSessionManager
+    event_publisher: ShippingEventPublisher
+
+
+@asynccontextmanager
+async def shipping_outbox_runtime() -> AsyncIterator[ShippingOutboxResources]:
+    api_resources = create_shipping_api_resources(settings, logger)
+    resources = ShippingOutboxResources(
+        settings=settings,
+        logger=logger,
+        database=api_resources.database,
+        event_publisher=api_resources.event_publisher,
+    )
+    async with AsyncExitStack() as stack:
+        await stack.enter_async_context(resources.database)
+        await stack.enter_async_context(resources.event_publisher)
+        yield resources

@@ -16,7 +16,7 @@ from uuid import uuid4
 
 import pytest
 from fastapi.responses import JSONResponse
-from httpx import AsyncClient, ASGITransport
+from httpx import AsyncClient, ASGITransport, Response as HttpxResponse
 
 from main import app
 from resources import (
@@ -95,7 +95,19 @@ def mock_forward() -> AsyncMock:
     )
 
 
-def _make_client(current_user: CurrentUserInfo, mock_forward: AsyncMock):
+@pytest.fixture
+def mock_service_request() -> AsyncMock:
+    async def response_for(_request, _service, path, **_kwargs):
+        if path == "/orders/quote":
+            return HttpxResponse(200, json={"amount": 99.98, "currency": "cad"})
+        return HttpxResponse(
+            200,
+            json={**MOCK_UPSTREAM_RESPONSE_BODY, "user_id": str(TEST_USER_ID)},
+        )
+    return AsyncMock(side_effect=response_for)
+
+
+def _make_client(current_user: CurrentUserInfo, mock_forward: AsyncMock, mock_service_request: AsyncMock):
     """Context manager returning an AsyncClient with all gateway dependencies mocked."""
 
     original_debug_mode = settings.DEBUG_MODE
@@ -118,6 +130,7 @@ def _make_client(current_user: CurrentUserInfo, mock_forward: AsyncMock):
         patch.object(resources.cache, "cache_response", new=AsyncMock()),
         patch.object(resources.cache, "invalidate_namespace", new=AsyncMock()),
         patch.object(api_gateway_manager, "forward_request", mock_forward),
+        patch.object(api_gateway_manager, "request_service", mock_service_request),
     ]
 
     class _ClientContextManager:
@@ -144,14 +157,14 @@ def _make_client(current_user: CurrentUserInfo, mock_forward: AsyncMock):
 
 
 @pytest.fixture
-async def client(mock_forward: AsyncMock) -> AsyncGenerator[AsyncClient, Any]:
+async def client(mock_forward: AsyncMock, mock_service_request: AsyncMock) -> AsyncGenerator[AsyncClient, Any]:
     """AsyncClient logged in as a regular user."""
-    async with _make_client(TEST_REGULAR_USER, mock_forward) as c:
+    async with _make_client(TEST_REGULAR_USER, mock_forward, mock_service_request) as c:
         yield c
 
 
 @pytest.fixture
-async def admin_client(mock_forward: AsyncMock) -> AsyncGenerator[AsyncClient, Any]:
+async def admin_client(mock_forward: AsyncMock, mock_service_request: AsyncMock) -> AsyncGenerator[AsyncClient, Any]:
     """AsyncClient logged in as an admin user."""
-    async with _make_client(TEST_ADMIN_USER, mock_forward) as c:
+    async with _make_client(TEST_ADMIN_USER, mock_forward, mock_service_request) as c:
         yield c

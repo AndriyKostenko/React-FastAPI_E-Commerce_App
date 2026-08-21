@@ -50,6 +50,8 @@ const ProductDetails: React.FC<{ product: ProductProps | null }> = ({
               ];
 
     const { handleAddProductToCart, cartProducts } = useCart();
+    const initialVariant = product.variants?.find((variant) => variant.active);
+    const isCjProduct = product.supplier_id === "cjdropshipping";
 
     const [isProductInCart, setIsProductInCart] = useState(false);
 
@@ -61,11 +63,18 @@ const ProductDetails: React.FC<{ product: ProductProps | null }> = ({
         name: product.name,
         description: product.description,
         brand: product.brand,
-        price: product.price,
+        price:
+            initialVariant?.variant_sug_sell_price ??
+            initialVariant?.variant_sell_price ??
+            product.price,
         date_created: product.date_created,
         selected_image: productImages[0],
         reviews: product.reviews,
         images: productImages,
+        supplier_id: product.supplier_id,
+        variants: product.variants,
+        selected_variant_id: initialVariant?.id ?? null,
+        fulfillment_type: isCjProduct ? "cj" : "catalog",
     });
 
     useEffect(() => {
@@ -73,13 +82,16 @@ const ProductDetails: React.FC<{ product: ProductProps | null }> = ({
 
         if (cartProducts) {
             const existingIndexProduct = cartProducts.findIndex(
-                (item) => item.id === product.id,
+                (item) =>
+                    item.id === product.id &&
+                    (item.selected_variant_id ?? null) ===
+                        (cartProduct.selected_variant_id ?? null),
             );
             if (existingIndexProduct > -1) {
                 setIsProductInCart(true);
             }
         }
-    }, [cartProducts, product.id]);
+    }, [cartProducts, cartProduct.selected_variant_id, product.id]);
 
     const handleColorSelect = useCallback((value: ImageProps) => {
         setCartProduct((currentProduct) => {
@@ -88,13 +100,20 @@ const ProductDetails: React.FC<{ product: ProductProps | null }> = ({
     }, []);
 
     const handleQtyIncrease = useCallback(() => {
-        if (cartProduct.quantity >= product.quantity) {
+        const selectedVariant = product.variants?.find(
+            (variant) => variant.id === cartProduct.selected_variant_id,
+        );
+        const availableQuantity = Math.min(
+            product.quantity,
+            selectedVariant?.inventory_num ?? product.quantity,
+        );
+        if (cartProduct.quantity >= availableQuantity) {
             return;
         }
         setCartProduct((previousQty) => {
             return { ...previousQty, quantity: previousQty.quantity + 1 };
         });
-    }, [cartProduct.quantity, product.quantity]);
+    }, [cartProduct.quantity, cartProduct.selected_variant_id, product.quantity, product.variants]);
 
     const handleQtyDecrease = useCallback(() => {
         if (cartProduct.quantity == 1) {
@@ -110,7 +129,16 @@ const ProductDetails: React.FC<{ product: ProductProps | null }> = ({
             ? calculateAvarageRating(product.reviews)
             : 0;
     const reviewCount = product.reviews?.length ?? 0;
-    const inStock = product.quantity > 0;
+    const selectedVariant = product.variants?.find(
+        (variant) => variant.id === cartProduct.selected_variant_id,
+    );
+    const selectedVariantAvailable =
+        selectedVariant?.inventory_num == null || selectedVariant.inventory_num > 0;
+    const inStock =
+        product.in_stock &&
+        product.quantity > 0 &&
+        selectedVariantAvailable &&
+        (!isCjProduct || Boolean(selectedVariant));
 
     return (
         <section className="glass-card p-6 md:p-8">
@@ -142,7 +170,7 @@ const ProductDetails: React.FC<{ product: ProductProps | null }> = ({
                     </div>
 
                     <div className="font-price-lg text-primary">
-                        {formatPrice(product.price)}
+                        {formatPrice(cartProduct.price)}
                     </div>
 
                     <p className="text-justify">{product.description}</p>
@@ -183,6 +211,38 @@ const ProductDetails: React.FC<{ product: ProductProps | null }> = ({
                     </div>
 
                     <div className="border-t border-white/30" />
+
+                    {product.variants && product.variants.length > 0 && (
+                        <label className="flex flex-col gap-2 max-w-[420px]">
+                            <span className="font-label-bold text-primary">VARIANT</span>
+                            <select
+                                className="rounded-xl border border-white/40 bg-white/60 px-3 py-2"
+                                value={cartProduct.selected_variant_id ?? ""}
+                                onChange={(event) => {
+                                    const selected = product.variants?.find(
+                                        (variant) => variant.id === event.target.value,
+                                    );
+                                    if (!selected) return;
+                                    setCartProduct((current) => ({
+                                        ...current,
+                                        selected_variant_id: selected.id,
+                                        price:
+                                            selected.variant_sug_sell_price ??
+                                            selected.variant_sell_price ??
+                                            product.price,
+                                    }));
+                                }}
+                            >
+                                {product.variants
+                                    .filter((variant) => variant.active)
+                                    .map((variant) => (
+                                        <option key={variant.id} value={variant.id}>
+                                            {variant.variant_name_en ?? variant.variant_key ?? variant.variant_sku ?? variant.vid}
+                                        </option>
+                                    ))}
+                            </select>
+                        </label>
+                    )}
 
                     {isProductInCart && (
                         <div className="flex flex-col gap-3">
