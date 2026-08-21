@@ -2,6 +2,8 @@ from enum import Enum
 
 from pydantic import BaseModel, Field
 
+from shared.contracts.artwork import GeneratedArtworkAsset
+
 
 class GenerateImageRequest(BaseModel):
     prompt: str = Field(..., min_length=5, max_length=1000)
@@ -11,6 +13,7 @@ class GenerateImageRequest(BaseModel):
 
 class GenerateImageResponse(BaseModel):
     image_url: str
+    design_asset: GeneratedArtworkAsset
     model: str
     remaining_generations: int | None = None
     guest_limit: int | None = None
@@ -36,5 +39,6 @@ class ImageGenerationJobStatusResponse(BaseModel):
     job_id: str
     status: ImageJobStatus
     image_url: str | None = None
+    design_asset: GeneratedArtworkAsset | None = None
     model: str | None = None
     error: str | None = None

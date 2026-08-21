@@ -1,6 +1,7 @@
 import type { CategoryProps } from "@/types/category";
 import type { ImageProps } from "@/types/image";
 import type { ReviewProps } from "@/types/review";
+import type { GeneratedArtworkAsset } from "@/types/generation";
 
 export interface ProductVariantProps {
     id: string;
@@ -16,13 +17,16 @@ export interface ProductVariantProps {
 }
 
 export interface CustomTshirtSpecification {
-    design_url: string;
+    design_asset: GeneratedArtworkAsset;
     prompt: string;
     style: string;
     size: "S" | "M" | "L";
     garment_color: "white" | "black";
     placement: string;
     gender: "Male" | "Female" | "X";
+    print_width_in?: number;
+    print_height_in?: number;
+    effective_dpi?: number;
 }
 
 export interface ProductProps {

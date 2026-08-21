@@ -32,13 +32,22 @@ const isGeneratedDesignPayload = (value: unknown): value is GeneratedDesignPaylo
 
     if (typeof design !== "object" || design === null) return false;
     const designObj = design as Record<string, unknown>;
+    const asset = designObj.asset;
+    if (typeof asset !== "object" || asset === null) return false;
+    const assetObj = asset as Record<string, unknown>;
 
     return (
         typeof payload.prompt === "string" &&
         isStyleOption(payload.style) &&
         typeof designObj.title === "string" &&
         typeof designObj.image === "string" &&
-        typeof designObj.price === "number"
+        typeof designObj.price === "number" &&
+        typeof assetObj.key === "string" &&
+        typeof assetObj.width_px === "number" &&
+        typeof assetObj.height_px === "number" &&
+        typeof assetObj.embedded_dpi === "number" &&
+        typeof assetObj.sha256 === "string" &&
+        typeof assetObj.token === "string"
     );
 };
 

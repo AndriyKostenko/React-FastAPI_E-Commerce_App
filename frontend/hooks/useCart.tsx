@@ -21,8 +21,6 @@ export const CartContextProvider = (props: Props) => {
     const [cartTotalAmount, setCartTottalAmount] = useState(0);
     const [paymentIntent, setPaymentIntent] = useState<string | null>(null)
 
-    console.log('Cart Products in CartComntextProvider:',cartProducts)
-
     useEffect(() => {
         const cartItems: any | null = localStorage.getItem('eShopCartItems');
         const Products: ProductProps[] | null = cartItems ? JSON.parse(cartItems) : null;
@@ -80,14 +78,12 @@ export const CartContextProvider = (props: Props) => {
                 }
             } else {
                 updatedCart = [product]
-                console.log('Cart is updated with product:', product)
             }
 
             localStorage.setItem('eShopCartItems', JSON.stringify(updatedCart));
             return updatedCart;
         })
         toast.success('Product added to cart');
-        console.log('product added to cart');
 
     }, [])
 

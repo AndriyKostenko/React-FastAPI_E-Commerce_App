@@ -1,7 +1,7 @@
 from decimal import Decimal
 from functools import lru_cache
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID, uuid4
 from datetime import datetime
 
@@ -198,6 +198,42 @@ class Settings(BaseSettings):
     PRODUCT_IMAGE_REGISTERED_GENERATION_LIMIT: int = 10
     PRODUCT_IMAGE_GUEST_GENERATION_WINDOW_HOURS: int = 24
     GUEST_QUOTA_COOKIE: str
+
+    # Dedicated production resolution; kept separate from the older preview
+    # setting so an existing 1024x1024 environment cannot silently create
+    # artwork that is too small to print.
+    PRINT_IMAGE_GENERATION_SIZE: str = "4K"
+
+    # Immutable generated-artwork storage. Production should use ``s3`` and
+    # workload IAM credentials; static AWS access keys are intentionally not
+    # part of application settings.
+    ARTWORK_STORAGE_BACKEND: Literal["local", "s3"] = "local"
+    ARTWORK_SIGNING_SECRET: SecretStr | None = None
+    AWS_S3_ARTWORK_BUCKET: str | None = None
+    AWS_S3_REGION: str | None = None
+    AWS_S3_ENDPOINT_URL: str | None = None
+    AWS_S3_PUBLIC_BASE_URL: str | None = None
+    AWS_S3_KMS_KEY_ID: str | None = None
+    AWS_S3_PRESIGNED_URL_TTL_SECONDS: int = Field(default=3600, ge=60, le=604800)
+
+    # 2250x2700 supports a 15x18 inch maximum garment area at 150 effective
+    # DPI. The preferred provider request is 4K; no artificial upscaling is
+    # performed by the storage layer.
+    PRINT_IMAGE_MIN_WIDTH_PX: int = Field(default=2250, ge=1, le=30_000)
+    PRINT_IMAGE_MIN_HEIGHT_PX: int = Field(default=2700, ge=1, le=30_000)
+    PRINT_IMAGE_MAX_DIMENSION_PX: int = Field(default=6000, ge=1, le=30_000)
+    PRINT_IMAGE_MAX_PIXELS: int = Field(default=36_000_000, ge=1)
+    PRINT_IMAGE_MAX_BYTES: int = Field(default=50_000_000, ge=1)
+    PRINT_IMAGE_EMBEDDED_DPI: int = Field(default=300, ge=72, le=1200)
+    PRINT_IMAGE_MIN_EFFECTIVE_DPI: int = Field(default=150, ge=72, le=600)
+
+    @property
+    def ARTWORK_SIGNING_KEY(self) -> str:
+        """Use a dedicated key when configured, with a migration-safe fallback."""
+
+        if self.ARTWORK_SIGNING_SECRET is not None:
+            return self.ARTWORK_SIGNING_SECRET.get_secret_value()
+        return self.SECRET_KEY
 
     # Other
     SECRET_ROLE: str

@@ -10,6 +10,8 @@ from sqlalchemy import select
 from models.order_fulfillment_models import OrderLineFulfillment
 from models.order_saga_models import OrderSagaState
 from saga_timeout_worker import expire_once
+from config import settings
+from shared.contracts.artwork import GeneratedArtworkAsset, sign_artwork_asset
 from shared.managers.test_database_session_manager import TestDatabaseSessionManager
 from shared.enums.status_enums import OrderStatus, OrderDeliveryStatus
 from tests.constants import (
@@ -80,6 +82,21 @@ class TestCreateOrderIntegration:
         test_database_session_manager: TestDatabaseSessionManager,
     ):
         product_id = uuid4()
+        unsigned_asset = GeneratedArtworkAsset(
+            key="generated-designs/2026/08/" + "a" * 32 + ".png",
+            width_px=4096,
+            height_px=4096,
+            embedded_dpi=300,
+            sha256="b" * 64,
+            token="0" * 43,
+        )
+        asset = unsigned_asset.model_copy(
+            update={
+                "token": sign_artwork_asset(
+                    unsigned_asset, settings.ARTWORK_SIGNING_KEY
+                )
+            }
+        )
         payload = _order_payload(
             products=[
                 {
@@ -88,7 +105,7 @@ class TestCreateOrderIntegration:
                     "quantity": 2,
                     "fulfillment_type": "custom",
                     "customization": {
-                        "design_url": "/media/generated/design.png",
+                        "design_asset": asset.model_dump(mode="json"),
                         "prompt": "Mountain sunrise",
                         "style": "Watercolor",
                         "size": "M",
@@ -111,7 +128,10 @@ class TestCreateOrderIntegration:
             ).scalar_one()
         assert saga.inventory_status == "not_required"
         assert fulfillment.fulfillment_type == "custom"
-        assert fulfillment.customization["design_url"] == "/media/generated/design.png"
+        assert fulfillment.customization["design_asset"]["key"] == asset.key
+        assert fulfillment.customization["print_width_in"] == 15.0
+        assert fulfillment.customization["print_height_in"] == 18.0
+        assert fulfillment.customization["effective_dpi"] == 227.56
 
     async def test_cj_order_requires_complete_fulfillment_address(
         self, integration_client: AsyncClient

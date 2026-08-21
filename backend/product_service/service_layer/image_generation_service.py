@@ -11,7 +11,7 @@ from exceptions.image_generation_exceptions import ImageGenerationProviderError
 from service_layer.image_generation_quota import GenerationQuotaService
 from service_layer.image_job_store import ImageJobStore
 from service_layer.openrouter_client import OpenRouterClient
-from service_layer.image_storage_service import ImageStorageService
+from service_layer.image_storage_service import ImageStorageService, StoredImage
 
 
 class ImageGenerationInterface(ABC):
@@ -27,8 +27,8 @@ class ImageGenerationInterface(ABC):
         ...
 
     @abstractmethod
-    async def save_image(self, b64_image: str) -> str:
-        """Persist the generated image and return its public URL."""
+    async def save_image(self, b64_image: str) -> StoredImage:
+        """Validate and persist generated artwork."""
         ...
 
     @abstractmethod
@@ -62,7 +62,7 @@ class ImageGenerationService(ImageGenerationInterface):
       - GenerationQuotaService  → Redis-based rate limiting
       - ImageJobStore           → job lifecycle in Redis
       - OpenRouterClient        → HTTP calls to the image provider
-      - ImageStorageService     → base64 decode + disk persistence
+      - ImageStorageService     → print validation + durable persistence
     """
 
     def __init__(self,
@@ -95,7 +95,7 @@ class ImageGenerationService(ImageGenerationInterface):
             return await self._quota_service.consume(user_id, is_guest=False)
 
     @override
-    async def save_image(self, b64_image: str) -> str:
+    async def save_image(self, b64_image: str) -> StoredImage:
         return await self._storage_service.save(b64_image)
 
     @override
@@ -108,8 +108,8 @@ class ImageGenerationService(ImageGenerationInterface):
                             remove_background: bool = False) -> GenerateImageResponse:
         remaining_generations = await self._consume_quota(is_guest_user, guest_id, user_id)
         image_payload, model = await self._openrouter_client.generate(prompt, style, remove_background)
-        image_url = await self._storage_service.save(image_payload)
-        self._logger.debug(f"Image generated and saved: {image_url}")
+        stored_image = await self._storage_service.save(image_payload)
+        self._logger.debug("Image generated and saved: %s", stored_image.asset.key)
 
         guest_limit = (
             self.settings.PRODUCT_IMAGE_GUEST_GENERATION_LIMIT
@@ -117,7 +117,8 @@ class ImageGenerationService(ImageGenerationInterface):
             else self.settings.PRODUCT_IMAGE_REGISTERED_GENERATION_LIMIT
         )
         return GenerateImageResponse(
-            image_url=image_url,
+            image_url=stored_image.image_url,
+            design_asset=stored_image.asset,
             model=model,
             remaining_generations=remaining_generations,
             guest_limit=guest_limit,
@@ -142,14 +143,27 @@ class ImageGenerationService(ImageGenerationInterface):
         await self._job_store.set_state(job_id, "running")
         try:
             image_payload, model = await self._openrouter_client.generate(prompt, style, remove_background)
-            image_url = await self._storage_service.save(image_payload)
-            await self._job_store.set_state(job_id,
-            								"completed",
-                    						{"image_url": image_url, "model": model})
-            self._logger.debug(f"Job {job_id} completed: {image_url}")
+            stored_image = await self._storage_service.save(image_payload)
+            await self._job_store.set_state(
+                job_id,
+                "completed",
+                {
+                    "image_url": stored_image.image_url,
+                    "design_asset": stored_image.asset.model_dump(mode="json"),
+                    "model": model,
+                },
+            )
+            self._logger.debug("Job %s completed: %s", job_id, stored_image.asset.key)
         except Exception as exc:
             self._logger.error(f"Job {job_id} failed: {exc}")
-            await self._job_store.set_state(job_id, "failed", {"error": "Image generation failed"})
+            error_message = (
+                str(exc)
+                if isinstance(exc, ImageGenerationProviderError)
+                else "Image generation failed"
+            )
+            await self._job_store.set_state(
+                job_id, "failed", {"error": error_message}
+            )
 
     @override
     async def get_job(self, job_id: str) -> dict[str, Any]:

@@ -43,7 +43,7 @@ async def generate_image_task(job_id: str,
                     cache_manager=cache,
                     logger=logger,
                 ),
-                storage_service=ImageStorageService(logger=logger),
+                storage_service=ImageStorageService(logger=logger, settings=settings),
                 settings=settings,
                 logger=logger,
             )

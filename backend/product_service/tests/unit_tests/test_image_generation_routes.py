@@ -140,7 +140,8 @@ class TestGenerateImageEndpoint:
         assert response.status_code == status.HTTP_200_OK
         body = response.json()
         assert body["status"] == "completed"
-        assert body["image_url"] == "/media/generated/fake-image.png"
+        assert body["image_url"] == "/media/generated-designs/fake-image.png"
+        assert body["design_asset"]["width_px"] == 4096
         assert body["job_id"] == job_id
 
     async def test_unknown_job_returns_404(

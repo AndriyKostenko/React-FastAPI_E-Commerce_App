@@ -1,10 +1,12 @@
 import base64
+import io
 import json
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 import pytest
+from PIL import Image
 
 from exceptions.image_generation_exceptions import (
     ImageGenerationLimitExceededError,
@@ -14,7 +16,25 @@ from service_layer.image_generation_service import ImageGenerationService
 from service_layer.image_generation_quota import GenerationQuotaService
 from service_layer.image_job_store import ImageJobStore
 from service_layer.openrouter_client import OpenRouterClient
-from service_layer.image_storage_service import ImageStorageService
+from service_layer.image_storage_service import ImageStorageService, StoredImage
+from shared.contracts.artwork import GeneratedArtworkAsset
+
+
+def _asset() -> GeneratedArtworkAsset:
+    return GeneratedArtworkAsset(
+        key="generated-designs/2026/08/" + "a" * 32 + ".png",
+        width_px=4096,
+        height_px=4096,
+        embedded_dpi=300,
+        sha256="b" * 64,
+        token="c" * 43,
+    )
+
+
+def _png_payload(width: int = 20, height: int = 24) -> str:
+    output = io.BytesIO()
+    Image.new("RGBA", (width, height), (20, 40, 60, 0)).save(output, format="PNG")
+    return "data:image/png;base64," + base64.b64encode(output.getvalue()).decode()
 
 
 # ── shared fake HTTP machinery ─────────────────────────────────────────────────
@@ -55,6 +75,7 @@ def image_generation_settings() -> MagicMock:
     settings.OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
     settings.OPENROUTER_IMAGE_MODEL = "openai/gpt-5-image-mini"
     settings.OPENROUTER_IMAGE_SIZE = "0.5K"
+    settings.PRINT_IMAGE_GENERATION_SIZE = "4K"
     settings.OPENROUTER_IMAGE_ASPECT_RATIO = "1:1"
     settings.PRODUCT_IMAGE_GUEST_GENERATION_LIMIT = 3
     settings.PRODUCT_IMAGE_REGISTERED_GENERATION_LIMIT = 10
@@ -104,8 +125,29 @@ def job_store(mock_cache_manager: MagicMock) -> ImageJobStore:
 
 
 @pytest.fixture
-def storage_service() -> ImageStorageService:
-    return ImageStorageService(logger=MagicMock())
+def artwork_storage_settings(tmp_path: Path) -> MagicMock:
+    settings = MagicMock()
+    settings.ARTWORK_STORAGE_BACKEND = "local"
+    settings.AWS_S3_ARTWORK_BUCKET = None
+    settings.MEDIA_ROOT = str(tmp_path)
+    settings.PRINT_IMAGE_MIN_WIDTH_PX = 10
+    settings.PRINT_IMAGE_MIN_HEIGHT_PX = 10
+    settings.PRINT_IMAGE_MAX_DIMENSION_PX = 100
+    settings.PRINT_IMAGE_MAX_PIXELS = 10_000
+    settings.PRINT_IMAGE_MAX_BYTES = 1_000_000
+    settings.PRINT_IMAGE_EMBEDDED_DPI = 300
+    settings.ARTWORK_SIGNING_KEY = "test-signing-secret"
+    settings.AWS_S3_KMS_KEY_ID = None
+    settings.AWS_S3_PUBLIC_BASE_URL = None
+    settings.AWS_S3_PRESIGNED_URL_TTL_SECONDS = 3600
+    return settings
+
+
+@pytest.fixture
+def storage_service(artwork_storage_settings: MagicMock) -> ImageStorageService:
+    return ImageStorageService(
+        logger=MagicMock(), settings=artwork_storage_settings
+    )
 
 
 @pytest.fixture
@@ -179,7 +221,7 @@ class TestOpenRouterClient:
         await client.generate(prompt="Tiger", style="Streetwear")
         cfg = log["payload"]["image_config"]
         assert cfg["aspect_ratio"] == "1:1"
-        assert cfg["image_size"] == "0.5K"
+        assert cfg["image_size"] == "4K"
         assert cfg["num_inference_steps"] == 4
         assert cfg["response_format"] == "b64_json"
 
@@ -195,6 +237,8 @@ class TestOpenRouterClient:
         content = log["payload"]["messages"][0]["content"]
         assert "Style reference: Streetwear" in content
         assert "Remove the background completely" in content
+        assert log["payload"]["image_config"]["background"] == "transparent"
+        assert log["payload"]["image_config"]["output_format"] == "png"
 
     async def test_authorization_and_title_headers(
         self, image_generation_settings: MagicMock
@@ -247,6 +291,7 @@ class TestOpenRouterClient:
     ) -> None:
         image_generation_settings.OPENROUTER_IMAGE_MODEL = "google/gemini-3.1-flash-image-preview"
         image_generation_settings.OPENROUTER_IMAGE_SIZE = ""
+        image_generation_settings.PRINT_IMAGE_GENERATION_SIZE = ""
         image_generation_settings.OPENROUTER_IMAGE_ASPECT_RATIO = ""
         log: dict = {}
         client = self._make_client(
@@ -270,16 +315,18 @@ class TestImageStorageService:
         monkeypatch: pytest.MonkeyPatch,
         tmp_path: Path,
     ) -> None:
-        monkeypatch.setenv("MEDIA_ROOT", str(tmp_path))
-        image_bytes = b"sample-image-bytes"
-        payload = "data:image/png;base64," + base64.b64encode(image_bytes).decode("utf-8")
+        payload = _png_payload()
 
-        saved_url = await storage_service.save(payload)
+        stored = await storage_service.save(payload)
 
-        saved_file = tmp_path / "generated" / saved_url.rsplit("/", 1)[-1]
-        assert saved_url.startswith("/media/generated/")
+        saved_file = tmp_path / stored.asset.key
+        assert stored.image_url.startswith("/media/generated-designs/")
         assert saved_file.exists()
-        assert saved_file.read_bytes() == image_bytes
+        with Image.open(saved_file) as image:
+            assert image.size == (20, 24)
+            assert image.mode == "RGBA"
+        assert stored.asset.width_px == 20
+        assert stored.asset.height_px == 24
 
     async def test_saves_plain_base64_without_data_url_prefix(
         self,
@@ -287,14 +334,11 @@ class TestImageStorageService:
         monkeypatch: pytest.MonkeyPatch,
         tmp_path: Path,
     ) -> None:
-        monkeypatch.setenv("MEDIA_ROOT", str(tmp_path))
-        image_bytes = b"plain-bytes"
-        payload = base64.b64encode(image_bytes).decode("utf-8")
+        payload = _png_payload().partition(",")[2]
 
-        saved_url = await storage_service.save(payload)
+        stored = await storage_service.save(payload)
 
-        saved_file = tmp_path / "generated" / saved_url.rsplit("/", 1)[-1]
-        assert saved_file.read_bytes() == image_bytes
+        assert (tmp_path / stored.asset.key).exists()
 
     async def test_raises_on_invalid_base64(
         self,
@@ -302,9 +346,37 @@ class TestImageStorageService:
         monkeypatch: pytest.MonkeyPatch,
         tmp_path: Path,
     ) -> None:
-        monkeypatch.setenv("MEDIA_ROOT", str(tmp_path))
         with pytest.raises(ImageGenerationProviderError):
             await storage_service.save("data:image/png;base64,!!!not-valid!!!")
+
+    async def test_rejects_valid_but_too_small_artwork(
+        self, storage_service: ImageStorageService
+    ) -> None:
+        with pytest.raises(ImageGenerationProviderError, match="too small"):
+            await storage_service.save(_png_payload(5, 5))
+
+    async def test_s3_upload_is_private_encrypted_and_checksummed(
+        self, artwork_storage_settings: MagicMock
+    ) -> None:
+        artwork_storage_settings.ARTWORK_STORAGE_BACKEND = "s3"
+        artwork_storage_settings.AWS_S3_ARTWORK_BUCKET = "print-artwork"
+        s3 = MagicMock()
+        s3.generate_presigned_url.return_value = "https://signed.example/artwork"
+        service = ImageStorageService(
+            logger=MagicMock(), settings=artwork_storage_settings, s3_client=s3
+        )
+
+        stored = await service.save(_png_payload())
+
+        request = s3.put_object.call_args.kwargs
+        assert request["Bucket"] == "print-artwork"
+        assert request["Key"] == stored.asset.key
+        assert request["ContentType"] == "image/png"
+        assert request["ServerSideEncryption"] == "AES256"
+        assert request["ChecksumSHA256"]
+        assert "ACL" not in request
+        assert request["Metadata"]["width-px"] == "20"
+        assert stored.image_url == "https://signed.example/artwork"
 
 
 # ── GenerationQuotaService ─────────────────────────────────────────────────────
@@ -398,7 +470,7 @@ class TestImageGenerationService:
             return_value=("data:image/png;base64,aGVsbG8=", "openai/gpt-5-image-mini")
         )
         image_generation_service_unit._storage_service.save = AsyncMock(
-            return_value="/media/generated/out.png"
+            return_value=StoredImage("/media/generated-designs/out.png", _asset())
         )
 
         result = await image_generation_service_unit.generate_image(
@@ -408,7 +480,8 @@ class TestImageGenerationService:
             guest_id=str(uuid4()),
         )
 
-        assert result.image_url == "/media/generated/out.png"
+        assert result.image_url == "/media/generated-designs/out.png"
+        assert result.design_asset == _asset()
         assert result.model == "openai/gpt-5-image-mini"
         assert result.remaining_generations == 2
         assert result.guest_limit == 3
@@ -445,7 +518,7 @@ class TestImageGenerationService:
             return_value=("data:image/png;base64,aGVsbG8=", "openai/gpt-5-image-mini")
         )
         image_generation_service_unit._storage_service.save = AsyncMock(
-            return_value="/media/generated/out.png"
+            return_value=StoredImage("/media/generated-designs/out.png", _asset())
         )
         image_generation_service_unit._job_store.set_state = AsyncMock()
 
@@ -454,7 +527,8 @@ class TestImageGenerationService:
         calls = image_generation_service_unit._job_store.set_state.call_args_list
         assert calls[0].args == ("job-123", "running")
         assert calls[1].args[1] == "completed"
-        assert calls[1].args[2]["image_url"] == "/media/generated/out.png"
+        assert calls[1].args[2]["image_url"] == "/media/generated-designs/out.png"
+        assert calls[1].args[2]["design_asset"]["key"] == _asset().key
 
     async def test_run_job_sets_failed_on_exception(
         self, image_generation_service_unit: ImageGenerationService
@@ -472,8 +546,7 @@ class TestImageGenerationService:
     async def test_save_image_delegates_to_storage_service(
         self, image_generation_service_unit: ImageGenerationService
     ) -> None:
-        image_generation_service_unit._storage_service.save = AsyncMock(
-            return_value="/media/generated/test.png"
-        )
+        stored = StoredImage("/media/generated-designs/test.png", _asset())
+        image_generation_service_unit._storage_service.save = AsyncMock(return_value=stored)
         result = await image_generation_service_unit.save_image("data:image/png;base64,aGVsbG8=")
-        assert result == "/media/generated/test.png"
+        assert result == stored

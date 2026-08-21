@@ -1,5 +1,6 @@
 import { settings } from "@/lib/config";
 import { resolveImageUrl } from "@/utils/resolveImageUrl";
+import type { GeneratedArtworkAsset } from "@/types/generation";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -23,6 +24,7 @@ type JobStatusResponse = {
   job_id: string;
   status: JobStatus;
   image_url: string | null;
+  design_asset: GeneratedArtworkAsset | null;
   model: string | null;
   error: string | null;
   remaining_generations: number | null;
@@ -42,6 +44,7 @@ type ErrorResponsePayload = {
 
 export type GenerateImageResult = {
   imageUrl: string;
+  designAsset: GeneratedArtworkAsset;
   model: string;
   remainingGenerations: number | null;
   guestLimit: number | null;
@@ -123,9 +126,10 @@ const generateImage = async (
 
     if (job.status === "running") onPhaseChange?.("running");
 
-    if (job.status === "completed" && job.image_url) {
+    if (job.status === "completed" && job.image_url && job.design_asset) {
       return {
         imageUrl: resolveImageUrl(job.image_url),
+        designAsset: job.design_asset,
         model: job.model ?? "unknown",
         remainingGenerations: remaining_generations ?? null,
         guestLimit: guest_limit ?? null,
@@ -134,6 +138,10 @@ const generateImage = async (
 
     if (job.status === "failed") {
       throw new Error(job.error ?? "Image generation failed");
+    }
+
+    if (job.status === "completed") {
+      throw new Error("Generated artwork metadata is missing. Please try again.");
     }
 
     // pending | running → keep polling

@@ -1,8 +1,6 @@
 from decimal import Decimal, ROUND_HALF_UP
-import posixpath
 from types import TracebackType
 from typing import Any, Self
-from urllib.parse import unquote, urlparse
 from uuid import UUID, uuid4
 
 from httpx import AsyncClient, HTTPStatusError, RequestError
@@ -10,6 +8,7 @@ from pydantic import BaseModel
 
 from schemas.order_schemas import CreateOrder
 from shared.contracts.order import CustomTshirtSpecification, FulfillmentType
+from shared.contracts.artwork import verify_artwork_asset
 from shared.settings import Settings
 from shared.exceptions.base_exceptions import BaseAPIException
 
@@ -98,6 +97,20 @@ class OrderPricingService:
         "Back Upper": Decimal("2.00"),
         "Back Lower": Decimal("2.00"),
     }
+    # Conservative maximum physical areas for the preview placements. Exact
+    # fulfillment templates can make these smaller without losing quality.
+    PRINT_AREAS_INCHES = {
+        "Center Chest": (12.0, 10.0),
+        "Left Top Chest": (5.0, 5.0),
+        "Right Top Chest": (5.0, 5.0),
+        "Left Bottom": (8.0, 10.0),
+        "Right Bottom": (8.0, 10.0),
+        "Center Bottom": (11.0, 10.0),
+        "Oversized Center": (15.0, 18.0),
+        "Full Back": (15.0, 18.0),
+        "Back Upper": (15.0, 8.0),
+        "Back Lower": (15.0, 9.5),
+    }
 
     def __init__(self, settings: Settings, catalog_client: CatalogQuoteClient):
         self.settings = settings
@@ -112,8 +125,9 @@ class OrderPricingService:
             if item.fulfillment_type == "custom":
                 specification = item.customization
                 assert specification is not None
-                if not self._is_trusted_generated_design(specification.design_url):
-                    raise OrderQuoteError("Custom designs must reference a persisted generated image")
+                specification = self._validate_and_finalize_customization(
+                    specification
+                )
                 unit_price = self._custom_unit_price(specification)
                 quoted_by_position[position] = QuotedOrderLine(
                     product_id=item.id or uuid4(),
@@ -157,15 +171,35 @@ class OrderPricingService:
             + self.PLACEMENT_SURCHARGES[specification.placement]
         ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
-    def _is_trusted_generated_design(self, design_url: str) -> bool:
-        parsed = urlparse(design_url)
-        normalized_path = posixpath.normpath(unquote(parsed.path))
-        if not normalized_path.startswith("/media/generated/"):
-            return False
-        if not parsed.netloc:
-            return True
-        allowed_hosts = set(getattr(self.settings, "ALLOWED_HOSTS", []))
-        app_host = getattr(self.settings, "APP_HOST", None)
-        if app_host:
-            allowed_hosts.add(app_host)
-        return parsed.hostname in allowed_hosts
+    def _validate_and_finalize_customization(
+        self, specification: CustomTshirtSpecification
+    ) -> CustomTshirtSpecification:
+        asset = specification.design_asset
+        if not verify_artwork_asset(asset, self.settings.ARTWORK_SIGNING_KEY):
+            raise OrderQuoteError(
+                "Custom design metadata is invalid or was not issued by the image service"
+            )
+
+        print_width, print_height = self.PRINT_AREAS_INCHES[
+            specification.placement
+        ]
+        effective_dpi = min(
+            asset.width_px / print_width,
+            asset.height_px / print_height,
+        )
+        minimum_dpi = self.settings.PRINT_IMAGE_MIN_EFFECTIVE_DPI
+        if effective_dpi < minimum_dpi:
+            raise OrderQuoteError(
+                "Custom design resolution is too low for the selected print area "
+                f"({effective_dpi:.0f} DPI; minimum {minimum_dpi} DPI)"
+            )
+
+        # Client-supplied calculated fields are never trusted. Persist the
+        # server's canonical production measurements with the order snapshot.
+        return specification.model_copy(
+            update={
+                "print_width_in": print_width,
+                "print_height_in": print_height,
+                "effective_dpi": round(effective_dpi, 2),
+            }
+        )

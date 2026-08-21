@@ -123,7 +123,7 @@ def get_image_job_store(
 def get_image_storage_service(
     resources: ProductApiResources = Depends(get_resources),
 ) -> ImageStorageService:
-    return ImageStorageService(logger=resources.logger)
+    return ImageStorageService(logger=resources.logger, settings=resources.settings)
 
 
 def get_image_generation_service(

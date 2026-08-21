@@ -71,6 +71,7 @@ from schemas.category_schema import CategorySchema
 from schemas.review_schemas import ReviewSchema
 from schemas.product_image_schema import ImageType
 from schemas.image_generation_schema import GenerateImageResponse, ImageGenerationJobStatusResponse
+from shared.contracts.artwork import GeneratedArtworkAsset
 
 
 from shared.testing.helpers import allow_testserver_host
@@ -374,7 +375,15 @@ def mock_route_image_generation_service() -> MagicMock:
     svc.settings.PRODUCT_IMAGE_GUEST_GENERATION_LIMIT = 3
     svc.generate_image = AsyncMock(
         return_value=GenerateImageResponse(
-            image_url="/media/generated/fake-image.png",
+            image_url="/media/generated-designs/fake-image.png",
+            design_asset=GeneratedArtworkAsset(
+                key="generated-designs/2026/08/" + "a" * 32 + ".png",
+                width_px=4096,
+                height_px=4096,
+                embedded_dpi=300,
+                sha256="b" * 64,
+                token="c" * 43,
+            ),
             model="openai/gpt-image-1",
             remaining_generations=2,
             guest_limit=3,
@@ -385,7 +394,15 @@ def mock_route_image_generation_service() -> MagicMock:
     svc.run_job = AsyncMock(return_value=None)
     svc.get_job = AsyncMock(return_value={
         "status": "completed",
-        "image_url": "/media/generated/fake-image.png",
+        "image_url": "/media/generated-designs/fake-image.png",
+        "design_asset": {
+            "key": "generated-designs/2026/08/" + "a" * 32 + ".png",
+            "width_px": 4096,
+            "height_px": 4096,
+            "embedded_dpi": 300,
+            "sha256": "b" * 64,
+            "token": "c" * 43,
+        },
         "model": "google/gemini-3.1-flash-image-preview",
     })
     return svc

@@ -105,6 +105,7 @@ async def get_generation_job_status(
         job_id=job_id,
         status=ImageJobStatus(job_data["status"]),
         image_url=job_data.get("image_url"),
+        design_asset=job_data.get("design_asset"),
         model=job_data.get("model"),
         error=job_data.get("error"),
     )

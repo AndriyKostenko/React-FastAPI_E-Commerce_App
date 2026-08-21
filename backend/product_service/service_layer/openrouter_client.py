@@ -62,7 +62,7 @@ class OpenRouterClient:
         }
 
         image_config: dict[str, Any] = {}
-        image_size = self._settings.OPENROUTER_IMAGE_SIZE.strip()
+        image_size = self._settings.PRINT_IMAGE_GENERATION_SIZE.strip()
         aspect_ratio = self._settings.OPENROUTER_IMAGE_ASPECT_RATIO.strip()
 
         if aspect_ratio:
@@ -73,6 +73,10 @@ class OpenRouterClient:
             image_config["image_size"] = "1K" if (is_google and "x" in image_size) else image_size
         elif is_google:
             image_config["image_size"] = "0.5K"
+
+        if remove_background:
+            image_config["background"] = "transparent"
+            image_config["output_format"] = "png"
 
         if not is_google:
             image_config.update(

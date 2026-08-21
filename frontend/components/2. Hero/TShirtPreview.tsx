@@ -44,9 +44,6 @@ export default function TShirtPreview({color,placement,designUrl,isGenerating = 
     const sheenBack = "M 163,80 Q 200,71 237,80";
 	const sheenPath = isBack ? sheenBack : sheenFront;
 
-	console.log("designUrl:", designUrl);
-	console.log("previewImageUrl:", previewImageUrl);
-
 	return (
         <div className="relative w-full h-full flex flex-col">
             {/* T-shirt SVG Container */}

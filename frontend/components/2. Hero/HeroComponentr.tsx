@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import toast from "react-hot-toast";
 
 import getCustomTshirtPricing from "@/actions/getCustomTshirtPricing";
 import { useCart } from "@/hooks/useCart";
@@ -13,7 +14,7 @@ import {
 	DEFAULT_PLACEHOLDER_IMAGE
 } from "@/utils/constants";
 import type { ProductProps } from "@/types/product";
-import type { GeneratedDesignPayload, StyleOption } from "@/types/generation";
+import type { GeneratedArtworkAsset, GeneratedDesignPayload, StyleOption } from "@/types/generation";
 import TShirtPreview from "./TShirtPreview";
 import HeroText from "./HeroText";
 import GenerationPanel from "./GenerationPanel";
@@ -26,7 +27,7 @@ type HeroSectionProps = {
     currentUserJWT?: string | null;
 };
 type GarmentColor = "bg-white" | "bg-black";
-type Design = { title: string, image: string}
+type Design = { title: string, image: string, asset?: GeneratedArtworkAsset}
 
 const HeroSection = ({isRegisteredUser, currentUserJWT}: HeroSectionProps) => {
 	const { handleAddProductToCart } = useCart();
@@ -81,6 +82,10 @@ const HeroSection = ({isRegisteredUser, currentUserJWT}: HeroSectionProps) => {
     }, [basePrice, placement, quantity, size]);
 
     const handleAddToCart = () => {
+        if (!currentDesign.asset) {
+            toast.error("Generate a print-ready design before adding this shirt to your cart.");
+            return;
+        }
         const promptLabel = selectedPrompt.trim() || currentDesign.title;
         const customId = crypto.randomUUID();
         const unitPrice =
@@ -104,7 +109,7 @@ const HeroSection = ({isRegisteredUser, currentUserJWT}: HeroSectionProps) => {
             brand: "AIGEN Custom",
             fulfillment_type: "custom",
             customization: {
-                design_url: currentDesign.image,
+                design_asset: currentDesign.asset,
                 prompt: promptLabel,
                 style: selectedStyle,
                 size,
