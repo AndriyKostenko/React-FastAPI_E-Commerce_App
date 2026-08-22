@@ -70,6 +70,24 @@ async def get_cjdropshipping_product_details(
 
 
 @supplier_routes.post(
+    "/cjdropshipping/products/{pid}/sync",
+    response_model=SupplierSyncRunSummary,
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Synchronize one CJ Dropshipping product",
+)
+async def sync_cjdropshipping_product(
+    pid: str,
+    sync_orchestrator: sync_orchestrator_dependency,
+) -> SupplierSyncRunSummary:
+    """Fetch one CJ product by pid and emit a single import event."""
+    sync_state = await sync_orchestrator.run_product_sync(
+        supplier_id="cjdropshipping",
+        supplier_pid=pid,
+    )
+    return _to_sync_summary(sync_state)
+
+
+@supplier_routes.post(
     "/cjdropshipping/sync",
     response_model=SupplierSyncRunSummary,
     status_code=status.HTTP_202_ACCEPTED,

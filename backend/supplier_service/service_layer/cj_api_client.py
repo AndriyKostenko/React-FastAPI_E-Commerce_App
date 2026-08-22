@@ -113,7 +113,14 @@ class CJDropshippingAPIClient:
                 timeout=request_timeout,
             )
             response.raise_for_status()
-            return response.json()
+            payload = response.json()
+            if isinstance(payload, dict) and payload.get("result") is False:
+                code = payload.get("code", "unknown")
+                message = payload.get("message") or "Unknown CJ API error"
+                raise CJDropshippingAPIError(
+                    f"CJ API request failed ({code}): {message}"
+                )
+            return payload
         except RequestError as exc:
             raise CJDropshippingNetworkError(f"Network error calling CJ API: {exc}") from exc
         except HTTPStatusError as exc:

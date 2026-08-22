@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from httpx import HTTPStatusError, Request
 
-from service_layer.cj_api_client import CJDropshippingAPIClient
+from service_layer.cj_api_client import CJDropshippingAPIClient, CJDropshippingAPIError
 from shared.settings import Settings
 
 
@@ -74,3 +74,26 @@ async def test_request_auto_refreshes_on_401(settings: Settings) -> None:
 
     assert result == {"data": "success"}
     client.ensure_access_token.assert_called_with(force_refresh=True)
+
+
+@pytest.mark.asyncio
+async def test_request_rejects_unsuccessful_200_response(settings: Settings) -> None:
+    client = CJDropshippingAPIClient(settings)
+    client._access_token = "cached_token"
+
+    response = MagicMock()
+    response.status_code = 200
+    response.json.return_value = {
+        "code": 1600014,
+        "result": False,
+        "message": "Your API access has been disabled.",
+        "data": None,
+    }
+    client._http_client = AsyncMock()
+    client._http_client.request.return_value = response
+
+    with pytest.raises(
+        CJDropshippingAPIError,
+        match=r"CJ API request failed \(1600014\): Your API access has been disabled",
+    ):
+        await client.request("GET", settings.CJ_DROPSHIPPING_PRODUCT_LIST_URL)

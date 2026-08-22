@@ -2,19 +2,68 @@
 
 import { FeaturedCollectionProps, FilterTab } from "@/types/product";
 import { HOW_IT_WORKS } from "@/utils/constants";
-import { useState } from "react";
+import calculateAverageRating from "@/utils/productRating";
+import { useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 import ProductCard from "@/components/4. Featured Collections/ProductCard";
+
+const NEW_ARRIVAL_WINDOW_DAYS = 30;
+
+const getTabFromQuery = (collection: string | null): FilterTab => {
+    if (collection === "trending") return "Trending";
+    if (collection === "new-arrivals") return "New Arrivals";
+    return "All";
+};
 
 const FeaturedCollection: React.FC<FeaturedCollectionProps> = ({
     products,
 }) => {
-    const [activeTab, setActiveTab] = useState<FilterTab>("All");
+    const searchParams = useSearchParams();
+    const [activeTab, setActiveTab] = useState<FilterTab>(() =>
+        getTabFromQuery(searchParams.get("collection")),
+    );
 
     const tabs: FilterTab[] = ["All", "Trending", "New Arrivals"];
 
+    useEffect(() => {
+        setActiveTab(getTabFromQuery(searchParams.get("collection")));
+    }, [searchParams]);
+
+    const visibleProducts = useMemo(() => {
+        if (activeTab === "Trending") {
+            return products
+                .filter(
+                    (product) =>
+                        calculateAverageRating(product.reviews ?? []) >= 4.5,
+                )
+                .toSorted(
+                    (left, right) =>
+                        calculateAverageRating(right.reviews ?? []) -
+                        calculateAverageRating(left.reviews ?? []),
+                );
+        }
+
+        if (activeTab === "New Arrivals") {
+            const cutoff = Date.now() - NEW_ARRIVAL_WINDOW_DAYS * 86_400_000;
+
+            return products
+                .filter(
+                    (product) =>
+                        new Date(product.date_created).getTime() >= cutoff,
+                )
+                .toSorted(
+                    (left, right) =>
+                        new Date(right.date_created).getTime() -
+                        new Date(left.date_created).getTime(),
+                );
+        }
+
+        return products;
+    }, [activeTab, products]);
+
     return (
         <>
-            <section className="glass-card p-8 md:p-12">
+            <section id="shop" className="glass-card scroll-mt-8 p-8 md:p-12">
                 <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10">
                     <div>
                         <h2 className="font-headline-lg text-primary">
@@ -42,7 +91,7 @@ const FeaturedCollection: React.FC<FeaturedCollectionProps> = ({
                 </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-8">
-                    {products.map((product) => (
+                    {visibleProducts.map((product) => (
                         <ProductCard key={product.id} product={product} />
                     ))}
                 </div>

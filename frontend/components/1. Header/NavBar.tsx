@@ -4,6 +4,7 @@ import UserMenu from "./UserMenu";
 import { sessionManagaer } from "@/actions/getCurrentUser";
 import SearchBar from "./SearchBar";
 import { Suspense } from "react";
+import HeaderNavLinks from "./HeaderNavLinks";
 
 const NavBar = async () => {
     // getting current user from the server session
@@ -22,32 +23,9 @@ const NavBar = async () => {
                         AIGEN
                     </Link>
 
-                    <div className="hidden xl:flex items-center gap-8">
-                        <Link
-                            href="/"
-                            className="font-label-bold text-label-bold text-primary border-b-2 border-primary pb-1 transition-all"
-                        >
-                            Home
-                        </Link>
-                        <Link
-                            href="/"
-                            className="font-label-bold text-label-bold text-secondary hover:text-primary transition-colors"
-                        >
-                            Create Design
-                        </Link>
-                        <Link
-                            href="/"
-                            className="font-label-bold text-label-bold text-secondary hover:text-primary transition-colors"
-                        >
-                            Shop
-                        </Link>
-                        <Link
-                            href="/"
-                            className="font-label-bold text-label-bold text-secondary hover:text-primary transition-colors"
-                        >
-                            Best Sellers
-                        </Link>
-                    </div>
+                    <Suspense fallback={null}>
+                        <HeaderNavLinks />
+                    </Suspense>
                 </div>
 
                 {/* Center: Search */}

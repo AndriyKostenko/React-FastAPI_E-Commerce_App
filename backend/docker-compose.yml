@@ -151,7 +151,13 @@ services:
     networks:
       - usernet
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')",
+        ]
       interval: 60s
       timeout: 10s
       retries: 3

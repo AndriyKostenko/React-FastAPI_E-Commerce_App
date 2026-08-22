@@ -90,7 +90,7 @@ EXPOSE 8001
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8001/health/live')" || exit 1
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')" || exit 1
 
 
 # NOTE: DB connection pool size multiplies per worker. With dynamic workers (2×cores+1),

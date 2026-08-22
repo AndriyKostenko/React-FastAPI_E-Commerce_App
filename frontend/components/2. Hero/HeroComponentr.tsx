@@ -138,7 +138,10 @@ const HeroSection = ({isRegisteredUser, currentUserJWT}: HeroSectionProps) => {
 	};
 
     return (
-        <section className="glass-card p-6 md:p-8 grid grid-cols-1 lg:grid-cols-2 lg:grid-rows-[minmax(0,1fr)_auto] gap-6 lg:h-[calc(100vh-12rem)] overflow-hidden">
+        <section
+            id="create-design"
+            className="glass-card scroll-mt-8 p-6 md:p-8 grid grid-cols-1 lg:grid-cols-2 lg:grid-rows-[minmax(0,1fr)_auto] gap-6 lg:h-[calc(100vh-12rem)] overflow-hidden"
+        >
             {/* ── Left col: hero text + generation panel ── */}
             <div className="lg:col-span-1 flex flex-col gap-6 min-h-0">
                 <HeroText />

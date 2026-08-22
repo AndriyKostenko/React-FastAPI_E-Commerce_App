@@ -10,15 +10,15 @@ class ProductImageSchema(BaseModel):
     product_id: UUID
     image_url: str
     # image_url: HttpUrl
-    image_color: str
-    image_color_code: str
+    image_color: str | None = None
+    image_color_code: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
 
 class ImageType(BaseModel):
-    image_color: str
-    image_color_code: str
+    image_color: str | None = None
+    image_color_code: str | None = None
     image_url: str
     # image_url: HttpUrl
 

@@ -1,3 +1,5 @@
+from html import unescape
+import re
 from uuid import UUID
 
 from schemas.product_schemas import CreateProduct, CreateProductVariant
@@ -6,6 +8,9 @@ from shared.contracts.supplier import GenericSupplierProduct, SupplierProductVar
 
 class SupplierProductMapper:
     """Maps generic supplier product schemas to product_service CreateProduct schemas."""
+
+    DESCRIPTION_MAX_LENGTH = 2000
+    HTML_TAG_PATTERN = re.compile(r"<[^>]+>")
 
     @classmethod
     def map_supplier_product(
@@ -20,7 +25,7 @@ class SupplierProductMapper:
             supplier_id=supplier_product.supplier_id,
             supplier_category_id=supplier_product.supplier_category_id,
             name=supplier_product.name,
-            description=supplier_product.description or "",
+            description=cls._normalize_description(supplier_product.description),
             category_id=local_category_id,
             brand=supplier_product.brand,
             quantity=supplier_product.quantity,
@@ -58,3 +63,10 @@ class SupplierProductMapper:
             variant_sug_sell_price=variant.variant_sug_sell_price,
             inventory_num=variant.inventory_num,
         )
+
+    @classmethod
+    def _normalize_description(cls, description: str | None) -> str:
+        """Convert supplier HTML to bounded plain text accepted by CreateProduct."""
+        without_tags = cls.HTML_TAG_PATTERN.sub(" ", description or "")
+        normalized = " ".join(unescape(without_tags).split())
+        return normalized[: cls.DESCRIPTION_MAX_LENGTH]

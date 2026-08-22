@@ -15,6 +15,7 @@ from prometheus_fastapi_instrumentator import Instrumentator
 
 from routes.supplier_routes import supplier_routes
 from models import Base
+from service_layer.cj_api_client import CJDropshippingAPIError
 from shared.exceptions.base_exceptions import BaseAPIException, RateLimitExceededError
 from shared.middleware.logging_middleware import add_logging_middleware
 from shared.telemetry import setup_tracing
@@ -160,6 +161,17 @@ def add_exception_handlers(app: FastAPI):
                 "path": request.url.path,
             },
             headers={"Retry-After": str(exc.retry_after)},
+        )
+
+    @app.exception_handler(CJDropshippingAPIError)
+    async def cj_api_exception_handler(request: Request, exc: CJDropshippingAPIError):
+        return JSONResponse(
+            status_code=502,
+            content={
+                "detail": str(exc),
+                "timestamp": datetime.now().isoformat(),
+                "path": request.url.path,
+            },
         )
 
     @app.exception_handler(Exception)

@@ -180,6 +180,7 @@ class SupplierSyncOrchestrator:
             return sync_state
 
         except Exception as exc:
+            await self.sync_state_repository.session.rollback()
             sync_state.status = "failed"
             sync_state.finished_at = datetime.now(timezone.utc)
             sync_state.error_message = str(exc)
@@ -188,6 +189,92 @@ class SupplierSyncOrchestrator:
                 # Commit before re-raising so the failed state is persisted;
                 # the surrounding transaction manager will roll back the new
                 # transaction that starts after this commit.
+                await self.sync_state_repository.session.commit()
+            except Exception:
+                pass
+            raise
+
+    async def run_product_sync(
+        self,
+        supplier_id: str,
+        supplier_pid: str,
+    ) -> SupplierSyncState:
+        """Fetch and emit exactly one supplier product by its stable ID."""
+        fetch_id = uuid4()
+        now = datetime.now(timezone.utc)
+
+        config = await self.config_repository.get_by_supplier_id(supplier_id)
+        if not config:
+            raise ProviderNotFoundError(f"Supplier config not found: {supplier_id}")
+        if not config.is_active:
+            raise ProviderNotFoundError(f"Supplier is not active: {supplier_id}")
+
+        latest_run = await self.sync_state_repository.get_latest_by_supplier_id(supplier_id)
+        if latest_run and latest_run.status in self.ACTIVE_STATUSES:
+            raise SyncAlreadyInProgressError(f"Sync already in progress for supplier {supplier_id}")
+
+        sync_state = SupplierSyncState(
+            supplier_id=supplier_id,
+            fetch_id=fetch_id,
+            status="running",
+            products_fetched=0,
+            products_emitted=0,
+            total_batches=1,
+            processed_batches=0,
+            products_imported=0,
+            products_updated=0,
+            products_failed=0,
+            acknowledged_batch_ids=[],
+            started_at=now,
+        )
+
+        try:
+            await self.sync_state_repository.create(sync_state)
+            await self.sync_state_repository.session.commit()
+        except IntegrityError as exc:
+            await self.sync_state_repository.session.rollback()
+            raise SyncAlreadyInProgressError(
+                f"Sync already in progress for supplier {supplier_id}"
+            ) from exc
+
+        try:
+            provider = self._get_provider(config)
+            allowed_category_ids = self._get_allowed_category_ids(config)
+            product = await provider.get_mapped_product_details(supplier_pid)
+            sync_state.products_fetched = 1
+
+            if product.supplier_category_id not in allowed_category_ids:
+                raise SupplierSyncConfigurationError(
+                    f"Product {supplier_pid} category '{product.supplier_category_id}' "
+                    "is not an allowed T-shirt category"
+                )
+
+            if config.default_category_name:
+                product.category_name = config.default_category_name
+
+            event = SupplierProductsFetchedEvent(
+                supplier_id=supplier_id,
+                fetch_id=fetch_id,
+                batch_number=1,
+                total_batches=1,
+                products=[product],
+            )
+            await self.outbox_event_service.add_outbox_event(
+                event_type=event.event_type,
+                payload=event,
+            )
+
+            sync_state.products_emitted = 1
+            sync_state.status = "awaiting_import"
+            await self.sync_state_repository.update(sync_state)
+            return sync_state
+        except Exception as exc:
+            await self.sync_state_repository.session.rollback()
+            sync_state.status = "failed"
+            sync_state.finished_at = datetime.now(timezone.utc)
+            sync_state.error_message = str(exc)
+            try:
+                await self.sync_state_repository.update(sync_state)
                 await self.sync_state_repository.session.commit()
             except Exception:
                 pass

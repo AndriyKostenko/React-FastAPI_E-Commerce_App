@@ -79,3 +79,22 @@ class TestSupplierProductMapper:
         assert result[0].pid == "p1"
         assert result[1].pid == "p2"
         assert result[1].in_stock is False
+
+    def test_normalizes_and_bounds_supplier_html_description(self) -> None:
+        supplier_product = GenericSupplierProduct(
+            supplier_id="cjdropshipping",
+            supplier_pid="p-html",
+            name="HTML Product",
+            description=f"<p>Product&nbsp;details</p><div>{'x' * 2500}</div>",
+            price=Decimal("10.00"),
+        )
+
+        result = SupplierProductMapper.map_supplier_product(
+            supplier_product,
+            uuid4(),
+        )
+
+        assert result.description.startswith("Product details ")
+        assert "<p>" not in result.description
+        assert "&nbsp;" not in result.description
+        assert len(result.description) == 2000

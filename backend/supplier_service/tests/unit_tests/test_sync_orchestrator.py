@@ -99,6 +99,43 @@ async def test_sync_persists_event_and_marks_complete() -> None:
 
 
 @pytest.mark.asyncio
+async def test_single_product_sync_emits_only_requested_product() -> None:
+    provider = FakeCJProvider(
+        {
+            "requested": _product("requested"),
+            "unrelated": _product("unrelated"),
+        }
+    )
+    orchestrator, _, _, outbox = _orchestrator(provider)
+
+    state = await orchestrator.run_product_sync("cjdropshipping", "requested")
+
+    assert state.status == "awaiting_import"
+    assert state.products_fetched == 1
+    assert state.products_emitted == 1
+    assert state.total_batches == 1
+    emitted_event = outbox.add_outbox_event.await_args.kwargs["payload"]
+    assert [product.supplier_pid for product in emitted_event.products] == ["requested"]
+    assert emitted_event.products[0].category_name == "Imported"
+    assert provider.search_filters == []
+
+
+@pytest.mark.asyncio
+async def test_single_product_sync_rolls_back_and_marks_failure() -> None:
+    provider = FakeCJProvider({"requested": _product("requested")})
+    orchestrator, _, sync_state_repository, outbox = _orchestrator(provider)
+    outbox.add_outbox_event.side_effect = RuntimeError("outbox unavailable")
+
+    with pytest.raises(RuntimeError, match="outbox unavailable"):
+        await orchestrator.run_product_sync("cjdropshipping", "requested")
+
+    sync_state_repository.session.rollback.assert_awaited_once()
+    failed_state = sync_state_repository.update.await_args.args[0]
+    assert failed_state.status == "failed"
+    assert failed_state.error_message == "outbox unavailable"
+
+
+@pytest.mark.asyncio
 async def test_sync_records_partial_detail_failures() -> None:
     provider = FakeCJProvider({"good": _product("good"), "bad": RuntimeError("CJ unavailable")})
     orchestrator, _, _, outbox = _orchestrator(provider)
