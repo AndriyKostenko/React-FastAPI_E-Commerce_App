@@ -38,6 +38,7 @@ async def startup() -> None:
         settings=resources.settings,
         database=resources.database,
         idempotency_service=resources.idempotency,
+        stripe_client=resources.stripe_client,
     )
     logger.info("Payment event consumer resources started")
 

@@ -115,6 +115,7 @@ def mock_payment_repository() -> MagicMock:
     repo.update_by_id = AsyncMock()
     repo.delete_by_id = AsyncMock()
     repo.session = MagicMock()
+    repo.session.commit = AsyncMock()
     repo.session.begin_nested = MagicMock(return_value=_AsyncContextManagerMock())
     return repo
 
@@ -168,11 +169,15 @@ def mock_stripe_client() -> MagicMock:
     intent_mock.id = TEST_STRIPE_INTENT_ID
     intent_mock.client_secret = TEST_CLIENT_SECRET
     stripe.v1.payment_intents.create.side_effect = _make_intent
+    stripe.v1.payment_intents.create_async = AsyncMock(side_effect=_make_intent)
     stripe.v1.payment_intents.retrieve.return_value = intent_mock
+    stripe.v1.payment_intents.retrieve_async = AsyncMock(return_value=intent_mock)
+    stripe.v1.payment_intents.cancel_async = AsyncMock()
     # refunds
     refund_mock = MagicMock()
     refund_mock.id = "re_test_refund123"
     stripe.v1.refunds.create.return_value = refund_mock
+    stripe.v1.refunds.create_async = AsyncMock(return_value=refund_mock)
     return stripe
 
 
@@ -323,10 +328,14 @@ async def integration_client(
         intent_mock.id = TEST_STRIPE_INTENT_ID
         intent_mock.client_secret = TEST_CLIENT_SECRET
         stripe_mock.v1.payment_intents.create.side_effect = _make_intent
+        stripe_mock.v1.payment_intents.create_async = AsyncMock(side_effect=_make_intent)
         stripe_mock.v1.payment_intents.retrieve.return_value = intent_mock
+        stripe_mock.v1.payment_intents.retrieve_async = AsyncMock(return_value=intent_mock)
+        stripe_mock.v1.payment_intents.cancel_async = AsyncMock()
         refund_mock = MagicMock()
         refund_mock.id = "re_test_refund123"
         stripe_mock.v1.refunds.create.return_value = refund_mock
+        stripe_mock.v1.refunds.create_async = AsyncMock(return_value=refund_mock)
         svc._stripe = stripe_mock
         return svc
 

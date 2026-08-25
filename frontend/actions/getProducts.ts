@@ -5,6 +5,7 @@ const fetchProductsFromBackend = async (category?: string , searchTerm?: string)
     try {
         //const  searchTerm  = searchParams?.searchTerm as string | undefined; 
         const url = new URL(settings.api.endpoints.productsDetailed);
+        url.searchParams.set("limit", "20");
 
         if (category !== undefined) {
             url.searchParams.append("category", category);

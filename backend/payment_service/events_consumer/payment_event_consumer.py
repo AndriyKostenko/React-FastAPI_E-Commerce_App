@@ -1,4 +1,5 @@
 from typing import Any
+from stripe import StripeClient
 from logging import Logger
 
 from shared.idempotency.idempotency_service import IdempotencyEventService
@@ -27,11 +28,13 @@ class PaymentEventConsumer:
         settings: Settings,
         database: DatabaseSessionManager,
         idempotency_service: IdempotencyEventService,
+        stripe_client: StripeClient,
     ) -> None:
         self.logger: Logger = logger
         self.settings: Settings = settings
         self.database = database
         self.idempotency_service = idempotency_service
+        self.stripe_client = stripe_client
 
     async def _get_payment_service(self):
         """Create a PaymentService with a fresh DB session (mirrors FastAPI DI for consumers)."""
@@ -42,6 +45,7 @@ class PaymentEventConsumer:
                 outbox_event_service=outbox_service,
                 settings=self.settings,
                 logger=self.logger,
+                stripe_client=self.stripe_client,
             )
             yield payment_service
 

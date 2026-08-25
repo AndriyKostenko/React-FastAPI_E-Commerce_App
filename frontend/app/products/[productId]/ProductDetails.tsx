@@ -1,9 +1,8 @@
 'use client';
 
 import { Rating } from "@mui/material";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
-import SetColor from "@/components/4. Featured Collections/SetColor";
 import SetQuantity from "@/components/4. Featured Collections/SetQuantity";
 import Button from "@/components/ui/Button";
 import calculateAvarageRating from "@/utils/productRating";
@@ -14,6 +13,7 @@ import { useRouter } from "next/navigation";
 import { ProductProps } from "@/types/product";
 import { ImageProps } from "@/types/image";
 import { formatPrice } from "@/utils/formatPrice";
+import { getColorSwatch, getVariantOption } from "@/utils/productVariants";
 
 const ProductDetails: React.FC<{ product: ProductProps | null }> = ({
     product,
@@ -50,10 +50,20 @@ const ProductDetails: React.FC<{ product: ProductProps | null }> = ({
               ];
 
     const { handleAddProductToCart, cartProducts } = useCart();
-    const initialVariant = product.variants?.find((variant) => variant.active);
+    const activeVariants = useMemo(
+        () => product.variants?.filter((variant) => variant.active) ?? [],
+        [product.variants],
+    );
+    const variantOptions = useMemo(
+        () => activeVariants.map(getVariantOption),
+        [activeVariants],
+    );
+    const initialVariant = activeVariants[0];
+    const initialColor = variantOptions[0]?.color ?? null;
     const isCjProduct = product.supplier_id === "cjdropshipping";
 
     const [isProductInCart, setIsProductInCart] = useState(false);
+    const [selectedColor, setSelectedColor] = useState<string | null>(initialColor);
 
     const [cartProduct, setCartProduct] = useState<ProductProps>({
         id: product.id,
@@ -98,6 +108,56 @@ const ProductDetails: React.FC<{ product: ProductProps | null }> = ({
             return { ...currentProduct, selected_image: value };
         });
     }, []);
+
+    const selectVariant = useCallback((variantId: string) => {
+        const selected = activeVariants.find((variant) => variant.id === variantId);
+        if (!selected) return;
+
+        const selectedImage = selected.variant_image
+            ? productImages.find((image) => image.image_url === selected.variant_image)
+            : undefined;
+
+        setCartProduct((current) => ({
+            ...current,
+            selected_variant_id: selected.id,
+            selected_image: selectedImage ?? current.selected_image,
+            price:
+                selected.variant_sug_sell_price ??
+                selected.variant_sell_price ??
+                product.price,
+        }));
+    }, [activeVariants, product.price, productImages]);
+
+    const colorOptions = useMemo(
+        () => Array.from(new Set(
+            variantOptions
+                .map((option) => option.color)
+                .filter((color): color is string => Boolean(color)),
+        )),
+        [variantOptions],
+    );
+    const variantsForSelectedColor = useMemo(
+        () => selectedColor
+            ? variantOptions
+                .filter((option) => option.color === selectedColor)
+                .map((option) => option.variant)
+            : activeVariants,
+        [activeVariants, selectedColor, variantOptions],
+    );
+
+    const handleVariantColorSelect = useCallback((color: string) => {
+        setSelectedColor(color);
+        const currentVariant = activeVariants.find(
+            (variant) => variant.id === cartProduct.selected_variant_id,
+        );
+        const selectedSize = currentVariant ? getVariantOption(currentVariant).size : null;
+        const compatibleVariant = variantOptions.find(
+            (option) => option.color === color && option.size === selectedSize,
+        ) ?? variantOptions.find((option) => option.color === color);
+        if (compatibleVariant) {
+            selectVariant(compatibleVariant.variant.id);
+        }
+    }, [activeVariants, cartProduct.selected_variant_id, selectVariant, variantOptions]);
 
     const handleQtyIncrease = useCallback(() => {
         const selectedVariant = product.variants?.find(
@@ -212,34 +272,51 @@ const ProductDetails: React.FC<{ product: ProductProps | null }> = ({
 
                     <div className="border-t border-white/30" />
 
-                    {product.variants && product.variants.length > 0 && (
+                    {colorOptions.length > 1 && (
+                        <fieldset className="flex flex-col gap-2 max-w-[420px]">
+                            <legend className="font-label-bold text-primary">Color</legend>
+                            <div className="flex flex-wrap gap-2">
+                                {colorOptions.map((color) => (
+                                    <button
+                                        key={color}
+                                        type="button"
+                                        aria-pressed={selectedColor === color}
+                                        onClick={() => handleVariantColorSelect(color)}
+                                        className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition-colors ${
+                                            selectedColor === color
+                                                ? "border-primary bg-white/70 text-primary"
+                                                : "border-white/40 bg-white/40 hover:bg-white/60"
+                                        }`}
+                                    >
+                                        <span
+                                            aria-hidden="true"
+                                            className="h-4 w-4 rounded-full border border-black/10"
+                                            style={{ backgroundColor: getColorSwatch(color) }}
+                                        />
+                                        {color}
+                                    </button>
+                                ))}
+                            </div>
+                        </fieldset>
+                    )}
+
+                    {activeVariants.length > 0 && (
                         <label className="flex flex-col gap-2 max-w-[420px]">
-                            <span className="font-label-bold text-primary">VARIANT</span>
+                            <span className="font-label-bold text-primary">
+                                {colorOptions.length > 1 ? "SIZE" : "VARIANT"}
+                            </span>
                             <select
                                 className="rounded-xl border border-white/40 bg-white/60 px-3 py-2"
                                 value={cartProduct.selected_variant_id ?? ""}
-                                onChange={(event) => {
-                                    const selected = product.variants?.find(
-                                        (variant) => variant.id === event.target.value,
-                                    );
-                                    if (!selected) return;
-                                    setCartProduct((current) => ({
-                                        ...current,
-                                        selected_variant_id: selected.id,
-                                        price:
-                                            selected.variant_sug_sell_price ??
-                                            selected.variant_sell_price ??
-                                            product.price,
-                                    }));
-                                }}
+                                onChange={(event) => selectVariant(event.target.value)}
                             >
-                                {product.variants
-                                    .filter((variant) => variant.active)
-                                    .map((variant) => (
+                                {variantsForSelectedColor.map((variant) => (
                                         <option key={variant.id} value={variant.id}>
-                                            {variant.variant_name_en ?? variant.variant_key ?? variant.variant_sku ?? variant.vid}
+                                            {colorOptions.length > 1
+                                                ? getVariantOption(variant).size ?? variant.variant_name_en ?? variant.variant_sku ?? variant.vid
+                                                : variant.variant_name_en ?? variant.variant_key ?? variant.variant_sku ?? variant.vid}
                                         </option>
-                                    ))}
+                                ))}
                             </select>
                         </label>
                     )}
@@ -261,14 +338,6 @@ const ProductDetails: React.FC<{ product: ProductProps | null }> = ({
                                 />
                             </div> */}
                         </div>
-                    )}
-
-                    {product.images.length > 0 && (
-                        <SetColor
-                            cartProduct={cartProduct}
-                            images={product.images}
-                            handleColorSelect={handleColorSelect}
-                        />
                     )}
 
                     <SetQuantity

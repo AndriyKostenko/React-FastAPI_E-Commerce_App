@@ -80,6 +80,24 @@ class TestSupplierProductMapper:
         assert result[1].pid == "p2"
         assert result[1].in_stock is False
 
+    def test_preserves_high_supplier_inventory(self) -> None:
+        supplier_product = GenericSupplierProduct(
+            supplier_id="cjdropshipping",
+            supplier_pid="high-stock",
+            name="High Stock T-Shirt",
+            price=Decimal("10.00"),
+            quantity=3_960_000,
+            in_stock=True,
+        )
+
+        result = SupplierProductMapper.map_supplier_product(
+            supplier_product,
+            uuid4(),
+        )
+
+        assert result.quantity == 3_960_000
+        assert result.in_stock is True
+
     def test_normalizes_and_bounds_supplier_html_description(self) -> None:
         supplier_product = GenericSupplierProduct(
             supplier_id="cjdropshipping",

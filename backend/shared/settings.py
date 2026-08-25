@@ -161,6 +161,8 @@ class Settings(BaseSettings):
     # Stripe
     STRIPE_TEST_SECRET_KEY: str
     STRIPE_WEBHOOK_SECRET: str
+    STRIPE_REQUEST_TIMEOUT_SECONDS: float = Field(default=30.0, gt=0, le=120)
+    STRIPE_MAX_NETWORK_RETRIES: int = Field(default=2, ge=0, le=5)
 
     # Email
     MAIL_USERNAME: str

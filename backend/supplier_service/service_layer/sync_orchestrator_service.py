@@ -165,6 +165,12 @@ class SupplierSyncOrchestrator:
                     event_type=event.event_type,
                     payload=event,
                 )
+                # Persist this durable batch and release the DB connection
+                # before the next supplier page/detail request (and its
+                # rate-limit waits). Each batch has its own event ID and the
+                # downstream importer is idempotent, so incremental commits
+                # are safe across retries.
+                await self.sync_state_repository.session.commit()
 
                 if current_page >= total_pages:
                     break
@@ -285,27 +291,38 @@ class SupplierSyncOrchestrator:
                						products: list[GenericSupplierProduct],
                                  default_category_name: str | None,
                                  allowed_category_ids: set[str]) -> tuple[list[GenericSupplierProduct], list[str]]:
-        """Fetch details concurrently while protecting the supplier API."""
-        semaphore = asyncio.Semaphore(10)
+        """Fetch details at CJ's documented one-request-per-second limit."""
 
         async def fetch(product: GenericSupplierProduct) -> GenericSupplierProduct | str | None:
             if not product.supplier_pid:
                 return "Skipped product without a supplier product id"
             try:
-                async with semaphore:
-                    detailed = await provider.get_mapped_product_details(product.supplier_pid)
+                detailed = await provider.get_mapped_product_details(product.supplier_pid)
                 if detailed.supplier_category_id not in allowed_category_ids:
                     return (
                         f"Skipped {product.supplier_pid}: category "
                         f"'{detailed.supplier_category_id}' is not an allowed T-shirt category"
                     )
+                # CJ's product-detail endpoint omits inventory fields.  The
+                # product-list response is fetched immediately before this
+                # call and is the authoritative inventory snapshot for the
+                # catalog import, so retain it while enriching the product
+                # with details, images, and variants.
+                detailed.quantity = product.quantity
+                detailed.in_stock = product.in_stock
                 if default_category_name:
                     detailed.category_name = default_category_name
                 return detailed
             except Exception as exc:
                 return f"Failed to fetch details for {product.supplier_pid}: {exc}"
 
-        results = await asyncio.gather(*(fetch(product) for product in products))
+        results: list[GenericSupplierProduct | str | None] = []
+        for index, product in enumerate(products):
+            # CJ's product-detail endpoint has a hard QPS limit of one request.
+            # Space calls slightly beyond one second to avoid boundary-rate 429s.
+            if index:
+                await asyncio.sleep(1.1)
+            results.append(await fetch(product))
         detailed_products = [result for result in results if isinstance(result, GenericSupplierProduct)]
         errors = [result for result in results if isinstance(result, str)]
         return detailed_products, errors

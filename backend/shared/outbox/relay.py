@@ -32,6 +32,8 @@ class OutboxRelay:
         batch_size: int = 50,
         base_retry_seconds: float = 5.0,
         max_retry_seconds: float = 300.0,
+        publish_timeout_seconds: float = 30.0,
+        claim_lease_seconds: float = 60.0,
     ) -> None:
         self.session_manager: DatabaseSessionManager = session_manager
         self.event_router: EventRouter = event_router
@@ -41,6 +43,58 @@ class OutboxRelay:
         self.batch_size: int = batch_size
         self.base_retry_seconds: float = base_retry_seconds
         self.max_retry_seconds: float = max_retry_seconds
+        self.publish_timeout_seconds = publish_timeout_seconds
+        self.claim_lease_seconds = max(
+            claim_lease_seconds, publish_timeout_seconds + 5.0
+        )
+
+    async def _claim_one(self) -> Any | None:
+        """Lease one event in a short transaction and return its snapshot."""
+        async with self.session_manager.transaction() as session:
+            repository = OutboxRepository(session=session, model=self.outbox_model)
+            events = await repository.get_pending_with_lock(limit=1)
+            if not events:
+                return None
+            event = events[0]
+            await repository.update_by_id(
+                item_id=event.id,
+                data={
+                    "next_retry_at": datetime.now(timezone.utc)
+                    + timedelta(seconds=self.claim_lease_seconds),
+                },
+            )
+            return event
+
+    async def _mark_processed(self, event_id: Any) -> None:
+        async with self.session_manager.transaction() as session:
+            repository = OutboxRepository(session=session, model=self.outbox_model)
+            await repository.update_by_id(
+                item_id=event_id,
+                data={
+                    "processed": True,
+                    "processed_at": datetime.now(timezone.utc),
+                    "last_error": None,
+                    "next_retry_at": None,
+                },
+            )
+
+    async def _mark_failed(self, event: Any, exc: Exception) -> None:
+        attempts = int(event.attempts or 0) + 1
+        retry_seconds = min(
+            self.base_retry_seconds * (2 ** min(attempts - 1, 16)),
+            self.max_retry_seconds,
+        )
+        async with self.session_manager.transaction() as session:
+            repository = OutboxRepository(session=session, model=self.outbox_model)
+            await repository.update_by_id(
+                item_id=event.id,
+                data={
+                    "attempts": attempts,
+                    "last_error": str(exc)[:2000],
+                    "next_retry_at": datetime.now(timezone.utc)
+                    + timedelta(seconds=retry_seconds),
+                },
+            )
 
     async def relay_once(self) -> int:
         """Publish one locked batch and return its number of successful events.
@@ -50,38 +104,23 @@ class OutboxRelay:
         intentional: it provides at-least-once delivery rather than data loss.
         """
         published = 0
-        async with self.session_manager.transaction() as session:
-            repository = OutboxRepository(session=session, model=self.outbox_model)
-            events = await repository.get_pending_with_lock(limit=self.batch_size)
-            for event in events:
-                try:
-                    await self.event_router(event.event_type, event.payload)
-                    await repository.update_by_id(
-                        item_id=event.id,
-                        data={
-                            "processed": True,
-                            "processed_at": datetime.now(timezone.utc),
-                            "last_error": None,
-                            "next_retry_at": None,
-                        },
-                    )
-                    published += 1
-                except Exception as exc:
-                    attempts = int(event.attempts or 0) + 1
-                    retry_seconds = min(
-                        self.base_retry_seconds * (2 ** min(attempts - 1, 16)),
-                        self.max_retry_seconds,
-                    )
-                    await repository.update_by_id(
-                        item_id=event.id,
-                        data={
-                            "attempts": attempts,
-                            "last_error": str(exc)[:2000],
-                            "next_retry_at": datetime.now(timezone.utc)
-                            + timedelta(seconds=retry_seconds),
-                        },
-                    )
-                    self.logger.exception("Outbox publish failed for event %s", event.id)
+        for _ in range(self.batch_size):
+            event = await self._claim_one()
+            if event is None:
+                break
+            try:
+                # No database session or row lock is held while RabbitMQ is
+                # awaited. A crashed worker leaves a finite lease, after which
+                # another worker can safely redeliver the event.
+                await wait_for(
+                    self.event_router(event.event_type, event.payload),
+                    timeout=self.publish_timeout_seconds,
+                )
+                await self._mark_processed(event.id)
+                published += 1
+            except Exception as exc:
+                await self._mark_failed(event, exc)
+                self.logger.exception("Outbox publish failed for event %s", event.id)
         return published
 
     async def run(self, stop_event: Event) -> None:

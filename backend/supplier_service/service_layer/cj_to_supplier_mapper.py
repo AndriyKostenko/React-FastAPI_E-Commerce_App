@@ -118,7 +118,7 @@ class CJToSupplierMapper:
             name=raw.get("productNameEn", ""),
             sku=raw.get("productSku", ""),
             image_url=raw.get("bigImage", ""),
-            price=cls._parse_price(raw.get("sellPrice", "0")),
+            price=cls._resolve_product_price(raw.get("sellPrice"), variants),
             description=raw.get("description", ""),
             supplier_category_id=raw.get("categoryId"),
             category_name=None,
@@ -127,6 +127,27 @@ class CJToSupplierMapper:
             in_stock=stock_qty > 0,
             variants=variants,
             images=images,
+        )
+
+    @classmethod
+    def _resolve_product_price(
+        cls,
+        product_price: str | None,
+        variants: list[SupplierProductVariant],
+    ) -> Decimal:
+        """Use the product price, or the cheapest purchasable variant price."""
+        price = cls._parse_price(product_price)
+        if price > 0:
+            return price
+
+        variant_prices = [
+            candidate
+            for variant in variants
+            for candidate in (variant.variant_sell_price, variant.variant_sug_sell_price)
+            if candidate is not None and candidate > 0
+        ]
+        return min(variant_prices, default=Decimal("0.00")).quantize(
+            Decimal("0.01"), rounding=ROUND_HALF_UP
         )
 
     @classmethod

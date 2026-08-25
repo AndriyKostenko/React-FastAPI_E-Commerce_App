@@ -45,7 +45,8 @@ def get_payment_service(session: AsyncSession = Depends(get_db_session),
         repository=PaymentRepository(session=session),
         outbox_event_service=outbox_event_service,
         settings=resources.settings,
-        logger=resources.logger
+        logger=resources.logger,
+        stripe_client=resources.stripe_client,
     )
 
 

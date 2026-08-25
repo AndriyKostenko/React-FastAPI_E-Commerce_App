@@ -27,8 +27,13 @@ def _product(pid: str | None) -> GenericSupplierProduct:
 class FakeCJProvider:
     supplier_id = "cjdropshipping"
 
-    def __init__(self, details: dict[str, GenericSupplierProduct | Exception]) -> None:
+    def __init__(
+        self,
+        details: dict[str, GenericSupplierProduct | Exception],
+        list_products: list[GenericSupplierProduct] | None = None,
+    ) -> None:
         self.details = details
+        self.list_products = list_products or [_product(pid) for pid in details]
         self.search_filters: list[CJProductsFilterParams] = []
 
     async def search_products(self, filters_query: CJProductsFilterParams) -> SupplierProductsPage:
@@ -36,7 +41,7 @@ class FakeCJProvider:
         return SupplierProductsPage(
             page=filters_query.page,
             page_size=filters_query.size,
-            products=[_product(pid) for pid in self.details],
+            products=self.list_products,
         )
 
     async def get_mapped_product_details(self, supplier_pid: str) -> GenericSupplierProduct:
@@ -96,6 +101,25 @@ async def test_sync_persists_event_and_marks_complete() -> None:
     assert emitted_event.total_batches == 1
     assert provider.search_filters[0].keyWord == "t-shirt"
     assert provider.search_filters[0].lv3categoryList == ["tshirt-cat"]
+
+
+@pytest.mark.asyncio
+async def test_sync_preserves_inventory_from_product_list_when_details_omit_it() -> None:
+    preview = _product("one")
+    preview.quantity = 160000
+    preview.in_stock = True
+
+    details = _product("one")
+    details.quantity = 0
+    details.in_stock = False
+    provider = FakeCJProvider({"one": details}, list_products=[preview])
+    orchestrator, _, _, outbox = _orchestrator(provider)
+
+    await orchestrator.run_sync("cjdropshipping")
+
+    emitted_product = outbox.add_outbox_event.await_args.kwargs["payload"].products[0]
+    assert emitted_product.quantity == 160000
+    assert emitted_product.in_stock is True
 
 
 @pytest.mark.asyncio
@@ -194,3 +218,28 @@ async def test_sync_requires_explicit_tshirt_category_policy() -> None:
 
     with pytest.raises(SupplierSyncConfigurationError, match="allowed_category_ids"):
         await orchestrator.run_sync("cjdropshipping")
+
+
+@pytest.mark.asyncio
+async def test_sync_commits_each_batch_before_fetching_next_supplier_page() -> None:
+    provider = FakeCJProvider({}, list_products=[])
+    orchestrator, _, sync_state_repository, _ = _orchestrator(provider)
+    requested_pages: list[int] = []
+
+    async def search_products(filters: CJProductsFilterParams) -> SupplierProductsPage:
+        requested_pages.append(filters.page)
+        # One commit records the running state; every later supplier request
+        # must see the previous outbox batch committed as well.
+        assert sync_state_repository.session.commit.await_count == len(requested_pages)
+        return SupplierProductsPage(
+            page=filters.page,
+            page_size=filters.size,
+            total_pages=2,
+            products=[],
+        )
+
+    provider.search_products = AsyncMock(side_effect=search_products)
+
+    await orchestrator.run_sync("cjdropshipping")
+
+    assert requested_pages == [1, 2]

@@ -7,6 +7,7 @@ from logging import Logger
 
 from fastapi import Request
 from faststream.rabbit import RabbitBroker
+from stripe import HTTPXClient, StripeClient
 
 from config import logger, settings
 from events_publisher.payment_event_publisher import PaymentEventPublisher
@@ -14,6 +15,19 @@ from messaging import create_rabbitmq_broker
 from shared.idempotency.idempotency_service import IdempotencyEventService
 from shared.managers.database_session_manager import DatabaseSessionManager
 from shared.settings import Settings
+
+
+def create_stripe_client(
+    app_settings: Settings = settings,
+) -> tuple[StripeClient, HTTPXClient]:
+    """Create one process-owned async Stripe transport with bounded I/O."""
+    http_client = HTTPXClient(timeout=app_settings.STRIPE_REQUEST_TIMEOUT_SECONDS)
+    client = StripeClient(
+        api_key=app_settings.STRIPE_TEST_SECRET_KEY,
+        max_network_retries=app_settings.STRIPE_MAX_NETWORK_RETRIES,
+        http_client=http_client,
+    )
+    return client, http_client
 
 
 def create_database_session_manager(
@@ -49,6 +63,8 @@ class PaymentApiResources:
     logger: Logger
     database: DatabaseSessionManager
     idempotency: IdempotencyEventService
+    stripe_client: StripeClient
+    stripe_http_client: HTTPXClient
 
 
 def create_payment_api_resources(
@@ -56,11 +72,14 @@ def create_payment_api_resources(
     app_logger: Logger = logger,
 ) -> PaymentApiResources:
     """Construct resources owned by one payment-service ASGI process."""
+    stripe_client, stripe_http_client = create_stripe_client(app_settings)
     return PaymentApiResources(
         settings=app_settings,
         logger=app_logger,
         database=create_database_session_manager(app_settings, app_logger),
         idempotency=create_idempotency_service(app_settings, app_logger),
+        stripe_client=stripe_client,
+        stripe_http_client=stripe_http_client,
     )
 
 
@@ -72,6 +91,7 @@ async def payment_api_runtime(
     """Start and reliably stop resources owned by one payment API process."""
     resources = create_payment_api_resources(app_settings, app_logger)
     async with AsyncExitStack() as stack:
+        stack.push_async_callback(resources.stripe_http_client.close_async)
         await stack.enter_async_context(resources.database)
         await stack.enter_async_context(resources.idempotency)
         yield resources
@@ -134,21 +154,29 @@ class PaymentConsumerResources:
     logger: Logger
     database: DatabaseSessionManager
     idempotency: IdempotencyEventService
+    stripe_client: StripeClient
+    stripe_http_client: HTTPXClient
 
     async def start(self) -> None:
         await self.idempotency.connect()
 
     async def close(self) -> None:
         try:
-            await self.idempotency.close()
+            await self.stripe_http_client.close_async()
         finally:
-            await self.database.close()
+            try:
+                await self.idempotency.close()
+            finally:
+                await self.database.close()
 
 
 def create_consumer_resources() -> PaymentConsumerResources:
+    stripe_client, stripe_http_client = create_stripe_client()
     return PaymentConsumerResources(
         settings=settings,
         logger=logger,
         database=create_database_session_manager(),
         idempotency=create_idempotency_service(),
+        stripe_client=stripe_client,
+        stripe_http_client=stripe_http_client,
     )

@@ -40,7 +40,8 @@ class PaymentService:
                 repository: PaymentRepository,
                 outbox_event_service: OutboxEventService,
                 settings: Settings,
-                logger: Logger) -> None:
+                logger: Logger,
+                stripe_client: StripeClient | None = None) -> None:
         self.logger: Logger = logger
         self.settings: Settings = settings
         self.repository: PaymentRepository = repository
@@ -48,7 +49,10 @@ class PaymentService:
         self.webhook_endpoint : str= self.settings.FULL_STRIPE_WEBHOOK_ENDPOINT
         self._webhook_secret: str = self.settings.STRIPE_WEBHOOK_SECRET
         self._stripe_api_key: str = self.settings.STRIPE_TEST_SECRET_KEY
-        self._stripe: StripeClient = StripeClient(api_key=self._stripe_api_key)
+        self._stripe: StripeClient = stripe_client or StripeClient(
+            api_key=self._stripe_api_key,
+            max_network_retries=self.settings.STRIPE_MAX_NETWORK_RETRIES,
+        )
 
     def _create_intent_idempotency_key(self, order_id: UUID) -> str:
         return f"payment_intent:create:{order_id}"
@@ -56,21 +60,21 @@ class PaymentService:
     def _refund_idempotency_key(self, order_id: UUID) -> str:
         return f"payment_refund:create:{order_id}"
 
-    def _create_refund(self, payment: Payment) -> Any:
+    async def _create_refund(self, payment: Payment) -> Any:
         """Create at most one Stripe refund across retries and worker crashes."""
-        return self._stripe.v1.refunds.create(
+        return await self._stripe.v1.refunds.create_async(
             {"payment_intent": payment.stripe_payment_intent_id},
             options={"idempotency_key": self._refund_idempotency_key(payment.order_id)},
         )
 
-    def _create_stripe_payment_intent(
+    async def _create_stripe_payment_intent(
         self,
         order_id: UUID,
         user_id: UUID,
         user_email: str,
         amount: int,
         currency: str) -> Any:
-        return self._stripe.v1.payment_intents.create(
+        return await self._stripe.v1.payment_intents.create_async(
             {
                 "amount": amount,
                 "currency": currency,
@@ -83,6 +87,17 @@ class PaymentService:
             },
             options={"idempotency_key": self._create_intent_idempotency_key(order_id)},
         )
+
+    async def _finish_read_phase(self) -> None:
+        """Release the connection before waiting on Stripe.
+
+        SQLAlchemy autobegins a transaction on the first SELECT.  These payment
+        workflows intentionally split into read -> remote I/O -> write phases,
+        so the read-only phase must finish before the potentially slow network
+        call.  ``expire_on_commit=False`` keeps the loaded snapshot usable; the
+        Stripe idempotency keys make retrying an uncertain remote result safe.
+        """
+        await self.repository.session.commit()
 
     async def create_payment_intent(self,
                                     order_id: UUID,
@@ -103,7 +118,10 @@ class PaymentService:
                 raise PaymentAlreadyFinalizedError(order_id=order_id)
 
             if existing_payment and existing_payment.status == PaymentStatus.PENDING:
-                existing_intent = self._stripe.v1.payment_intents.retrieve(existing_payment.stripe_payment_intent_id)
+                await self._finish_read_phase()
+                existing_intent = await self._stripe.v1.payment_intents.retrieve_async(
+                    existing_payment.stripe_payment_intent_id
+                )
                 return {
                     "client_secret": existing_intent.client_secret,
                     "stripe_payment_intent_id": existing_payment.stripe_payment_intent_id,
@@ -113,7 +131,8 @@ class PaymentService:
                     "currency": existing_payment.currency,
                 }
 
-            intent = self._create_stripe_payment_intent(
+            await self._finish_read_phase()
+            intent = await self._create_stripe_payment_intent(
                 order_id=order_id,
                 user_id=user_id,
                 user_email=user_email,
@@ -276,15 +295,16 @@ class PaymentService:
             return None
 
         if payment.status == PaymentStatus.PENDING:
+            await self._finish_read_phase()
             try:
-                self._stripe.v1.payment_intents.cancel(
+                await self._stripe.v1.payment_intents.cancel_async(
                     payment.stripe_payment_intent_id
                 )
             except StripeError as exc:
                 # A success webhook may race cancellation. If Stripe says the
                 # intent succeeded, refund it instead of leaving a charge behind.
                 try:
-                    intent = self._stripe.v1.payment_intents.retrieve(
+                    intent = await self._stripe.v1.payment_intents.retrieve_async(
                         payment.stripe_payment_intent_id
                     )
                     if intent.status == "canceled":
@@ -292,7 +312,7 @@ class PaymentService:
                     elif intent.status != "succeeded":
                         raise PaymentRefundError(detail=str(exc))
                     else:
-                        self._create_refund(payment)
+                        await self._create_refund(payment)
                         new_status = PaymentStatus.REFUNDED
                 except StripeError as reconcile_exc:
                     raise PaymentRefundError(detail=str(reconcile_exc)) from reconcile_exc
@@ -339,8 +359,9 @@ class PaymentService:
             # Nothing to refund — payment was never charged or already refunded/failed
             return payment
 
+        await self._finish_read_phase()
         try:
-            _ = self._create_refund(payment)
+            _ = await self._create_refund(payment)
         except StripeError as exc:
             raise PaymentRefundError(detail=str(exc))
 

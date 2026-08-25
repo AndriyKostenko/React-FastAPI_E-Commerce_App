@@ -144,7 +144,7 @@ class CreateProduct(BaseModel):
     description: str | None = Field(default=None, max_length=2000)
     category_id: UUID
     brand: str = Field(default="cjdropshipping", min_length=1, max_length=50)
-    quantity: int = Field(..., ge=0, le=1000000)
+    quantity: int = Field(..., ge=0)
     price: Decimal = Field(..., gt=0, le=9000)
     in_stock: bool
     sku: str | None = Field(default=None, max_length=70)
