@@ -8,6 +8,7 @@ from logging import Logger
 from typing import Any
 
 from fastapi import Request
+from starlette.requests import HTTPConnection
 
 from gateway.apigateway import ApiGateway
 from middleware.auth_middleware import AuthMiddleware
@@ -16,6 +17,7 @@ from shared.managers.cache_manager import CacheManager
 from shared.managers.logger_manager import setup_logger
 from shared.managers.ratelimit_manager import RateLimitManager
 from shared.managers.token_manager import TokenManager
+from shared.managers.session_registry import SessionRegistry
 from shared.settings import Settings, get_settings
 
 
@@ -32,6 +34,7 @@ class ApiGatewayResources:
     gateway: ApiGateway
     auth: AuthMiddleware
     request_middleware: GatewayRequestMiddleware
+    session_registry: SessionRegistry
 
 
 def create_api_gateway_resources(
@@ -49,12 +52,21 @@ def create_api_gateway_resources(
         service_prefix="api-gateway",
         redis_url=app_settings.APIGATEWAY_SERVICE_REDIS_URL,
         logger=app_logger,
+        trusted_proxy_networks=app_settings.TRUSTED_PROXY_NETWORKS,
     )
     gateway = ApiGateway(settings=app_settings, logger=app_logger)
+    # Written by user-service when a session is revoked; read here so a token
+    # from a superseded generation is refused on every proxied request.
+    session_registry = SessionRegistry(
+        service_prefix="api-gateway",
+        redis_url=app_settings.SESSION_REGISTRY_REDIS_URL,
+        logger=app_logger,
+    )
     auth = AuthMiddleware(
         settings=app_settings,
         logger=app_logger,
         token_manager=TokenManager(settings=app_settings),
+        session_registry=session_registry,
     )
     return ApiGatewayResources(
         settings=app_settings,
@@ -67,6 +79,7 @@ def create_api_gateway_resources(
             cache_manager=cache,
             rate_limit_manager=rate_limiter,
         ),
+        session_registry=session_registry,
     )
 
 
@@ -80,18 +93,19 @@ async def api_gateway_runtime(
         await stack.enter_async_context(resources.cache)
         await stack.enter_async_context(resources.rate_limiter)
         await stack.enter_async_context(resources.gateway)
+        await stack.enter_async_context(resources.session_registry)
         yield resources
 
 
-def get_api_gateway_resources(request: Request) -> ApiGatewayResources:
-    resources = getattr(request.app.state, "resources", None)
+def get_api_gateway_resources(connection: HTTPConnection) -> ApiGatewayResources:
+    resources = getattr(connection.app.state, "resources", None)
     if not isinstance(resources, ApiGatewayResources):
         raise RuntimeError("API-gateway resources are not initialized")
     return resources
 
 
-def get_api_gateway(request: Request) -> ApiGateway:
-    return get_api_gateway_resources(request).gateway
+def get_api_gateway(connection: HTTPConnection) -> ApiGateway:
+    return get_api_gateway_resources(connection).gateway
 
 
 class RequestScopedGateway:

@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 import pytest
+from pydantic import SecretStr
 from PIL import Image
 
 from exceptions.image_generation_exceptions import (
@@ -71,7 +72,10 @@ class _FakeSession:
 @pytest.fixture
 def image_generation_settings() -> MagicMock:
     settings = MagicMock()
-    settings.OPENROUTER_API_KEY = "test-key"
+    settings.OPENROUTER_API_KEY = SecretStr("test-key")
+    # The client reads the unwrapping accessor, not the raw field, so the
+    # double has to answer that too.
+    settings.OPENROUTER_KEY = "test-key"
     settings.OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
     settings.OPENROUTER_IMAGE_MODEL = "openai/gpt-5-image-mini"
     settings.OPENROUTER_IMAGE_SIZE = "0.5K"

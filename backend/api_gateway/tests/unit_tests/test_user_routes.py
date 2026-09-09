@@ -26,12 +26,15 @@ class TestPublicUserRoutes:
         assert response.status_code == 200
 
     async def test_activate_token_calls_forward(self, client: AsyncClient, mock_forward: AsyncMock):
-        response = await client.post(f"{TEST_API}/activate/mytoken123")
+        response = await client.post(f"{TEST_API}/activate", json={"token": "mytoken123"})
         mock_forward.assert_awaited_once()
         assert response.status_code == 200
 
     async def test_reset_password_calls_forward(self, client: AsyncClient, mock_forward: AsyncMock):
-        response = await client.post(f"{TEST_API}/password-reset/mytoken123", json={"password": "newpass"})
+        response = await client.post(
+            f"{TEST_API}/password-reset",
+            json={"token": "mytoken123", "new_password": "newpass"},
+        )
         mock_forward.assert_awaited_once()
         assert response.status_code == 200
 

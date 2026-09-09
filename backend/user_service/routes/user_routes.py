@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, Query, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import EmailStr
 
-from resources import rate_limited, settings
+from managers import rate_limited, settings
 from dependencies.dependencies import (
     user_service_dependency,
     current_user_dependency,
@@ -33,6 +33,14 @@ from schemas.user_schemas import (
 )
 
 user_routes = APIRouter(tags=["users"])
+
+# The @rate_limited limits below are a deliberate backstop, not the primary
+# control: the gateway is the only public ingress and enforces stricter limits
+# on each of these endpoints, so in normal operation these never fire.  They
+# exist to cap credential abuse if the gateway is ever bypassed or its limits
+# are misconfigured, and must stay looser than the gateway's so that traffic
+# the gateway already allowed is never rejected here.  Do not remove them as
+# dead code, and do not lower them below the matching gateway limit.
 
 @user_routes.post("/register",
                   summary="Create new user",

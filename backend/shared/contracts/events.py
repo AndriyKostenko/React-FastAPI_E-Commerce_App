@@ -1,12 +1,22 @@
 from uuid import UUID, uuid4
 from datetime import datetime, timezone
 
-from pydantic import BaseModel, EmailStr, PositiveFloat, Field
+from pydantic import BaseModel, EmailStr, PositiveFloat, PositiveInt, Field, model_validator
 
 from shared.contracts.order import ConfirmedOrderAddress, ConfirmedOrderItem, OrderItem
 from shared.contracts.supplier import GenericSupplierProduct
 from shared.enums.services_enums import Services
-from shared.enums.event_enums import UserEvents, OrderEvents, InventoryEvents, PaymentEvents, ShippingEvents, WishlistEvents, SupplierEvents
+from shared.enums.event_enums import (
+    ArtworkEvents,
+    InventoryEvents,
+    OrderEvents,
+    PaymentEvents,
+    ProductionEvents,
+    ShippingEvents,
+    SupplierEvents,
+    UserEvents,
+    WishlistEvents,
+)
 
 class BaseEvent(BaseModel):
     """Base class for all events"""
@@ -83,9 +93,17 @@ class OrderConfirmedEvent(OrderBaseEvent):
 
 
 class OrderCancelledEvent(OrderBaseEvent):
-    """Event published when order is cancelled (SAGA compensation)"""
+    """Event published when order is cancelled (SAGA compensation).
+
+    ``reconciliation_required`` is set when the order was cancelled after
+    goods had already been made or posted — a printed garment, a parcel in the
+    post. Refunding such an order automatically pays back money for stock that
+    is already spent or gone, so payment_service holds the refund for a human
+    return decision instead.
+    """
     event_type: str = Field(default_factory=lambda: OrderEvents.ORDER_CANCELLED)
     reason: str
+    reconciliation_required: bool = False
 
 
 class CJOrderFailedEvent(OrderBaseEvent):
@@ -192,6 +210,111 @@ class CJOrderCreatedEvent(OrderBaseEvent):
     """Event published when a CJ Dropshipping order has been created."""
     event_type: str = Field(default_factory=lambda: OrderEvents.CJ_ORDER_CREATED)
     cj_order_number: str
+
+
+class OrderShippedBaseEvent(OrderBaseEvent):
+    """Shared shape of every "the parcel is on its way" event.
+
+    ``tracking_number`` is required: such an event exists to give the customer
+    a parcel to follow, and neither CJ nor the in-house queue announces a
+    dispatch before a tracking number exists.
+    """
+    tracking_number: str
+    carrier: str | None = None
+    tracking_url: str | None = None
+    shipped_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class OrderDeliveredBaseEvent(OrderBaseEvent):
+    """Shared shape of every "the parcel arrived" event."""
+    tracking_number: str | None = None
+    delivered_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class CJOrderShippedEvent(OrderShippedBaseEvent):
+    """Event published when CJ hands a dropshipped order to the carrier."""
+    event_type: str = Field(default_factory=lambda: OrderEvents.CJ_ORDER_SHIPPED)
+    cj_order_number: str
+    logistic_name: str | None = None
+
+    @model_validator(mode="after")
+    def _carrier_defaults_to_logistic_name(self) -> "CJOrderShippedEvent":
+        """CJ names the carrier ``logisticName``; expose it as ``carrier`` too."""
+        if self.carrier is None and self.logistic_name:
+            self.carrier = self.logistic_name
+        return self
+
+
+class CJOrderDeliveredEvent(OrderDeliveredBaseEvent):
+    """Event published when CJ reports a dropshipped order as delivered."""
+    event_type: str = Field(default_factory=lambda: OrderEvents.CJ_ORDER_DELIVERED)
+    cj_order_number: str
+
+
+# ============== IN-HOUSE PRODUCTION EVENTS ==============
+class ProductionJobBaseEvent(OrderBaseEvent):
+    """One in-house print job moving through the operator's work queue.
+
+    A production job covers exactly one custom order line, so these events
+    carry ``order_item_id`` as well as ``order_id``: a mixed cart can hold a
+    custom line alongside a CJ or catalog line that ships on its own schedule.
+    """
+    job_id: UUID
+    order_item_id: UUID
+    quantity: PositiveInt = 1
+    product_name: str | None = None
+
+
+class ProductionJobStartedEvent(ProductionJobBaseEvent):
+    """Event published when the operator picks a queued job up for printing."""
+    event_type: str = Field(default_factory=lambda: ProductionEvents.PRODUCTION_JOB_STARTED)
+
+
+class ProductionJobPrintedEvent(ProductionJobBaseEvent):
+    """Event published when the garment has been printed and is awaiting post."""
+    event_type: str = Field(default_factory=lambda: ProductionEvents.PRODUCTION_JOB_PRINTED)
+
+
+class ProductionJobShippedEvent(ProductionJobBaseEvent, OrderShippedBaseEvent):
+    """Event published when the operator posts the finished garment."""
+    event_type: str = Field(default_factory=lambda: ProductionEvents.PRODUCTION_JOB_SHIPPED)
+
+
+class ProductionJobDeliveredEvent(ProductionJobBaseEvent, OrderDeliveredBaseEvent):
+    """Event published when an in-house parcel is confirmed as delivered."""
+    event_type: str = Field(default_factory=lambda: ProductionEvents.PRODUCTION_JOB_DELIVERED)
+
+
+class ProductionJobCancelledEvent(ProductionJobBaseEvent):
+    """Event published when a job leaves the queue without being fulfilled."""
+    event_type: str = Field(default_factory=lambda: ProductionEvents.PRODUCTION_JOB_CANCELLED)
+    reason: str
+    reconciliation_required: bool = False
+
+
+# ============== ARTWORK RETENTION EVENTS ==============
+class ArtworkRetentionBaseEvent(BaseEvent):
+    """Links a paid order line to the stored print file it depends on.
+
+    product_service owns the artwork object while order_service owns the
+    reference to it. Without this link a cleanup job sweeping unreferenced
+    generation drafts cannot tell a paid order's print file from an abandoned
+    preview, so it could delete artwork that still has to be printed.
+    """
+    service: str = Field(default_factory=lambda: Services.ORDER_SERVICE)
+    order_id: UUID
+    artwork_keys: list[str] = Field(default_factory=list)
+
+
+class ArtworkRetainedEvent(ArtworkRetentionBaseEvent):
+    """Event published when an order is confirmed and its artwork must survive."""
+    event_type: str = Field(default_factory=lambda: ArtworkEvents.ARTWORK_RETAINED)
+
+
+class ArtworkReleasedEvent(ArtworkRetentionBaseEvent):
+    """Event published when an order is cancelled and its hold can be dropped."""
+    event_type: str = Field(default_factory=lambda: ArtworkEvents.ARTWORK_RELEASED)
+    reason: str = ""
 
 
 # ============== WISHLIST EVENTS ==============

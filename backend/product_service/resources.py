@@ -6,8 +6,8 @@ from dataclasses import dataclass
 from logging import Logger
 
 from aiohttp import ClientSession
-from fastapi import Request
-from faststream.rabbit import RabbitBroker, RabbitExchange
+from faststream.rabbit import ExchangeType, RabbitBroker, RabbitExchange
+from starlette.requests import HTTPConnection
 
 from event_publisher.event_publisher import ProductEventPublisher
 from shared.idempotency.idempotency_service import IdempotencyEventService
@@ -64,9 +64,11 @@ async def product_api_runtime(
     """Start and reliably stop resources owned by one product API process."""
     resources = create_product_api_resources(app_settings, app_logger)
     async with AsyncExitStack() as stack:
+        # Register the already-open HTTP client first so a failure while
+        # starting the database or cache still closes its connector.
+        await stack.enter_async_context(resources.http_session)
         await stack.enter_async_context(resources.database)
         await stack.enter_async_context(resources.cache)
-        await stack.enter_async_context(resources.http_session)
         yield resources
 
 
@@ -84,9 +86,9 @@ def create_product_api_resources(
     )
 
 
-def get_product_api_resources(request: Request) -> ProductApiResources:
+def get_product_api_resources(connection: HTTPConnection) -> ProductApiResources:
     """Resolve the current app's lifespan-owned resource container."""
-    resources = getattr(request.app.state, "resources", None)
+    resources = getattr(connection.app.state, "resources", None)
     if not isinstance(resources, ProductApiResources):
         raise RuntimeError("Product API resources are not initialized")
     return resources
@@ -139,12 +141,7 @@ def create_product_consumer_resources(
             service_api_version=settings.PRODUCT_SERVICE_URL_API_VERSION,
             ttl_hours=settings.IDEMPOTENCY_EVENT_SERVICE_HOURS,
         ),
-        cache=CacheManager(
-            service_prefix="api-gateway",
-            redis_url=settings.APIGATEWAY_SERVICE_REDIS_URL,
-            logger=logger,
-            service_api_version=settings.API_GATEWAY_SERVICE_URL_API_VERSION,
-        ),
+        cache=create_cache_manager(),
         publisher=ProductEventPublisher(
             broker=broker,
             inventory_exchange=inventory_exchange,
@@ -157,42 +154,52 @@ def create_product_consumer_resources(
 
 @dataclass(slots=True)
 class ProductOutboxResources:
+    """Resources owned by one product-service outbox process.
+
+    The instance is its own async context manager: ``__aenter__`` starts the
+    publisher (opening the broker connection) and ``__aexit__`` unwinds the
+    publisher and the database engine in reverse order.
+    """
+
     settings: Settings
     logger: Logger
     database: DatabaseSessionManager
+    broker: RabbitBroker
     publisher: ProductEventPublisher
 
-    async def start(self) -> None:
+    async def __aenter__(self) -> "ProductOutboxResources":
         await self.publisher.start()
+        return self
 
-    async def close(self) -> None:
+    async def __aexit__(self, *exc_info: object) -> None:
         try:
             await self.publisher.stop()
         finally:
             await self.database.close()
 
 
-@asynccontextmanager
-async def product_outbox_resources(
-    *,
-    broker: RabbitBroker,
-    inventory_exchange: RabbitExchange,
-    supplier_exchange: RabbitExchange,
-) -> AsyncIterator[ProductOutboxResources]:
-    resources = ProductOutboxResources(
-        settings=settings,
-        logger=logger,
-        database=create_database_manager(),
+def product_outbox_resources(
+    app_settings: Settings = settings,
+    app_logger: Logger = logger,
+) -> ProductOutboxResources:
+    """Build the resource graph for one product-service outbox process."""
+    broker = RabbitBroker(url=app_settings.RABBITMQ_BROKER_URL)
+    inventory_exchange = RabbitExchange(
+        name="inventory.events.exchange", durable=True, type=ExchangeType.TOPIC
+    )
+    supplier_exchange = RabbitExchange(
+        name="supplier.events.exchange", durable=True, type=ExchangeType.TOPIC
+    )
+    return ProductOutboxResources(
+        settings=app_settings,
+        logger=app_logger,
+        database=create_database_manager(app_settings, app_logger),
+        broker=broker,
         publisher=ProductEventPublisher(
             broker=broker,
             inventory_exchange=inventory_exchange,
             supplier_exchange=supplier_exchange,
-            logger=logger,
-            settings=settings,
+            logger=app_logger,
+            settings=app_settings,
         ),
     )
-    try:
-        await resources.start()
-        yield resources
-    finally:
-        await resources.close()

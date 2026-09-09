@@ -19,14 +19,20 @@ from sqlalchemy import select
 
 from main import app
 from database_layer.user_repository import UserRepository
-from dependencies.dependencies import get_user_service, get_current_user, get_db_session
+from dependencies.dependencies import (
+    admin_only_dependency,
+    get_current_user,
+    get_db_session,
+    get_user_service,
+    self_or_admin,
+)
 from service_layer.user_service import UserService
 from service_layer.outbox_event_service import OutboxEventService
 from shared.database_layer.outbox_repository import OutboxRepository
 from models.base import Base
 from models.outbox_models import OutboxEvent
 from models.user_models import User
-from resources import UserApiResources, logger, settings
+from managers import ResourceManager, UserApiResources, logger, settings
 from shared.settings import get_test_settings
 from shared.managers.test_database_session_manager import TestDatabaseSessionManager
 from shared.managers.token_manager import TokenManager
@@ -57,6 +63,17 @@ TEST_CURRENT_USER = CurrentUserInfo(
     role=test_settings.TEST_USER_ROLE,
 )
 
+
+
+def _admin_only_guard():
+    """The callable behind ``admin_only_dependency``.
+
+    It is produced by the ``require_roles`` factory, so the only stable handle
+    on it is the Depends marker stored in the Annotated alias — building a new
+    one with ``require_roles(...)`` would create a different object that
+    ``dependency_overrides`` would never match.
+    """
+    return admin_only_dependency.__metadata__[0].dependency
 
 # ---------------------------------------------------------------------------
 # Host-validation bypass for ASGI test client
@@ -286,8 +303,12 @@ async def client_for_unit_testing(mock_route_service: MagicMock) -> AsyncGenerat
         google_http_client=AsyncMock(),
         password_manager=MagicMock(),
         token_manager=MagicMock(),
+        session_registry=MagicMock(
+            publish_generation=AsyncMock(return_value=None),
+            is_revoked=AsyncMock(return_value=False),
+        ),
     )
-    app.state.resources = test_resources
+    ResourceManager.attach(app, test_resources)
 
     app.dependency_overrides[get_user_service] = lambda: mock_route_service
     app.dependency_overrides[get_current_user] = lambda: TEST_CURRENT_USER
@@ -298,7 +319,7 @@ async def client_for_unit_testing(mock_route_service: MagicMock) -> AsyncGenerat
     app.dependency_overrides.clear()
 
     app.router.lifespan_context = original_lifespan
-    del app.state.resources
+    ResourceManager.detach(app)
     settings.DEBUG_MODE = original_debug_mode
 
 @pytest.fixture
@@ -351,7 +372,12 @@ async def integration_client(
     real_password_manager = PasswordManager(settings)
     real_token_manager    = TokenManager(settings)
 
-    # ── 3. Mock Redis — dict-backed so setex/get/delete behave like real Redis ─
+    # ── 3. Fake Redis — dict-backed, so token flows behave like production ───
+    #
+    # Refresh tokens are written through a pipeline and read back on refresh,
+    # verification tokens are consumed with GETDEL, and deleting a user revokes
+    # a whole token set. A fake that only records calls would let all of those
+    # pass without ever storing anything, so this one keeps real state.
     _redis_store: dict[str, Any] = {}
 
     async def _redis_setex(key, ttl, value):
@@ -366,10 +392,75 @@ async def integration_client(
             _redis_store.pop(k, None)
         return len(keys)
 
-    _mock_redis = AsyncMock()
-    _mock_redis.setex  = _redis_setex
-    _mock_redis.get    = _redis_get
-    _mock_redis.delete = _redis_delete
+    async def _redis_getdel(key):
+        """Read and consume in one step, as single-use tokens require."""
+        return _redis_store.pop(key, None)
+
+    async def _redis_sadd(key, *members):
+        bucket = _redis_store.setdefault(key, set())
+        bucket.update(members)
+        return len(members)
+
+    async def _redis_srem(key, *members):
+        bucket = _redis_store.get(key)
+        if not isinstance(bucket, set):
+            return 0
+        removed = len(bucket & set(members))
+        bucket -= set(members)
+        return removed
+
+    async def _redis_smembers(key):
+        bucket = _redis_store.get(key)
+        return set(bucket) if isinstance(bucket, set) else set()
+
+    async def _redis_expire(key, ttl):
+        return key in _redis_store
+
+    class _FakePipeline:
+        """Buffers commands and applies them on execute(), like redis-py.
+
+        redis-py builds the pipeline synchronously and awaits only execute(),
+        so the buffering methods here are deliberately not coroutines.
+        """
+
+        _COMMANDS = {
+            "setex": _redis_setex,
+            "sadd": _redis_sadd,
+            "srem": _redis_srem,
+            "delete": _redis_delete,
+            "expire": _redis_expire,
+        }
+
+        def __init__(self) -> None:
+            self._queued: list[tuple[str, tuple[Any, ...]]] = []
+
+        def __getattr__(self, name: str):
+            if name not in self._COMMANDS:
+                raise AttributeError(name)
+
+            def _queue(*args):
+                self._queued.append((name, args))
+                return self
+
+            return _queue
+
+        async def execute(self):
+            results = []
+            for name, args in self._queued:
+                results.append(await self._COMMANDS[name](*args))
+            self._queued.clear()
+            return results
+
+    _mock_redis = MagicMock()
+    _mock_redis.setex    = _redis_setex
+    _mock_redis.get      = _redis_get
+    _mock_redis.delete   = _redis_delete
+    _mock_redis.getdel   = _redis_getdel
+    _mock_redis.sadd     = _redis_sadd
+    _mock_redis.srem     = _redis_srem
+    _mock_redis.smembers = _redis_smembers
+    _mock_redis.expire   = _redis_expire
+    _mock_redis.pipeline = MagicMock(side_effect=_FakePipeline)
 
     _mock_redis_manager = MagicMock()
     type(_mock_redis_manager).redis = PropertyMock(return_value=_mock_redis)
@@ -397,7 +488,7 @@ async def integration_client(
     original_lifespan = app.router.lifespan_context
     app.router.lifespan_context = _noop_lifespan
 
-    app.state.resources = UserApiResources(
+    ResourceManager.attach(app, UserApiResources(
         settings=settings,
         logger=logger,
         database=test_database_session_manager,
@@ -406,17 +497,36 @@ async def integration_client(
         google_http_client=AsyncMock(),
         password_manager=real_password_manager,
         token_manager=real_token_manager,
-    )
+        # Revocation is broadcast through this; a stub keeps the integration
+        # tests off Redis while still exercising the call.
+        session_registry=MagicMock(
+            publish_generation=AsyncMock(return_value=None),
+            is_revoked=AsyncMock(return_value=False),
+        ),
+    ))
+
+    # The /users endpoints sit behind role checks. Override only the
+    # authorisation layer, not get_current_user itself: the /me tests assert
+    # what an absent or invalid token does, and replacing the authentication
+    # dependency wholesale would quietly make those pass for the wrong reason.
+    def _override_authorised_admin() -> CurrentUserInfo:
+        return CurrentUserInfo(
+            email=test_settings.TEST_EMAIL,
+            id=test_settings.TEST_USER_ID,
+            role=settings.SECRET_ROLE,
+        )
 
     app.dependency_overrides[get_db_session]   = _override_get_db_session
     app.dependency_overrides[get_user_service] = _override_get_user_service
+    for _guard in (self_or_admin, _admin_only_guard()):
+        app.dependency_overrides[_guard] = _override_authorised_admin
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as async_client:
         yield async_client
 
     app.dependency_overrides.clear()
     app.router.lifespan_context = original_lifespan
-    del app.state.resources
+    ResourceManager.detach(app)
     settings.DEBUG_MODE = original_debug_mode
 
     # ── 6. Wipe all rows so the next test starts with an empty database ─────

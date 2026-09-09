@@ -26,7 +26,7 @@ class OutboxEventMixin(TimestampMixin):
         Index('idx_outbox_events_retry', 'processed', 'next_retry_at'),
         )
 
-    id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4, unique=True)
+    id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4)
     event_type: Mapped[str] = mapped_column(nullable=False)
     payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
     processed: Mapped[bool] = mapped_column(default=False)

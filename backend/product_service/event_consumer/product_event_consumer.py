@@ -5,17 +5,21 @@ from database_layer.product_image_repository import ProductImageRepository
 from database_layer.product_repository import ProductRepository
 from database_layer.product_variant_repository import ProductVariantRepository
 from database_layer.category_repository import CategoryRepository
+from database_layer.retained_artwork_repository import RetainedArtworkRepository
 from database_layer.supplier_import_repository import SupplierImportBatchRepository
 from exceptions.product_exceptions import ProductCreationError, ProductReleaseError
 from pydantic import ValidationError
 from sqlalchemy.exc import IntegrityError
 from models.outbox_models import OutboxEvent
 from models.supplier_import_models import SupplierImportBatch
+from service_layer.artwork_asset_service import ArtworkAssetService
 from service_layer.product_service import ProductService
 from service_layer.product_image_service import ProductImageService
 from service_layer.category_service import CategoryService
 from shared.database_layer.outbox_repository import OutboxRepository
 from shared.contracts.events import (
+    ArtworkReleasedEvent,
+    ArtworkRetainedEvent,
     InventoryReserveRequested,
     InventoryReleaseRequested,
     InventoryReserveSucceeded,
@@ -27,7 +31,7 @@ from shared.managers.cache_manager import CacheManager
 from shared.managers.database_session_manager import DatabaseSessionManager
 from event_publisher.event_publisher import ProductEventPublisher
 from shared.idempotency.idempotency_service import IdempotencyEventService
-from shared.enums.event_enums import InventoryEvents, SupplierEvents
+from shared.enums.event_enums import ArtworkEvents, InventoryEvents, SupplierEvents
 from service_layer.supplier_product_mapper import SupplierProductMapper
 from shared.settings import Settings
 
@@ -82,6 +86,87 @@ class ProductEventConsumer:
                 ),
             )
             yield product_service, OutboxRepository(session=session, model=OutboxEvent)
+
+    async def _get_artwork_asset_service(self):
+        """Create an ArtworkAssetService bound to a fresh database session."""
+        async with self.database.transaction() as session:
+            yield ArtworkAssetService(
+                logger=self.logger,
+                settings=self.settings,
+                repository=RetainedArtworkRepository(session=session),
+            )
+
+    async def handle_artwork_retention_event(self, message: dict[str, Any]) -> None:
+        """Route the retention markers that keep ordered print files alive."""
+        event_type = message.get("event_type")
+        match event_type:
+            case ArtworkEvents.ARTWORK_RETAINED:
+                await self.handle_artwork_retained(message)
+            case ArtworkEvents.ARTWORK_RELEASED:
+                await self.handle_artwork_released(message)
+            case _:
+                self.logger.warning(f"Unhandled artwork event type: {event_type}")
+
+    async def handle_artwork_retained(self, message: dict[str, Any]) -> None:
+        """Hold a confirmed order's print files against the draft cleanup.
+
+        Without this hold the cleanup job cannot distinguish the print file of
+        a paid order from an abandoned generation preview, because the order
+        reference lives in order_service and the object lives here.
+        """
+        event = ArtworkRetainedEvent(**message)
+        if not await self.idempotency_service.try_claim_event(
+            event.event_id, event.event_type
+        ):
+            self.logger.info(
+                f"Skipping duplicate artwork.retained event for order: {event.order_id}"
+            )
+            return
+        try:
+            retained = 0
+            async for artwork_service in self._get_artwork_asset_service():
+                retained = await artwork_service.retain(
+                    order_id=event.order_id, artwork_keys=event.artwork_keys
+                )
+            await self.idempotency_service.mark_event_as_processed(
+                event.event_id,
+                event.event_type,
+                event.order_id,
+                f"artwork_retained_{retained}",
+            )
+        except Exception:
+            await self.idempotency_service.release_claim(
+                event.event_id, event.event_type
+            )
+            raise
+
+    async def handle_artwork_released(self, message: dict[str, Any]) -> None:
+        """Drop the holds of an order that can no longer need its print files."""
+        event = ArtworkReleasedEvent(**message)
+        if not await self.idempotency_service.try_claim_event(
+            event.event_id, event.event_type
+        ):
+            self.logger.info(
+                f"Skipping duplicate artwork.released event for order: {event.order_id}"
+            )
+            return
+        try:
+            released = 0
+            async for artwork_service in self._get_artwork_asset_service():
+                released = await artwork_service.release(
+                    order_id=event.order_id, reason=event.reason
+                )
+            await self.idempotency_service.mark_event_as_processed(
+                event.event_id,
+                event.event_type,
+                event.order_id,
+                f"artwork_released_{released}",
+            )
+        except Exception:
+            await self.idempotency_service.release_claim(
+                event.event_id, event.event_type
+            )
+            raise
 
     async def handle_inventory_saga_event(self, message: dict[str, Any]):
         """

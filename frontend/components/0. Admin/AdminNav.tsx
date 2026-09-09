@@ -8,6 +8,7 @@ import {
     MdDns,
     MdFormatListBulleted,
     MdLibraryAdd,
+    MdLocalPrintshop,
 } from "react-icons/md";
 import { usePathname } from "next/navigation";
 
@@ -48,6 +49,14 @@ const AdminNav = () => {
                             label="Manage Orders"
                             icon={MdFormatListBulleted}
                             selected={pathname === "/admin/manage-orders"}
+                        />
+                    </Link>
+
+                    <Link href="/admin/production">
+                        <AdminNavItem
+                            label="Production"
+                            icon={MdLocalPrintshop}
+                            selected={pathname === "/admin/production"}
                         />
                     </Link>
                 </div>

@@ -40,6 +40,7 @@ from exceptions.user_exceptions import (
 )
 from database_layer.user_repository import UserRepository
 from shared.managers.password_manager import PasswordManager
+from shared.managers.session_registry import SessionRegistry
 from shared.managers.token_manager import TokenManager
 from service_layer.outbox_event_service import OutboxEventService
 
@@ -60,7 +61,8 @@ class UserService:
                 cache_manager: CacheManager,
                 outbox_event_service: OutboxEventService,
                 http_client: AsyncClient,
-                settings: Settings):
+                settings: Settings,
+                session_registry: "SessionRegistry | None" = None):
         self.repository: UserRepository = repository
         self.password_manager: PasswordManager = password_manager
         self.token_manager: TokenManager = token_manager
@@ -68,6 +70,10 @@ class UserService:
         self.outbox_event_service: OutboxEventService = outbox_event_service
         self.httpx_client: AsyncClient = http_client
         self.settings = settings
+        # Optional so unit tests can construct the service without Redis; when
+        # absent, revocation still bumps token_version and drops the refresh
+        # family, it just is not broadcast to the gateway.
+        self.session_registry = session_registry
 
     def _token_hash(self, token: str) -> str:
         """Compute SHA-256 hash of a token for secure Redis storage."""
@@ -94,6 +100,21 @@ class UserService:
         pipe.sadd(self._user_refresh_set_key(user_id), token_hash)
         pipe.expire(self._user_refresh_set_key(user_id), ttl_seconds)
         await pipe.execute()
+
+    async def _revoke_all_sessions_for_user(
+        self, user_id: UUID | str, token_version: int | None = None
+    ) -> None:
+        """End every live session for a user, everywhere.
+
+        Dropping the refresh family stops new access tokens being minted, but
+        an access token already in a client's hands stays valid until it
+        expires. Publishing the new generation is what lets the API gateway —
+        which authenticates every request that never reaches this service —
+        refuse those too.
+        """
+        await self._revoke_all_refresh_for_user(user_id)
+        if self.session_registry is not None and token_version is not None:
+            await self.session_registry.publish_generation(user_id, token_version)
 
     async def _revoke_all_refresh_for_user(self, user_id: UUID | str) -> None:
         """Revoke all active refresh tokens for a given user (family invalidation)."""
@@ -218,7 +239,7 @@ class UserService:
                 field_name="email", value=email, is_verified=True, hashed_password=None,
                 token_version=(user.token_version or 1) + 1,
             )
-            await self._revoke_all_refresh_for_user(user.id)
+            await self._revoke_all_sessions_for_user(user.id, user.token_version)
 
         # Enforce account-level guards (same as authenticate_user)
         if not user.is_active:
@@ -391,6 +412,12 @@ class UserService:
         if not user:
             raise UserNotFoundError(f"User with id: {user_id} not found.")
 
+        # Capture the real address before the row is anonymised: `user` is the
+        # same identity-mapped instance the update below mutates, so reading
+        # it afterwards yields the placeholder — which is not a deliverable
+        # address and fails the event contract's EmailStr validation.
+        original_email = user.email
+
         anonymized_email = f"deleted+{user.id}@invalid.local"
         updated_user = await self.repository.update_by_id(
             item_id=user_id,
@@ -401,12 +428,12 @@ class UserService:
         if not updated_user:
             raise UserNotFoundError(f"User with id: {user_id} not found.")
 
-        await self._revoke_all_refresh_for_user(user_id)
+        await self._revoke_all_sessions_for_user(user_id, updated_user.token_version)
 
         await self.outbox_event_service.add_outbox_event(
             event_type=UserEvents.USER_DELETED,
             payload=UserDeletedEvent(
-                user_email=user.email,
+                user_email=original_email,
                 user_id=user_id,
             )
         )
@@ -470,7 +497,7 @@ class UserService:
             raise UserUpdateError("Password reset failed")
 
         # Invalidate all existing sessions / refresh tokens
-        await self._revoke_all_refresh_for_user(user.id)
+        await self._revoke_all_sessions_for_user(user.id, new_version)
 
         await self.outbox_event_service.add_outbox_event(
             event_type=UserEvents.USER_PASSWORD_RESET_SUCCESS,
@@ -536,8 +563,17 @@ class UserService:
         stored_user_id = await self.cache_manager.redis.getdel(self._refresh_key(token_hash))
 
         if not stored_user_id:
-            # Token reuse detected or token expired -> revoke all sessions for this user family
-            await self._revoke_all_refresh_for_user(token_data.id)
+            # Reuse of a refresh token that was already spent is the signature
+            # of a stolen token, so the whole family goes — including the
+            # access tokens the thief may already hold.
+            reused_by = await self.repository.get_by_id(token_data.id)
+            bumped_version = None
+            if reused_by:
+                bumped_version = (reused_by.token_version or 1) + 1
+                await self.repository.update_by_id(
+                    item_id=reused_by.id, data={"token_version": bumped_version}
+                )
+            await self._revoke_all_sessions_for_user(token_data.id, bumped_version)
             raise HTTPException(status_code=401, detail="Refresh token reuse detected or token expired")
 
         # Clean old token hash from user's active set

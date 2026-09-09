@@ -19,8 +19,9 @@ from routes.product_image_routes import product_images_routes
 from routes.product_routes import product_routes
 from routes.category_routes import category_routes
 from routes.review_routes import review_routes
-from models import Base
+from routes.artwork_routes import artwork_routes
 from shared.exceptions.base_exceptions import (BaseAPIException,RateLimitExceededError)
+from shared.middleware.host_validation_middleware import add_host_validation_middleware
 from shared.middleware.logging_middleware import add_logging_middleware
 from shared.telemetry import setup_tracing
 from resources import logger, product_api_runtime, settings
@@ -38,8 +39,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         app.state.resources = resources
         taskiq_started = False
         try:
-            await resources.database.init_db(Base.metadata)
-            logger.info("Product service tables are initialized from service-owned metadata.")
+            # The schema is owned by Alembic, not by this process.
+            # create_all cannot alter an existing table, so bootstrapping
+            # here would silently leave a database that predates a
+            # migration missing its new columns while the service still
+            # reported a clean startup.
+            logger.info("Product service schema is managed by Alembic migrations.")
             if not taskiq_broker.is_worker_process:
                 taskiq_started = True
                 await taskiq_broker.startup()
@@ -83,31 +88,7 @@ async def metrics_middleware(request: Request, call_next):
     return response
 
 
-@app.middleware("http")
-async def host_validation_middleware(request: Request, call_next):
-    """
-    Validates the HTTP Host header against ALLOWED_HOSTS to prevent DNS-rebinding
-    attacks.
-
-    Bypassed for:
-    - /metrics and /health  — scraped by Prometheus/cAdvisor via Docker DNS
-    - Any RFC-1918 client IP — internal service-to-service calls (e.g. admin-js
-      calling /api/v1/admin/schema/* on product-service) where the Host header
-      is the Docker service name, not a public hostname
-    """
-    if settings.DEBUG_MODE or internal_access_helper.is_internal_client(request):
-        return await call_next(request)
-
-    host = request.headers.get("host", "").split(":")[0]
-    if host in settings.ALLOWED_HOSTS:
-        return await call_next(request)
-
-    logger.warning(f"Invalid Host header: {host} from {request.client}")
-    raise HTTPException(
-        status_code=400,
-        detail="Invalid Host header",
-        headers={"X-Error": "Invalid Host header"}
-    )
+add_host_validation_middleware(app, settings=settings, logger=logger)
 
 
 @app.get("/health", tags=["Health Check"])
@@ -243,6 +224,7 @@ app.include_router(product_routes, prefix=settings.PRODUCT_SERVICE_URL_API_VERSI
 app.include_router(category_routes, prefix=settings.PRODUCT_SERVICE_URL_API_VERSION)
 app.include_router(review_routes, prefix=settings.PRODUCT_SERVICE_URL_API_VERSION)
 app.include_router(product_images_routes, prefix=settings.PRODUCT_SERVICE_URL_API_VERSION)
+app.include_router(artwork_routes, prefix=settings.PRODUCT_SERVICE_URL_API_VERSION)
 
 
 if __name__ == "__main__":

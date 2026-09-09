@@ -16,7 +16,9 @@ from shared.contracts.events import (
     PasswordResetSuccessEvent,
     OrderCreatedEvent,
     OrderConfirmedEvent,
-    OrderCancelledEvent
+    OrderCancelledEvent,
+    OrderShippedBaseEvent,
+    OrderDeliveredBaseEvent,
 )
 
 class EmailService:
@@ -227,3 +229,45 @@ class OrderRelatedNotifications(EmailService):
             }
         )
         self.logger.info(f"Sent order cancellation notification for order {event.order_id}")
+
+    async def send_order_shipped_notification(self, event: OrderShippedBaseEvent) -> None:
+        """
+        Send notification when an order is handed to the carrier.
+
+        This is the first message that carries a tracking number, so it links
+        straight to the carrier rather than only to the order page. It serves
+        both dropshipped parcels and garments printed and posted in-house,
+        which is why it takes the shared shipped-event base type.
+        """
+        await self.send_email_async(
+            recipients=[event.user_email],
+            subject="Your Order Has Shipped",
+            template_name="order_shipped.html",
+            template_body={
+                "order_id": str(event.order_id),
+                "tracking_number": event.tracking_number,
+                "carrier": event.carrier or "our shipping partner",
+                "carrier_tracking_url": event.tracking_url,
+                "shipped_at": event.shipped_at.strftime("%d %b %Y"),
+                "app_name": self.settings.MAIL_FROM_NAME,
+                "order_url": f"http://{self.settings.APP_HOST}/orders/{event.order_id}",
+            }
+        )
+        self.logger.info(f"Sent shipment notification for order: {event.order_id}")
+
+    async def send_order_delivered_notification(self, event: OrderDeliveredBaseEvent) -> None:
+        """Send notification when the carrier reports the parcel as delivered."""
+        await self.send_email_async(
+            recipients=[event.user_email],
+            subject="Your Order Has Been Delivered",
+            template_name="order_delivered.html",
+            template_body={
+                "order_id": str(event.order_id),
+                "tracking_number": event.tracking_number,
+                "delivered_at": event.delivered_at.strftime("%d %b %Y"),
+                "app_name": self.settings.MAIL_FROM_NAME,
+                "order_url": f"http://{self.settings.APP_HOST}/orders/{event.order_id}",
+                "support_url": f"http://{self.settings.APP_HOST}/support",
+            }
+        )
+        self.logger.info(f"Sent delivery notification for order: {event.order_id}")

@@ -32,8 +32,8 @@ def upgrade() -> None:
         sa.Column('date_created', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
         sa.Column('date_updated', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
         sa.PrimaryKeyConstraint('id'),
-        sa.UniqueConstraint('supplier_id'),
     )
+    op.create_index('ix_supplier_configs_supplier_id', 'supplier_configs', ['supplier_id'], unique=True)
     op.create_index('idx_supplier_config_provider_type', 'supplier_configs', ['provider_type'], unique=False)
     op.create_index('idx_supplier_config_is_active', 'supplier_configs', ['is_active'], unique=False)
 

@@ -1,4 +1,5 @@
 from uuid import UUID
+from shared.utils.authenticated_caller import AuthenticatedCaller
 
 from fastapi import APIRouter, status, Request, Query
 
@@ -73,8 +74,17 @@ async def mark_notification_as_read(
     notification_id: UUID,
     notification_service: notification_service_dependency,
 ) -> NotificationInfo:
-    """Mark a single notification as read."""
-    return await notification_service.mark_as_read(notification_id=notification_id)
+    """Mark a single notification as read.
+
+    The caller comes from the gateway-asserted identity header rather than the
+    path, because this route is keyed on the notification id: without it the
+    service could not tell whose notification it is being asked to change.
+    """
+    caller = AuthenticatedCaller.from_request(request)
+    return await notification_service.mark_as_read(
+        notification_id=notification_id,
+        requesting_user_id=caller.user_id,
+    )
 
 
 @notification_routes.patch(
@@ -105,5 +115,9 @@ async def delete_notification(
     notification_service: notification_service_dependency,
 ) -> None:
     """Delete a notification by ID."""
-    await notification_service.delete_notification(notification_id=notification_id)
+    caller = AuthenticatedCaller.from_request(request)
+    await notification_service.delete_notification(
+        notification_id=notification_id,
+        requesting_user_id=caller.user_id,
+    )
     return None

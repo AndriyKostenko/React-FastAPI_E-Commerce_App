@@ -131,7 +131,10 @@ async def logout(request: Request, response: Response) -> JSONResponse:
     return JSONResponse(content={"detail": "Logged out successfully"}, status_code=200)
 
 
-@user_proxy.post("/activate/{token}", summary="Verify user email")
+# The single-use token travels in the request body, not the path: a URL path
+# lands in access logs, proxy logs, browser history and Referer headers, and
+# these tokens are credentials.
+@user_proxy.post("/activate", summary="Verify user email")
 @rate_limited(times=5, seconds=3600)
 async def verify_email(request: Request) -> JSONResponse:
     return await api_gateway_manager.forward_request(
@@ -147,7 +150,7 @@ async def forgot_password(request: Request) -> JSONResponse:
         request=request,
     )
 
-@user_proxy.post("/password-reset/{token}", summary="Reset password with token")
+@user_proxy.post("/password-reset", summary="Reset password with token")
 @rate_limited(times=3, seconds=3600)
 async def reset_password(request: Request) -> JSONResponse:
     return await api_gateway_manager.forward_request(
@@ -158,7 +161,9 @@ async def reset_password(request: Request) -> JSONResponse:
 # ==================== AUTHENTICATED USER ENDPOINTS ====================
 
 @user_proxy.get("/me", summary="Get current user data")
-@rate_limited(times=3, seconds=3600)
+# Polled on every page load by the frontend session check — this is a normal
+# read, not a credential operation, so it gets a read-shaped limit.
+@rate_limited(times=60, seconds=60)
 async def get_current_user_data(request: Request,
                                 current_user: CurrentUserInfo = Depends(get_current_user)) -> JSONResponse:
     return await api_gateway_manager.forward_request(

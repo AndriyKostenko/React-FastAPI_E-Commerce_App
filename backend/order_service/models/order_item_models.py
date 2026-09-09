@@ -18,7 +18,7 @@ class OrderItem(Base, TimestampMixin):
         Index('idx_order_items_variant_id', 'variant_id'),
     )
 
-    id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4, unique=True)
+    id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4)
     order_id: Mapped[UUID] = mapped_column(ForeignKey('orders.id'), nullable=False)
     product_id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), nullable=False)
     variant_id: Mapped[UUID | None] = mapped_column(PostgresUUID(as_uuid=True), nullable=True)

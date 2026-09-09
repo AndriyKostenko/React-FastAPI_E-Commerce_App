@@ -134,8 +134,10 @@ class TestCreateOrderIntegration:
         assert fulfillment.customization["effective_dpi"] == 227.56
 
     async def test_cj_order_requires_complete_fulfillment_address(
-        self, integration_client: AsyncClient
+        self, integration_client: AsyncClient, catalog_quote_stub
     ):
+        # The catalog — not the client — decides a line is CJ-fulfilled.
+        catalog_quote_stub.cj_product_ids.add(str(TEST_PRODUCT_ID))
         payload = _order_payload(
             products=[
                 {

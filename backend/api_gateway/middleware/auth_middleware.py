@@ -3,6 +3,7 @@ from fastapi import Request, HTTPException, Response
 from fastapi.responses import JSONResponse
 
 from shared.settings import Settings
+from shared.managers.session_registry import SessionRegistry
 from shared.managers.token_manager import TokenManager
 from shared.enums.auth_enums import AuthCookies
 
@@ -10,10 +11,22 @@ class AuthMiddleware:
     """
     Middleware to handle proper access via JWT authentication by validating tokens with the User Service.
     """
-    def __init__(self, settings: Settings, logger: Logger, token_manager: TokenManager):
+    def __init__(
+        self,
+        settings: Settings,
+        logger: Logger,
+        token_manager: TokenManager,
+        session_registry: "SessionRegistry | None" = None,
+    ):
         self.settings: Settings = settings
         self.logger: Logger = logger
         self.token_manager = token_manager
+        # Decoding a token proves it was issued and has not expired; it says
+        # nothing about whether the user has since revoked it. Only this
+        # service authenticates the requests that never reach user-service, so
+        # without the registry a password reset would leave stolen access
+        # tokens working until they expired on their own.
+        self.session_registry = session_registry
         self.PUBLIC_ENDPOINTS: dict[str, list[str] | None] = {
             "/health": None,
             "/metrics": None,
@@ -27,8 +40,12 @@ class AuthMiddleware:
             f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/refresh": ['POST'],
             f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/logout": ['POST'],
             f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/forgot-password": ['POST'],
-            f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/activate/": ['POST'],
-            f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/password-reset/": ['POST'],
+            # The token travels in the body, so these are exact paths with no
+            # trailing segment. A trailing slash here would stop matching and
+            # silently make account activation and password reset require the
+            # very session the user cannot yet obtain.
+            f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/activate": ['POST'],
+            f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/password-reset": ['POST'],
             f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/products": ['GET'],
             f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/categories": ['GET'],
             f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/customization/pricing": ['GET'],
@@ -64,6 +81,21 @@ class AuthMiddleware:
                 return method in allowed_methods
         return False
 
+    async def _is_revoked(self, user_data) -> bool:
+        """Report whether this token predates the user's current session generation."""
+        if self.session_registry is None:
+            return False
+        revoked = await self.session_registry.is_revoked(
+            user_data.id, user_data.token_version
+        )
+        if revoked:
+            self.logger.warning(
+                "Rejected a revoked session for user %s (token generation %s)",
+                user_data.id,
+                user_data.token_version,
+            )
+        return revoked
+
     async def middleware(self, request: Request, call_next):
         """
         Main middleware function to authenticate requests using JWT tokens.
@@ -88,6 +120,11 @@ class AuthMiddleware:
         if token:
             try:
                 user_data = self.token_manager.decode_token(token)
+                if await self._is_revoked(user_data):
+                    raise HTTPException(
+                        status_code=401,
+                        detail="Session has been revoked. Please sign in again.",
+                    )
                 request.state.current_user = user_data
                 self.logger.info(f"Token is validated for: {user_data.email}")
             except HTTPException as exc:

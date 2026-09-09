@@ -50,6 +50,20 @@ http:
         burst: 100
         period: 1m
 
+    # --- Request body size cap --------------------------------------------
+    # Nothing downstream bounded request size, so a single oversized POST
+    # could be buffered and parsed by a service before any validation ran.
+    # The cap is applied at the edge, ahead of the application entirely.
+    #
+    # 12 MB leaves room for the largest legitimate upload (a product image);
+    # generated artwork is produced server-side and never uploaded by a client,
+    # so it does not need headroom here.
+    limit-body-size:
+      buffering:
+        maxRequestBodyBytes: 12582912
+        memRequestBodyBytes: 1048576
+        retryExpression: "IsNetworkError() && Attempts() < 2"
+
     # --- Admin IP allowlist -----------------------------------------------
     # Restricts access to internal tools (Grafana, AdminJS, Traefik dashboard)
     # to RFC-1918 private ranges and localhost.

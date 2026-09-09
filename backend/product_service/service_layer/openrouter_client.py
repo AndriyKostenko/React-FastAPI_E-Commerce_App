@@ -118,7 +118,7 @@ class OpenRouterClient:
         self.validate_configuration()
         payload = self._build_payload(prompt, style, remove_background)
         headers = {
-            "Authorization": f"Bearer {self._settings.OPENROUTER_API_KEY}",
+            "Authorization": f"Bearer {self._settings.OPENROUTER_KEY}",
             "Content-Type": "application/json",
             "HTTP-Referer": self._settings.FRONTEND_URL,
             "X-OpenRouter-Title": self._settings.WEBSITE_NAME,

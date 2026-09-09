@@ -29,7 +29,7 @@ class SupplierSyncState(Base, TimestampMixin):
         ),
     )
 
-    id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4, unique=True)
+    id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4)
     supplier_id: Mapped[str] = mapped_column(String(100), ForeignKey("supplier_configs.supplier_id"), nullable=False)
     fetch_id: Mapped[UUID | None] = mapped_column(PostgresUUID(as_uuid=True), nullable=True)
     status: Mapped[str] = mapped_column(String(50), nullable=False, default="pending")

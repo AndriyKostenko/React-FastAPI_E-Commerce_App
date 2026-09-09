@@ -5,8 +5,8 @@ from contextlib import AsyncExitStack, asynccontextmanager
 from dataclasses import dataclass
 from logging import Logger
 
-from fastapi import Request
 from faststream.rabbit import RabbitBroker
+from starlette.requests import HTTPConnection
 
 from config import logger, settings
 from events_publisher.order_event_publisher import OrderEventPublisher
@@ -14,6 +14,7 @@ from messaging import create_rabbitmq_broker
 from shared.idempotency.idempotency_service import IdempotencyEventService
 from shared.managers.database_session_manager import DatabaseSessionManager
 from shared.settings import Settings
+from service_layer.artwork_asset_client import ArtworkAssetClient
 from service_layer.order_pricing_service import CatalogQuoteClient
 
 
@@ -47,6 +48,7 @@ class OrderApiResources:
     logger: Logger
     database: DatabaseSessionManager
     catalog_client: CatalogQuoteClient
+    artwork_client: ArtworkAssetClient
 
 
 def create_order_api_resources(
@@ -59,6 +61,7 @@ def create_order_api_resources(
         logger=app_logger,
         database=create_database_session_manager(app_settings, app_logger),
         catalog_client=CatalogQuoteClient(app_settings),
+        artwork_client=ArtworkAssetClient(app_settings),
     )
 
 
@@ -72,12 +75,13 @@ async def order_api_runtime(
     async with AsyncExitStack() as stack:
         await stack.enter_async_context(resources.database)
         await stack.enter_async_context(resources.catalog_client)
+        await stack.enter_async_context(resources.artwork_client)
         yield resources
 
 
-def get_order_api_resources(request: Request) -> OrderApiResources:
+def get_order_api_resources(connection: HTTPConnection) -> OrderApiResources:
     """Resolve the current app's lifespan-owned resource container."""
-    resources = getattr(request.app.state, "resources", None)
+    resources = getattr(connection.app.state, "resources", None)
     if not isinstance(resources, OrderApiResources):
         raise RuntimeError("Order API resources are not initialized")
     return resources
@@ -85,45 +89,47 @@ def get_order_api_resources(request: Request) -> OrderApiResources:
 
 @dataclass(slots=True)
 class OrderOutboxResources:
+    """Resources owned by one order-service outbox process.
+
+    The instance is its own async context manager: ``__aenter__`` starts the
+    publisher (opening the broker connection) and ``__aexit__`` unwinds the
+    publisher and the database engine in reverse order.
+    """
+
     settings: Settings
     logger: Logger
     database: DatabaseSessionManager
     broker: RabbitBroker
     publisher: OrderEventPublisher
 
-    async def start(self) -> None:
+    async def __aenter__(self) -> "OrderOutboxResources":
         await self.publisher.start()
+        return self
 
-    async def close(self) -> None:
+    async def __aexit__(self, *exc_info: object) -> None:
         try:
             await self.publisher.stop()
         finally:
             await self.database.close()
 
 
-def create_outbox_resources() -> OrderOutboxResources:
-    broker = create_rabbitmq_broker(settings)
+def order_outbox_resources(
+    app_settings: Settings = settings,
+    app_logger: Logger = logger,
+) -> OrderOutboxResources:
+    """Build the resource graph for one order-service outbox process."""
+    broker = create_rabbitmq_broker(app_settings)
     return OrderOutboxResources(
-        settings=settings,
-        logger=logger,
-        database=create_database_session_manager(),
+        settings=app_settings,
+        logger=app_logger,
+        database=create_database_session_manager(app_settings, app_logger),
         broker=broker,
         publisher=OrderEventPublisher(
             rabbitmq_broker=broker,
-            logger=logger,
-            settings=settings,
+            logger=app_logger,
+            settings=app_settings,
         ),
     )
-
-
-@asynccontextmanager
-async def order_outbox_resources() -> AsyncIterator[OrderOutboxResources]:
-    resources = create_outbox_resources()
-    try:
-        await resources.start()
-        yield resources
-    finally:
-        await resources.close()
 
 
 @dataclass(slots=True)

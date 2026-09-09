@@ -22,7 +22,7 @@ class ProductReview(Base, TimestampMixin):
         Index('idx_product_review_date_created', 'date_created'),
     )
 
-    id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4, unique=True)
+    id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4)
     user_id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), nullable=False)
     product_id: Mapped[UUID] = mapped_column(ForeignKey('products.id'), nullable=False)
     comment: Mapped[str] = mapped_column(nullable=True)

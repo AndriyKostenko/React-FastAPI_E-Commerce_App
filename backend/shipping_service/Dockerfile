@@ -66,6 +66,8 @@ ENV PATH="/app/.venv/bin:$PATH"
 
 COPY --chown=shippinguser:shippinggroup . .
 
+RUN chmod +x /app/entrypoint-api.sh
+
 USER shippinguser
 
 EXPOSE 8008
@@ -73,7 +75,7 @@ EXPOSE 8008
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8008/health || exit 1
 
-CMD ["sh", "-c", "mkdir -p ${PROMETHEUS_MULTIPROC_DIR} && rm -rf ${PROMETHEUS_MULTIPROC_DIR}/* && gunicorn -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:8008 --workers ${GUNICORN_WORKERS:-1} --timeout 120 --graceful-timeout 30 --access-logfile -"]
+CMD ["./entrypoint-api.sh"]
 
 
 # -------------------------

@@ -1,6 +1,7 @@
 """Unit tests for CJDropshippingAPIClient."""
 from unittest.mock import AsyncMock, MagicMock
 import pytest
+from pydantic import SecretStr
 from httpx import HTTPStatusError, Request
 
 from service_layer.cj_api_client import CJDropshippingAPIClient, CJDropshippingAPIError
@@ -12,7 +13,7 @@ def settings() -> Settings:
     s = Settings()
     s.CJ_DROPSHIPPING_ACCESS_TOKEN_URL = "https://api.cjdropshipping.com/authentication/getAccessToken"
     s.CJ_DROPSHIPPING_PRODUCT_LIST_URL = "https://api.cjdropshipping.com/product/listV2"
-    s.CJ_DROPSHIPPING_API_KEY = "testkey"
+    s.CJ_DROPSHIPPING_API_KEY = SecretStr("testkey")
     s.CJ_DROPSHIPPING_REQUEST_TIMEOUT_SECONDS = 5.0
     return s
 

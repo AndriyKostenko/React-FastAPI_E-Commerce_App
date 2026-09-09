@@ -19,7 +19,7 @@ class ProductCategory(Base, TimestampMixin):
         # categories are tiny, never filtered by date/image_url, and the indexes add write overhead
     )
 
-    id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4, unique=True)
+    id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4)
     name: Mapped[str] = mapped_column(unique=True, nullable=False)
     cj_category_id: Mapped[str | None] = mapped_column(nullable=True, unique=True)
     image_url: Mapped[str] = mapped_column(nullable=True)

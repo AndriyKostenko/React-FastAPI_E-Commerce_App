@@ -2,8 +2,16 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Query, status
 
-from dependencies.dependencies import cj_provider_dependency, sync_orchestrator_dependency
-from schemas.dropshipping_schemas import CJProductsFilterParams
+from dependencies.dependencies import (
+    cj_provider_dependency,
+    freight_quote_dependency,
+    sync_orchestrator_dependency,
+)
+from schemas.dropshipping_schemas import (
+    CJFreightQuoteRequest,
+    CJFreightQuoteResponse,
+    CJProductsFilterParams,
+)
 from schemas.supplier_schemas import CJProductPreview, SupplierSyncRunSummary
 
 
@@ -124,3 +132,23 @@ async def sync_supplier_products(
         fetch_details=True,
     )
     return _to_sync_summary(sync_state)
+
+
+@supplier_routes.post(
+    "/cjdropshipping/freight/quote",
+    response_model=CJFreightQuoteResponse,
+    response_description="CJ Dropshipping shipping options, cheapest first",
+    status_code=status.HTTP_200_OK,
+    summary="Quote CJ shipping for a cart at checkout",
+)
+async def quote_cjdropshipping_freight(
+    quote_request: CJFreightQuoteRequest,
+    freight_service: freight_quote_dependency,
+) -> CJFreightQuoteResponse:
+    """Price the CJ-fulfilled part of a cart for one destination.
+
+    Returns 422 when CJ cannot ship the cart to the requested country, which is
+    the signal for checkout to block the order rather than sell an item that
+    can never be delivered.
+    """
+    return await freight_service.quote(quote_request)

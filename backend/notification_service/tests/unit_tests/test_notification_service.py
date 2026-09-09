@@ -187,7 +187,9 @@ class TestMarkAsRead:
         svc.repository.get_by_id = AsyncMock(return_value=mock_notification_orm)
         svc.repository.update = AsyncMock(return_value=updated_orm)
 
-        result = await svc.mark_as_read(TEST_NOTIFICATION_ID)
+        result = await svc.mark_as_read(
+            TEST_NOTIFICATION_ID, requesting_user_id=TEST_USER_ID
+        )
 
         assert mock_notification_orm.is_read is True
         assert isinstance(result, NotificationInfo)
@@ -250,7 +252,9 @@ class TestDeleteNotification:
         svc.repository.get_by_id = AsyncMock(return_value=mock_notification_orm)
         svc.repository.delete = AsyncMock(return_value=None)
 
-        await svc.delete_notification(TEST_NOTIFICATION_ID)
+        await svc.delete_notification(
+            TEST_NOTIFICATION_ID, requesting_user_id=TEST_USER_ID
+        )
 
         svc.repository.delete.assert_awaited_once_with(mock_notification_orm)
 
@@ -259,7 +263,9 @@ class TestDeleteNotification:
         svc.repository.get_by_id = AsyncMock(return_value=None)
 
         with pytest.raises(NotificationNotFoundError):
-            await svc.delete_notification(TEST_NOTIFICATION_ID)
+            await svc.delete_notification(
+            TEST_NOTIFICATION_ID, requesting_user_id=TEST_USER_ID
+        )
 
     async def test_delete_wrong_user_raises_access_denied(
         self, notification_service_unit: NotificationService, mock_notification_orm: MagicMock
@@ -307,3 +313,31 @@ class TestSaveNotification:
             user_id=None,
         )
         assert isinstance(result, NotificationInfo)
+
+
+class TestOwnershipGuard:
+    """The id-keyed operations refuse unless the caller is proven to be the owner."""
+
+    async def test_a_different_user_is_refused(
+        self, notification_service_unit: NotificationService, mock_notification_orm: MagicMock
+    ):
+        svc = notification_service_unit
+        svc.repository.get_by_id = AsyncMock(return_value=mock_notification_orm)
+        svc.repository.delete = AsyncMock(return_value=None)
+
+        with pytest.raises(NotificationAccessDeniedError):
+            await svc.delete_notification(TEST_NOTIFICATION_ID, requesting_user_id=uuid4())
+        svc.repository.delete.assert_not_awaited()
+
+    async def test_no_caller_identity_is_refused(
+        self, notification_service_unit: NotificationService, mock_notification_orm: MagicMock
+    ):
+        # Without an identity the ownership question cannot be answered, so the
+        # operation is refused rather than waved through.
+        svc = notification_service_unit
+        svc.repository.get_by_id = AsyncMock(return_value=mock_notification_orm)
+        svc.repository.delete = AsyncMock(return_value=None)
+
+        with pytest.raises(NotificationAccessDeniedError):
+            await svc.delete_notification(TEST_NOTIFICATION_ID)
+        svc.repository.delete.assert_not_awaited()

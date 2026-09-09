@@ -16,7 +16,7 @@ class Payment(Base, TimestampMixin):
         Index("idx_payments_stripe_payment_intent_id", "stripe_payment_intent_id"),
     )
 
-    id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4, unique=True)
+    id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4)
     order_id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), nullable=False)
     user_id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), nullable=False)
     user_email: Mapped[str] = mapped_column(nullable=False)

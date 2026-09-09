@@ -41,6 +41,21 @@ class NotificationService:
         )
         return [NotificationInfo.model_validate(n) for n in notifications]
 
+    @staticmethod
+    def _assert_owned_by(notification, requesting_user_id: UUID | None) -> None:
+        """Refuse unless the caller owns this notification.
+
+        A missing caller is refused rather than waved through. These routes are
+        keyed on the notification id, so "no identity" means the ownership
+        question cannot be answered — and answering it optimistically is what
+        let any authenticated user read and delete other people's
+        notifications.
+        """
+        if requesting_user_id is None:
+            raise NotificationAccessDeniedError()
+        if notification.user_id is not None and notification.user_id != requesting_user_id:
+            raise NotificationAccessDeniedError()
+
     async def get_notification_by_id(self,
                                     notification_id: UUID,
                                     requesting_user_id: UUID | None = None) -> NotificationInfo:
@@ -62,8 +77,7 @@ class NotificationService:
         notification = await self.repository.get_by_id(notification_id)
         if not notification:
             raise NotificationNotFoundError()
-        if requesting_user_id and notification.user_id and notification.user_id != requesting_user_id:
-            raise NotificationAccessDeniedError()
+        self._assert_owned_by(notification, requesting_user_id)
         notification.is_read = True
         updated = await self.repository.update(notification)
         return NotificationInfo.model_validate(updated)
@@ -78,8 +92,7 @@ class NotificationService:
         notification = await self.repository.get_by_id(notification_id)
         if not notification:
             raise NotificationNotFoundError()
-        if requesting_user_id and notification.user_id and notification.user_id != requesting_user_id:
-            raise NotificationAccessDeniedError()
+        self._assert_owned_by(notification, requesting_user_id)
         await self.repository.delete(notification)
 
     # ─── Consumer ────────────────────────────────────────────────────────────

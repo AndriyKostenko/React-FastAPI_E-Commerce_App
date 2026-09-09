@@ -118,7 +118,7 @@ services:
       - "traefik.http.routers.api-gateway.rule=Host(`${DOMAIN}`) || Host(`www.${DOMAIN}`)"
       - "traefik.http.routers.api-gateway.entrypoints=${TRAEFIK_ENTRYPOINT:-web}"
       - "traefik.http.routers.api-gateway.tls.certresolver=${CERT_RESOLVER:-}"
-      - "traefik.http.routers.api-gateway.middlewares=www-to-apex@file,rate-limit-api@file,compress@file"
+      - "traefik.http.routers.api-gateway.middlewares=www-to-apex@file,limit-body-size@file,rate-limit-api@file,compress@file"
       - "traefik.http.services.api-gateway.loadbalancer.server.port=8000"
       - "traefik.http.services.api-gateway.loadbalancer.healthcheck.path=/health"
       - "traefik.http.services.api-gateway.loadbalancer.healthcheck.interval=30s"
@@ -147,7 +147,7 @@ services:
       - ./shared:/app/shared:ro
       - /tmp/prometheus_multiproc:/tmp/prometheus_multiproc
     ports:
-      - "8001:8001"
+      - "${INTERNAL_BIND_HOST:-127.0.0.1}:8001:8001"
     networks:
       - usernet
     healthcheck:
@@ -215,7 +215,7 @@ services:
       - ./shared:/app/shared:ro
       - /tmp/prometheus_multiproc:/tmp/prometheus_multiproc
     ports:
-      - "8002:8002"
+      - "${INTERNAL_BIND_HOST:-127.0.0.1}:8002:8002"
     networks:
       - usernet
     healthcheck:
@@ -309,7 +309,7 @@ services:
       REDIS_URL: redis://:${REDIS_PASSWORD}@${REDIS_HOST}:${REDIS_PORT}/${SUPPLIER_SERVICE_REDIS_DB}
       RABBITMQ_BROKER_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@${RABBITMQ_HOST}:${RABBITMQ_PORT}
     ports:
-      - "8010:8010"
+      - "${INTERNAL_BIND_HOST:-127.0.0.1}:8010:8010"
     networks:
       - usernet
     volumes:
@@ -427,7 +427,7 @@ services:
       REDIS_URL: redis://:${REDIS_PASSWORD}@${REDIS_HOST}:${REDIS_PORT}/${NOTIFICATION_SERVICE_REDIS_DB}
       RABBITMQ_BROKER_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@${RABBITMQ_HOST}:${RABBITMQ_PORT}
     ports:
-      - "8003:8003"
+      - "${INTERNAL_BIND_HOST:-127.0.0.1}:8003:8003"
     networks:
       - usernet
     volumes:
@@ -504,7 +504,7 @@ services:
       - ./shared:/app/shared:ro
       - /tmp/prometheus_multiproc:/tmp/prometheus_multiproc
     ports:
-      - "8005:8005"
+      - "${INTERNAL_BIND_HOST:-127.0.0.1}:8005:8005"
     networks:
       - usernet
     healthcheck:
@@ -607,7 +607,7 @@ services:
       - ./shared:/app/shared:ro
       - /tmp/prometheus_multiproc:/tmp/prometheus_multiproc
     ports:
-      - "8006:8006"
+      - "${INTERNAL_BIND_HOST:-127.0.0.1}:8006:8006"
     networks:
       - usernet
     healthcheck:
@@ -685,7 +685,7 @@ services:
       - ./shared:/app/shared:ro
       - /tmp/prometheus_multiproc:/tmp/prometheus_multiproc
     ports:
-      - "8007:8007"
+      - "${INTERNAL_BIND_HOST:-127.0.0.1}:8007:8007"
     networks:
       - usernet
     healthcheck:
@@ -737,7 +737,7 @@ services:
       - ./shared:/app/shared:ro
       - /tmp/prometheus_multiproc:/tmp/prometheus_multiproc
     ports:
-      - "8009:8009"
+      - "${INTERNAL_BIND_HOST:-127.0.0.1}:8009:8009"
     networks:
       - usernet
     healthcheck:
@@ -791,7 +791,7 @@ services:
       - ./shared:/app/shared:ro
       - /tmp/prometheus_multiproc:/tmp/prometheus_multiproc
     ports:
-      - "8008:8008"
+      - "${INTERNAL_BIND_HOST:-127.0.0.1}:8008:8008"
     networks:
       - usernet
     healthcheck:
@@ -851,7 +851,7 @@ services:
     env_file:
       - .env
     ports:
-      - "3001:3000"
+      - "${INTERNAL_BIND_HOST:-127.0.0.1}:3001:3000"
     depends_on:
       db:
         condition: service_healthy

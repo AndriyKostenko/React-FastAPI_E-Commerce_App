@@ -13,7 +13,7 @@ from shared.utils.models_mixins import TimestampMixin
 class Cart(Base, TimestampMixin):
     __tablename__: str = 'carts'
 
-    id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4, unique=True)
+    id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4)
     user_id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), nullable=False, unique=True, index=True)
 
     items: Mapped[list["CartItem"]] = relationship(
@@ -70,7 +70,7 @@ class Cart(Base, TimestampMixin):
 class CartItem(Base, TimestampMixin):
     __tablename__: str = 'cart_items'
 
-    id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4, unique=True)
+    id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4)
     cart_id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), ForeignKey("carts.id", ondelete="CASCADE"), nullable=False, index=True)
     product_id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), nullable=False, index=True)
     quantity: Mapped[int] = mapped_column(Integer, nullable=False, default=1)

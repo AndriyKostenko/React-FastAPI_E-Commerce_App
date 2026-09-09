@@ -14,9 +14,9 @@ from prometheus_client import CollectorRegistry, generate_latest, multiprocess, 
 from prometheus_fastapi_instrumentator import Instrumentator
 
 from routes.supplier_routes import supplier_routes
-from models import Base
 from service_layer.cj_api_client import CJDropshippingAPIError
 from shared.exceptions.base_exceptions import BaseAPIException, RateLimitExceededError
+from shared.middleware.host_validation_middleware import add_host_validation_middleware
 from shared.middleware.logging_middleware import add_logging_middleware
 from shared.telemetry import setup_tracing
 from resources import logger, settings, supplier_api_runtime
@@ -30,8 +30,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     async with supplier_api_runtime() as resources:
         app.state.resources = resources
         try:
-            await resources.database.init_db(Base.metadata)
-            logger.info("Supplier service tables are initialized from service-owned metadata.")
+            # The schema is owned by Alembic, not by this process.
+            # create_all cannot alter an existing table, so bootstrapping
+            # here would silently leave a database that predates a
+            # migration missing its new columns while the service still
+            # reported a clean startup.
+            logger.info("Supplier service schema is managed by Alembic migrations.")
             async with resources.database.transaction() as session:
                 await seed_default_supplier_config(
                     session=session,
@@ -188,6 +192,9 @@ def add_exception_handlers(app: FastAPI):
 
 
 add_exception_handlers(app)
+# supplier-service had no Host validation at all, so any Host header was
+# accepted and reflected. It gets the same allowlist as every other service.
+add_host_validation_middleware(app, settings=settings, logger=logger)
 add_logging_middleware(app, service_name="supplier-service")
 app.add_middleware(
     CORSMiddleware,

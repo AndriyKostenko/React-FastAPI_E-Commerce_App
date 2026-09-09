@@ -3,7 +3,12 @@ from typing import Any
 from faststream import FastStream
 from faststream.rabbit import ExchangeType, RabbitBroker, RabbitExchange, RabbitQueue
 
-from shared.enums.event_enums import ProductInventoryEventsQueue, ProductSupplierEventsQueue, SupplierEvents
+from shared.enums.event_enums import (
+    ProductArtworkEventsQueue,
+    ProductInventoryEventsQueue,
+    ProductSupplierEventsQueue,
+    SupplierEvents,
+)
 from event_consumer.product_event_consumer import ProductEventConsumer
 from resources import (
     ProductConsumerResources,
@@ -19,6 +24,9 @@ inventory_exchange = RabbitExchange(
 )
 supplier_exchange = RabbitExchange(
     name="supplier.events.exchange", durable=True, type=ExchangeType.TOPIC
+)
+order_exchange = RabbitExchange(
+    name="order.events.exchange", durable=True, type=ExchangeType.TOPIC
 )
 app = FastStream(rabbitmq_broker)
 
@@ -97,3 +105,23 @@ async def handle_inventory_events(body: dict[str, Any]):
 @rabbitmq_broker.subscriber(queue=product_supplier_events_queue, exchange=supplier_exchange)
 async def handle_supplier_events(body: dict[str, Any]):
     await get_consumer().handle_supplier_products_fetched(body)
+
+
+# Artwork retention markers travel on the order exchange under "artwork.*",
+# which neither the "order.#" nor the "cj.order.*" binding matches, so they
+# get their own queue and stay independently retryable.
+product_artwork_events_queue = RabbitQueue(
+    ProductArtworkEventsQueue.PRODUCT_ARTWORK_EVENTS_QUEUE,
+    durable=True,
+    routing_key="artwork.*",
+    arguments={
+        "x-dead-letter-exchange": "dlx",
+        "x-dead-letter-routing-key": ProductArtworkEventsQueue.PRODUCT_ARTWORK_EVENTS_DEAD_LETTER_QUEUE,
+    },
+)
+
+
+@rabbitmq_broker.subscriber(queue=product_artwork_events_queue, exchange=order_exchange)
+async def handle_artwork_events(body: dict[str, Any]):
+    """Keep a paid order's print files safe from the unreferenced-draft cleanup."""
+    await get_consumer().handle_artwork_retention_event(body)

@@ -3,8 +3,19 @@ from typing import Any
 from faststream import FastStream
 from faststream.rabbit import ExchangeType, RabbitBroker, RabbitExchange, RabbitQueue
 
-from .event_handlers import UserEventHandler, OrderEventHandler, PaymentEventHandler
-from shared.enums.event_enums import UserEventsQueue, OrderEventsQueue, PaymentEventsQueue
+from .event_handlers import (
+    CJOrderEventHandler,
+    OrderEventHandler,
+    PaymentEventHandler,
+    ProductionEventHandler,
+    UserEventHandler,
+)
+from shared.enums.event_enums import (
+    OrderEventsQueue,
+    PaymentEventsQueue,
+    ProductionEventsQueue,
+    UserEventsQueue,
+)
 from resources import (
     NotificationConsumerResources,
     create_notification_consumer_resources,
@@ -31,6 +42,8 @@ app = FastStream(rabbitmq_broker)
 user_handler: UserEventHandler | None = None
 order_handler: OrderEventHandler | None = None
 payment_handler: PaymentEventHandler | None = None
+cj_order_handler: CJOrderEventHandler | None = None
+production_handler: ProductionEventHandler | None = None
 consumer_resources: NotificationConsumerResources | None = None
 taskiq_started = False
 
@@ -38,7 +51,7 @@ taskiq_started = False
 @app.on_startup
 async def startup():
     global consumer_resources, taskiq_started
-    global user_handler, order_handler, payment_handler
+    global user_handler, order_handler, payment_handler, cj_order_handler, production_handler
     resources = create_notification_consumer_resources()
     taskiq_start_attempted = False
     started_taskiq = False
@@ -62,6 +75,16 @@ async def startup():
             resources.database,
             resources.logger,
         )
+        new_cj_order_handler = CJOrderEventHandler(
+            resources.idempotency,
+            resources.database,
+            resources.logger,
+        )
+        new_production_handler = ProductionEventHandler(
+            resources.idempotency,
+            resources.database,
+            resources.logger,
+        )
     except Exception:
         try:
             if taskiq_start_attempted:
@@ -75,18 +98,21 @@ async def startup():
     user_handler = new_user_handler
     order_handler = new_order_handler
     payment_handler = new_payment_handler
+    cj_order_handler = new_cj_order_handler
+    production_handler = new_production_handler
     logger.info("Notification consumer: schema is managed by Alembic migrations.")
 
 
 @app.on_shutdown
 async def shutdown():
     global consumer_resources, taskiq_started
-    global user_handler, order_handler, payment_handler
+    global user_handler, order_handler, payment_handler, cj_order_handler, production_handler
     resources = consumer_resources
     should_stop_taskiq = taskiq_started
     consumer_resources = None
     taskiq_started = False
-    user_handler = order_handler = payment_handler = None
+    user_handler = order_handler = payment_handler = cj_order_handler = None
+    production_handler = None
     try:
         if should_stop_taskiq:
             await taskiq_broker.shutdown()
@@ -144,8 +170,52 @@ async def handle_order_events(body: dict[str, Any]) -> None:
     await order_handler.handle(body)
 
 
+# CJ fulfillment events share the order exchange but use a "cj.order.*"
+# routing key, which the "order.#" binding above does not match. Binding them
+# on a separate queue keeps the two flows independently retryable.
+cj_order_events_queue = RabbitQueue(
+    OrderEventsQueue.NOTIFICATION_CJ_ORDER_EVENTS_QUEUE,
+    durable=True,
+    routing_key="cj.order.#",
+    arguments={
+        "x-dead-letter-exchange": "dlx",
+        "x-dead-letter-routing-key": OrderEventsQueue.NOTIFICATION_CJ_ORDER_EVENTS_DEAD_LETTER_QUEUE,
+    },
+)
+
+
+@rabbitmq_broker.subscriber(queue=cj_order_events_queue, exchange=order_exchange)
+async def handle_cj_order_events(body: dict[str, Any]) -> None:
+    if cj_order_handler is None:
+        raise RuntimeError("Notification consumer resources are not initialized")
+    await cj_order_handler.handle(body)
+
+
 @rabbitmq_broker.subscriber(queue=payment_events_queue, exchange=payment_exchange)
 async def handle_payment_events(body: dict[str, Any]) -> None:
     if payment_handler is None:
         raise RuntimeError("Notification consumer resources are not initialized")
     await payment_handler.handle(body)
+
+
+# In-house fulfillment events share the order exchange but use a
+# "production.job.*" routing key, which neither the "order.#" nor the
+# "cj.order.#" binding above matches. A custom T-shirt is printed and posted
+# by hand rather than by a carrier integration, so this queue carries the only
+# dispatch notice the buyer of one ever gets.
+production_events_queue = RabbitQueue(
+    ProductionEventsQueue.NOTIFICATION_PRODUCTION_EVENTS_QUEUE,
+    durable=True,
+    routing_key="production.job.#",
+    arguments={
+        "x-dead-letter-exchange": "dlx",
+        "x-dead-letter-routing-key": ProductionEventsQueue.NOTIFICATION_PRODUCTION_EVENTS_DEAD_LETTER_QUEUE,
+    },
+)
+
+
+@rabbitmq_broker.subscriber(queue=production_events_queue, exchange=order_exchange)
+async def handle_production_events(body: dict[str, Any]) -> None:
+    if production_handler is None:
+        raise RuntimeError("Notification consumer resources are not initialized")
+    await production_handler.handle(body)

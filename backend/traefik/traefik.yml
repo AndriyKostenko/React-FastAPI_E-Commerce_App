@@ -63,6 +63,13 @@ entryPoints:
 
 # Let's Encrypt via HTTP-01 challenge.
 # Requires port 80 to be reachable from the internet for the initial cert issuance.
+#
+# IMPORTANT: acme.json must be mode 0600 or Traefik refuses to use it and no
+# certificate is ever issued. Git cannot record that (it tracks only the exec
+# bit), so a fresh clone arrives at 0644 and the first HTTPS deploy fails.
+# Run this once per machine, before starting Traefik:
+#
+#     chmod 600 traefik/acme.json
 certificatesResolvers:
   letsencrypt:
     acme:

@@ -1,3 +1,4 @@
+import re
 from typing import Any, Optional
 from functools import wraps
 
@@ -13,21 +14,31 @@ class CacheManager(RedisBase):
     Caching layer: key generation, read-through, write-through, namespace invalidation,
     and a @cached decorator for individual route handlers.
     """
-    # Ordered most-specific → least-specific so the first match wins.
-    # Values are lists to allow a single mutation to invalidate multiple namespaces.
-    # e.g. updating a category also stales cached product-detail responses that embed category data.
+    # Ordered most-specific → least-specific so the first match wins, and
+    # anchored on whole path segments.
+    #
+    # Ordering is load-bearing, not cosmetic. A cart lives at
+    # /users/{id}/cart and a read-all at /notifications/users/{id}, so a plain
+    # substring scan that reached "/users" first would invalidate the *users*
+    # namespace and leave the cart and notification caches untouched. The
+    # owning resource therefore has to be matched before the /users prefix it
+    # happens to be nested under.
+    #
+    # Values are lists so one mutation can stale several namespaces — updating
+    # a category also stales cached product responses that embed category data.
     _INVALIDATION_NAMESPACE_MAP: list[tuple[str, list[str]]] = [
-        ("products/detailed", ["products"]),
-        ("/products", ["products"]),
-        ("/categories", ["categories", "products"]),   # category change → stale embedded product data
-        ("/images", ["images", "products"]),            # image change → stale embedded product data
-        ("/reviews", ["reviews", "products"]),          # review change → stale embedded product data
-        ("/orders", ["orders"]),
-        ("/carts", ["carts"]),
-        ("/wishlists", ["wishlists"]),
-        ("/shipping", ["shipping"]),
-        ("/users", ["users"]),
-        ("/notifications", ["notifications"]),
+        (r"/cart(s)?(/|$)", ["carts"]),
+        (r"/wishlists?(/|$)", ["wishlists"]),
+        (r"/notifications(/|$)", ["notifications"]),
+        (r"/categories(/|$)", ["categories", "products"]),
+        (r"/images(/|$)", ["images", "products"]),
+        (r"/reviews(/|$)", ["reviews", "products"]),
+        # Placing or cancelling an order reserves or releases stock, so the
+        # cached product listings that show availability are stale too.
+        (r"/(orders|shipments)(/|$)", ["orders", "products"]),
+        (r"/products(/|$)", ["products"]),
+        (r"/shipping(/|$)", ["shipping"]),
+        (r"/users(/|$)", ["users"]),
     ]
 
     _CACHE_TTL_MAP: list[tuple[str, int]] = [
@@ -49,15 +60,20 @@ class CacheManager(RedisBase):
 
     DEFAULT_TTL: int = 300
 
+    # Every namespace invalidate_namespace() will act on. A namespace named in
+    # _INVALIDATION_NAMESPACE_MAP but missing here is rejected at runtime and
+    # the invalidation silently does nothing, so the two are kept in step.
+    NAMESPACES: tuple[str, ...] = (
+        "users", "products", "categories", "orders",
+        "reviews", "images", "notifications", "carts",
+        "wishlists", "shipping",
+    )
+
     def __init__(self, service_api_version: str, **kwargs):
         super().__init__(**kwargs)
         self.service_api_version: str = service_api_version
         self.http_methods: list[str] = ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"]
-        self.namespaces: list[str] = [
-            "users", "products", "categories", "orders",
-            "reviews", "images", "notifications", "carts",
-            "wishlists", "shipping",
-        ]
+        self.namespaces: list[str] = list(self.NAMESPACES)
 
     # ---- key generation ----
 
@@ -320,10 +336,15 @@ class CacheManager(RedisBase):
 
 
     def get_invalidation_namespaces(self, path: str) -> list[str]:
-        """Return all cache namespaces to invalidate after a successful mutation on *path*."""
+        """Return all cache namespaces to invalidate after a successful mutation on *path*.
+
+        Matching is anchored on path segments so a resource nested under
+        another one — a cart under /users, a read-all under /notifications/users
+        — invalidates the namespace that actually owns the data.
+        """
         path_lower = path.lower()
-        for segment, namespaces in self._INVALIDATION_NAMESPACE_MAP:
-            if segment in path_lower:
+        for pattern, namespaces in self._INVALIDATION_NAMESPACE_MAP:
+            if re.search(pattern, path_lower):
                 return namespaces
         return []
 

@@ -13,7 +13,7 @@ from shared.database_layer.outbox_repository import OutboxRepository
 from service_layer.outbox_event_service import OutboxEventService
 from shared.managers.token_manager import TokenManager
 from shared.managers.password_manager import PasswordManager
-from resources import UserApiResources, get_user_api_resources, settings
+from managers import ResourceManager, UserApiResources, settings
 from schemas.user_schemas import CurrentUserInfo
 
 
@@ -55,16 +55,16 @@ async def get_db_session(request: Request) -> AsyncGenerator[AsyncSession, None]
          └─ async with DatabaseSessionManager.transaction()
              └─ async with AsyncSession()
     """
-    async with get_user_api_resources(request).database.transaction() as session:
+    async with ResourceManager.resolve(request).database.transaction() as session:
         yield session
 
 def get_password_manager(request: Request) -> PasswordManager:
     """Provide password manager instance"""
-    return get_user_api_resources(request).password_manager
+    return ResourceManager.resolve(request).password_manager
 
 def get_token_manager(request: Request) -> TokenManager:
     """Provide token manager instance"""
-    return get_user_api_resources(request).token_manager
+    return ResourceManager.resolve(request).token_manager
 
 def get_outbox_event_service(session: AsyncSession = Depends(get_db_session)) -> OutboxEventService:
     """Dependency to provide OutboxEventService for transactional event publishing."""
@@ -72,12 +72,12 @@ def get_outbox_event_service(session: AsyncSession = Depends(get_db_session)) ->
 
 def get_google_http_client(request: Request) -> AsyncClient:
     """Provide the shared Google HTTP client from application state."""
-    return get_user_api_resources(request).google_http_client
+    return ResourceManager.resolve(request).google_http_client
 
 
 def get_resources(request: Request) -> UserApiResources:
     """Expose the typed resource container to dependency composition."""
-    return get_user_api_resources(request)
+    return ResourceManager.resolve(request)
 
 
 def get_user_service(session: AsyncSession = Depends(get_db_session),
@@ -95,6 +95,7 @@ def get_user_service(session: AsyncSession = Depends(get_db_session),
         outbox_event_service=outbox_event_service,
         http_client=google_http_client,
         settings=resources.settings,
+        session_registry=resources.session_registry,
     )
 
 # Type annotations for dependency injection

@@ -4,8 +4,8 @@ from fastapi import APIRouter, Request, Depends
 
 from resources import api_gateway_manager, rate_limited
 from dependencies.auth_dependencies import (get_current_user,
-                                            require_admin,
-                                            require_user_or_admin)
+                                            path_user_or_admin,
+                                            require_admin)
 from shared.contracts.auth import TokenClaims as CurrentUserInfo
 
 
@@ -317,8 +317,8 @@ async def delete_product_image(request: Request,
 async def create_product_review(request: Request,
                                 product_id: UUID,
                                 user_id: UUID,
-                                current_user: CurrentUserInfo = Depends(get_current_user)):
-    """PROTECTED - Authenticated users can create reviews"""
+                                current_user: CurrentUserInfo = Depends(path_user_or_admin)):
+    """PROTECTED - Users can only create reviews attributed to themselves"""
     return await api_gateway_manager.forward_request(
         service_name="product-service",
         request=request,
@@ -329,7 +329,7 @@ async def create_product_review(request: Request,
 async def update_product_review(request: Request,
                                 product_id: UUID,
                                 user_id: UUID,
-                                current_user: CurrentUserInfo = Depends(require_user_or_admin)):
+                                current_user: CurrentUserInfo = Depends(path_user_or_admin)):
     """PROTECTED - Users can update their own reviews, admins can update any"""
     return await api_gateway_manager.forward_request(
         service_name="product-service",
@@ -341,7 +341,7 @@ async def update_product_review(request: Request,
 async def delete_product_review(request: Request,
                                 product_id: UUID,
                                 user_id: UUID,
-                                current_user: CurrentUserInfo = Depends(require_user_or_admin)):
+                                current_user: CurrentUserInfo = Depends(path_user_or_admin)):
     """PROTECTED - Users can delete their own reviews, admins can delete any"""
     return await api_gateway_manager.forward_request(
         service_name="product-service",

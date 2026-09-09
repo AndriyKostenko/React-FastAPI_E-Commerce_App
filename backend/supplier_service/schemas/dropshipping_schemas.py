@@ -1,8 +1,9 @@
 """Schemas for CJ Dropshipping API integration."""
 from decimal import Decimal
 from typing import Literal, Any
+from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, PositiveInt, field_validator
 
 
 class CJProductsFilterParams(BaseModel):
@@ -84,3 +85,46 @@ class CJRawProductSearchResponse(BaseModel):
     total_records: int = Field(alias="totalRecords")
     total_pages: int = Field(alias="totalPages")
     products: list[CJRawProduct] = Field(alias="content")
+
+
+# ---------------- Checkout-time freight quotes ----------------
+
+class CJFreightQuoteItem(BaseModel):
+    """One cart line, addressed by the local product/variant pair."""
+
+    product_id: UUID
+    variant_id: UUID
+    quantity: PositiveInt = Field(le=99)
+
+
+class CJFreightQuoteRequest(BaseModel):
+    """Everything CJ needs to price shipping for a cart at checkout time."""
+
+    country_code: str = Field(min_length=2, max_length=2)
+    postal_code: str | None = Field(default=None, max_length=32)
+    items: list[CJFreightQuoteItem] = Field(min_length=1, max_length=50)
+
+    @field_validator("country_code")
+    @classmethod
+    def _normalize_country_code(cls, value: str) -> str:
+        if not value.isalpha():
+            raise ValueError("country_code must be a 2-letter ISO code")
+        return value.upper()
+
+
+class CJFreightOption(BaseModel):
+    """A single shippable option returned by CJ freightCalculate."""
+
+    logistic_name: str
+    price: Decimal
+    currency: str = "USD"
+    delivery_time: str | None = None
+    weight_grams: Decimal | None = None
+
+
+class CJFreightQuoteResponse(BaseModel):
+    """Shipping options for one destination, cheapest first."""
+
+    country_code: str
+    postal_code: str | None = None
+    options: list[CJFreightOption]

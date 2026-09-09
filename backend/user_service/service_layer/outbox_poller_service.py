@@ -1,12 +1,10 @@
 from typing import Any
-from logging import Logger
 
 from shared.outbox import OutboxRelay
 from shared.enums.event_enums import UserEvents
-from shared.managers.database_session_manager import DatabaseSessionManager
-from shared.settings import Settings
 from events_publisher.user_events_publisher import UserEventPublisher
 from models.outbox_models import OutboxEvent
+from managers import UserOutboxResources
 
 
 async def route_user_event(
@@ -29,19 +27,14 @@ async def route_user_event(
     await publish(payload)
 
 
-def build_outbox_relay(
-    session_manager: DatabaseSessionManager,
-    publisher: UserEventPublisher,
-    settings: Settings,
-    logger: Logger,
-) -> OutboxRelay:
+def build_outbox_relay(resources: UserOutboxResources) -> OutboxRelay:
     async def event_router(event_type: str, payload: dict[str, Any]) -> None:
-        await route_user_event(publisher, event_type, payload)
+        await route_user_event(resources.publisher, event_type, payload)
 
     return OutboxRelay(
-        session_manager=session_manager,
+        session_manager=resources.database,
         event_router=event_router,
-        logger=logger,
-        poll_interval=float(settings.POLLING_INTERVAL_FROM_DB),
+        logger=resources.logger,
+        poll_interval=float(resources.settings.POLLING_INTERVAL_FROM_DB),
         outbox_model=OutboxEvent,
     )

@@ -78,6 +78,24 @@ class PaymentEventConsumer:
                 self.logger.info(f"Duplicate order.cancelled event received and already processed — order: {event.order_id}")
                 return
 
+            if event.reconciliation_required:
+                # The order was cancelled after goods were already made or
+                # posted. Refunding now would pay back money against stock
+                # that is spent or gone, so the decision is left to a human —
+                # the same treatment an already-shipped CJ order gets.
+                self.logger.critical(
+                    f"RECONCILIATION REQUIRED for order {event.order_id}: "
+                    f"cancelled ({event.reason}) after fulfillment had already "
+                    "consumed or dispatched goods. Automatic refund is blocked."
+                )
+                await self.idempotency_service.mark_event_as_processed(
+                    event_id=event.event_id,
+                    event_type=event.event_type,
+                    order_id=event.order_id,
+                    result="refund_blocked_reconciliation_required",
+                )
+                return
+
             self.logger.info(f"Processing order.cancelled for potential refund — order: {event.order_id}")
 
             async for payment_service in self._get_payment_service():

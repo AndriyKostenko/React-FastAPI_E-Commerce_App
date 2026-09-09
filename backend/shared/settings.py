@@ -1,7 +1,7 @@
 from decimal import Decimal
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, ClassVar, Literal
 from uuid import UUID, uuid4
 from datetime import datetime
 
@@ -51,9 +51,40 @@ class Settings(BaseSettings):
     PG_RESERVED_CONNECTIONS: int = 5    # reserved for superuser / admin / monitoring
     PG_DB_SERVICES_COUNT: int = 9       # number of microservices sharing the same Postgres instance
     ALLOWED_HOSTS: list[str]
+    # Hostnames a service answers to from inside the mesh. Service-to-service
+    # calls address each other by their container DNS name, so that name is a
+    # legitimate Host value even though it is never publicly routable. Keeping
+    # it separate from ALLOWED_HOSTS lets the public list stay exactly as
+    # narrow as the deployment requires, without an IP-based bypass that would
+    # accept any Host header at all from inside the network.
+    INTERNAL_ALLOWED_HOSTS: list[str] = Field(
+        default_factory=lambda: [
+            "api-gateway",
+            "user-service",
+            "product-service",
+            "order-service",
+            "payment-service",
+            "cart-service",
+            "shipping-service",
+            "wishlist-service",
+            "supplier-service",
+            "notification-service",
+            "admin-js-service",
+        ]
+    )
     # Only these reverse-proxy networks may supply X-Forwarded-For.  An empty
-    # list means the peer address is used directly.
-    TRUSTED_PROXY_NETWORKS: list[str] = Field(default_factory=list)
+    # list means the peer address is used directly.  Traefik and the gateway
+    # always reach a service over the private Docker network, so the RFC-1918
+    # ranges are the working default; narrow them to the compose subnet if the
+    # deployment ever places real clients on a private network.
+    TRUSTED_PROXY_NETWORKS: list[str] = Field(
+        default_factory=lambda: [
+            "127.0.0.0/8",
+            "10.0.0.0/8",
+            "172.16.0.0/12",
+            "192.168.0.0/16",
+        ]
+    )
 
     # Service URLs
     API_GATEWAY_SERVICE_URL: str
@@ -131,6 +162,9 @@ class Settings(BaseSettings):
     SHIPPING_SERVICE_REDIS_DB: int
     WISHLIST_SERVICE_REDIS_DB: int
     SUPPLIER_SERVICE_REDIS_DB: int
+    # Shared by user-service (writer) and api-gateway (reader) so a revoked
+    # session is visible to whichever process authenticates the next request.
+    SESSION_REGISTRY_REDIS_DB: int = 13
 
     NOTIFICATION_SERVICE_REDIS_BACKEND_RESULT_DB: int
 
@@ -158,9 +192,10 @@ class Settings(BaseSettings):
     VERIFICATION_TOKEN_EXPIRY_MINUTES: int
     CRYPT_CONTEXT_SCHEME: str
 
-    # Stripe
-    STRIPE_TEST_SECRET_KEY: str
-    STRIPE_WEBHOOK_SECRET: str
+    # Stripe. Optional so a service that never charges a card can run
+    # without holding the key at all — see MISSING_SECRET_HINT below.
+    STRIPE_TEST_SECRET_KEY: SecretStr | None = None
+    STRIPE_WEBHOOK_SECRET: SecretStr | None = None
     STRIPE_REQUEST_TIMEOUT_SECONDS: float = Field(default=30.0, gt=0, le=120)
     STRIPE_MAX_NETWORK_RETRIES: int = Field(default=2, ge=0, le=5)
 
@@ -188,10 +223,10 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_ID: str
 
     #AdminJs
-    ADMINJS_SERVICE_TOKEN: str
+    ADMINJS_SERVICE_TOKEN: SecretStr | None = None
 
     # OpenRouter image generation
-    OPENROUTER_API_KEY: str
+    OPENROUTER_API_KEY: SecretStr | None = None
     OPENROUTER_BASE_URL: str
     OPENROUTER_IMAGE_MODEL: str
     OPENROUTER_IMAGE_SIZE: str = "1024x1024"
@@ -229,6 +264,44 @@ class Settings(BaseSettings):
     PRINT_IMAGE_EMBEDDED_DPI: int = Field(default=300, ge=72, le=1200)
     PRINT_IMAGE_MIN_EFFECTIVE_DPI: int = Field(default=150, ge=72, le=600)
 
+    MISSING_SECRET_HINT: ClassVar[str] = (
+        "{name} is not configured for this service. Provider secrets are "
+        "optional so a process that never uses one need not hold it; supply "
+        "it in this service's environment if the feature is meant to work."
+    )
+
+    @staticmethod
+    def _reveal(value: "SecretStr | str | None", name: str) -> str:
+        """Unwrap a secret at the point of use, or say plainly what is missing.
+
+        Keeping these as SecretStr means the value never renders in a log line,
+        a traceback, or a settings repr — the three places a key most often
+        escapes without anyone deciding to expose it.
+        """
+        if value is None:
+            raise RuntimeError(Settings.MISSING_SECRET_HINT.format(name=name))
+        # A plain string is accepted so a test double or an alternative
+        # settings source is not forced to wrap every value.
+        if isinstance(value, str):
+            return value
+        return value.get_secret_value()
+
+    @property
+    def STRIPE_API_KEY(self) -> str:
+        return self._reveal(self.STRIPE_TEST_SECRET_KEY, "STRIPE_TEST_SECRET_KEY")
+
+    @property
+    def STRIPE_WEBHOOK_SIGNING_SECRET(self) -> str:
+        return self._reveal(self.STRIPE_WEBHOOK_SECRET, "STRIPE_WEBHOOK_SECRET")
+
+    @property
+    def OPENROUTER_KEY(self) -> str:
+        return self._reveal(self.OPENROUTER_API_KEY, "OPENROUTER_API_KEY")
+
+    @property
+    def CJ_API_KEY(self) -> str:
+        return self._reveal(self.CJ_DROPSHIPPING_API_KEY, "CJ_DROPSHIPPING_API_KEY")
+
     @property
     def ARTWORK_SIGNING_KEY(self) -> str:
         """Use a dedicated key when configured, with a migration-safe fallback."""
@@ -244,7 +317,7 @@ class Settings(BaseSettings):
     ORDER_SAGA_TIMEOUT_SECONDS: int = 1800
 
     # CJDropshipping
-    CJ_DROPSHIPPING_API_KEY: str
+    CJ_DROPSHIPPING_API_KEY: SecretStr | None = None
     CJ_DROPSHIPPING_ACCESS_TOKEN_URL: str = "https://developers.cjdropshipping.com/api2.0/v1/authentication/getAccessToken"
     CJ_DROPSHIPPING_PRODUCT_LIST_URL: str = "https://developers.cjdropshipping.com/api2.0/v1/product/listV2"
     CJ_DROPSHIPPING_CATEGORY_LIST_URL: str = "https://developers.cjdropshipping.com/api2.0/v1/product/getCategory"
@@ -273,6 +346,27 @@ class Settings(BaseSettings):
     CJ_DROPSHIPPING_PLATFORM: str = "Api"
     CJ_DROPSHIPPING_ORDER_CREATE_RETRIES: int = 2
     CJ_DROPSHIPPING_ORDER_CREATE_TIMEOUT_SECONDS: float = 15.0
+
+    # CJ Dropshipping checkout-time freight quotes
+    CJ_DROPSHIPPING_FREIGHT_CALCULATE_URL: str = "https://developers.cjdropshipping.com/api2.0/v1/logistic/freightCalculate"
+    CJ_DROPSHIPPING_FREIGHT_TIMEOUT_SECONDS: float = 15.0
+    # Quotes are stable for minutes, not seconds; caching keeps checkout snappy
+    # and stays well inside CJ's per-endpoint rate limits.
+    CJ_DROPSHIPPING_FREIGHT_CACHE_TTL_SECONDS: int = 300
+    CJ_DROPSHIPPING_FREIGHT_CACHE_MAX_ENTRIES: int = 512
+
+    # CJ Dropshipping post-creation order tracking
+    CJ_DROPSHIPPING_TRACK_INFO_URL: str = "https://developers.cjdropshipping.com/api2.0/v1/logistic/trackInfo"
+    CJ_DROPSHIPPING_TRACKING_POLL_BATCH_SIZE: int = 50
+    CJ_DROPSHIPPING_TRACKING_POLL_INTERVAL_MINUTES: int = 15
+    # Stop polling an order that CJ never advanced; it needs human attention.
+    CJ_DROPSHIPPING_TRACKING_MAX_AGE_DAYS: int = 90
+    CJ_DROPSHIPPING_TRACKING_URL_TEMPLATE: str = "https://cjpacket.com/track?trackNumber={tracking_number}"
+
+    # CJ Dropshipping shipping-address validation
+    # Empty list means "accept every country CJ accepts".
+    CJ_DROPSHIPPING_SUPPORTED_COUNTRY_CODES: list[str] = Field(default_factory=list)
+    CJ_DROPSHIPPING_REJECT_PO_BOX_ADDRESSES: bool = True
 
 
 
@@ -472,6 +566,10 @@ class Settings(BaseSettings):
         return f"redis://:{self.REDIS_PASSWORD}@{self.REDIS_HOST}:{self.REDIS_PORT}/{self.SUPPLIER_SERVICE_REDIS_DB}"
 
     @property
+    def SESSION_REGISTRY_REDIS_URL(self) -> str:
+        return f"redis://:{self.REDIS_PASSWORD}@{self.REDIS_HOST}:{self.REDIS_PORT}/{self.SESSION_REGISTRY_REDIS_DB}"
+
+    @property
     def FULL_SUPPLIER_SERVICE_URL(self) -> str:
         return f"{self.SUPPLIER_SERVICE_URL}{self.SUPPLIER_SERVICE_URL_API_VERSION}"
 
@@ -479,7 +577,7 @@ class Settings(BaseSettings):
 
     @property
     def CJ_DROPSHIPPING_AUTH_PAYLOAD(self) -> dict[str, str]:
-        return {"apiKey": self.CJ_DROPSHIPPING_API_KEY}
+        return {"apiKey": self.CJ_API_KEY}
 
     @property
     def CJ_DROPSHIPPING_JSON_HEADERS(self) -> dict[str, str]:

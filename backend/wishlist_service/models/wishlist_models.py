@@ -12,7 +12,7 @@ from shared.utils.models_mixins import TimestampMixin
 class Wishlist(Base, TimestampMixin):
     __tablename__: str = 'wishlists'
 
-    id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4, unique=True)
+    id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4)
     user_id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), nullable=False, unique=True, index=True)
 
     items: Mapped[list["WishlistItem"]] = relationship(
@@ -73,7 +73,7 @@ class WishlistItem(Base, TimestampMixin):
         UniqueConstraint('wishlist_id', 'product_id', name='uq_wishlist_item_product'),
     )
 
-    id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4, unique=True)
+    id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4)
     wishlist_id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), ForeignKey("wishlists.id", ondelete="CASCADE"), nullable=False, index=True)
     product_id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), nullable=False, index=True)
 
