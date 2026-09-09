@@ -19,7 +19,7 @@ class ProductVariant(Base, TimestampMixin):
         UniqueConstraint('product_id', 'vid', name='uq_product_variant_product_id_vid'),
     )
 
-    id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4, unique=True)
+    id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4)
     product_id: Mapped[UUID] = mapped_column(ForeignKey('products.id'), nullable=False)
     vid: Mapped[str] = mapped_column(nullable=False)
     variant_key: Mapped[str | None] = mapped_column(nullable=True)

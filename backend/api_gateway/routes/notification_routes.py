@@ -3,7 +3,7 @@ from uuid import UUID
 from fastapi import APIRouter, Request, Depends
 
 from resources import api_gateway_manager
-from dependencies.auth_dependencies import get_current_user
+from dependencies.auth_dependencies import get_current_user, path_user_or_admin
 from shared.utils.customized_json_response import JSONResponse
 from shared.enums.services_enums import Services
 from shared.contracts.auth import TokenClaims as CurrentUserInfo
@@ -17,7 +17,7 @@ notification_proxy = APIRouter(tags=["Notification Service Proxy"])
 async def get_user_notifications(
     request: Request,
     user_id: UUID,
-    current_user: CurrentUserInfo = Depends(get_current_user),
+    current_user: CurrentUserInfo = Depends(path_user_or_admin),
 ) -> JSONResponse:
     return await api_gateway_manager.forward_request(
         request=request,
@@ -30,7 +30,7 @@ async def get_user_notifications(
 async def get_unread_count(
     request: Request,
     user_id: UUID,
-    current_user: CurrentUserInfo = Depends(get_current_user),
+    current_user: CurrentUserInfo = Depends(path_user_or_admin),
 ) -> JSONResponse:
     return await api_gateway_manager.forward_request(
         request=request,
@@ -56,7 +56,7 @@ async def mark_notification_as_read(
 async def mark_all_notifications_as_read(
     request: Request,
     user_id: UUID,
-    current_user: CurrentUserInfo = Depends(get_current_user),
+    current_user: CurrentUserInfo = Depends(path_user_or_admin),
 ) -> JSONResponse:
     return await api_gateway_manager.forward_request(
         request=request,

@@ -16,7 +16,7 @@ class OrderAddress(Base, TimestampMixin):
         Index('idx_order_addresses_user_id', 'user_id'),
     )
 
-    id: Mapped[str] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4, unique=True)
+    id: Mapped[str] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4)
     user_id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), nullable=False)
     street: Mapped[str] = mapped_column(nullable=True)
     city: Mapped[str] = mapped_column(nullable=True)

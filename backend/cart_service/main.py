@@ -14,8 +14,8 @@ from prometheus_client import CollectorRegistry, generate_latest, multiprocess, 
 from prometheus_fastapi_instrumentator import Instrumentator
 
 from routes.cart_routes import cart_routes
-from models import Base
 from shared.exceptions.base_exceptions import (BaseAPIException,RateLimitExceededError)
+from shared.middleware.host_validation_middleware import add_host_validation_middleware
 from shared.middleware.logging_middleware import add_logging_middleware
 from shared.telemetry import setup_tracing
 from service_config import logger, settings
@@ -32,8 +32,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     async with cart_api_runtime() as resources:
         app.state.resources = resources
         try:
-            await resources.database.init_db(Base.metadata)
-            logger.info("Cart service tables are initialized from service-owned metadata.")
+            # The schema is owned by Alembic, not by this process.
+            # create_all cannot alter an existing table, so bootstrapping
+            # here would silently leave a database that predates a
+            # migration missing its new columns while the service still
+            # reported a clean startup.
+            logger.info("Cart service schema is managed by Alembic migrations.")
             logger.info("Server startup complete!")
             yield
         finally:
@@ -65,21 +69,7 @@ async def metrics_middleware(request: Request, call_next):
     return response
 
 
-@app.middleware("http")
-async def host_validation_middleware(request: Request, call_next):
-    if settings.DEBUG_MODE or internal_access_helper.is_internal_client(request):
-        return await call_next(request)
-
-    host = request.headers.get("host", "").split(":")[0]
-    if host in settings.ALLOWED_HOSTS:
-        return await call_next(request)
-
-    logger.warning(f"Invalid Host header: {host} from {request.client}")
-    raise HTTPException(
-        status_code=400,
-        detail="Invalid Host header",
-        headers={"X-Error": "Invalid Host header"}
-    )
+add_host_validation_middleware(app, settings=settings, logger=logger)
 
 
 @app.get("/health", tags=["Health Check"])

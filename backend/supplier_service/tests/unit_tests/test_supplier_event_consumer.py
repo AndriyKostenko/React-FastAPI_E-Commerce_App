@@ -7,6 +7,7 @@ from uuid import UUID, uuid4
 import pytest
 
 from event_consumer.supplier_event_consumer import SupplierEventConsumer
+from enums.cj_order_enums import CJOrderAttemptStatus
 from exceptions.cj_order_exceptions import CJOrderCreationError, CJOrderAmbiguousError
 from service_layer.cj_api_client import CJDropshippingAPIError
 from service_layer.product_service_client import ProductServiceError
@@ -187,6 +188,51 @@ class TestHandleOrderConfirmed:
         consumer.cj_api_client.create_order_v2.assert_not_awaited()
         consumer._record_failed.assert_awaited_once()
 
+    async def test_payload_uses_validated_address_fields(self):
+        consumer = _make_consumer(
+            resolve_cj_ids=(TEST_PID, TEST_VID),
+            create_order_response={
+                "result": True,
+                "code": 200,
+                "data": {"orderId": TEST_CJ_ORDER_NUMBER},
+            },
+        )
+
+        await consumer.handle_order_confirmed(_make_order_confirmed_message())
+
+        payload = consumer.cj_api_client.create_order_v2.await_args.args[0]
+        assert payload["orderNumber"] == str(TEST_ORDER_ID)
+        assert payload["shippingCountryCode"] == "CA"
+        assert payload["shippingZip"] == "T1T 1T1"
+        assert payload["shippingCustomerName"] == "Test User"
+        assert payload["products"] == [{"vid": TEST_VID, "quantity": 2}]
+
+    async def test_invalid_address_fails_before_reaching_cj(self):
+        """A bad address must compensate, never leave an unknown remote order."""
+        consumer = _make_consumer(resolve_cj_ids=(TEST_PID, TEST_VID))
+        message = _make_order_confirmed_message()
+        message["address"]["postal_code"] = "not-a-postcode!"
+
+        await consumer.handle_order_confirmed(message)
+
+        consumer.cj_api_client.create_order_v2.assert_not_awaited()
+        consumer.product_service_client.resolve_cj_ids.assert_not_awaited()
+        consumer._record_failed.assert_awaited_once()
+        assert "postal code" in consumer._record_failed.await_args.args[1]
+
+    async def test_stock_out_fails_before_reaching_cj(self):
+        """A CJ stock-out is a definitive failure the saga can refund."""
+        consumer = _make_consumer(resolve_cj_ids=(TEST_PID, TEST_VID))
+        consumer.inventory_verifier.verify_variant_stock = AsyncMock(
+            return_value=SimpleNamespace(sufficient=False, buffered_available=0)
+        )
+
+        await consumer.handle_order_confirmed(_make_order_confirmed_message())
+
+        consumer.cj_api_client.create_order_v2.assert_not_awaited()
+        consumer._record_failed.assert_awaited_once()
+        assert "Insufficient live CJ stock" in consumer._record_failed.await_args.args[1]
+
     async def test_cj_response_missing_order_id_raises(self):
         consumer = _make_consumer(
             resolve_cj_ids=(TEST_PID, TEST_VID),
@@ -198,6 +244,68 @@ class TestHandleOrderConfirmed:
         payload = await consumer._build_cj_order_payload(event)
         with pytest.raises(CJOrderCreationError):
             await consumer._submit_cj_order(event, payload)
+
+
+class TestHandleOrderCancelled:
+    def _cancel_message(self) -> dict:
+        return {
+            "event_id": str(uuid4()),
+            "service": "order-service",
+            "event_type": OrderEvents.ORDER_CANCELLED,
+            "order_id": str(TEST_ORDER_ID),
+            "user_id": str(TEST_USER_ID),
+            "user_email": "test@example.com",
+            "reason": "Payment failed",
+        }
+
+    async def test_deletes_a_created_cj_order(self):
+        consumer = _make_consumer()
+        consumer._get_attempt = AsyncMock(
+            return_value=SimpleNamespace(
+                status=CJOrderAttemptStatus.CREATED,
+                cj_order_number=TEST_CJ_ORDER_NUMBER,
+            )
+        )
+        consumer.cj_api_client.delete_order = AsyncMock(
+            return_value={"result": True, "code": 200}
+        )
+        consumer._set_attempt_status = AsyncMock()
+
+        await consumer.handle_order_cancelled(self._cancel_message())
+
+        consumer.cj_api_client.delete_order.assert_awaited_once_with(TEST_CJ_ORDER_NUMBER)
+        consumer._set_attempt_status.assert_awaited_once_with(
+            TEST_ORDER_ID, CJOrderAttemptStatus.CANCELLED
+        )
+
+    async def test_shipped_order_is_flagged_instead_of_retried_forever(self):
+        """CJ cannot un-ship a parcel, so retrying deleteOrder is pointless."""
+        consumer = _make_consumer()
+        consumer._get_attempt = AsyncMock(
+            return_value=SimpleNamespace(
+                status=CJOrderAttemptStatus.SHIPPED,
+                cj_order_number=TEST_CJ_ORDER_NUMBER,
+            )
+        )
+        consumer.cj_api_client.delete_order = AsyncMock()
+
+        await consumer.handle_order_cancelled(self._cancel_message())
+
+        consumer.cj_api_client.delete_order.assert_not_awaited()
+        consumer._mark_reconciliation.assert_awaited_once()
+        consumer.idempotency_service.release_claim.assert_not_awaited()
+        assert (
+            consumer.idempotency_service.mark_event_as_processed.await_args.args[3]
+            == "cj_order_already_shipped"
+        )
+
+    async def test_order_without_a_cj_order_is_a_no_op(self):
+        consumer = _make_consumer()
+        consumer.cj_api_client.delete_order = AsyncMock()
+
+        await consumer.handle_order_cancelled(self._cancel_message())
+
+        consumer.cj_api_client.delete_order.assert_not_awaited()
 
 
 class TestHandleImportFeedback:

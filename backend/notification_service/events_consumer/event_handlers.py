@@ -5,12 +5,22 @@ from uuid import UUID
 from shared.idempotency.idempotency_service import IdempotencyEventService
 from shared.managers.database_session_manager import DatabaseSessionManager
 from shared.contracts.events import (
+    CJOrderDeliveredEvent,
+    CJOrderShippedEvent,
+    ProductionJobCancelledEvent,
+    ProductionJobDeliveredEvent,
+    ProductionJobShippedEvent,
     PaymentSucceededEvent,
     PaymentFailedEvent,
     PaymentRefundedEvent,
     PaymentCancelledEvent,
 )
-from shared.enums.event_enums import UserEvents, OrderEvents, PaymentEvents
+from shared.enums.event_enums import (
+    OrderEvents,
+    PaymentEvents,
+    ProductionEvents,
+    UserEvents,
+)
 from service_layer.notification_service import NotificationService
 from database_layer.notification_repository import NotificationRepository
 from tasks.email_tasks import (
@@ -21,6 +31,8 @@ from tasks.email_tasks import (
     send_password_reset_success,
     send_order_confirmed_email,
     send_order_cancelled_email,
+    send_order_shipped_email,
+    send_order_delivered_email,
 )
 
 """
@@ -207,5 +219,150 @@ class PaymentEventHandler(BaseEventHandler):
 
         except Exception as error:
             self._logger.error(f"Error handling payment event {event_type}: {error}")
+            await self._release_claim(event_id=event_id, event_type=event_type)
+            raise
+
+
+class CJOrderEventHandler(BaseEventHandler):
+    """Notifies the customer about CJ-fulfilled shipping progress.
+
+    These events use the "cj.order.*" routing key, which the "order.#" binding
+    of OrderEventHandler deliberately does not match, so they arrive on their
+    own queue and are handled here.
+    """
+
+    async def handle(self, body: dict[str, Any]) -> None:
+        """Handle CJ fulfillment events with idempotency checking."""
+        message: dict[str, Any] = body
+        event_type: str = message["event_type"]
+        event_id: str = message["event_id"]
+
+        if not await self._try_claim(event_id, event_type):
+            self._logger.debug(f"Skipping duplicate CJ order event: {event_type} / {event_id}")
+            return
+
+        try:
+            user_id = self._parse_user_id(message)
+            order_id: str | None = message.get("order_id")
+            notification_message: str
+
+            match event_type:
+                case OrderEvents.CJ_ORDER_SHIPPED:
+                    event = CJOrderShippedEvent(**message)
+                    await send_order_shipped_email.kiq(message)
+                    notification_message = (
+                        f"Your order #{order_id} has shipped. "
+                        f"Tracking number: {event.tracking_number}."
+                    )
+                case OrderEvents.CJ_ORDER_DELIVERED:
+                    _ = CJOrderDeliveredEvent(**message)
+                    await send_order_delivered_email.kiq(message)
+                    notification_message = f"Your order #{order_id} has been delivered."
+                case OrderEvents.CJ_ORDER_CREATED | OrderEvents.CJ_ORDER_FAILED:
+                    # Fulfillment bookkeeping. The customer hears about a
+                    # failure through order.cancelled, not from this queue.
+                    self._logger.info(
+                        f"CJ event {event_type} for order {order_id} needs no customer notification."
+                    )
+                    await self._mark_processed(
+                        event_id=event_id, event_type=event_type, order_id=order_id, result="skipped"
+                    )
+                    return
+                case _:
+                    self._logger.warning(f"Unhandled CJ order event type: {event_type}")
+                    await self._mark_processed(
+                        event_id=event_id, event_type=event_type, order_id=order_id, result="skipped"
+                    )
+                    return
+
+            await self._save_notification(
+                user_id=user_id,
+                message=notification_message,
+                notification_type=event_type,
+            )
+            await self._mark_processed(event_id=event_id, event_type=event_type, order_id=order_id)
+
+        except Exception as error:
+            self._logger.error(f"Error handling CJ order event {event_type}: {error}")
+            await self._release_claim(event_id=event_id, event_type=event_type)
+            raise
+
+
+class ProductionEventHandler(BaseEventHandler):
+    """Tells the customer how their in-house printed garment is progressing.
+
+    Custom T-shirts are printed and posted by hand rather than by a carrier
+    integration, so this queue is the only thing that ever tells the buyer
+    their order left the workshop. These events use the "production.job.*"
+    routing key, which the "order.#" binding of OrderEventHandler deliberately
+    does not match, so they arrive on their own queue and are handled here.
+    """
+
+    async def handle(self, body: dict[str, Any]) -> None:
+        """Handle in-house production events with idempotency checking."""
+        message: dict[str, Any] = body
+        event_type: str = message["event_type"]
+        event_id: str = message["event_id"]
+
+        if not await self._try_claim(event_id, event_type):
+            self._logger.debug(f"Skipping duplicate production event: {event_type} / {event_id}")
+            return
+
+        try:
+            user_id = self._parse_user_id(message)
+            order_id: str | None = message.get("order_id")
+            notification_message: str
+
+            match event_type:
+                case ProductionEvents.PRODUCTION_JOB_STARTED:
+                    notification_message = (
+                        f"Your custom item for order #{order_id} is now being printed."
+                    )
+                case ProductionEvents.PRODUCTION_JOB_PRINTED:
+                    notification_message = (
+                        f"Your custom item for order #{order_id} has been printed "
+                        "and is being packed."
+                    )
+                case ProductionEvents.PRODUCTION_JOB_SHIPPED:
+                    event = ProductionJobShippedEvent(**message)
+                    await send_order_shipped_email.kiq(message)
+                    notification_message = (
+                        f"Your order #{order_id} has shipped. "
+                        f"Tracking number: {event.tracking_number}."
+                    )
+                case ProductionEvents.PRODUCTION_JOB_DELIVERED:
+                    _ = ProductionJobDeliveredEvent(**message)
+                    await send_order_delivered_email.kiq(message)
+                    notification_message = f"Your order #{order_id} has been delivered."
+                case ProductionEvents.PRODUCTION_JOB_CANCELLED:
+                    # Workshop bookkeeping. The customer hears about a
+                    # cancellation through order.cancelled, not from this queue.
+                    event = ProductionJobCancelledEvent(**message)
+                    if event.reconciliation_required:
+                        self._logger.critical(
+                            f"Production job {event.job_id} for order {order_id} was "
+                            f"cancelled after the garment was already made or posted "
+                            f"({event.reason}) — a return decision is required."
+                        )
+                    await self._mark_processed(
+                        event_id=event_id, event_type=event_type, order_id=order_id, result="skipped"
+                    )
+                    return
+                case _:
+                    self._logger.warning(f"Unhandled production event type: {event_type}")
+                    await self._mark_processed(
+                        event_id=event_id, event_type=event_type, order_id=order_id, result="skipped"
+                    )
+                    return
+
+            await self._save_notification(
+                user_id=user_id,
+                message=notification_message,
+                notification_type=event_type,
+            )
+            await self._mark_processed(event_id=event_id, event_type=event_type, order_id=order_id)
+
+        except Exception as error:
+            self._logger.error(f"Error handling production event {event_type}: {error}")
             await self._release_claim(event_id=event_id, event_type=event_type)
             raise

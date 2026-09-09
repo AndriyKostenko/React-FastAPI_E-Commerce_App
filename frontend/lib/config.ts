@@ -60,7 +60,7 @@ class AppSettings {
             authLogin: string;
             authRegister: string;
             googleLogin: string;
-            activate: (token: string) => string;
+            activate: string;
             me: string;
             categories: string;
             customizationPricing: string;
@@ -74,6 +74,11 @@ class AppSettings {
             cancelOrder: (orderId: string) => string;
             ordersByUserId: (userId: string) => string;
             paymentsCreateIntent: string;
+            productionJobs: string;
+            productionJob: (jobId: string) => string;
+            productionJobArtwork: (jobId: string) => string;
+            productionJobPackingSlip: (jobId: string) => string;
+            productionJobAction: (jobId: string, action: string) => string;
     };
     /** Direct backend endpoints (bypass versioned gateway) */
     backendEndpoints: {
@@ -109,7 +114,7 @@ class AppSettings {
             authLogin:            AppSettings.joinUrl(baseUrl, "login"),
             authRegister:         AppSettings.joinUrl(baseUrl, "register"),
             googleLogin:          AppSettings.joinUrl(baseUrl, "google-login"),
-            activate:             (token: string) => AppSettings.joinUrl(baseUrl, `activate/${token}`),
+            activate:             AppSettings.joinUrl(baseUrl, "activate"),
             me:                   AppSettings.joinUrl(baseUrl, "me"),
             categories:           AppSettings.joinUrl(baseUrl, "categories"),
             customizationPricing: AppSettings.joinUrl(baseUrl, "customization/pricing"),
@@ -123,6 +128,11 @@ class AppSettings {
             cancelOrder:          (orderId: string)   => AppSettings.joinUrl(baseUrl, `orders/${orderId}/cancel`),
             ordersByUserId:       (userId: string)    => AppSettings.joinUrl(baseUrl, `orders/user/${userId}`),
             paymentsCreateIntent: AppSettings.joinUrl(baseUrl, "payments/create-intent"),
+            productionJobs:           AppSettings.joinUrl(baseUrl, "admin/production/jobs"),
+            productionJob:            (jobId: string) => AppSettings.joinUrl(baseUrl, `admin/production/jobs/${jobId}`),
+            productionJobArtwork:     (jobId: string) => AppSettings.joinUrl(baseUrl, `admin/production/jobs/${jobId}/artwork`),
+            productionJobPackingSlip: (jobId: string) => AppSettings.joinUrl(baseUrl, `admin/production/jobs/${jobId}/packing-slip`),
+            productionJobAction:      (jobId: string, action: string) => AppSettings.joinUrl(baseUrl, `admin/production/jobs/${jobId}/${action}`),
             },
             backendEndpoints: {
             orders:                     AppSettings.joinUrl(origin, "orders"),

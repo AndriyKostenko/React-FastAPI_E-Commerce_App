@@ -66,9 +66,11 @@ class ShippingEventConsumer:
                 self.logger.info(f"Skipping duplicate order.confirmed event for shipping — order: {event.order_id}")
                 return
 
-            # CJ owns delivery for CJ lines, while custom lines first need a
-            # production-complete event. Creating a local shipment here would
-            # incorrectly present either kind as ready to ship.
+            # CJ owns delivery for CJ lines, and a custom line is printed and
+            # posted by the in-house production queue, which records its own
+            # tracking number and emits "production.job.shipped" when it goes
+            # in the post. Creating a local shipment here would present either
+            # kind as ready to ship before it exists.
             if event.items and not any(
                 item.fulfillment_type == "catalog" for item in event.items
             ):

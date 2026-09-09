@@ -51,8 +51,10 @@ async def wishlist_api_runtime(
     """Start and reliably stop resources owned by one wishlist API process."""
     resources = create_wishlist_api_resources(app_settings, app_logger)
     async with AsyncExitStack() as stack:
-        await stack.enter_async_context(resources.database)
+        # Register the already-open HTTP client first so a failure while
+        # starting the database still closes its connector.
         await stack.enter_async_context(resources.http_client)
+        await stack.enter_async_context(resources.database)
         yield resources
 
 

@@ -79,22 +79,57 @@ def get_shipping_api_resources(connection: HTTPConnection) -> ShippingApiResourc
 
 @dataclass(slots=True)
 class ShippingOutboxResources:
+    """Resources owned by one shipping-service outbox relay process.
+
+    The instance is its own async context manager: ``__aenter__`` starts the
+    publisher (opening the broker connection) and ``__aexit__`` unwinds the
+    publisher and the database engine in reverse order.
+    """
+
     settings: Settings
     logger: Logger
     database: DatabaseSessionManager
-    event_publisher: ShippingEventPublisher
+    broker: RabbitBroker
+    publisher: ShippingEventPublisher
+
+    async def __aenter__(self) -> "ShippingOutboxResources":
+        await self.publisher.start()
+        return self
+
+    async def __aexit__(self, *exc_info: object) -> None:
+        try:
+            await self.publisher.stop()
+        finally:
+            await self.database.close()
 
 
-@asynccontextmanager
-async def shipping_outbox_runtime() -> AsyncIterator[ShippingOutboxResources]:
-    api_resources = create_shipping_api_resources(settings, logger)
-    resources = ShippingOutboxResources(
-        settings=settings,
-        logger=logger,
-        database=api_resources.database,
-        event_publisher=api_resources.event_publisher,
+def shipping_outbox_resources(
+    app_settings: Settings = settings,
+    app_logger: Logger = logger,
+) -> ShippingOutboxResources:
+    """Build the resource graph for one shipping-service outbox process."""
+    broker = RabbitBroker(url=app_settings.RABBITMQ_BROKER_URL)
+    exchange = RabbitExchange(
+        name="shipping.events.exchange",
+        durable=True,
+        type=ExchangeType.TOPIC,
     )
-    async with AsyncExitStack() as stack:
-        await stack.enter_async_context(resources.database)
-        await stack.enter_async_context(resources.event_publisher)
-        yield resources
+    return ShippingOutboxResources(
+        settings=app_settings,
+        logger=app_logger,
+        database=DatabaseSessionManager(
+            database_url=app_settings.SHIPPING_SERVICE_DATABASE_URL,
+            logger=app_logger,
+            echo=app_settings.DEBUG_MODE,
+            pg_max_connections=app_settings.PG_MAX_CONNECTIONS,
+            reserved_connections=app_settings.PG_RESERVED_CONNECTIONS,
+            num_db_services=app_settings.PG_DB_SERVICES_COUNT,
+        ),
+        broker=broker,
+        publisher=ShippingEventPublisher(
+            broker=broker,
+            exchange=exchange,
+            logger=app_logger,
+            settings=app_settings,
+        ),
+    )

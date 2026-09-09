@@ -7,6 +7,7 @@ from .product_variant_models import ProductVariant
 from .category_models import ProductCategory
 from .outbox_models import OutboxEvent
 from .supplier_import_models import SupplierImportBatch
+from .retained_artwork_models import RetainedArtwork
 
 __all__ = [
     "Base",
@@ -18,4 +19,5 @@ __all__ = [
     "OutboxEvent",
     "SupplierImportBatch",
     "InventoryReservation",
+    "RetainedArtwork",
 ]

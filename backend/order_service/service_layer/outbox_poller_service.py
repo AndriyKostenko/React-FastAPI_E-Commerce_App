@@ -1,7 +1,12 @@
 from typing import Any
 
 from shared.outbox import OutboxRelay
-from shared.enums.event_enums import InventoryEvents, OrderEvents
+from shared.enums.event_enums import (
+    ArtworkEvents,
+    InventoryEvents,
+    OrderEvents,
+    ProductionEvents,
+)
 from events_publisher.order_event_publisher import OrderEventPublisher
 from models.outbox_models import OutboxEvent
 from resources import OrderOutboxResources
@@ -18,6 +23,13 @@ async def route_order_event(
         OrderEvents.ORDER_CANCELLED: publisher.publish_order_cancelled,
         InventoryEvents.INVENTORY_RESERVE_REQUESTED: publisher.publish_inventory_reserve_requested,
         InventoryEvents.INVENTORY_RELEASE_REQUESTED: publisher.publish_inventory_release_requested,
+        ProductionEvents.PRODUCTION_JOB_STARTED: publisher.publish_production_job_started,
+        ProductionEvents.PRODUCTION_JOB_PRINTED: publisher.publish_production_job_printed,
+        ProductionEvents.PRODUCTION_JOB_SHIPPED: publisher.publish_production_job_shipped,
+        ProductionEvents.PRODUCTION_JOB_DELIVERED: publisher.publish_production_job_delivered,
+        ProductionEvents.PRODUCTION_JOB_CANCELLED: publisher.publish_production_job_cancelled,
+        ArtworkEvents.ARTWORK_RETAINED: publisher.publish_artwork_retained,
+        ArtworkEvents.ARTWORK_RELEASED: publisher.publish_artwork_released,
     }
     publish = routes.get(event_type)
     if not publish:

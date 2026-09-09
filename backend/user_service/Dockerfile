@@ -83,6 +83,8 @@ ENV PATH="/app/.venv/bin:$PATH"
 # Copy source code and set permissions
 COPY --chown=user:usergroup . .
 
+RUN chmod +x /app/entrypoint-api.sh
+
 USER user
 
 # Expose app port
@@ -98,7 +100,7 @@ HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
 
 #CMD ["sh", "-c", "rm -rf /tmp/prometheus_multiproc/* && gunicorn -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:8001 --workers $((2 * $(nproc) + 1)) --timeout 120 --graceful-timeout 30 --access-logfile -"]
 
-CMD ["sh", "-c", "mkdir -p ${PROMETHEUS_MULTIPROC_DIR} && rm -rf ${PROMETHEUS_MULTIPROC_DIR}/* && gunicorn -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:8001 --workers ${GUNICORN_WORKERS:-1} --timeout 120 --graceful-timeout 30 --access-logfile -"]
+CMD ["./entrypoint-api.sh"]
 
 
 

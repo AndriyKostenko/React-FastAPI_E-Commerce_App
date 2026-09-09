@@ -9,6 +9,7 @@ Integration-test fixtures use the real PostgreSQL test database
 """
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from decimal import Decimal
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 from uuid import UUID
@@ -24,16 +25,30 @@ from database_layer.order_item_repository import OrderItemRepository
 from database_layer.order_address_repository import OrderAddressRepository
 from dependencies.dependencies import (
     get_db_session,
+    get_fulfillment_status_service,
     get_order_service,
     get_order_item_service,
     get_order_address_service,
     get_outbox_service,
+    get_production_queue_service,
 )
 from service_layer.order_service import OrderService
 from service_layer.order_item_service import OrderItemService
 from service_layer.order_address_service import OrderAddressService
 from service_layer.outbox_event_service import OutboxEventService
-from service_layer.order_pricing_service import CanonicalOrderQuote, QuotedOrderLine
+from service_layer.artwork_asset_client import ArtworkDownload
+from service_layer.order_fulfillment_status_service import OrderFulfillmentStatusService
+from service_layer.order_pricing_service import (
+    CanonicalOrderQuote,
+    OrderPricingService,
+    QuotedOrderLine,
+)
+from service_layer.packing_slip_service import PackingSlipBuilder
+from service_layer.production_queue_service import ProductionQueueService
+from database_layer.order_fulfillment_repository import (
+    CustomProductionJobRepository,
+    OrderLineFulfillmentRepository,
+)
 from shared.database_layer.outbox_repository import OutboxRepository
 from models.base import Base
 from models.order_address_models import OrderAddress
@@ -266,6 +281,17 @@ def order_service_unit(
     production_repository = MagicMock()
     production_repository.get_many_by_field = AsyncMock(return_value=[])
     production_repository.update = AsyncMock()
+    # No lines have moved: the order-level delivery status is derived from
+    # them, so an empty set leaves the stored status untouched.
+    fulfillment_status_service = MagicMock()
+    fulfillment_status_service.get_lines = AsyncMock(return_value=[])
+    fulfillment_status_service.mark_lines = AsyncMock(
+        side_effect=lambda order, *args, **kwargs: order
+    )
+    fulfillment_status_service.refresh_delivery_status = AsyncMock(
+        side_effect=lambda order, *args, **kwargs: order
+    )
+    fulfillment_status_service.has_blocking_lines = AsyncMock(return_value=False)
     return OrderService(
         repository=mock_order_repository,
         order_item_service=mock_order_item_service,
@@ -274,6 +300,7 @@ def order_service_unit(
         pricing_service=pricing_service,
         saga_repository=saga_repository,
         production_repository=production_repository,
+        fulfillment_status_service=fulfillment_status_service,
     )
 
 
@@ -324,9 +351,90 @@ async def client_for_unit_testing(
 # Integration-test fixtures (real DB + real services)
 # ---------------------------------------------------------------------------
 
+class _StubCatalogQuoteClient:
+    """Stands in for product_service when quoting catalog and CJ lines.
+
+    product_service is the authority on catalog pricing and fulfillment type,
+    so the stub answers as it would: it echoes the requested quantity and
+    prices each line server-side, ignoring whatever the client sent.
+    """
+
+    CATALOG_UNIT_PRICE = Decimal("49.99")
+
+    def __init__(self) -> None:
+        # Products the catalog reports as CJ-fulfilled. A test adds an id here
+        # to exercise the dropshipping branch without a live product_service.
+        self.cj_product_ids: set[str] = set()
+
+    async def quote(self, items: list[dict[str, Any]]) -> dict[str, Any]:
+        return {
+            "items": [
+                {
+                    "product_id": item["product_id"],
+                    "variant_id": item["variant_id"],
+                    "product_name": "Test product",
+                    "quantity": item["quantity"],
+                    "unit_price": self.CATALOG_UNIT_PRICE,
+                    "fulfillment_type": (
+                        "cj"
+                        if item["product_id"] in self.cj_product_ids
+                        else "catalog"
+                    ),
+                    "supplier_id": (
+                        "cjdropshipping"
+                        if item["product_id"] in self.cj_product_ids
+                        else None
+                    ),
+                }
+                for item in items
+            ]
+        }
+
+
+class _StubArtworkAssetClient:
+    """Stands in for product_service when resolving a stored print file.
+
+    product_service owns the artwork object, so the real client only exchanges
+    a signed manifest for a URL. The stub answers the same way, which keeps
+    the manifest itself — the part order_service is responsible for storing
+    and presenting intact — under test.
+    """
+
+    def __init__(self) -> None:
+        self.requested_keys: list[str] = []
+
+    async def get_download(self, asset) -> ArtworkDownload:
+        self.requested_keys.append(asset.key)
+        return ArtworkDownload(
+            download_url=f"/media/{asset.key}",
+            filename=asset.key.rsplit("/", 1)[-1],
+            sha256=asset.sha256,
+            content_type="image/png",
+            expires_in_seconds=3600,
+        )
+
+
+@pytest.fixture
+def artwork_client_stub() -> _StubArtworkAssetClient:
+    """The product_service stand-in used by `integration_client` for artwork."""
+    return _StubArtworkAssetClient()
+
+
+@pytest.fixture
+def catalog_quote_stub() -> _StubCatalogQuoteClient:
+    """The product_service stand-in used by `integration_client`.
+
+    Request it alongside `integration_client` to declare what the catalog says
+    about a product, e.g. that it is CJ-fulfilled.
+    """
+    return _StubCatalogQuoteClient()
+
+
 @pytest.fixture
 async def integration_client(
     test_database_session_manager: TestDatabaseSessionManager,
+    catalog_quote_stub: "_StubCatalogQuoteClient",
+    artwork_client_stub: "_StubArtworkAssetClient",
 ) -> AsyncGenerator[AsyncClient, Any]:
     """
     Async HTTP client for integration tests.
@@ -365,46 +473,53 @@ async def integration_client(
     ) -> OutboxEventService:
         return OutboxEventService(repository=OutboxRepository(session=session, model=OutboxEvent))
 
+    def _override_get_fulfillment_status_service(
+        session: AsyncSession = Depends(_override_get_db_session),
+    ) -> OrderFulfillmentStatusService:
+        return OrderFulfillmentStatusService(
+            order_repository=OrderRepository(session=session),
+            fulfillment_repository=OrderLineFulfillmentRepository(session=session),
+        )
+
+    def _override_get_production_queue_service(
+        session: AsyncSession = Depends(_override_get_db_session),
+        fulfillment_status_service: OrderFulfillmentStatusService = Depends(
+            _override_get_fulfillment_status_service
+        ),
+        outbox_event_service: OutboxEventService = Depends(_override_get_outbox_service),
+    ) -> ProductionQueueService:
+        return ProductionQueueService(
+            repository=CustomProductionJobRepository(session=session),
+            fulfillment_status_service=fulfillment_status_service,
+            outbox_event_service=outbox_event_service,
+            packing_slip_builder=PackingSlipBuilder(settings=settings),
+            artwork_client=artwork_client_stub,
+        )
+
     def _override_get_order_service(
         session: AsyncSession = Depends(_override_get_db_session),
         order_item_service: OrderItemService = Depends(_override_get_order_item_service),
         order_address_service: OrderAddressService = Depends(_override_get_order_address_service),
         outbox_event_service: OutboxEventService = Depends(_override_get_outbox_service),
+        fulfillment_status_service: OrderFulfillmentStatusService = Depends(
+            _override_get_fulfillment_status_service
+        ),
     ) -> OrderService:
-        pricing_service = MagicMock()
-
-        async def _quote(order_data):
-            lines = [
-                QuotedOrderLine(
-                    product_id=item.id,
-                    variant_id=item.variant_id,
-                    product_name=item.name or "Test product",
-                    quantity=item.quantity,
-                    unit_price=item.price or 1,
-                    fulfillment_type=item.fulfillment_type or "catalog",
-                    supplier_id=(
-                        "cjdropshipping"
-                        if item.fulfillment_type == "cj"
-                        else None
-                    ),
-                    customization=item.customization,
-                )
-                for item in order_data.products
-            ]
-            return CanonicalOrderQuote(
-                items=lines,
-                total_amount=sum(
-                    line.unit_price * line.quantity for line in lines
-                ),
-            )
-
-        pricing_service.build_quote = AsyncMock(side_effect=_quote)
+        # The real OrderPricingService runs here, with only the HTTP hop to
+        # product_service stubbed out. Mocking build_quote outright would skip
+        # artwork-signature verification and the server-side print measurements,
+        # which are exactly the guarantees the custom-T-shirt tests assert.
+        pricing_service = OrderPricingService(
+            settings=settings,
+            catalog_client=catalog_quote_stub,
+        )
         return OrderService(
             repository=OrderRepository(session=session),
             order_item_service=order_item_service,
             order_address_service=order_address_service,
             outbox_event_service=outbox_event_service,
             pricing_service=pricing_service,
+            fulfillment_status_service=fulfillment_status_service,
         )
 
     original_debug_mode = settings.DEBUG_MODE
@@ -418,6 +533,8 @@ async def integration_client(
     app.dependency_overrides[get_order_address_service] = _override_get_order_address_service
     app.dependency_overrides[get_outbox_service] = _override_get_outbox_service
     app.dependency_overrides[get_order_service] = _override_get_order_service
+    app.dependency_overrides[get_fulfillment_status_service] = _override_get_fulfillment_status_service
+    app.dependency_overrides[get_production_queue_service] = _override_get_production_queue_service
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as async_client:
         yield async_client

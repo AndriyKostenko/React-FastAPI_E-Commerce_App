@@ -5,6 +5,7 @@ from uuid import UUID
 
 from database_layer.supplier_sync_state_repository import SupplierSyncStateRepository
 from database_layer.cj_order_attempt_repository import CJOrderAttemptRepository
+from enums.cj_order_enums import CJOrderAttemptStatus
 from models.cj_order_attempt_models import CJOrderAttempt
 from models.outbox_models import OutboxEvent
 from shared.database_layer.outbox_repository import OutboxRepository
@@ -15,14 +16,12 @@ from exceptions.cj_order_exceptions import (
     CJOrderConfigurationError,
     CJProductMappingError,
 )
+from service_layer.cj_address_validator import CJShippingAddressValidator
 from service_layer.cj_api_client import CJDropshippingAPIClient, CJDropshippingAPIError
 from service_layer.cj_inventory_verifier import CJDropshippingInventoryVerifier
+from service_layer.cj_order_payload_builder import CJOrderPayloadBuilder
 from service_layer.outbox_event_service import OutboxEventService
-from service_layer.product_service_client import (
-    ProductNotFoundError,
-    ProductServiceClient,
-    ProductServiceError,
-)
+from service_layer.product_service_client import ProductServiceClient
 from shared.enums.event_enums import OrderEvents, SupplierEvents
 from shared.contracts.events import (
     CJOrderCreatedEvent,
@@ -32,7 +31,6 @@ from shared.contracts.events import (
     SupplierProductImportFailedEvent,
     SupplierProductImportCompletedEvent,
 )
-from shared.contracts.order import ConfirmedOrderAddress, ConfirmedOrderItem
 from shared.idempotency.idempotency_service import IdempotencyEventService
 from shared.managers.database_session_manager import DatabaseSessionManager
 from shared.settings import Settings
@@ -65,6 +63,14 @@ class SupplierEventConsumer:
         self.publisher = publisher
         self.inventory_verifier = CJDropshippingInventoryVerifier(
             cj_api_client, settings, logger
+        )
+        self.address_validator = CJShippingAddressValidator(settings, logger)
+        self.payload_builder = CJOrderPayloadBuilder(
+            settings=settings,
+            product_service_client=product_service_client,
+            inventory_verifier=self.inventory_verifier,
+            address_validator=self.address_validator,
+            logger=logger,
         )
 
     async def _get_sync_state_repository(self):
@@ -198,8 +204,27 @@ class SupplierEventConsumer:
             attempt = await self._get_attempt(event.order_id)
             if not attempt or not attempt.cj_order_number:
                 result = "no_cj_order"
-            elif attempt.status == "cancelled":
+            elif attempt.status == CJOrderAttemptStatus.CANCELLED:
                 result = "already_cancelled"
+            elif attempt.status in {
+                CJOrderAttemptStatus.SHIPPED,
+                CJOrderAttemptStatus.DELIVERED,
+            }:
+                # The parcel has left CJ, so deleteOrder can never succeed.
+                # Retrying forever would only fill the DLQ; the goods now need
+                # a return, which is a human decision.
+                reason = (
+                    f"CJ order {attempt.cj_order_number} was already "
+                    f"{attempt.status} when the local order was cancelled; "
+                    "a return is required"
+                )
+                self.logger.critical(
+                    "RECONCILIATION REQUIRED for local order %s: %s",
+                    event.order_id,
+                    reason,
+                )
+                await self._mark_reconciliation(event.order_id, reason)
+                result = "cj_order_already_shipped"
             else:
                 response = await self.cj_api_client.delete_order(
                     attempt.cj_order_number
@@ -208,7 +233,9 @@ class SupplierEventConsumer:
                     reason = response.get("message") or "CJ rejected order deletion"
                     await self._mark_reconciliation(event.order_id, reason)
                     raise CJOrderAmbiguousError(reason)
-                await self._set_attempt_status(event.order_id, "cancelled")
+                await self._set_attempt_status(
+                    event.order_id, CJOrderAttemptStatus.CANCELLED
+                )
                 result = "cj_order_cancelled"
             await self.idempotency_service.mark_event_as_processed(
                 event.event_id, event.event_type, event.order_id, result
@@ -235,10 +262,13 @@ class SupplierEventConsumer:
 
         try:
             existing = await self._get_attempt(event.order_id)
-            if existing and existing.status == "created":
+            if existing and existing.status == CJOrderAttemptStatus.CREATED:
                 result = "cj_order_already_created"
             else:
-                if existing and existing.status in {"creating", "reconciliation_required"}:
+                if existing and existing.status in {
+                    CJOrderAttemptStatus.CREATING,
+                    CJOrderAttemptStatus.RECONCILIATION_REQUIRED,
+                }:
                     cj_order_number = await self._query_existing_cj_order(event.order_id)
                     if not cj_order_number:
                         await self._mark_reconciliation(
@@ -275,88 +305,12 @@ class SupplierEventConsumer:
         )
 
     async def _build_cj_order_payload(self, event: OrderConfirmedEvent) -> dict[str, Any]:
-        address = event.address
-        if not address:
-            raise CJOrderConfigurationError(f"Order {event.order_id} has no shipping address")
+        """Validate the address, map products, and check live CJ stock.
 
-        required_address_fields = [
-            address.street,
-            address.city,
-            address.province,
-            address.postal_code,
-            address.country,
-            address.country_code,
-            address.name,
-            address.phone,
-        ]
-        if not all(required_address_fields):
-            raise CJOrderConfigurationError(f"Order {event.order_id} has incomplete shipping address")
-
-        logistic_name = self._require_setting(
-            self.settings.CJ_DROPSHIPPING_DEFAULT_LOGISTIC_NAME,
-            "CJ_DROPSHIPPING_DEFAULT_LOGISTIC_NAME",
-        )
-        from_country_code = self._require_setting(
-            self.settings.CJ_DROPSHIPPING_DEFAULT_FROM_COUNTRY_CODE,
-            "CJ_DROPSHIPPING_DEFAULT_FROM_COUNTRY_CODE",
-        )
-
-        products = []
-        requested_by_vid: dict[str, int] = {}
-        for item in event.items:
-            try:
-                pid, vid = await self.product_service_client.resolve_cj_ids(
-                    product_id=item.product_id,
-                    variant_id=item.variant_id,
-                )
-            except ProductNotFoundError as exc:
-                raise CJProductMappingError(f"Product/variant not found for item {item.product_id}: {exc}") from exc
-            except ProductServiceError as exc:
-                raise CJProductMappingError(f"Unable to map item {item.product_id}: {exc}") from exc
-
-            products.append({
-                "vid": vid,
-                "quantity": item.quantity,
-            })
-            requested_by_vid[vid] = requested_by_vid.get(vid, 0) + item.quantity
-
-        if not products:
-            raise CJProductMappingError(f"Order {event.order_id} has no mappable products")
-
-        if self.settings.CJ_DROPSHIPPING_VERIFY_INVENTORY:
-            for vid, requested in requested_by_vid.items():
-                try:
-                    verification = await self.inventory_verifier.verify_variant_stock(
-                        vid, requested
-                    )
-                except CJDropshippingAPIError as exc:
-                    raise CJOrderCreationError(
-                        f"Unable to verify live CJ stock for variant {vid}: {exc}"
-                    ) from exc
-                if not verification.sufficient:
-                    raise CJOrderCreationError(
-                        f"Insufficient live CJ stock for variant {vid}: requested "
-                        f"{requested}, buffered available {verification.buffered_available}"
-                    )
-
-        return {
-            "orderNumber": str(event.order_id),
-            "shippingZip": address.postal_code,
-            "shippingCountryCode": address.country_code or "",
-            "shippingCountry": address.country or "",
-            "shippingProvince": address.province,
-            "shippingCity": address.city,
-            "shippingCustomerName": address.name or "",
-            "shippingAddress": address.street,
-            "shippingAddress2": "",
-            "shippingPhone": address.phone or "",
-            "email": event.user_email,
-            "payType": self.settings.CJ_DROPSHIPPING_PAY_TYPE,
-            "platform": self.settings.CJ_DROPSHIPPING_PLATFORM,
-            "logisticName": logistic_name,
-            "fromCountryCode": from_country_code,
-            "products": products,
-        }
+        Every failure raised here happens before the CJ POST, so the caller can
+        compensate the order without risking an orphaned remote order.
+        """
+        return await self.payload_builder.build(event)
 
     async def _submit_cj_order(
         self, event: OrderConfirmedEvent, payload: dict[str, Any]
@@ -404,12 +358,14 @@ class SupplierEventConsumer:
                     CJOrderAttempt(
                         order_id=event.order_id,
                         user_id=event.user_id,
-                        status="creating",
+                        user_email=event.user_email,
+                        status=CJOrderAttemptStatus.CREATING,
                         request_payload=payload,
                     )
                 )
-            elif attempt.status != "created":
-                attempt.status = "creating"
+            elif attempt.status != CJOrderAttemptStatus.CREATED:
+                attempt.status = CJOrderAttemptStatus.CREATING
+                attempt.user_email = event.user_email
                 attempt.request_payload = payload
                 attempt.last_error = None
                 await repository.update(attempt)
@@ -425,12 +381,14 @@ class SupplierEventConsumer:
                     CJOrderAttempt(
                         order_id=event.order_id,
                         user_id=event.user_id,
-                        status="created",
+                        user_email=event.user_email,
+                        status=CJOrderAttemptStatus.CREATED,
                         cj_order_number=cj_order_number,
                     )
                 )
             else:
-                attempt.status = "created"
+                attempt.status = CJOrderAttemptStatus.CREATED
+                attempt.user_email = event.user_email
                 attempt.cj_order_number = cj_order_number
                 attempt.last_error = None
                 await repository.update(attempt)
@@ -458,12 +416,14 @@ class SupplierEventConsumer:
                     CJOrderAttempt(
                         order_id=event.order_id,
                         user_id=event.user_id,
-                        status="failed",
+                        user_email=event.user_email,
+                        status=CJOrderAttemptStatus.FAILED,
                         last_error=reason[:2000],
                     )
                 )
             else:
-                attempt.status = "failed"
+                attempt.status = CJOrderAttemptStatus.FAILED
+                attempt.user_email = event.user_email
                 attempt.last_error = reason[:2000]
                 await repository.update(attempt)
             outbox_service = OutboxEventService(
@@ -486,7 +446,7 @@ class SupplierEventConsumer:
             repository = CJOrderAttemptRepository(session)
             attempt = await repository.get_for_update(order_id)
             if attempt:
-                attempt.status = "reconciliation_required"
+                attempt.status = CJOrderAttemptStatus.RECONCILIATION_REQUIRED
                 attempt.last_error = reason[:2000]
                 await repository.update(attempt)
 
@@ -510,8 +470,3 @@ class SupplierEventConsumer:
         if not order_number:
             raise CJOrderCreationError(f"CJ response missing order id/number: {response}")
         return str(order_number)
-
-    def _require_setting(self, value: str | None, name: str) -> str:
-        if not value:
-            raise CJOrderConfigurationError(f"Missing required CJ setting: {name}")
-        return value

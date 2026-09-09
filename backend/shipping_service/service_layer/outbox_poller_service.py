@@ -1,13 +1,14 @@
 from typing import Any
 
-from events_publisher.shipping_event_publisher import ShippingEventPublisher
 from models.outbox_models import OutboxEvent
+from resources import ShippingOutboxResources
 from shared.enums.event_enums import ShippingEvents
 from shared.outbox import OutboxRelay
-from shared.managers.database_session_manager import DatabaseSessionManager
 
 
-def build_outbox_relay(database: DatabaseSessionManager, publisher: ShippingEventPublisher, logger, poll_interval: float):
+def build_outbox_relay(resources: ShippingOutboxResources) -> OutboxRelay:
+    publisher = resources.publisher
+
     async def route(event_type: str, payload: dict[str, Any]) -> None:
         routes = {
             ShippingEvents.SHIPMENT_CREATED: publisher.publish_shipment_created,
@@ -21,10 +22,9 @@ def build_outbox_relay(database: DatabaseSessionManager, publisher: ShippingEven
         await publish(payload)
 
     return OutboxRelay(
-        session_manager=database,
+        session_manager=resources.database,
         event_router=route,
-        logger=logger,
-        poll_interval=poll_interval,
+        logger=resources.logger,
+        poll_interval=float(resources.settings.POLLING_INTERVAL_FROM_DB),
         outbox_model=OutboxEvent,
     )
-

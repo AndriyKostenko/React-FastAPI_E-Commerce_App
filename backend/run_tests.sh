@@ -36,6 +36,7 @@ INFRA_SERVICES=(db redis rabbitmq)
 TEST_SERVICES=(
   user-service-test
   product-service-test
+  supplier-service-test
   payment-service-test
   cart-service-test
   order-service-test

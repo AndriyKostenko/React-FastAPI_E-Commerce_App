@@ -18,7 +18,7 @@ class ProductImage(Base, TimestampMixin):
         # date indexes removed: images are always accessed via product_id, never filtered by date
     )
 
-    id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4, unique=True)
+    id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4)
     product_id: Mapped[UUID] = mapped_column(ForeignKey('products.id'), nullable=False)
     image_url: Mapped[str] = mapped_column(nullable=False)
     image_color: Mapped[str] = mapped_column(nullable=True)

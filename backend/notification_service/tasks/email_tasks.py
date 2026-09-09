@@ -10,7 +10,14 @@ from shared.contracts.events import (
     PasswordResetSuccessEvent,
     OrderConfirmedEvent,
     OrderCancelledEvent,
+    CJOrderShippedEvent,
+    CJOrderDeliveredEvent,
+    OrderDeliveredBaseEvent,
+    OrderShippedBaseEvent,
+    ProductionJobDeliveredEvent,
+    ProductionJobShippedEvent,
 )
+from shared.enums.event_enums import ProductionEvents
 from .broker import taskiq_broker
 
 
@@ -59,3 +66,34 @@ async def send_order_cancelled_email(payload: dict[str, Any]) -> None:
     event = OrderCancelledEvent(**payload)
     await order_notification_email_service.send_order_cancelled_notification(event)
     logger.info(f"Order cancelled email sent to {event.user_email} for order {event.order_id}")
+
+def _parse_shipped_event(payload: dict[str, Any]) -> OrderShippedBaseEvent:
+    """Read a dispatch notice from whichever channel actually posted it.
+
+    A dropshipped parcel and a garment printed at home reach the customer
+    through the same email, so the task accepts both event shapes and the
+    template only ever sees the fields they share.
+    """
+    if payload.get("event_type") == ProductionEvents.PRODUCTION_JOB_SHIPPED:
+        return ProductionJobShippedEvent(**payload)
+    return CJOrderShippedEvent(**payload)
+
+
+def _parse_delivered_event(payload: dict[str, Any]) -> OrderDeliveredBaseEvent:
+    """Read a delivery confirmation from whichever channel reported it."""
+    if payload.get("event_type") == ProductionEvents.PRODUCTION_JOB_DELIVERED:
+        return ProductionJobDeliveredEvent(**payload)
+    return CJOrderDeliveredEvent(**payload)
+
+
+@taskiq_broker.task
+async def send_order_shipped_email(payload: dict[str, Any]) -> None:
+    event = _parse_shipped_event(payload)
+    await order_notification_email_service.send_order_shipped_notification(event)
+    logger.info(f"Order shipped email sent to {event.user_email} for order {event.order_id}")
+
+@taskiq_broker.task
+async def send_order_delivered_email(payload: dict[str, Any]) -> None:
+    event = _parse_delivered_event(payload)
+    await order_notification_email_service.send_order_delivered_notification(event)
+    logger.info(f"Order delivered email sent to {event.user_email} for order {event.order_id}")

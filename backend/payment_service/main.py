@@ -13,8 +13,8 @@ from fastapi.exceptions import ResponseValidationError, RequestValidationError
 from prometheus_client import CollectorRegistry, generate_latest, multiprocess, REGISTRY
 
 from routes.payment_routes import payment_routes
-from models import Base
 from shared.exceptions.base_exceptions import BaseAPIException, RateLimitExceededError
+from shared.middleware.host_validation_middleware import add_host_validation_middleware
 from shared.middleware.logging_middleware import add_logging_middleware
 from shared.telemetry import setup_tracing
 from prometheus_fastapi_instrumentator import Instrumentator
@@ -33,8 +33,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     async with payment_api_runtime() as resources:
         app.state.resources = resources
         try:
-            await resources.database.init_db(Base.metadata)
-            logger.info("Payment service tables are initialized from service-owned metadata.")
+            # The schema is owned by Alembic, not by this process.
+            # create_all cannot alter an existing table, so bootstrapping
+            # here would silently leave a database that predates a
+            # migration missing its new columns while the service still
+            # reported a clean startup.
+            logger.info("Payment service schema is managed by Alembic migrations.")
             logger.info("Payment service startup complete!")
             yield
         finally:
@@ -68,26 +72,7 @@ async def metrics_middleware(request: Request, call_next):
     return response
 
 
-@app.middleware("http")
-async def host_validation_middleware(request: Request, call_next):
-    """
-    Validates the HTTP Host header against ALLOWED_HOSTS to prevent DNS-rebinding
-    attacks.
-
-    Bypassed for:
-    - /metrics and /health  — scraped by Prometheus/cAdvisor via Docker DNS
-    - Any RFC-1918 client IP — internal service-to-service calls (e.g. admin-js
-      calling /api/v1/admin/schema/* on product-service) where the Host header
-      is the Docker service name, not a public hostname
-    """
-    if settings.DEBUG_MODE or internal_access_helper.is_internal_client(request):
-        return await call_next(request)
-
-    host = request.headers.get("host", "").split(":")[0]
-    if host in settings.ALLOWED_HOSTS:
-        return await call_next(request)
-    logger.warning(f"Invalid Host header: {host} from {request.client}")
-    raise HTTPException(status_code=400, detail="Invalid Host header")
+add_host_validation_middleware(app, settings=settings, logger=logger)
 
 
 @app.get("/health", tags=["Health Check"])

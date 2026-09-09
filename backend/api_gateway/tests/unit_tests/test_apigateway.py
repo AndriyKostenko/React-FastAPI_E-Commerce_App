@@ -4,6 +4,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from httpx import Response as HttpxResponse
 
+from starlette.requests import Request
+
 from gateway.apigateway import ApiGateway
 from resources import logger, settings
 
@@ -12,20 +14,39 @@ def _make_gateway() -> ApiGateway:
     return ApiGateway(settings=settings, logger=logger)
 
 
+def _make_request(headers: dict[str, str] | None = None, peer: str = "203.0.113.9") -> Request:
+    """Build a real Request so header and client-address handling is exercised."""
+    return Request({
+        "type": "http",
+        "method": "GET",
+        "scheme": "http",
+        "path": "/api/v1/products",
+        "raw_path": b"/api/v1/products",
+        "query_string": b"",
+        "root_path": "",
+        "headers": [
+            (key.lower().encode(), value.encode())
+            for key, value in (headers or {}).items()
+        ],
+        "client": (peer, 51234),
+        "server": ("localhost", 8000),
+    })
+
+
 class TestPrepareHeaders:
     def setup_method(self):
         self.gw = _make_gateway()
 
     def test_removes_hop_by_hop_headers(self):
-        input_headers = {
+        request = _make_request({
             "host": "localhost:8000",
             "content-length": "42",
             "transfer-encoding": "chunked",
             "connection": "keep-alive",
             "content-type": "application/json",
             "authorization": "Bearer token",
-        }
-        result = self.gw._prepare_headers(input_headers)
+        })
+        result = self.gw._prepare_headers(request)
         assert "host" not in result
         assert "content-length" not in result
         assert "transfer-encoding" not in result
@@ -34,20 +55,42 @@ class TestPrepareHeaders:
         assert "authorization" in result
 
     def test_adds_new_content_type(self):
-        result = self.gw._prepare_headers({}, new_content_type="application/json")
+        result = self.gw._prepare_headers(_make_request(), new_content_type="application/json")
         assert result["Content-Type"] == "application/json"
 
-    def test_returns_empty_dict_for_empty_headers(self):
-        result = self.gw._prepare_headers({})
-        assert result == {}
+    def test_forwards_only_derived_headers_when_none_supplied(self):
+        result = self.gw._prepare_headers(_make_request())
+        assert set(result) == {
+            "X-Forwarded-For",
+            "X-Real-Ip",
+            "X-Forwarded-Proto",
+            "X-Forwarded-Host",
+        }
 
     def test_keeps_custom_headers(self):
-        result = self.gw._prepare_headers({"X-Custom-Header": "value123"})
-        assert result["X-Custom-Header"] == "value123"
+        result = self.gw._prepare_headers(_make_request({"X-Custom-Header": "value123"}))
+        # Starlette normalises incoming header names to lower case.
+        assert result["x-custom-header"] == "value123"
 
-    def test_none_headers_returns_empty_dict(self):
-        result = self.gw._prepare_headers(None)
-        assert result == {}
+    def test_discards_forwarding_headers_from_an_untrusted_peer(self):
+        """A direct caller must not be able to choose its own attributed address."""
+        request = _make_request(
+            {"x-forwarded-for": "1.2.3.4", "x-real-ip": "1.2.3.4", "forwarded": "for=1.2.3.4"},
+            peer="203.0.113.9",
+        )
+        result = self.gw._prepare_headers(request)
+        assert result["X-Forwarded-For"] == "203.0.113.9"
+        assert result["X-Real-Ip"] == "203.0.113.9"
+        assert "forwarded" not in {key.lower() for key in result}
+
+    def test_takes_the_rightmost_untrusted_hop_from_a_trusted_proxy(self):
+        """Traefik appends the real peer, so spoofed entries sit to its left."""
+        request = _make_request(
+            {"x-forwarded-for": "1.2.3.4, 198.51.100.7"},
+            peer="172.20.0.4",
+        )
+        result = self.gw._prepare_headers(request)
+        assert result["X-Forwarded-For"] == "198.51.100.7"
 
 
 class TestForwardRequest:
@@ -59,8 +102,13 @@ class TestForwardRequest:
         req.method = method
         req.url = MagicMock()
         req.url.__str__ = MagicMock(return_value=f"http://localhost:8000{path}")
+        req.url.scheme = "http"
+        req.url.hostname = "localhost"
+        req.url.netloc = "localhost:8000"
         req.headers = {}
         req.cookies = {}
+        req.client = MagicMock()
+        req.client.host = "172.20.0.4"
         return req
 
     async def test_forward_get_returns_upstream_json(self):

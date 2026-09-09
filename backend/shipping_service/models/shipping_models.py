@@ -19,7 +19,7 @@ class ShippingMethod(Base, TimestampMixin):
     )
 
     id: Mapped[UUID] = mapped_column(
-        PostgresUUID(as_uuid=True), primary_key=True, default=uuid4, unique=True
+        PostgresUUID(as_uuid=True), primary_key=True, default=uuid4
     )
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     carrier: Mapped[str] = mapped_column(String(100), nullable=False)
@@ -83,7 +83,7 @@ class Shipment(Base, TimestampMixin):
     )
 
     id: Mapped[UUID] = mapped_column(
-        PostgresUUID(as_uuid=True), primary_key=True, default=uuid4, unique=True
+        PostgresUUID(as_uuid=True), primary_key=True, default=uuid4
     )
     order_id: Mapped[UUID] = mapped_column(
         PostgresUUID(as_uuid=True), nullable=False, unique=True

@@ -18,7 +18,7 @@ class Notification(Base, TimestampMixin):
         Index('idx_notification_type', 'notification_type'),
     )
 
-    id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4, unique=True)
+    id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4)
     user_id: Mapped[UUID | None] = mapped_column(PostgresUUID(as_uuid=True), nullable=True)
     message: Mapped[str] = mapped_column(nullable=False)
     notification_type: Mapped[str] = mapped_column(String(100), nullable=False)

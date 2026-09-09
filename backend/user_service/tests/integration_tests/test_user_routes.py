@@ -41,7 +41,7 @@ async def _activate(client: AsyncClient, get_outbox_event: Callable[[str], Await
     payload = await get_outbox_event(UserEvents.USER_REGISTERED)
     assert payload is not None, "Expected a user.registered outbox event"
     token = payload["token"]
-    return await client.post(f"{test_settings.API}/activate/{token}")
+    return await client.post(f"{test_settings.API}/activate", json={"token": token})
 
 
 async def _login(
@@ -156,7 +156,7 @@ class TestUserRegister:
 
 
 # ===========================================================================
-# POST /api/v1/activate/{token}
+# POST /api/v1/activate
 # ===========================================================================
 
 
@@ -183,7 +183,12 @@ class TestActivateEmailEndpoint:
     async def test_activate_invalid_token_returns_401(
         self, integration_client: AsyncClient
     ):
-        response = await integration_client.post(f"{test_settings.API}/activate/this-is-not-a-valid-jwt")
+        # Long enough to clear the schema's length floor, so the 401 comes
+        # from token verification rather than request validation.
+        response = await integration_client.post(
+            f"{test_settings.API}/activate",
+            json={"token": "not-a-valid-jwt-but-long-enough-to-pass-validation"},
+        )
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
 
@@ -224,14 +229,18 @@ class TestLoginEndpoint:
         )
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
-    async def test_login_unknown_email_returns_404(
+    async def test_login_unknown_email_is_indistinguishable_from_wrong_password(
         self, integration_client: AsyncClient
     ):
         response = await integration_client.post(
             f"{test_settings.API}/login",
             data={"username": "nobody@example.com", "password": test_settings.TEST_PASSWORD},
         )
-        assert response.status_code == status.HTTP_404_NOT_FOUND
+        # A 404 here would let anyone enumerate which addresses hold an
+        # account, so an unknown address gets the same 401 and the same
+        # message as a wrong password.
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED
+        assert response.json()["detail"] == "Incorrect email or password"
 
     async def test_login_unverified_user_returns_401(
         self, integration_client: AsyncClient
@@ -289,9 +298,12 @@ class TestLogoutEndpoint:
         self, integration_client: AsyncClient, get_outbox_event
     ):
         login_data = await _setup_authenticated_user(integration_client, get_outbox_event)
+        # Revoking a refresh token requires proving who you are, so the access
+        # token issued at login has to travel with the request.
         response = await integration_client.post(
             f"{test_settings.API}/logout",
             json={"refresh_token": login_data["refresh_token"]},
+            headers={"Authorization": f"Bearer {login_data['access_token']}"},
         )
         assert response.status_code == status.HTTP_200_OK
         assert response.json()["detail"] == "Logged out successfully"
@@ -344,7 +356,7 @@ class TestForgotPasswordEndpoint:
         await _setup_verified_user(integration_client, get_outbox_event)
         response = await integration_client.post(
             f"{test_settings.API}/forgot-password",
-            params={"email": test_settings.TEST_EMAIL},
+            json={"email": test_settings.TEST_EMAIL},
         )
         assert response.status_code == status.HTTP_200_OK
         body = response.json()
@@ -356,25 +368,29 @@ class TestForgotPasswordEndpoint:
         await _setup_verified_user(integration_client, get_outbox_event)
         await integration_client.post(
             f"{test_settings.API}/forgot-password",
-            params={"email": test_settings.TEST_EMAIL},
+            json={"email": test_settings.TEST_EMAIL},
         )
         payload = await get_outbox_event(UserEvents.USER_PASSWORD_RESET_REQUEST)
         assert payload is not None
         assert payload["user_email"] == test_settings.TEST_EMAIL
         assert "reset_token" in payload
 
-    async def test_forgot_password_unknown_email_returns_404(
-        self, integration_client: AsyncClient
+    async def test_forgot_password_unknown_email_is_indistinguishable(
+        self, integration_client: AsyncClient, get_outbox_event
     ):
         response = await integration_client.post(
             f"{test_settings.API}/forgot-password",
-            params={"email": "nobody@example.com"},
+            json={"email": "nobody@example.com"},
         )
-        assert response.status_code == status.HTTP_404_NOT_FOUND
+        # Answering 404 here would let anyone test which addresses hold an
+        # account, so an unknown address gets the same reply as a known one
+        # and no reset event is written.
+        assert response.status_code == status.HTTP_200_OK
+        assert await get_outbox_event(UserEvents.USER_PASSWORD_RESET_REQUEST) is None
 
 
 # ===========================================================================
-# POST /api/v1/password-reset/{token}
+# POST /api/v1/password-reset
 # ===========================================================================
 
 
@@ -388,12 +404,12 @@ class TestResetPasswordEndpoint:
         self, integration_client: AsyncClient, get_outbox_event
     ):
         await _setup_verified_user(integration_client, get_outbox_event)
-        await integration_client.post(f"{test_settings.API}/forgot-password", params={"email": test_settings.TEST_EMAIL})
+        await integration_client.post(f"{test_settings.API}/forgot-password", json={"email": test_settings.TEST_EMAIL})
         reset_token = await self._get_reset_token(get_outbox_event)
 
         response = await integration_client.post(
-            f"{test_settings.API}/password-reset/{reset_token}",
-            json={"email": test_settings.TEST_EMAIL, "new_password": "NewPassword123!"},
+            f"{test_settings.API}/password-reset",
+            json={"token": reset_token, "new_password": "NewPassword123!"},
         )
         assert response.status_code == status.HTTP_200_OK
         assert response.json()["email"] == test_settings.TEST_EMAIL
@@ -402,12 +418,12 @@ class TestResetPasswordEndpoint:
         self, integration_client: AsyncClient, get_outbox_event
     ):
         await _setup_verified_user(integration_client, get_outbox_event)
-        await integration_client.post(f"{test_settings.API}/forgot-password", params={"email": test_settings.TEST_EMAIL})
+        await integration_client.post(f"{test_settings.API}/forgot-password", json={"email": test_settings.TEST_EMAIL})
         reset_token = await self._get_reset_token(get_outbox_event)
 
         await integration_client.post(
-            f"{test_settings.API}/password-reset/{reset_token}",
-            json={"email": test_settings.TEST_EMAIL, "new_password": "NewPassword123!"},
+            f"{test_settings.API}/password-reset",
+            json={"token": reset_token, "new_password": "NewPassword123!"},
         )
         payload = await get_outbox_event(UserEvents.USER_PASSWORD_RESET_SUCCESS)
         assert payload is not None
@@ -418,12 +434,12 @@ class TestResetPasswordEndpoint:
     ):
         new_password = "NewPassword123!"
         await _setup_verified_user(integration_client, get_outbox_event)
-        await integration_client.post(f"{test_settings.API}/forgot-password", params={"email": test_settings.TEST_EMAIL})
+        await integration_client.post(f"{test_settings.API}/forgot-password", json={"email": test_settings.TEST_EMAIL})
         reset_token = await self._get_reset_token(get_outbox_event)
 
         await integration_client.post(
-            f"{test_settings.API}/password-reset/{reset_token}",
-            json={"email": test_settings.TEST_EMAIL, "new_password": new_password},
+            f"{test_settings.API}/password-reset",
+            json={"token": reset_token, "new_password": new_password},
         )
         login_resp = await _login(integration_client, password=new_password)
         assert login_resp.status_code == status.HTTP_200_OK
@@ -433,12 +449,12 @@ class TestResetPasswordEndpoint:
     ):
         new_password = "NewPassword123!"
         await _setup_verified_user(integration_client, get_outbox_event)
-        await integration_client.post(f"{test_settings.API}/forgot-password", params={"email": test_settings.TEST_EMAIL})
+        await integration_client.post(f"{test_settings.API}/forgot-password", json={"email": test_settings.TEST_EMAIL})
         reset_token = await self._get_reset_token(get_outbox_event)
 
         await integration_client.post(
-            f"{test_settings.API}/password-reset/{reset_token}",
-            json={"email": test_settings.TEST_EMAIL, "new_password": new_password},
+            f"{test_settings.API}/password-reset",
+            json={"token": reset_token, "new_password": new_password},
         )
         old_login = await _login(integration_client, password=test_settings.TEST_PASSWORD)
         assert old_login.status_code == status.HTTP_401_UNAUTHORIZED
@@ -447,8 +463,11 @@ class TestResetPasswordEndpoint:
         self, integration_client: AsyncClient
     ):
         response = await integration_client.post(
-            f"{test_settings.API}/password-reset/invalid-token",
-            json={"email": test_settings.TEST_EMAIL, "new_password": "NewPassword123!"},
+            f"{test_settings.API}/password-reset",
+            json={
+                "token": "not-a-valid-reset-token-but-long-enough-to-pass",
+                "new_password": "NewPassword123!",
+            },
         )
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
@@ -501,11 +520,13 @@ class TestGetAllUsersEndpoint:
         assert len(body) == 1
         assert body[0]["email"] == test_settings.TEST_EMAIL
 
-    async def test_get_all_users_empty_db_returns_404(
+    async def test_get_all_users_empty_db_returns_empty_list(
         self, integration_client: AsyncClient
     ):
         response = await integration_client.get(f"{test_settings.API}/users")
-        assert response.status_code == status.HTTP_404_NOT_FOUND
+        # An empty collection is a successful, empty result — not a 404.
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json() == []
 
     async def test_get_all_users_pagination_returns_correct_pages(
         self, integration_client: AsyncClient, get_outbox_event
@@ -514,7 +535,9 @@ class TestGetAllUsersEndpoint:
         for email in ("user1@example.com", "user2@example.com"):
             await _register(integration_client, email=email)
             payload = await get_outbox_event(UserEvents.USER_REGISTERED)
-            await integration_client.post(f"{test_settings.API}/activate/{payload['token']}")
+            await integration_client.post(
+                f"{test_settings.API}/activate", json={"token": payload["token"]}
+            )
 
         page_1 = await integration_client.get(f"{test_settings.API}/users", params={"offset": 0, "limit": 1})
         page_2 = await integration_client.get(f"{test_settings.API}/users", params={"offset": 1, "limit": 1})

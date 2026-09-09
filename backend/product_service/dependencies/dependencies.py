@@ -9,8 +9,10 @@ from database_layer.category_repository import CategoryRepository
 from database_layer.product_image_repository import ProductImageRepository
 from database_layer.product_repository import ProductRepository
 from database_layer.product_variant_repository import ProductVariantRepository
+from database_layer.retained_artwork_repository import RetainedArtworkRepository
 from database_layer.review_repository import ReviewRepository
 from helpers.user_context_resolver import UserContextResolver
+from service_layer.artwork_asset_service import ArtworkAssetService
 from service_layer.category_service import CategoryService
 from service_layer.image_generation_quota import GenerationQuotaService
 from service_layer.image_generation_service import ImageGenerationService
@@ -143,6 +145,18 @@ def get_image_generation_service(
     )
 
 
+def get_artwork_asset_service(
+    resources: ProductApiResources = Depends(get_resources),
+    session: AsyncSession = Depends(get_db_session),
+) -> ArtworkAssetService:
+    """Dependency to provide ArtworkAssetService for print-file downloads and retention."""
+    return ArtworkAssetService(
+        logger=resources.logger,
+        settings=resources.settings,
+        repository=RetainedArtworkRepository(session=session),
+    )
+
+
 def get_user_context_resolver(
     resources: ProductApiResources = Depends(get_resources),
 ) -> UserContextResolver:
@@ -159,3 +173,4 @@ review_service_dependency = Annotated[ReviewService, Depends(get_review_service)
 product_image_service_dependency = Annotated[ProductImageService, Depends(get_product_image_service)]
 image_generation_service_dependency = Annotated[ImageGenerationService, Depends(get_image_generation_service)]
 user_context_resolver_dependency = Annotated[UserContextResolver, Depends(get_user_context_resolver)]
+artwork_asset_service_dependency = Annotated[ArtworkAssetService, Depends(get_artwork_asset_service)]

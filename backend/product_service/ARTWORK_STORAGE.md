@@ -44,6 +44,29 @@ versioning. Do not apply an expiry rule to ordered artwork; an operational
 cleanup job may separately remove unreferenced generation drafts after a safe
 retention period.
 
+## Which artwork is ordered
+
+order_service holds the reference to a print file while this service owns the
+object, so nothing local could tell a paid order's artwork from an abandoned
+preview. The `retained_artwork` table is that link. On `order.confirmed`,
+order_service emits `artwork.retained` with the keys of every custom line;
+`order.cancelled` emits `artwork.released`. Both arrive on
+`product.artwork.events.queue` and are applied by `ArtworkAssetService`.
+
+**A cleanup job must call `RetainedArtworkRepository.is_key_retained(key)` and
+skip any key it reports, however old the object is.** One live hold from any
+order is enough to keep the file.
+
+## Serving a print file to the operator
+
+`POST /api/v1/artwork/download-link` exchanges a signed manifest for a
+short-lived download URL — a presigned S3 GET with an attachment disposition,
+or a `/media/...` path under the local backend. The manifest is the credential:
+only a caller holding the manifest this service issued at generation time can
+obtain the object, so the key alone is never enough. The route is restricted to
+internal callers and is deliberately not exposed through the API gateway;
+order_service calls it on behalf of the operator working the production queue.
+
 The default maximum garment area is 15 x 18 inches. Assets must contain at
 least 2250 x 2700 pixels (150 effective DPI at that size); the generator asks
 for native 4K output and the service deliberately does not upscale small

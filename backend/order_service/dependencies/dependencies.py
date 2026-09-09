@@ -5,13 +5,21 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import Depends, Request
 
 from database_layer.order_address_repository import OrderAddressRepository
+from database_layer.order_fulfillment_repository import (
+    CustomProductionJobRepository,
+    OrderLineFulfillmentRepository,
+)
 from database_layer.order_item_repository import OrderItemRepository
 from shared.database_layer.outbox_repository import OutboxRepository
 from service_layer.order_service import OrderService
 from service_layer.order_item_service import OrderItemService
 from service_layer.order_address_service import OrderAddressService
 from service_layer.outbox_event_service import OutboxEventService
+from service_layer.artwork_asset_client import ArtworkAssetClient
+from service_layer.order_fulfillment_status_service import OrderFulfillmentStatusService
 from service_layer.order_pricing_service import OrderPricingService
+from service_layer.packing_slip_service import PackingSlipBuilder
+from service_layer.production_queue_service import ProductionQueueService
 from models.outbox_models import OutboxEvent
 from database_layer.order_repository import OrderRepository
 from resources import OrderApiResources, get_order_api_resources
@@ -74,6 +82,42 @@ def get_order_service(resources: OrderApiResources = Depends(get_api_resources),
                             catalog_client=resources.catalog_client,
                         ))
 
+def get_fulfillment_status_service(
+    session: AsyncSession = Depends(get_db_session),
+) -> OrderFulfillmentStatusService:
+    """
+    Dependency to provide OrderFulfillmentStatusService, which records per-line
+    fulfillment progress and re-derives the order-level delivery status from it.
+    """
+    return OrderFulfillmentStatusService(
+        order_repository=OrderRepository(session=session),
+        fulfillment_repository=OrderLineFulfillmentRepository(session=session),
+    )
+
+
+def get_production_queue_service(
+    resources: OrderApiResources = Depends(get_api_resources),
+    session: AsyncSession = Depends(get_db_session),
+    fulfillment_status_service: OrderFulfillmentStatusService = Depends(
+        get_fulfillment_status_service
+    ),
+    outbox_event_service: OutboxEventService = Depends(get_outbox_service),
+) -> ProductionQueueService:
+    """
+    Dependency to provide ProductionQueueService, which drives one in-house
+    print job from a queued garment to a delivered parcel.
+    """
+    return ProductionQueueService(
+        repository=CustomProductionJobRepository(session=session),
+        fulfillment_status_service=fulfillment_status_service,
+        outbox_event_service=outbox_event_service,
+        packing_slip_builder=PackingSlipBuilder(settings=resources.settings),
+        artwork_client=resources.artwork_client,
+    )
+
+
 order_address_dependency = Annotated[OrderAddressService, Depends(get_order_address_service)]
 order_item_dependency = Annotated[OrderItemService, Depends(get_order_item_service)]
 order_service_dependency = Annotated[OrderService, Depends(get_order_service)]
+production_queue_service_dependency = Annotated[ProductionQueueService, Depends(get_production_queue_service)]
+fulfillment_status_dependency = Annotated[OrderFulfillmentStatusService, Depends(get_fulfillment_status_service)]

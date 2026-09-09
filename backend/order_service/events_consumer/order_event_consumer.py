@@ -2,16 +2,20 @@ from logging import Logger
 from typing import Any
 
 from database_layer.order_address_repository import OrderAddressRepository
+from database_layer.order_fulfillment_repository import OrderLineFulfillmentRepository
 from database_layer.order_item_repository import OrderItemRepository
 from database_layer.order_repository import OrderRepository
 from shared.database_layer.outbox_repository import OutboxRepository
 from events_publisher.order_event_publisher import OrderEventPublisher
 from service_layer.order_address_service import OrderAddressService
+from service_layer.order_fulfillment_status_service import OrderFulfillmentStatusService
 from service_layer.order_item_service import OrderItemService
 from schemas.order_schemas import UpdateOrder
 from shared.contracts.events import (
     CJOrderCreatedEvent,
+    CJOrderDeliveredEvent,
     CJOrderFailedEvent,
+    CJOrderShippedEvent,
     InventoryReserveFailed,
     InventoryReserveSucceeded,
     PaymentSucceededEvent,
@@ -23,7 +27,7 @@ from shared.contracts.events import (
     ShipmentCancelledEvent,
 )
 from service_layer.order_service import OrderService
-from shared.enums.status_enums import OrderStatus, OrderDeliveryStatus
+from shared.enums.status_enums import LineFulfillmentStatus, OrderStatus
 from service_layer.outbox_event_service import OutboxEventService
 from models.outbox_models import OutboxEvent
 from shared.idempotency.idempotency_service import IdempotencyEventService
@@ -76,11 +80,16 @@ class OrderEventConsumer:
             outbox_event_service = OutboxEventService(
                 repository=OutboxRepository(session=session, model=OutboxEvent)
             )
+            order_repository = OrderRepository(session=session)
             order_service = OrderService(
-                repository=OrderRepository(session=session),
+                repository=order_repository,
                 order_item_service=order_item_service,
                 order_address_service=order_address_service,
-                outbox_event_service=outbox_event_service
+                outbox_event_service=outbox_event_service,
+                fulfillment_status_service=OrderFulfillmentStatusService(
+                    order_repository=order_repository,
+                    fulfillment_repository=OrderLineFulfillmentRepository(session=session),
+                ),
             )
             yield order_service
 
@@ -163,12 +172,47 @@ class OrderEventConsumer:
             raise
 
     async def handle_cj_order_event(self, message: dict[str, Any]) -> None:
-        if message.get("event_type") == OrderEvents.CJ_ORDER_CREATED:
-            await self.handle_cj_order_created(message)
-            return
-        if message.get("event_type") != OrderEvents.CJ_ORDER_FAILED:
-            self.logger.warning("Unhandled CJ event: %s", message.get("event_type"))
-            return
+        """Route every CJ fulfillment event to its handler."""
+        event_type = message.get("event_type")
+        match event_type:
+            case OrderEvents.CJ_ORDER_CREATED:
+                await self.handle_cj_order_created(message)
+            case OrderEvents.CJ_ORDER_SHIPPED:
+                await self.handle_cj_order_shipped(message)
+            case OrderEvents.CJ_ORDER_DELIVERED:
+                await self.handle_cj_order_delivered(message)
+            case OrderEvents.CJ_ORDER_FAILED:
+                await self.handle_cj_order_failed(message)
+            case _:
+                self.logger.warning("Unhandled CJ event: %s", event_type)
+
+    async def handle_cj_order_shipped(self, message: dict[str, Any]) -> None:
+        """CJ handed the parcel to the carrier: the order is on its way."""
+        event = CJOrderShippedEvent(**message)
+        self.logger.info(
+            f"CJ order {event.cj_order_number} shipped for order {event.order_id} "
+            f"with tracking {event.tracking_number}"
+        )
+        await self._record_line_fulfillment(
+            message, LineFulfillmentStatus.SHIPPED, {"cj"}
+        )
+
+    async def handle_cj_order_delivered(self, message: dict[str, Any]) -> None:
+        """CJ's carrier reported the parcel as delivered."""
+        event = CJOrderDeliveredEvent(**message)
+        self.logger.info(
+            f"CJ order {event.cj_order_number} delivered for order {event.order_id}"
+        )
+        await self._record_line_fulfillment(
+            message, LineFulfillmentStatus.DELIVERED, {"cj"}
+        )
+
+    async def handle_cj_order_failed(self, message: dict[str, Any]) -> None:
+        """Compensate the saga after a definitive CJ fulfillment failure.
+
+        This covers both a rejected submission and an order CJ cancelled after
+        accepting it; cancelling the order is what triggers the Stripe refund.
+        """
         event = CJOrderFailedEvent(**message)
         if not await self.idempotency_service.try_claim_event(
             event.event_id, event.event_type
@@ -495,10 +539,23 @@ class OrderEventConsumer:
             case _:
                 self.logger.warning(f"Unhandled shipping event type in order consumer: {event_type}")
 
-    async def _update_delivery_status(self, message: dict[str, Any], status: OrderDeliveryStatus) -> None:
-        """Helper to update order delivery status from shipping events."""
+    async def _record_line_fulfillment(
+        self,
+        message: dict[str, Any],
+        status: LineFulfillmentStatus,
+        fulfillment_types: set[str],
+    ) -> None:
+        """Record progress reported by one fulfillment channel.
+
+        Both CJ and the local warehouse report per order, not per line, but an
+        order can hold lines from several channels at once. Scoping the update
+        to the reporting channel's lines and re-deriving the order-level status
+        from all of them is what stops a dropshipped parcel from marking an
+        unprinted custom T-shirt as dispatched.
+        """
         event_type = message.get("event_type")
         event_id = message.get("event_id")
+        order_id = message.get("order_id")
 
         try:
             claimed = await self.idempotency_service.try_claim_event(
@@ -506,33 +563,38 @@ class OrderEventConsumer:
                 event_type=event_type,
             )
             if not claimed:
-                self.logger.info(f"Skipping duplicate {event_type} event for order: {message.get('order_id')}")
+                self.logger.info(f"Skipping duplicate {event_type} event for order: {order_id}")
                 return
 
-            result = f"delivery_status_{status}"
+            result = f"line_fulfillment_{status}"
             async for order_service in self._get_order_service():
                 try:
-                    current_order = await order_service.get_order_by_id(order_id=message.get("order_id"))
+                    current_order = await order_service.get_order_by_id(order_id=order_id)
                 except OrderNotFoundError:
-                    self.logger.warning(f"Order {message.get('order_id')} not found for {event_type} — skipping")
+                    self.logger.warning(f"Order {order_id} not found for {event_type} — skipping")
                     result = "order_not_found"
                     break
 
                 if current_order.status == OrderStatus.CANCELLED:
-                    self.logger.info(f"Order {message.get('order_id')} is CANCELLED — skipping {event_type}")
+                    self.logger.info(f"Order {order_id} is CANCELLED — skipping {event_type}")
                     result = "order_cancelled"
                     break
 
-                await order_service.update_delivery_status(
-                    order_id=message.get("order_id"),
-                    delivery_status=status,
+                updated = await order_service.record_line_fulfillment(
+                    order_id=order_id,
+                    status=status,
+                    fulfillment_types=fulfillment_types,
                 )
-                self.logger.info(f"Updated delivery_status to {status} for order {message.get('order_id')}")
+                self.logger.info(
+                    f"Recorded {status} on {sorted(fulfillment_types)} lines of order "
+                    f"{order_id}; delivery_status is now {updated.delivery_status}"
+                )
+                result = f"line_fulfillment_{status}_{updated.delivery_status}"
 
             await self.idempotency_service.mark_event_as_processed(
                 event_id=event_id,
                 event_type=event_type,
-                order_id=message.get("order_id"),
+                order_id=order_id,
                 result=result,
             )
 
@@ -545,7 +607,7 @@ class OrderEventConsumer:
                     )
             except Exception:
                 pass
-            self.logger.error(f"Error handling {event_type} for order {message.get('order_id')}: {e}")
+            self.logger.error(f"Error handling {event_type} for order {order_id}: {e}")
             raise
 
     async def handle_shipment_created(self, message: dict[str, Any]) -> None:
@@ -576,13 +638,24 @@ class OrderEventConsumer:
             raise
 
     async def handle_shipment_shipped(self, message: dict[str, Any]) -> None:
-        """Update order delivery_status to DISPATCHED."""
-        await self._update_delivery_status(message, OrderDeliveryStatus.DISPATCHED)
+        """Mark the locally shipped catalog lines as dispatched.
+
+        shipping_service creates a local shipment only for ``catalog`` lines —
+        CJ owns delivery for its own lines and the in-house queue posts custom
+        ones — so its events speak for the catalog lines alone.
+        """
+        await self._record_line_fulfillment(
+            message, LineFulfillmentStatus.SHIPPED, {"catalog"}
+        )
 
     async def handle_shipment_delivered(self, message: dict[str, Any]) -> None:
-        """Update order delivery_status to DELIVERED."""
-        await self._update_delivery_status(message, OrderDeliveryStatus.DELIVERED)
+        """Mark the locally shipped catalog lines as delivered."""
+        await self._record_line_fulfillment(
+            message, LineFulfillmentStatus.DELIVERED, {"catalog"}
+        )
 
     async def handle_shipment_cancelled(self, message: dict[str, Any]) -> None:
-        """Update order delivery_status to CANCELLED."""
-        await self._update_delivery_status(message, OrderDeliveryStatus.CANCELLED)
+        """Mark the locally shipped catalog lines as cancelled."""
+        await self._record_line_fulfillment(
+            message, LineFulfillmentStatus.CANCELLED, {"catalog"}
+        )

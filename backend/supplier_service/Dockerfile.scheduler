@@ -30,4 +30,4 @@ USER supplier_scheduler_user
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
     CMD ps aux | grep -v grep | grep "taskiq scheduler" || exit 1
 
-CMD ["taskiq", "scheduler", "tasks.scheduler:supplier_task_scheduler", "tasks.sync_tasks"]
+CMD ["taskiq", "scheduler", "tasks.scheduler:supplier_task_scheduler", "tasks.sync_tasks", "tasks.tracking_tasks"]

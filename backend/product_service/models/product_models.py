@@ -40,7 +40,7 @@ class Product(Base, TimestampMixin):
               postgresql_where='in_stock = true'),
     )
 
-    id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, unique=True)
+    id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True)
     pid: Mapped[str | None] = mapped_column(nullable=True)
     supplier_id: Mapped[str | None] = mapped_column(nullable=True)
     supplier_category_id: Mapped[str | None] = mapped_column(nullable=True)

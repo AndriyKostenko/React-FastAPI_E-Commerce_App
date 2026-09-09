@@ -9,6 +9,11 @@ class UserEventsQueue(StrEnum):
 class OrderEventsQueue(StrEnum):
     ORDER_EVENTS_QUEUE = "order.events.queue"
     ORDER_EVENTS_DEAD_LETTER_QUEUE = "order.events.dlq"
+    # CJ fulfillment events (routing key "cj.order.*") travel on the same
+    # order exchange but do NOT match the "order.#" binding above, so
+    # notification_service binds them on a dedicated queue.
+    NOTIFICATION_CJ_ORDER_EVENTS_QUEUE = "notification.cj.order.events.queue"
+    NOTIFICATION_CJ_ORDER_EVENTS_DEAD_LETTER_QUEUE = "notification.cj.order.events.dlq"
 
 
 class PaymentEventsQueue(StrEnum):
@@ -86,6 +91,8 @@ class OrderEvents(StrEnum):
     ORDER_CANCELLED = "order.cancelled"
     CJ_ORDER_CREATED = "cj.order.created"
     CJ_ORDER_FAILED = "cj.order.failed"
+    CJ_ORDER_SHIPPED = "cj.order.shipped"
+    CJ_ORDER_DELIVERED = "cj.order.delivered"
 
 
 class PaymentEvents(StrEnum):
@@ -111,3 +118,39 @@ class SupplierEvents(StrEnum):
     SUPPLIER_PRODUCTS_FETCHED = "supplier.products.fetched"
     SUPPLIER_PRODUCT_IMPORT_COMPLETED = "supplier.product.import.completed"
     SUPPLIER_PRODUCT_IMPORT_FAILED = "supplier.product.import.failed"
+
+
+class ProductionEvents(StrEnum):
+    """In-house print-and-post fulfillment lifecycle (routing key "production.job.*").
+
+    These share the order exchange with the "order.*" and "cj.order.*" keys but
+    match neither binding, so each consumer that wants them binds its own queue.
+    """
+
+    PRODUCTION_JOB_STARTED = "production.job.started"
+    PRODUCTION_JOB_PRINTED = "production.job.printed"
+    PRODUCTION_JOB_SHIPPED = "production.job.shipped"
+    PRODUCTION_JOB_DELIVERED = "production.job.delivered"
+    PRODUCTION_JOB_CANCELLED = "production.job.cancelled"
+
+
+class ProductionEventsQueue(StrEnum):
+    NOTIFICATION_PRODUCTION_EVENTS_QUEUE = "notification.production.events.queue"
+    NOTIFICATION_PRODUCTION_EVENTS_DEAD_LETTER_QUEUE = "notification.production.events.dlq"
+
+
+class ArtworkEvents(StrEnum):
+    """Retention markers linking a paid order line to its stored print file.
+
+    product_service owns the artwork object but order_service owns the
+    reference, so these events are what let a cleanup job tell a paid order's
+    print file from an abandoned generation draft.
+    """
+
+    ARTWORK_RETAINED = "artwork.retained"
+    ARTWORK_RELEASED = "artwork.released"
+
+
+class ProductArtworkEventsQueue(StrEnum):
+    PRODUCT_ARTWORK_EVENTS_QUEUE = "product.artwork.events.queue"
+    PRODUCT_ARTWORK_EVENTS_DEAD_LETTER_QUEUE = "product.artwork.events.dlq"

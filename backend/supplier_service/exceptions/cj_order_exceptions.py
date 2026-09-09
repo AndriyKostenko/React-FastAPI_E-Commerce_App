@@ -19,6 +19,29 @@ class CJOrderConfigurationError(BaseAPIException):
         super().__init__(status_code=500, detail=detail)
 
 
+class CJAddressValidationError(CJOrderConfigurationError):
+    """Raised when a shipping address cannot be shipped by CJ.
+
+    A subclass of CJOrderConfigurationError so the consumer keeps treating it as
+    a definitive, pre-submission failure that the order saga can compensate.
+    """
+    def __init__(self, detail: str = "Shipping address is invalid."):
+        super().__init__(detail=detail)
+        self.status_code = 422
+
+
+class CJOrderRejectedError(BaseAPIException):
+    """Raised when CJ cancels or rejects an order it had already accepted."""
+    def __init__(self, detail: str = "CJ rejected the order."):
+        super().__init__(status_code=502, detail=detail)
+
+
+class CJFreightQuoteError(BaseAPIException):
+    """Raised when CJ cannot price shipping for a destination and cart."""
+    def __init__(self, detail: str = "No CJ shipping options are available."):
+        super().__init__(status_code=422, detail=detail)
+
+
 class CJOrderAmbiguousError(Exception):
     """CJ may have accepted the order, so automatic compensation is unsafe."""
 

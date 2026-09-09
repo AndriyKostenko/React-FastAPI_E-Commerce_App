@@ -5,7 +5,8 @@ from contextlib import AsyncExitStack, asynccontextmanager
 from dataclasses import dataclass
 from logging import Logger
 
-from fastapi import Request
+from starlette.requests import HTTPConnection
+
 from shared.idempotency.idempotency_service import IdempotencyEventService
 from shared.managers.database_session_manager import DatabaseSessionManager
 from shared.managers.logger_manager import setup_logger
@@ -61,9 +62,11 @@ def create_notification_api_resources(
     )
 
 
-def get_notification_api_resources(request: Request) -> NotificationApiResources:
+def get_notification_api_resources(
+    connection: HTTPConnection,
+) -> NotificationApiResources:
     """Resolve the current app's lifespan-owned resource container."""
-    resources = getattr(request.app.state, "resources", None)
+    resources = getattr(connection.app.state, "resources", None)
     if not isinstance(resources, NotificationApiResources):
         raise RuntimeError("Notification API resources are not initialized")
     return resources

@@ -64,6 +64,8 @@ ENV PATH="/app/.venv/bin:$PATH"
 
 COPY --chown=supplieruser:suppliergroup . .
 
+RUN chmod +x /app/entrypoint-api.sh
+
 USER supplieruser
 
 EXPOSE 8010
@@ -71,7 +73,7 @@ EXPOSE 8010
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8010/health || exit 1
 
-CMD ["sh", "-c", "mkdir -p ${PROMETHEUS_MULTIPROC_DIR} && rm -rf ${PROMETHEUS_MULTIPROC_DIR}/* && gunicorn -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:8010 --workers ${GUNICORN_WORKERS:-1} --timeout 120 --graceful-timeout 30 --access-logfile -"]
+CMD ["./entrypoint-api.sh"]
 
 # -------------------------
 # Test Runtime Stage

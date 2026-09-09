@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from database_layer.supplier_config_repository import SupplierConfigRepository
 from database_layer.supplier_sync_state_repository import SupplierSyncStateRepository
+from service_layer.cj_freight_service import CJFreightQuoteService
 from service_layer.cj_product_provider import CJDropshippingProductProvider
 from service_layer.outbox_event_service import OutboxEventService
 from models.outbox_models import OutboxEvent
@@ -65,5 +66,19 @@ def get_sync_orchestrator(
     )
 
 
+def get_freight_quote_service(
+    resources: SupplierApiResources = Depends(get_resources),
+) -> CJFreightQuoteService:
+    """Provide the checkout freight-quote service sharing the process cache."""
+    return CJFreightQuoteService(
+        api_client=resources.cj_api_client,
+        product_service_client=resources.product_service_client,
+        settings=resources.settings,
+        logger=resources.logger,
+        cache=resources.freight_cache,
+    )
+
+
 cj_provider_dependency = Annotated[CJDropshippingProductProvider, Depends(get_cj_provider)]
+freight_quote_dependency = Annotated[CJFreightQuoteService, Depends(get_freight_quote_service)]
 sync_orchestrator_dependency = Annotated[SupplierSyncOrchestrator, Depends(get_sync_orchestrator)]

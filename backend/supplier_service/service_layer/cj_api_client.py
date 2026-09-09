@@ -177,6 +177,30 @@ class CJDropshippingAPIClient:
             timeout=self.settings.CJ_DROPSHIPPING_ORDER_CREATE_TIMEOUT_SECONDS,
         )
 
+    async def calculate_freight(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Quote shipping options via freightCalculate.
+
+        Args:
+            payload: Request body matching the CJ freightCalculate schema.
+
+        Returns:
+            Parsed JSON response from CJ.
+        """
+        return await self.request(
+            "POST",
+            self.settings.CJ_DROPSHIPPING_FREIGHT_CALCULATE_URL,
+            json=payload,
+            timeout=self.settings.CJ_DROPSHIPPING_FREIGHT_TIMEOUT_SECONDS,
+        )
+
+    async def get_tracking_info(self, tracking_number: str) -> dict[str, Any]:
+        """Fetch carrier scan events for one CJ tracking number."""
+        return await self.request(
+            "GET",
+            self.settings.CJ_DROPSHIPPING_TRACK_INFO_URL,
+            params={"trackNumber": tracking_number},
+        )
+
     async def get_order_detail(self, order_id: str) -> dict[str, Any]:
         """Query by the merchant order number or CJ order id."""
         return await self.request(

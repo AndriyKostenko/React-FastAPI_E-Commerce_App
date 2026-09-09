@@ -1,24 +1,21 @@
 from typing import Any
-from logging import Logger
 
 from shared.outbox import OutboxRelay
-from shared.managers.database_session_manager import DatabaseSessionManager
 from shared.enums.event_enums import SupplierEvents, OrderEvents
-from event_publisher.supplier_event_publisher import SupplierEventPublisher
 from models.outbox_models import OutboxEvent
+from resources import SupplierOutboxResources
 
 
-def build_outbox_relay(
-    database: DatabaseSessionManager,
-    publisher: SupplierEventPublisher,
-    logger: Logger,
-    poll_interval: float,
-) -> OutboxRelay:
+def build_outbox_relay(resources: SupplierOutboxResources) -> OutboxRelay:
+    publisher = resources.publisher
+
     async def route_supplier_event(event_type: str, payload: dict[str, Any]) -> None:
         routes = {
             SupplierEvents.SUPPLIER_PRODUCTS_FETCHED: publisher.publish_supplier_products_fetched,
             OrderEvents.CJ_ORDER_CREATED: publisher.publish_cj_order_created,
             OrderEvents.CJ_ORDER_FAILED: publisher.publish_cj_order_failed,
+            OrderEvents.CJ_ORDER_SHIPPED: publisher.publish_cj_order_shipped,
+            OrderEvents.CJ_ORDER_DELIVERED: publisher.publish_cj_order_delivered,
         }
         publish = routes.get(event_type)
         if publish is None:
@@ -26,9 +23,9 @@ def build_outbox_relay(
         await publish(payload)
 
     return OutboxRelay(
-        session_manager=database,
+        session_manager=resources.database,
         event_router=route_supplier_event,
-        logger=logger,
-        poll_interval=poll_interval,
+        logger=resources.logger,
+        poll_interval=float(resources.settings.POLLING_INTERVAL_FROM_DB),
         outbox_model=OutboxEvent,
     )

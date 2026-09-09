@@ -122,7 +122,9 @@ async def handle_order_shipping_events(body: dict[str, Any]) -> None:
     await get_order_event_consumer().handle_shipping_event(body)
 
 
-cj_order_created_queue = RabbitQueue(
+# "cj.order.*" covers created / shipped / delivered / failed — the whole CJ
+# fulfillment lifecycle lands on this one queue.
+cj_order_events_queue = RabbitQueue(
     name="order.cj.order.events.queue",
     durable=True,
     routing_key="cj.order.*",
@@ -133,7 +135,7 @@ cj_order_created_queue = RabbitQueue(
 )
 
 
-@rabbitmq_broker.subscriber(queue=cj_order_created_queue, exchange=order_exchange)
-async def handle_cj_order_created(body: dict[str, Any]) -> None:
-    """Persist CJ success or compensate a definitive CJ failure."""
+@rabbitmq_broker.subscriber(queue=cj_order_events_queue, exchange=order_exchange)
+async def handle_cj_order_events(body: dict[str, Any]) -> None:
+    """Track CJ fulfillment progress or compensate a definitive CJ failure."""
     await get_order_event_consumer().handle_cj_order_event(body)

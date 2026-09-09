@@ -20,8 +20,13 @@ export default function ActivatePage() {
 
         async function activate() {
             try {
-                const res = await fetch(settings.api.endpoints.activate(token), {
+                // The token stays in the route segment for a clickable link,
+                // but is sent in the body — a credential in a URL path leaks
+                // into access logs, browser history and Referer headers.
+                const res = await fetch(settings.api.endpoints.activate, {
                     method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ token }),
                 });
 
                 if (!res.ok) {

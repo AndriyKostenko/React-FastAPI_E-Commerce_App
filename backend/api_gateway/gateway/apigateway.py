@@ -5,11 +5,12 @@ from urllib.parse import urlparse, urlunparse
 from logging import Logger
 
 import orjson
-from fastapi import HTTPException, Request
+from fastapi import HTTPException, Request, Response
 from httpx import AsyncClient, HTTPStatusError, RequestError, Timeout, Limits
 from shared.utils.customized_json_response import JSONResponse
 
 from shared.settings import Settings
+from shared.utils.client_ip import ClientIPResolver
 from schemas.gateway_schemas import GatewayConfig, ServiceConfig
 
 
@@ -106,6 +107,7 @@ class ApiGateway:
         self.settings: Settings = settings
         self.logger: Logger = logger
         self._http_client: AsyncClient | None = None
+        self._client_ip_resolver = ClientIPResolver(settings.TRUSTED_PROXY_NETWORKS)
         self.config: GatewayConfig = GatewayConfig(
             services={
                 "user-service": ServiceConfig(
@@ -279,15 +281,76 @@ class ApiGateway:
                 self.logger.warning(f"Failed to read raw body for {path}: {e}")
                 return None, None
 
-    def _prepare_headers(self, request_headers, new_content_type=None):
+    # Hop-by-hop headers, plus the forwarding headers the gateway re-derives
+    # itself.  A client may send any of the latter, so passing them through
+    # would let it dictate the address downstream services attribute it to.
+    # Responses that must not carry a body; forwarding one is a protocol error.
+    _BODILESS_STATUSES: frozenset[int] = frozenset({204, 205, 304})
+
+    _STRIPPED_HEADERS: frozenset[str] = frozenset({
+        "host",
+        "content-length",
+        "transfer-encoding",
+        "connection",
+        "content-type",
+        "x-forwarded-for",
+        "x-forwarded-host",
+        "x-forwarded-proto",
+        "x-forwarded-port",
+        "x-real-ip",
+        "forwarded",
+        # Identity headers are asserted by this gateway alone. Stripping any
+        # the caller sent is what makes them trustworthy downstream: a service
+        # that believed a client-supplied X-Authenticated-User-Id would let
+        # anyone act as anyone.
+        "x-authenticated-user-id",
+        "x-authenticated-user-email",
+        "x-authenticated-user-role",
+    })
+
+    @staticmethod
+    def _passthrough_headers(headers) -> dict[str, str]:
+        """Copy upstream headers minus the ones that describe a body we drop."""
+        return {
+            key: value
+            for key, value in headers.items()
+            if key.lower() not in {"content-length", "content-type", "transfer-encoding"}
+        }
+
+    def _prepare_headers(self, request: Request, new_content_type=None):
         """
-        Prepare headers for forwarding, removing problematic ones and adding new content-type if needed
+        Prepare headers for forwarding: drop hop-by-hop and client-supplied
+        forwarding headers, then restate the forwarding chain from the address
+        this gateway actually resolved.
         """
         filtered_headers = {}
-        if request_headers:
-            for key, value in dict(request_headers).items():
-                if key.lower() not in ["host", "content-length", "transfer-encoding", "connection", "content-type"]:
-                    filtered_headers[key] = value
+        for key, value in dict(request.headers).items():
+            if key.lower() not in self._STRIPPED_HEADERS:
+                filtered_headers[key] = value
+
+        # One trustworthy hop: downstream services see the real client because
+        # everything the caller sent has been discarded above.
+        client_ip = self._client_ip_resolver.resolve(request)
+        filtered_headers["X-Forwarded-For"] = client_ip
+        filtered_headers["X-Real-Ip"] = client_ip
+        filtered_headers["X-Forwarded-Proto"] = request.url.scheme
+        if request.url.hostname:
+            filtered_headers["X-Forwarded-Host"] = request.url.netloc
+
+        # Tell the downstream service who the caller is, so it can enforce
+        # ownership itself rather than trusting that some gateway route
+        # remembered to check.
+        current_user = getattr(request.state, "current_user", None)
+        if current_user is not None:
+            user_id = getattr(current_user, "id", None)
+            user_email = getattr(current_user, "email", None)
+            user_role = getattr(current_user, "role", None)
+            if user_id:
+                filtered_headers["X-Authenticated-User-Id"] = str(user_id)
+            if user_email:
+                filtered_headers["X-Authenticated-User-Email"] = str(user_email)
+            if user_role:
+                filtered_headers["X-Authenticated-User-Role"] = str(user_role)
 
         if new_content_type:
             filtered_headers["Content-Type"] = new_content_type
@@ -333,7 +396,7 @@ class ApiGateway:
             self.logger.debug(f"Prepared body content: {prepared_body}")
 
         # Prepare headers
-        headers = self._prepare_headers(request_headers=request.headers, new_content_type=content_type)
+        headers = self._prepare_headers(request=request, new_content_type=content_type)
         timeout = self._resolve_timeout(service_name=service_name, service_path=service_path)
 
         self.logger.info(
@@ -383,13 +446,24 @@ class ApiGateway:
                     timeout=timeout,
                 )
 
-            # Parse response
+            self.logger.debug(f"Response from {service_name}: status={response.status_code}")
+
+            # A 204/304 carries no body by definition, and re-emitting one as
+            # JSON made every successful DELETE in the system surface as a 500:
+            # the operation had already happened, so the client was invited to
+            # retry something that had in fact succeeded.
+            if response.status_code in self._BODILESS_STATUSES or not response.content:
+                return Response(
+                    status_code=response.status_code,
+                    headers=self._passthrough_headers(response.headers),
+                )
+
             try:
                 content = response.json()
-            except orjson.JSONEncodeError:
+            except ValueError:
+                # Not JSON (a plain-text error page, say). Pass the text on
+                # rather than discarding what the service actually said.
                 content = {"message": response.text, "status_code": response.status_code}
-
-            self.logger.debug(f"Response from {service_name}: status={response.status_code}")
 
             return JSONResponse(
                 content=content,

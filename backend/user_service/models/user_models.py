@@ -24,7 +24,7 @@ class User(Base, TimestampMixin):
         Index('idx_users_date_created', 'date_created'),
     )
 
-    id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4, unique=True)
+    id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4)
     name: Mapped[str] = mapped_column(String(50),nullable=False)
     email: Mapped[str] = mapped_column(String(100),unique=True, nullable=False)
     hashed_password: Mapped[str | None] = mapped_column(nullable=True)

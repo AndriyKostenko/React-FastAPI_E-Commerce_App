@@ -138,3 +138,85 @@ async def get_order_schema_for_admin_js(request: Request):
         service_name="order-service",
         request=request
     )
+
+
+# ==================== IN-HOUSE PRODUCTION QUEUE (ADMIN) ====================
+#
+# The queue an operator works to print, pack, and post a custom T-shirt. Every
+# path here is admin-only: it exposes a paying customer's shipping address,
+# their generated print file, and the controls that move real goods.
+
+
+@order_proxy.get("/admin/production/jobs", summary="List the in-house production queue")
+async def list_production_jobs(
+    request: Request,
+    current_user: CurrentUserInfo = Depends(require_admin),
+):
+    return await api_gateway_manager.forward_request(
+        service_name="order-service",
+        request=request,
+    )
+
+
+@order_proxy.get("/admin/production/jobs/{job_id}", summary="Get one production job")
+async def get_production_job(
+    request: Request,
+    job_id: UUID,
+    current_user: CurrentUserInfo = Depends(require_admin),
+):
+    return await api_gateway_manager.forward_request(
+        service_name="order-service",
+        request=request,
+    )
+
+
+@order_proxy.get(
+    "/admin/production/jobs/{job_id}/artwork",
+    summary="Resolve the print-ready artwork download for a job",
+)
+async def get_production_job_artwork(
+    request: Request,
+    job_id: UUID,
+    current_user: CurrentUserInfo = Depends(require_admin),
+):
+    return await api_gateway_manager.forward_request(
+        service_name="order-service",
+        request=request,
+    )
+
+
+@order_proxy.get(
+    "/admin/production/jobs/{job_id}/packing-slip",
+    summary="Build the packing slip that ships with the garment",
+)
+async def get_production_job_packing_slip(
+    request: Request,
+    job_id: UUID,
+    current_user: CurrentUserInfo = Depends(require_admin),
+):
+    return await api_gateway_manager.forward_request(
+        service_name="order-service",
+        request=request,
+    )
+
+
+@order_proxy.post(
+    "/admin/production/jobs/{job_id}/{action}",
+    summary="Advance a production job (start, printed, ship, delivered, hold, resume, cancel)",
+)
+async def advance_production_job(
+    request: Request,
+    job_id: UUID,
+    action: str,
+    current_user: CurrentUserInfo = Depends(require_admin),
+):
+    """Forward one queue transition to order-service.
+
+    The action is passed through rather than enumerated here: order-service
+    owns the state machine, so the gateway would only duplicate — and drift
+    from — the list of legal moves.
+    """
+    return await api_gateway_manager.forward_request(
+        service_name="order-service",
+        request=request,
+    )

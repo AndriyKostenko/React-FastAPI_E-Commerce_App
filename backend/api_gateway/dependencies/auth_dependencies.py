@@ -50,6 +50,23 @@ def require_admin(current_user: CurrentUserInfo = Depends(get_current_user)) -> 
     return current_user
 
 
+def path_user_or_admin(
+    user_id: UUID,
+    current_user: CurrentUserInfo = Depends(get_current_user),
+) -> CurrentUserInfo:
+    """Dependency: the caller must be an admin or the {user_id} in the path.
+
+    Use this — never ``Depends(require_user_or_admin)``. That helper takes the
+    caller as its *first argument*, so injecting it makes FastAPI source
+    ``current_user`` from the request body and ``target_user_id`` from the
+    query string: both attacker-controlled, letting any caller assert
+    ``role: admin`` and pass the check. This wrapper takes the subject from
+    the path and the caller from the validated token, so neither is forgeable.
+    """
+    require_user_or_admin(current_user, target_user_id=user_id)
+    return current_user
+
+
 def require_user_or_admin(current_user: CurrentUserInfo,
                           target_user_id: UUID | None = None,
                           target_user_email: EmailStr | None = None) -> None:

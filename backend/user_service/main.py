@@ -2,7 +2,6 @@ from collections.abc import AsyncIterator
 from datetime import datetime, timezone
 from contextlib import asynccontextmanager
 import os
-import ipaddress
 from time import perf_counter
 
 from uvicorn import run
@@ -15,13 +14,16 @@ from fastapi.exceptions import ResponseValidationError, RequestValidationError
 from prometheus_client import CollectorRegistry, generate_latest, multiprocess, REGISTRY
 
 from routes.user_routes import user_routes
-from models import Base
 from shared.exceptions.base_exceptions import (BaseAPIException, RateLimitExceededError)
+from shared.middleware.host_validation_middleware import add_host_validation_middleware
 from shared.middleware.logging_middleware import add_logging_middleware
 from shared.telemetry import setup_tracing
-from resources import get_user_api_resources, logger, settings, user_api_runtime
+from managers import ResourceManager, logger, settings
 from helpers.internal_access_helper import internal_access_helper
 from helpers.request_helper import request_metrics_helper
+
+
+# Stateless and process-local: safe to build once at import time.
 
 
 @asynccontextmanager
@@ -30,17 +32,21 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     logger.info(f"Server is starting up on {settings.APP_HOST}:{settings.USER_SERVICE_APP_PORT}...")
     request_metrics_helper.initialize()
     logger.info("User service Prometheus metrics are initialized!")
-    async with user_api_runtime() as resources:
+    async with ResourceManager() as resources:
         # Register resources in app state for request-scoped dependencies.
-        app.state.resources = resources
+        ResourceManager.attach(app, resources)
         try:
-            await resources.database.init_db(Base.metadata)
-            logger.info("User service tables are initialized from service-owned metadata.")
+            # The schema is owned by Alembic, not by this process.
+            # create_all cannot alter an existing table, so bootstrapping
+            # here would silently leave a database that predates a
+            # migration missing its new columns while the service still
+            # reported a clean startup.
+            logger.info("User service schema is managed by Alembic migrations.")
             logger.info("User service API resources are initialized.")
             logger.info("Server startup complete!")
             yield
         finally:
-            del app.state.resources
+            ResourceManager.detach(app)
     logger.warning("Server has shut down!")
 
 
@@ -69,34 +75,7 @@ async def metrics_middleware(request: Request, call_next):
     request_metrics_helper.observe(request=request, response=response, duration=duration)
     return response
 
-@app.middleware("http")
-async def host_validation_middleware(request: Request, call_next):
-    """
-    Validates the HTTP Host header against ALLOWED_HOSTS to prevent DNS-rebinding
-    attacks.
-
-    X-Forwarded-For is honored only when the direct peer belongs to a configured
-    load-balancer network.  This prevents clients from spoofing their address.
-    """
-    host = request.url.hostname
-    if host and host.lower() in {allowed.lower() for allowed in settings.ALLOWED_HOSTS}:
-        return await call_next(request)
-
-    peer = request.client.host if request.client else "unknown"
-    trusted_proxy = False
-    try:
-        peer_ip = ipaddress.ip_address(peer)
-        trusted_proxy = any(peer_ip in ipaddress.ip_network(network, strict=False)
-                            for network in settings.TRUSTED_PROXY_NETWORKS)
-    except ValueError:
-        pass
-    client_ip = request.headers.get("x-forwarded-for", peer).split(",", 1)[0].strip() if trusted_proxy else peer
-    logger.warning("Invalid Host header: %s from %s", host or "<missing>", client_ip)
-    return JSONResponse(
-        status_code=400,
-        content={"detail": "Invalid Host header"},
-        headers={"X-Error": "Invalid Host header"},
-    )
+add_host_validation_middleware(app, settings=settings, logger=logger)
 
 @app.get("/health/live", tags=["Health Check"])
 async def health_live():
@@ -114,7 +93,7 @@ async def health_live():
 @app.get("/health/ready", tags=["Health Check"])
 async def health_ready(request: Request):
     """Readiness: Redis and the database engine have been initialized."""
-    resources = get_user_api_resources(request)
+    resources = ResourceManager.resolve(request)
     if not resources.database.async_engine:
         return JSONResponse(status_code=503, content={"status": "not_ready"})
     try:
