@@ -38,6 +38,7 @@ class TestOrderQuote:
             inventory_num=5,
             variant_sug_sell_price=Decimal("27.50"),
             variant_sell_price=Decimal("25.00"),
+            retail_price=Decimal("37.99"),
             vid="supplier-variant",
             variant_name_en="Black / M",
             variant_sku="SKU-M-BLK",
@@ -61,8 +62,39 @@ class TestOrderQuote:
             ]
         )
 
-        assert quote.items[0].unit_price == Decimal("27.50")
-        assert quote.total_amount == Decimal("55.00")
+        assert quote.items[0].unit_price == Decimal("37.99")
+        assert quote.total_amount == Decimal("75.98")
+
+    async def test_cj_quote_rejects_variant_without_retail_price(
+        self, product_service_unit, mock_product_orm
+    ) -> None:
+        variant_id = uuid4()
+        mock_product_orm.supplier_id = "cjdropshipping"
+        mock_product_orm.quantity = 5
+        mock_product_orm.variants = [
+            SimpleNamespace(
+                id=variant_id,
+                active=True,
+                inventory_num=5,
+                variant_sug_sell_price=Decimal("27.50"),
+                variant_sell_price=Decimal("25.00"),
+                retail_price=None,
+            )
+        ]
+        product_service_unit.repository.get_by_id = AsyncMock(
+            return_value=mock_product_orm
+        )
+
+        with pytest.raises(ProductNotFoundError, match="no retail price"):
+            await product_service_unit.quote_order_items(
+                [
+                    OrderQuoteLineRequest(
+                        product_id=mock_product_orm.id,
+                        variant_id=variant_id,
+                        quantity=1,
+                    )
+                ]
+            )
 
     async def test_cj_quote_rejects_product_without_active_variant(
         self, product_service_unit, mock_product_orm

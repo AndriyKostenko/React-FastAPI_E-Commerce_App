@@ -1,9 +1,11 @@
+from decimal import Decimal
 from html import unescape
 import re
 from uuid import UUID
 
 from schemas.product_schemas import CreateProduct, CreateProductVariant
 from shared.contracts.supplier import GenericSupplierProduct, SupplierProductVariant
+from shared.utils.supplier_pricing import SupplierRetailPricing
 
 
 class SupplierProductMapper:
@@ -17,8 +19,17 @@ class SupplierProductMapper:
         cls,
         supplier_product: GenericSupplierProduct,
         local_category_id: UUID,
+        pricing: SupplierRetailPricing,
     ) -> CreateProduct:
-        """Convert a GenericSupplierProduct to a CreateProduct."""
+        """Convert a GenericSupplierProduct to a CreateProduct priced for the storefront.
+
+        Raises:
+            ValueError: Neither the product nor any variant carries a price.
+        """
+        variants = [
+            cls._map_variant(variant, pricing)
+            for variant in (supplier_product.variants or [])
+        ]
         return CreateProduct(
             id=None,
             pid=supplier_product.supplier_pid,
@@ -29,11 +40,11 @@ class SupplierProductMapper:
             category_id=local_category_id,
             brand=supplier_product.brand,
             quantity=supplier_product.quantity,
-            price=supplier_product.price,
+            price=cls._product_retail_price(supplier_product, variants, pricing),
             in_stock=supplier_product.in_stock,
             sku=supplier_product.sku,
             image_url=supplier_product.image_url,
-            variants=[cls._map_variant(v) for v in (supplier_product.variants or [])],
+            variants=variants,
             images=supplier_product.images or [],
         )
 
@@ -42,12 +53,35 @@ class SupplierProductMapper:
         cls,
         supplier_products: list[GenericSupplierProduct],
         local_category_id: UUID,
+        pricing: SupplierRetailPricing,
     ) -> list[CreateProduct]:
         """Convert a list of GenericSupplierProduct to a list of CreateProduct."""
-        return [cls.map_supplier_product(product, local_category_id) for product in supplier_products]
+        return [
+            cls.map_supplier_product(product, local_category_id, pricing)
+            for product in supplier_products
+        ]
+
+    @staticmethod
+    def _product_retail_price(
+        supplier_product: GenericSupplierProduct,
+        variants: list[CreateProductVariant],
+        pricing: SupplierRetailPricing,
+    ) -> Decimal:
+        """The "from" price shown in listings: the cheapest variant's shelf price."""
+        variant_prices = [v.retail_price for v in variants if v.retail_price is not None]
+        if variant_prices:
+            return min(variant_prices)
+        price = pricing.retail_price_cad(cost_usd=supplier_product.price)
+        if price is None:
+            raise ValueError(
+                f"Supplier product {supplier_product.supplier_pid} has no usable price"
+            )
+        return price
 
     @classmethod
-    def _map_variant(cls, variant: SupplierProductVariant) -> CreateProductVariant:
+    def _map_variant(
+        cls, variant: SupplierProductVariant, pricing: SupplierRetailPricing
+    ) -> CreateProductVariant:
         return CreateProductVariant(
             vid=variant.vid,
             variant_key=variant.variant_key,
@@ -61,6 +95,10 @@ class SupplierProductMapper:
             variant_height=variant.variant_height,
             variant_sell_price=variant.variant_sell_price,
             variant_sug_sell_price=variant.variant_sug_sell_price,
+            retail_price=pricing.retail_price_cad(
+                cost_usd=variant.variant_sell_price,
+                suggested_usd=variant.variant_sug_sell_price,
+            ),
             inventory_num=variant.inventory_num,
         )
 

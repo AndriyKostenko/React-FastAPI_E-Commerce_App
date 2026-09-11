@@ -60,7 +60,8 @@ class CJOrderPayloadBuilder:
             CJOrderCreationError: Live CJ stock is insufficient or unverifiable.
         """
         address = self.address_validator.validate(event.address)
-        logistic_name = self._require_setting(
+        # Ship with the option the customer chose and paid for at checkout.
+        logistic_name = event.shipping_logistic_name or self._require_setting(
             self.settings.CJ_DROPSHIPPING_DEFAULT_LOGISTIC_NAME,
             "CJ_DROPSHIPPING_DEFAULT_LOGISTIC_NAME",
         )

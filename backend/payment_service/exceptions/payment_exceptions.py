@@ -55,3 +55,8 @@ class StripePaymentIntentCreationError(BaseAPIException):
 class PaymentRefundError(BaseAPIException):
     def __init__(self, detail: str = "Failed to issue Stripe refund.") -> None:
         super().__init__(status_code=502, detail=detail)
+
+
+class PaymentCaptureError(BaseAPIException):
+    def __init__(self, detail: str = "Failed to capture Stripe payment.") -> None:
+        super().__init__(status_code=502, detail=detail)

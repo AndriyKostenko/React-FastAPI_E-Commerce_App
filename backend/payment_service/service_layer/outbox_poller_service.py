@@ -13,6 +13,7 @@ async def route_payment_event(
     publisher: PaymentEventPublisher,
 ) -> None:
     routes = {
+        PaymentEvents.PAYMENT_AUTHORIZED: publisher.publish_payment_authorized,
         PaymentEvents.PAYMENT_SUCCEEDED: publisher.publish_payment_succeeded,
         PaymentEvents.PAYMENT_FAILED: publisher.publish_payment_failed,
         PaymentEvents.PAYMENT_REFUNDED: publisher.publish_payment_refunded,

@@ -3,9 +3,21 @@ from decimal import Decimal
 from uuid import UUID
 from typing import Any, Optional
 
-from pydantic import BaseModel, PositiveFloat, PositiveInt, ConfigDict, EmailStr, Field, model_validator
+from pydantic import BaseModel, PositiveFloat, PositiveInt, ConfigDict, EmailStr, Field, computed_field, model_validator
 
 from shared.contracts.order import CustomTshirtSpecification, FulfillmentType
+from shared.utils.money import to_cents
+
+
+class ShippingOption(BaseModel):
+    """One way to ship the CJ part of a cart, priced in the order currency."""
+
+    logistic_name: str
+    amount: Decimal
+    # CJ's own USD price, kept so fulfillment can check what CJ later bills.
+    # Excluded from serialization: the customer never sees our costs.
+    cost_usd: Decimal = Field(exclude=True)
+    delivery_time: str | None = None
 
 
 class OrderSchema(BaseModel):
@@ -13,6 +25,10 @@ class OrderSchema(BaseModel):
     user_id: UUID
     user_email: EmailStr
     amount: PositiveFloat
+    subtotal_amount: Decimal | None = None
+    shipping_amount: Decimal | None = None
+    tax_amount: Decimal | None = None
+    shipping_logistic_name: str | None = None
     currency: str
     status: str
     delivery_status: str
@@ -23,6 +39,12 @@ class OrderSchema(BaseModel):
     date_updated: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+    @computed_field
+    @property
+    def amount_cents(self) -> int:
+        """The total in minor units: the only form money leaves this service in."""
+        return to_cents(self.amount)
 
 class AddressType(BaseModel):
     street: str
@@ -70,16 +92,25 @@ class CreateOrder(BaseModel):
     payment_intent_id: str | None = None
     products: list[OrderProductItem] = Field(min_length=1, max_length=50)
     address: AddressType
+    shipping_logistic_name: str | None = Field(default=None, max_length=200)
 
 
 class QuoteOrderRequest(BaseModel):
     products: list[OrderProductItem] = Field(min_length=1, max_length=50)
+    address: AddressType
+    shipping_logistic_name: str | None = Field(default=None, max_length=200)
 
 
 class QuoteOrderResponse(BaseModel):
+    subtotal_amount: Decimal
+    shipping_amount: Decimal
+    tax_amount: Decimal
     amount: Decimal
+    amount_cents: int
     currency: str
     products: list[dict[str, Any]]
+    shipping_options: list[ShippingOption]
+    shipping_logistic_name: str | None = None
 
 class OrderItemBase(BaseModel):
     order_id: UUID

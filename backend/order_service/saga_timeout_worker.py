@@ -47,16 +47,40 @@ async def expire_once(resources) -> int:
         return len(expired)
 
 
+async def alert_stale_authorizations(resources) -> int:
+    """Log every confirmed order whose card hold is close to expiring uncaptured."""
+    cutoff = datetime.now(timezone.utc) - timedelta(
+        hours=resources.settings.PAYMENT_CAPTURE_ALERT_HOURS
+    )
+    async with resources.database.transaction() as session:
+        stale = await OrderSagaRepository(session).get_stale_uncaptured(cutoff)
+    for saga in stale:
+        resources.logger.critical(
+            "PAYMENT CAPTURE OVERDUE for order %s: card still %s after %d hours; "
+            "the authorization expires about 7 days after checkout",
+            saga.order_id,
+            saga.payment_status,
+            resources.settings.PAYMENT_CAPTURE_ALERT_HOURS,
+        )
+    return len(stale)
+
+
 async def main() -> None:
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(sig, stop.set)
+    next_capture_check = 0.0
     async with order_outbox_resources() as resources:
         while not stop.is_set():
             count = await expire_once(resources)
             if count:
                 resources.logger.warning("Cancelled %d timed-out order Sagas", count)
+            # Hourly is plenty against a multi-day window, and keeps the alert
+            # from repeating every loop.
+            if loop.time() >= next_capture_check:
+                await alert_stale_authorizations(resources)
+                next_capture_check = loop.time() + 3600
             try:
                 await asyncio.wait_for(stop.wait(), timeout=30)
             except TimeoutError:

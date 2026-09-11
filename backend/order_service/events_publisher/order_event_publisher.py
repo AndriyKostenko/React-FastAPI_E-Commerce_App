@@ -13,6 +13,8 @@ from shared.contracts.events import (
     OrderCancelledEvent,
     OrderConfirmedEvent,
     InventoryReserveRequested,
+    PaymentCaptureRequested,
+    PaymentReleaseRequested,
     InventoryReleaseRequested,
     ProductionJobCancelledEvent,
     ProductionJobDeliveredEvent,
@@ -110,3 +112,15 @@ class OrderEventPublisher(BaseEventPublisher):
         event = ArtworkReleasedEvent(**event_data)
         await self.publish_an_event(event=event, exchange=self.order_exchange, routing_key=event.event_type)
         self.logger.info(f"Published ArtworkReleasedEvent for order {event.order_id}")
+
+    async def publish_payment_capture_requested(self, event_data: dict[str, Any]):
+        """Tell payment_service to charge the card held for a secured order"""
+        event = PaymentCaptureRequested(**event_data)
+        await self.publish_an_event(event=event, exchange=self.order_exchange, routing_key=event.event_type)
+        self.logger.info(f"Published PaymentCaptureRequested for order {event.order_id}")
+
+    async def publish_payment_release_requested(self, event_data: dict[str, Any]):
+        """Tell payment_service to void or refund money held for an unfulfillable order"""
+        event = PaymentReleaseRequested(**event_data)
+        await self.publish_an_event(event=event, exchange=self.order_exchange, routing_key=event.event_type)
+        self.logger.info(f"Published PaymentReleaseRequested for order {event.order_id}: {event.reason}")

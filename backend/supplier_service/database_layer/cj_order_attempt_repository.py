@@ -50,3 +50,25 @@ class CJOrderAttemptRepository(BaseRepository[CJOrderAttempt]):
             .with_for_update(skip_locked=True)
         )
         return list(result.scalars().all())
+
+    async def get_due_for_payment(
+        self, *, updated_before: datetime, limit: int
+    ) -> list[CJOrderAttempt]:
+        """Unpaid CJ orders not touched since ``updated_before``, oldest first.
+
+        The gap keeps the retry task off an order the event consumer is still
+        paying for the first time.
+        """
+        result = await self.session.execute(
+            select(CJOrderAttempt)
+            .where(
+                CJOrderAttempt.status.in_(
+                    [str(status) for status in CJOrderAttemptStatus.awaiting_payment()]
+                ),
+                CJOrderAttempt.cj_order_number.is_not(None),
+                CJOrderAttempt.date_updated <= updated_before,
+            )
+            .order_by(CJOrderAttempt.date_updated.asc())
+            .limit(limit)
+        )
+        return list(result.scalars().all())

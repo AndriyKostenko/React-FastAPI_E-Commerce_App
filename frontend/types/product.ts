@@ -12,6 +12,7 @@ export interface ProductVariantProps {
     variant_image?: string | null;
     variant_sell_price?: number | null;
     variant_sug_sell_price?: number | null;
+    retail_price?: number | null;
     inventory_num?: number | null;
     active: boolean;
 }

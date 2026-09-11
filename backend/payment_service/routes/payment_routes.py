@@ -65,6 +65,10 @@ async def stripe_webhook(
         )
     try:
         match event_type:
+            case "payment_intent.amount_capturable_updated":
+                await payment_service.handle_payment_intent_amount_capturable_updated(
+                    stripe_event_data=event_data
+                )
             case "payment_intent.succeeded":
                 await payment_service.handle_payment_intent_succeeded(stripe_event_data=event_data)
             case "payment_intent.payment_failed":

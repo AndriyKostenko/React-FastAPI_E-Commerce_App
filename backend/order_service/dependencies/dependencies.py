@@ -80,6 +80,7 @@ def get_order_service(resources: OrderApiResources = Depends(get_api_resources),
                         pricing_service=OrderPricingService(
                             settings=resources.settings,
                             catalog_client=resources.catalog_client,
+                            freight_client=resources.freight_client,
                         ))
 
 def get_fulfillment_status_service(

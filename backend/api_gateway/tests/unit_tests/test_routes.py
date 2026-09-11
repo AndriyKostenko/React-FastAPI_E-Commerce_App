@@ -130,26 +130,6 @@ class TestNotificationRoutes:
 # ---------------------------------------------------------------------------
 
 class TestPaymentRoutes:
-    async def test_create_payment_intent_authenticated_calls_forward(
-        self, client: AsyncClient, mock_forward: AsyncMock
-    ):
-        response = await client.post(
-            f"{TEST_API}/payments/create-intent",
-            json={"order_id": str(TEST_ORDER_ID), "products": [{"id": str(uuid4()), "quantity": 1}]},
-        )
-        mock_forward.assert_awaited_once()
-        assert response.status_code == 200
-
-    async def test_create_payment_intent_injects_user_id(
-        self, client: AsyncClient, mock_forward: AsyncMock
-    ):
-        await client.post(
-            f"{TEST_API}/payments/create-intent",
-            json={"order_id": str(TEST_ORDER_ID), "products": [{"id": str(uuid4()), "quantity": 1}]},
-        )
-        call_kwargs = mock_forward.call_args.kwargs
-        assert call_kwargs["override_body"]["user_id"] == str(TEST_USER_ID)
-
     async def test_stripe_webhook_public_calls_forward(
         self, client: AsyncClient, mock_forward: AsyncMock
     ):

@@ -6,7 +6,13 @@ import pytest
 
 from service_layer.supplier_product_mapper import SupplierProductMapper
 from shared.contracts.supplier import GenericSupplierProduct, SupplierProductVariant
+from shared.utils.supplier_pricing import SupplierRetailPricing
 from schemas.product_schemas import CreateProduct
+
+
+PRICING = SupplierRetailPricing(
+    usd_to_cad_rate=Decimal("1.40"), markup_multiplier=Decimal("2.00")
+)
 
 
 class TestSupplierProductMapper:
@@ -38,13 +44,17 @@ class TestSupplierProductMapper:
         create_product = SupplierProductMapper.map_supplier_product(
             supplier_product,
             local_category_id,
+            PRICING,
         )
 
         assert isinstance(create_product, CreateProduct)
         assert create_product.pid == "p123"
         assert create_product.name == "test t-shirt"
         assert create_product.description == "A nice shirt"
-        assert create_product.price == Decimal("12.34")
+        # 12.34 USD cost x 2.00 markup x 1.40 FX = 34.55 CAD, shelved at 34.99.
+        assert create_product.price == Decimal("34.99")
+        assert create_product.variants[0].retail_price == Decimal("34.99")
+        assert create_product.variants[0].variant_sell_price == Decimal("12.34")
         assert create_product.quantity == 5
         assert create_product.in_stock is True
         assert create_product.category_id == local_category_id
@@ -73,7 +83,7 @@ class TestSupplierProductMapper:
             ),
         ]
 
-        result = SupplierProductMapper.map_supplier_products(products, uuid4())
+        result = SupplierProductMapper.map_supplier_products(products, uuid4(), PRICING)
 
         assert len(result) == 2
         assert result[0].pid == "p1"
@@ -93,6 +103,7 @@ class TestSupplierProductMapper:
         result = SupplierProductMapper.map_supplier_product(
             supplier_product,
             uuid4(),
+            PRICING,
         )
 
         assert result.quantity == 3_960_000
@@ -110,9 +121,48 @@ class TestSupplierProductMapper:
         result = SupplierProductMapper.map_supplier_product(
             supplier_product,
             uuid4(),
+            PRICING,
         )
 
         assert result.description.startswith("Product details ")
         assert "<p>" not in result.description
         assert "&nbsp;" not in result.description
         assert len(result.description) == 2000
+
+    def test_listing_price_is_cheapest_variant_retail_price(self) -> None:
+        supplier_product = GenericSupplierProduct(
+            supplier_id="cjdropshipping",
+            supplier_pid="p-variants",
+            name="Variant Shirt",
+            price=Decimal("5.00"),
+            variants=[
+                SupplierProductVariant(vid="big", variant_sell_price=Decimal("9.00")),
+                SupplierProductVariant(
+                    vid="small",
+                    variant_sell_price=Decimal("6.00"),
+                    variant_sug_sell_price=Decimal("20.00"),
+                ),
+            ],
+        )
+
+        result = SupplierProductMapper.map_supplier_product(
+            supplier_product, uuid4(), PRICING
+        )
+
+        retail = {variant.vid: variant.retail_price for variant in result.variants}
+        # big: 9.00 x 2 x 1.40 = 25.20 -> 25.99; small: suggested 20.00 x 1.40 = 28.00 -> 28.99
+        assert retail == {"big": Decimal("25.99"), "small": Decimal("28.99")}
+        assert result.price == Decimal("25.99")
+
+    def test_rejects_product_without_any_price(self) -> None:
+        supplier_product = GenericSupplierProduct(
+            supplier_id="cjdropshipping",
+            supplier_pid="p-free",
+            name="Unpriced Shirt",
+            price=Decimal("0"),
+        )
+
+        with pytest.raises(ValueError, match="no usable price"):
+            SupplierProductMapper.map_supplier_product(
+                supplier_product, uuid4(), PRICING
+            )

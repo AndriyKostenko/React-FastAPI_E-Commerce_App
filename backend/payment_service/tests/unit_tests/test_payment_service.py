@@ -21,6 +21,7 @@ from exceptions.payment_exceptions import (
     PaymentAlreadyFinalizedError,
     StripePaymentIntentCreationError,
     PaymentRefundError,
+    PaymentCaptureError,
 )
 from models.payment_models import Payment
 from shared.enums.status_enums import PaymentStatus
@@ -238,7 +239,7 @@ class TestHandlePaymentIntentSucceeded:
 # ---------------------------------------------------------------------------
 
 class TestHandlePaymentIntentFailed:
-    async def test_updates_status_to_failed_and_records_reason(
+    async def test_decline_records_reason_but_keeps_payment_open_for_retry(
         self,
         payment_service_unit,
         mock_payment_repository: MagicMock,
@@ -247,7 +248,7 @@ class TestHandlePaymentIntentFailed:
     ) -> None:
         mock_payment_repository.get_by_field.return_value = mock_payment_orm
         mock_payment_repository.update_by_id.return_value = mock_payment_orm
-        mock_outbox_event_service.repository.create.return_value = MagicMock()
+        mock_outbox_event_service.add_outbox_event = AsyncMock()
 
         failure_msg = "Your card was declined."
         stripe_event_data = {
@@ -260,8 +261,9 @@ class TestHandlePaymentIntentFailed:
         await payment_service_unit.handle_payment_intent_failed(stripe_event_data)
 
         update_call = mock_payment_repository.update_by_id.call_args
-        assert update_call[1]["data"]["status"] == PaymentStatus.FAILED
-        assert update_call[1]["data"]["failure_reason"] == failure_msg
+        assert update_call[1]["data"] == {"failure_reason": failure_msg}
+        # A decline cancels nothing downstream: the customer may try another card.
+        mock_outbox_event_service.add_outbox_event.assert_not_awaited()
 
     async def test_raises_when_payment_not_found(
         self,
@@ -391,6 +393,214 @@ class TestHandlePaymentRefund:
             == PaymentStatus.CANCELLED
         )
         mock_stripe_client.v1.refunds.create_async.assert_not_awaited()
+
+
+    async def test_authorized_payment_is_voided_not_refunded(
+        self,
+        payment_service_unit,
+        mock_payment_repository: MagicMock,
+        mock_outbox_event_service,
+        mock_payment_orm: MagicMock,
+        mock_stripe_client: MagicMock,
+    ) -> None:
+        mock_payment_orm.status = PaymentStatus.AUTHORIZED
+        mock_payment_repository.get_by_field.return_value = mock_payment_orm
+        mock_payment_repository.update_by_id.return_value = mock_payment_orm
+        mock_outbox_event_service.add_outbox_event = AsyncMock()
+
+        await payment_service_unit.handle_payment_refund(mock_payment_orm.order_id)
+
+        mock_stripe_client.v1.payment_intents.cancel_async.assert_awaited_once_with(
+            mock_payment_orm.stripe_payment_intent_id
+        )
+        mock_stripe_client.v1.refunds.create_async.assert_not_awaited()
+        assert (
+            mock_payment_repository.update_by_id.await_args.kwargs["data"]["status"]
+            == PaymentStatus.CANCELLED
+        )
+        assert (
+            mock_outbox_event_service.add_outbox_event.await_args.kwargs["event_type"]
+            == "payment.cancelled"
+        )
+
+
+# ---------------------------------------------------------------------------
+# authorization and capture
+# ---------------------------------------------------------------------------
+
+class TestAuthorization:
+    async def test_new_intents_are_authorize_only(
+        self,
+        payment_service_unit,
+        mock_payment_repository: MagicMock,
+        mock_payment_orm: MagicMock,
+        mock_stripe_client: MagicMock,
+    ) -> None:
+        mock_payment_repository.get_by_field.return_value = None
+        mock_payment_repository.create.return_value = mock_payment_orm
+
+        await payment_service_unit.create_payment_intent(
+            order_id=mock_payment_orm.order_id,
+            user_id=mock_payment_orm.user_id,
+            user_email=mock_payment_orm.user_email,
+            amount=mock_payment_orm.amount,
+            currency=mock_payment_orm.currency,
+        )
+
+        params = mock_stripe_client.v1.payment_intents.create_async.await_args.args[0]
+        assert params["capture_method"] == "manual"
+
+    async def test_authorized_payment_cannot_open_a_second_intent(
+        self,
+        payment_service_unit,
+        mock_payment_repository: MagicMock,
+        mock_payment_orm: MagicMock,
+    ) -> None:
+        mock_payment_orm.status = PaymentStatus.AUTHORIZED
+        mock_payment_repository.get_by_field.return_value = mock_payment_orm
+
+        with pytest.raises(PaymentAlreadyFinalizedError):
+            await payment_service_unit.create_payment_intent(
+                order_id=mock_payment_orm.order_id,
+                user_id=mock_payment_orm.user_id,
+                user_email=mock_payment_orm.user_email,
+                amount=mock_payment_orm.amount,
+                currency=mock_payment_orm.currency,
+            )
+
+    async def test_capturable_webhook_authorizes_with_stripes_amount(
+        self,
+        payment_service_unit,
+        mock_payment_repository: MagicMock,
+        mock_outbox_event_service,
+        mock_payment_orm: MagicMock,
+    ) -> None:
+        mock_payment_repository.get_by_field.return_value = mock_payment_orm
+        mock_outbox_event_service.add_outbox_event = AsyncMock()
+
+        await payment_service_unit.handle_payment_intent_amount_capturable_updated({
+            "object": {
+                "id": mock_payment_orm.stripe_payment_intent_id,
+                "amount_capturable": 4321,
+                "currency": "cad",
+            }
+        })
+
+        assert (
+            mock_payment_repository.update_by_id.await_args.kwargs["data"]["status"]
+            == PaymentStatus.AUTHORIZED
+        )
+        call = mock_outbox_event_service.add_outbox_event.await_args.kwargs
+        assert call["event_type"] == "payment.authorized"
+        assert call["payload"].amount == 4321
+        assert call["payload"].currency == "cad"
+
+    async def test_replayed_capturable_webhook_changes_nothing(
+        self,
+        payment_service_unit,
+        mock_payment_repository: MagicMock,
+        mock_outbox_event_service,
+        mock_payment_orm: MagicMock,
+    ) -> None:
+        mock_payment_orm.status = PaymentStatus.SUCCEEDED
+        mock_payment_repository.get_by_field.return_value = mock_payment_orm
+        mock_outbox_event_service.add_outbox_event = AsyncMock()
+
+        await payment_service_unit.handle_payment_intent_amount_capturable_updated({
+            "object": {"id": mock_payment_orm.stripe_payment_intent_id}
+        })
+
+        mock_payment_repository.update_by_id.assert_not_awaited()
+        mock_outbox_event_service.add_outbox_event.assert_not_awaited()
+
+
+class TestCapturePayment:
+    async def test_captures_authorized_payment_once_per_order(
+        self,
+        payment_service_unit,
+        mock_payment_repository: MagicMock,
+        mock_outbox_event_service,
+        mock_payment_orm: MagicMock,
+        mock_stripe_client: MagicMock,
+    ) -> None:
+        mock_payment_orm.status = PaymentStatus.AUTHORIZED
+        mock_payment_repository.get_by_field.return_value = mock_payment_orm
+        mock_outbox_event_service.add_outbox_event = AsyncMock()
+
+        await payment_service_unit.capture_payment(mock_payment_orm.order_id)
+
+        capture = mock_stripe_client.v1.payment_intents.capture_async.await_args
+        assert capture.args[0] == mock_payment_orm.stripe_payment_intent_id
+        assert capture.kwargs["options"]["idempotency_key"] == (
+            f"payment_intent:capture:{mock_payment_orm.order_id}"
+        )
+        assert (
+            mock_payment_repository.update_by_id.await_args.kwargs["data"]["status"]
+            == PaymentStatus.SUCCEEDED
+        )
+        assert (
+            mock_outbox_event_service.add_outbox_event.await_args.kwargs["event_type"]
+            == "payment.succeeded"
+        )
+
+    async def test_already_captured_payment_is_left_alone(
+        self,
+        payment_service_unit,
+        mock_payment_repository: MagicMock,
+        mock_payment_orm: MagicMock,
+        mock_stripe_client: MagicMock,
+    ) -> None:
+        mock_payment_orm.status = PaymentStatus.SUCCEEDED
+        mock_payment_repository.get_by_field.return_value = mock_payment_orm
+
+        await payment_service_unit.capture_payment(mock_payment_orm.order_id)
+
+        mock_stripe_client.v1.payment_intents.capture_async.assert_not_awaited()
+
+    async def test_expired_authorization_is_recorded_as_cancelled(
+        self,
+        payment_service_unit,
+        mock_payment_repository: MagicMock,
+        mock_outbox_event_service,
+        mock_payment_orm: MagicMock,
+        mock_stripe_client: MagicMock,
+    ) -> None:
+        from stripe import StripeError
+
+        mock_payment_orm.status = PaymentStatus.AUTHORIZED
+        mock_payment_repository.get_by_field.return_value = mock_payment_orm
+        mock_outbox_event_service.add_outbox_event = AsyncMock()
+        mock_stripe_client.v1.payment_intents.capture_async.side_effect = StripeError("expired")
+        mock_stripe_client.v1.payment_intents.retrieve_async.return_value.status = "canceled"
+
+        await payment_service_unit.capture_payment(mock_payment_orm.order_id)
+
+        assert (
+            mock_payment_repository.update_by_id.await_args.kwargs["data"]["status"]
+            == PaymentStatus.CANCELLED
+        )
+        assert (
+            mock_outbox_event_service.add_outbox_event.await_args.kwargs["event_type"]
+            == "payment.cancelled"
+        )
+
+    async def test_uncertain_capture_failure_is_retried(
+        self,
+        payment_service_unit,
+        mock_payment_repository: MagicMock,
+        mock_payment_orm: MagicMock,
+        mock_stripe_client: MagicMock,
+    ) -> None:
+        from stripe import StripeError
+
+        mock_payment_orm.status = PaymentStatus.AUTHORIZED
+        mock_payment_repository.get_by_field.return_value = mock_payment_orm
+        mock_stripe_client.v1.payment_intents.capture_async.side_effect = StripeError("timeout")
+        mock_stripe_client.v1.payment_intents.retrieve_async.return_value.status = "requires_capture"
+
+        with pytest.raises(PaymentCaptureError):
+            await payment_service_unit.capture_payment(mock_payment_orm.order_id)
+        mock_payment_repository.update_by_id.assert_not_awaited()
 
 
 # ---------------------------------------------------------------------------

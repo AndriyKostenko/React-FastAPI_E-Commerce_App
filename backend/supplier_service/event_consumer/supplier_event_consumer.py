@@ -17,7 +17,12 @@ from exceptions.cj_order_exceptions import (
     CJProductMappingError,
 )
 from service_layer.cj_address_validator import CJShippingAddressValidator
-from service_layer.cj_api_client import CJDropshippingAPIClient, CJDropshippingAPIError
+from service_layer.cj_api_client import (
+    CJDropshippingAPIClient,
+    CJDropshippingAPIError,
+    CJDropshippingNetworkError,
+)
+from service_layer.cj_order_payment_service import CJOrderPaymentService, CJPaymentPending
 from service_layer.cj_inventory_verifier import CJDropshippingInventoryVerifier
 from service_layer.cj_order_payload_builder import CJOrderPayloadBuilder
 from service_layer.outbox_event_service import OutboxEventService
@@ -41,7 +46,9 @@ class SupplierEventConsumer:
 
     Handles:
       - Import feedback events from product_service.
-      - order.confirmed events that trigger CJ Dropshipping order creation.
+      - order.confirmed events that trigger CJ Dropshipping order creation
+        and payment.
+      - order.cancelled events that withdraw an unpaid CJ order.
     """
 
     def __init__(
@@ -65,6 +72,12 @@ class SupplierEventConsumer:
             cj_api_client, settings, logger
         )
         self.address_validator = CJShippingAddressValidator(settings, logger)
+        self.payment_service = CJOrderPaymentService(
+            settings=settings,
+            database=database,
+            api_client=cj_api_client,
+            logger=logger,
+        )
         self.payload_builder = CJOrderPayloadBuilder(
             settings=settings,
             product_service_client=product_service_client,
@@ -194,7 +207,13 @@ class SupplierEventConsumer:
                 self.logger.warning(f"Unhandled order event type in supplier consumer: {event_type}")
 
     async def handle_order_cancelled(self, message: dict[str, Any]) -> None:
-        """Cancel a previously created CJ order when the local Saga compensates."""
+        """Withdraw the CJ order when the local Saga compensates.
+
+        CJ only deletes orders that are still CREATED or IN_CART. An order CJ
+        has been paid for, or has shipped, cannot be undone from here: that
+        needs a human (a CJ refund or a return), so it is flagged and the
+        event acknowledged rather than retried into the dead-letter queue.
+        """
         event = OrderCancelledEvent(**message)
         if not await self.idempotency_service.try_claim_event(
             event.event_id, event.event_type
@@ -207,16 +226,14 @@ class SupplierEventConsumer:
             elif attempt.status == CJOrderAttemptStatus.CANCELLED:
                 result = "already_cancelled"
             elif attempt.status in {
+                CJOrderAttemptStatus.PAID,
                 CJOrderAttemptStatus.SHIPPED,
                 CJOrderAttemptStatus.DELIVERED,
             }:
-                # The parcel has left CJ, so deleteOrder can never succeed.
-                # Retrying forever would only fill the DLQ; the goods now need
-                # a return, which is a human decision.
                 reason = (
                     f"CJ order {attempt.cj_order_number} was already "
                     f"{attempt.status} when the local order was cancelled; "
-                    "a return is required"
+                    "a CJ refund or a return is required"
                 )
                 self.logger.critical(
                     "RECONCILIATION REQUIRED for local order %s: %s",
@@ -224,25 +241,40 @@ class SupplierEventConsumer:
                     reason,
                 )
                 await self._mark_reconciliation(event.order_id, reason)
-                result = "cj_order_already_shipped"
+                result = f"cj_order_already_{attempt.status}"
             else:
-                response = await self.cj_api_client.delete_order(
-                    attempt.cj_order_number
-                )
-                if response.get("code") != 200 or not response.get("result"):
-                    reason = response.get("message") or "CJ rejected order deletion"
-                    await self._mark_reconciliation(event.order_id, reason)
-                    raise CJOrderAmbiguousError(reason)
-                await self._set_attempt_status(
-                    event.order_id, CJOrderAttemptStatus.CANCELLED
-                )
-                result = "cj_order_cancelled"
+                result = await self._withdraw_unpaid_cj_order(event.order_id, attempt.cj_order_number)
             await self.idempotency_service.mark_event_as_processed(
                 event.event_id, event.event_type, event.order_id, result
             )
         except Exception:
             await self.idempotency_service.release_claim(event.event_id, event.event_type)
             raise
+
+    async def _withdraw_unpaid_cj_order(self, order_id: UUID, cj_order_number: str) -> str:
+        """Delete an unpaid CJ order, or leave a confirmed one to lapse unpaid.
+
+        Network errors propagate so the event is retried; a business rejection
+        is final and never retried.
+        """
+        try:
+            await self.cj_api_client.delete_order(cj_order_number)
+        except CJDropshippingNetworkError:
+            raise
+        except CJDropshippingAPIError as exc:
+            # A confirmed (UNPAID) order cannot be deleted, but it is never
+            # charged or shipped either, so nothing is owed on either side.
+            detail = await self.cj_api_client.get_order_detail(cj_order_number)
+            status = str((detail.get("data") or {}).get("orderStatus") or "").upper()
+            if status in {"UNPAID", "CANCELLED"}:
+                await self._set_attempt_status(order_id, CJOrderAttemptStatus.CANCELLED)
+                return f"cj_order_left_{status.lower()}"
+            reason = f"CJ refused to delete order {cj_order_number} ({status or 'unknown'}): {exc}"
+            self.logger.critical("RECONCILIATION REQUIRED for local order %s: %s", order_id, reason)
+            await self._mark_reconciliation(order_id, reason)
+            return "cj_order_delete_refused"
+        await self._set_attempt_status(order_id, CJOrderAttemptStatus.CANCELLED)
+        return "cj_order_cancelled"
 
     async def handle_order_confirmed(self, message: dict[str, Any]) -> None:
         """Create exactly the CJ portion of an order with a durable boundary."""
@@ -262,8 +294,12 @@ class SupplierEventConsumer:
 
         try:
             existing = await self._get_attempt(event.order_id)
-            if existing and existing.status == CJOrderAttemptStatus.CREATED:
-                result = "cj_order_already_created"
+            if existing and existing.status not in {
+                CJOrderAttemptStatus.CREATING,
+                CJOrderAttemptStatus.RECONCILIATION_REQUIRED,
+                CJOrderAttemptStatus.FAILED,
+            }:
+                result = f"cj_order_already_{existing.status}"
             else:
                 if existing and existing.status in {
                     CJOrderAttemptStatus.CREATING,
@@ -303,6 +339,23 @@ class SupplierEventConsumer:
             order_id=event.order_id,
             result=result,
         )
+        if not result.startswith("cj_order_failed"):
+            await self._advance_payment(event.order_id)
+
+    async def _advance_payment(self, order_id: UUID) -> None:
+        """Try to confirm and pay the CJ order straight away.
+
+        The order already exists at CJ and is recorded locally, so a failure
+        here is not the event's failure: the payment retry task picks the
+        order up again.
+        """
+        try:
+            status = await self.payment_service.advance(order_id)
+            self.logger.info("CJ payment for order %s is now %s", order_id, status)
+        except CJPaymentPending as exc:
+            self.logger.warning("CJ payment for order %s deferred: %s", order_id, exc)
+        except Exception:
+            self.logger.exception("CJ payment for order %s failed; the retry task will resume it", order_id)
 
     async def _build_cj_order_payload(self, event: OrderConfirmedEvent) -> dict[str, Any]:
         """Validate the address, map products, and check live CJ stock.
@@ -350,6 +403,7 @@ class SupplierEventConsumer:
     async def _record_creating(
         self, event: OrderConfirmedEvent, payload: dict[str, Any]
     ) -> None:
+        expected_max = CJOrderPaymentService.expected_max_amount_usd(event, self.settings)
         async with self.database.transaction() as session:
             repository = CJOrderAttemptRepository(session)
             attempt = await repository.get_for_update(event.order_id)
@@ -361,12 +415,14 @@ class SupplierEventConsumer:
                         user_email=event.user_email,
                         status=CJOrderAttemptStatus.CREATING,
                         request_payload=payload,
+                        expected_max_amount_usd=expected_max,
                     )
                 )
             elif attempt.status != CJOrderAttemptStatus.CREATED:
                 attempt.status = CJOrderAttemptStatus.CREATING
                 attempt.user_email = event.user_email
                 attempt.request_payload = payload
+                attempt.expected_max_amount_usd = expected_max
                 attempt.last_error = None
                 await repository.update(attempt)
 
@@ -384,6 +440,9 @@ class SupplierEventConsumer:
                         user_email=event.user_email,
                         status=CJOrderAttemptStatus.CREATED,
                         cj_order_number=cj_order_number,
+                        expected_max_amount_usd=CJOrderPaymentService.expected_max_amount_usd(
+                            event, self.settings
+                        ),
                     )
                 )
             else:

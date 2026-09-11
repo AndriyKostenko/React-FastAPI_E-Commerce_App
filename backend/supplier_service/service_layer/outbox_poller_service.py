@@ -14,6 +14,7 @@ def build_outbox_relay(resources: SupplierOutboxResources) -> OutboxRelay:
             SupplierEvents.SUPPLIER_PRODUCTS_FETCHED: publisher.publish_supplier_products_fetched,
             OrderEvents.CJ_ORDER_CREATED: publisher.publish_cj_order_created,
             OrderEvents.CJ_ORDER_FAILED: publisher.publish_cj_order_failed,
+            OrderEvents.CJ_ORDER_PAID: publisher.publish_cj_order_paid,
             OrderEvents.CJ_ORDER_SHIPPED: publisher.publish_cj_order_shipped,
             OrderEvents.CJ_ORDER_DELIVERED: publisher.publish_cj_order_delivered,
         }

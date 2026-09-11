@@ -15,6 +15,7 @@ from shared.contracts.events import (
     CJOrderCreatedEvent,
     CJOrderDeliveredEvent,
     CJOrderFailedEvent,
+    CJOrderPaidEvent,
     CJOrderShippedEvent,
 )
 from shared.enums.event_enums import OrderEvents, SupplierEvents
@@ -40,6 +41,13 @@ OUTBOX_EVENTS = {
         user_id=TEST_USER_ID,
         user_email="buyer@example.com",
         reason="Insufficient live CJ stock",
+    ),
+    OrderEvents.CJ_ORDER_PAID: CJOrderPaidEvent(
+        order_id=TEST_ORDER_ID,
+        user_id=TEST_USER_ID,
+        user_email="buyer@example.com",
+        cj_order_number="CJ-1",
+        amount_usd="12.34",
     ),
     OrderEvents.CJ_ORDER_SHIPPED: CJOrderShippedEvent(
         service="supplier-service",

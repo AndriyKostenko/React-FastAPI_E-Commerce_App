@@ -15,9 +15,11 @@ from shared.contracts.events import (
     CJOrderCreatedEvent,
     CJOrderDeliveredEvent,
     CJOrderFailedEvent,
+    CJOrderPaidEvent,
     CJOrderShippedEvent,
     InventoryReserveFailed,
     InventoryReserveSucceeded,
+    PaymentAuthorizedEvent,
     PaymentSucceededEvent,
     PaymentFailedEvent,
     PaymentCancelledEvent,
@@ -111,6 +113,8 @@ class OrderEventConsumer:
         """Route payment events to appropriate handlers based on event type."""
         event_type = message.get("event_type")
         match event_type:
+            case PaymentEvents.PAYMENT_AUTHORIZED:
+                await self.handle_payment_authorized(message)
             case PaymentEvents.PAYMENT_SUCCEEDED:
                 await self.handle_payment_succeeded(message)
             case PaymentEvents.PAYMENT_FAILED:
@@ -177,6 +181,8 @@ class OrderEventConsumer:
         match event_type:
             case OrderEvents.CJ_ORDER_CREATED:
                 await self.handle_cj_order_created(message)
+            case OrderEvents.CJ_ORDER_PAID:
+                await self.handle_cj_order_paid(message)
             case OrderEvents.CJ_ORDER_SHIPPED:
                 await self.handle_cj_order_shipped(message)
             case OrderEvents.CJ_ORDER_DELIVERED:
@@ -236,56 +242,120 @@ class OrderEventConsumer:
             )
             raise
 
-    async def handle_payment_succeeded(self, message: dict[str, Any]) -> None:
-        """
-        Handle payment.succeeded event.
+    async def handle_payment_authorized(self, message: dict[str, Any]) -> None:
+        """Gate the Saga on a validated card hold.
 
-        Ensures an order does not stay PENDING after Stripe confirms payment.
-        We move PENDING -> CONFIRMED idempotently, but avoid overwriting CANCELLED.
+        A hold for an order this service has no record of is released at once:
+        otherwise the customer's funds would stay held for an order that can
+        never be fulfilled.
         """
+        event = PaymentAuthorizedEvent(**message)
+        if not await self.idempotency_service.try_claim_event(
+            event_id=event.event_id, event_type=event.event_type
+        ):
+            self.logger.info(f"Skipping duplicate payment.authorized event for order: {event.order_id}")
+            return
         try:
-            event = PaymentSucceededEvent(**message)
-            claimed = await self.idempotency_service.try_claim_event(event_id=event.event_id, event_type=event.event_type)
-            if not claimed:
-                self.logger.info(f"Skipping duplicate payment.succeeded event for order: {event.order_id}")
-                return
-
-            result = "payment_succeeded_recorded"
+            result = "payment_authorized_recorded"
             async for order_service in self._get_order_service():
                 try:
-                    updated = await order_service.record_payment_succeeded(
+                    updated = await order_service.record_payment_authorized(
                         order_id=event.order_id,
                         user_id=event.user_id,
                         amount_cents=int(event.amount),
                         currency=event.currency,
                         payment_intent_id=event.payment_intent_id,
                     )
+                    result = f"payment_authorized_{updated.status}"
                 except OrderNotFoundError:
-                    self.logger.warning(
-                        f"Order {event.order_id} not found for payment.succeeded event — skipping"
+                    await order_service.request_payment_release(
+                        order_id=event.order_id,
+                        user_id=event.user_id,
+                        user_email=event.user_email,
+                        payment_intent_id=event.payment_intent_id,
+                        reason="Payment authorized for an order that does not exist",
                     )
-                    result = "order_not_found"
-                    break
-
-                result = f"payment_succeeded_{updated.status}"
-
+                    result = "order_not_found_release_requested"
             await self.idempotency_service.mark_event_as_processed(
                 event_id=event.event_id,
                 event_type=event.event_type,
                 order_id=event.order_id,
                 result=result,
             )
-
         except Exception as e:
-            try:
-                if message.get("event_id") and message.get("event_type"):
-                    await self.idempotency_service.release_claim(
-                        event_id=message["event_id"],
-                        event_type=message["event_type"],
+            await self.idempotency_service.release_claim(
+                event_id=event.event_id, event_type=event.event_type
+            )
+            self.logger.error(f"Error handling payment.authorized for order {event.order_id}: {e}")
+            raise
+
+    async def handle_payment_succeeded(self, message: dict[str, Any]) -> None:
+        """Record that the authorized card was captured.
+
+        A charge for an order this service has no record of is refunded.
+        """
+        event = PaymentSucceededEvent(**message)
+        if not await self.idempotency_service.try_claim_event(
+            event_id=event.event_id, event_type=event.event_type
+        ):
+            self.logger.info(f"Skipping duplicate payment.succeeded event for order: {event.order_id}")
+            return
+        try:
+            result = "payment_captured_recorded"
+            async for order_service in self._get_order_service():
+                try:
+                    await order_service.record_payment_captured(event.order_id)
+                except OrderNotFoundError:
+                    await order_service.request_payment_release(
+                        order_id=event.order_id,
+                        user_id=event.user_id,
+                        user_email=event.user_email,
+                        payment_intent_id=event.payment_intent_id,
+                        reason="Payment captured for an order that does not exist",
                     )
-            except Exception:
-                pass
-            self.logger.error(f"Error handling payment.succeeded for order {message.get('order_id')}: {e}")
+                    result = "order_not_found_release_requested"
+            await self.idempotency_service.mark_event_as_processed(
+                event_id=event.event_id,
+                event_type=event.event_type,
+                order_id=event.order_id,
+                result=result,
+            )
+        except Exception as e:
+            await self.idempotency_service.release_claim(
+                event_id=event.event_id, event_type=event.event_type
+            )
+            self.logger.error(f"Error handling payment.succeeded for order {event.order_id}: {e}")
+            raise
+
+    async def handle_cj_order_paid(self, message: dict[str, Any]) -> None:
+        """CJ holds a paid order: its lines are committed and the card is captured."""
+        event = CJOrderPaidEvent(**message)
+        if not await self.idempotency_service.try_claim_event(
+            event_id=event.event_id, event_type=event.event_type
+        ):
+            return
+        try:
+            result = "cj_order_paid_recorded"
+            async for order_service in self._get_order_service():
+                try:
+                    await order_service.record_cj_order_paid(event.order_id)
+                except OrderNotFoundError:
+                    self.logger.critical(
+                        f"RECONCILIATION REQUIRED: CJ order {event.cj_order_number} was "
+                        f"paid for unknown order {event.order_id}"
+                    )
+                    result = "order_not_found"
+            await self.idempotency_service.mark_event_as_processed(
+                event_id=event.event_id,
+                event_type=event.event_type,
+                order_id=event.order_id,
+                result=result,
+            )
+        except Exception as e:
+            await self.idempotency_service.release_claim(
+                event_id=event.event_id, event_type=event.event_type
+            )
+            self.logger.error(f"Error handling cj.order.paid for order {event.order_id}: {e}")
             raise
 
     async def handle_inventory_reserve_succeeded(self, message: dict[str, Any]):
@@ -493,11 +563,11 @@ class OrderEventConsumer:
 
             async for order_service in self._get_order_service():
                 try:
-                    _ = await order_service.record_payment_failed(
+                    _ = await order_service.record_payment_cancelled(
                         order_id=event.order_id,
                         reason=f"Payment cancelled: {event.reason}",
                     )
-                    self.logger.info(f"Order {event.order_id} cancelled due to payment cancellation")
+                    self.logger.info(f"Recorded payment cancellation for order {event.order_id}")
                 except OrderNotFoundError:
                     self.logger.warning(
                         f"Order {event.order_id} not found for payment.cancelled event — skipping"

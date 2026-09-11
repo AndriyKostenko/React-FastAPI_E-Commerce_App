@@ -125,6 +125,11 @@ def mock_order_orm() -> MagicMock:
     order.user_id = TEST_USER_ID
     order.user_email = TEST_EMAIL
     order.amount = TEST_AMOUNT
+    order.subtotal_amount = None
+    order.shipping_amount = None
+    order.tax_amount = None
+    order.shipping_logistic_name = None
+    order.shipping_cost_usd = None
     order.currency = TEST_CURRENCY
     order.status = OrderStatus.PENDING
     order.delivery_status = OrderDeliveryStatus.PENDING
@@ -264,6 +269,7 @@ def order_service_unit(
                     fulfillment_type="catalog",
                 )
             ],
+            subtotal_amount="99.98",
             total_amount="99.98",
         )
     )
@@ -391,6 +397,29 @@ class _StubCatalogQuoteClient:
         }
 
 
+class _StubFreightQuoteClient:
+    """Stands in for supplier_service's CJ freight quote.
+
+    Offers a cheap and a fast option, cheapest first, as the real endpoint does.
+    """
+
+    OPTIONS = [
+        {"logistic_name": "CJPacket Ordinary", "price": "5.00", "delivery_time": "10-20"},
+        {"logistic_name": "CJPacket Express", "price": "12.00", "delivery_time": "5-8"},
+    ]
+
+    def __init__(self) -> None:
+        self.calls: list[dict[str, Any]] = []
+
+    async def quote(
+        self, country_code: str, postal_code: str | None, items: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        self.calls.append(
+            {"country_code": country_code, "postal_code": postal_code, "items": items}
+        )
+        return [dict(option) for option in self.OPTIONS]
+
+
 class _StubArtworkAssetClient:
     """Stands in for product_service when resolving a stored print file.
 
@@ -512,6 +541,7 @@ async def integration_client(
         pricing_service = OrderPricingService(
             settings=settings,
             catalog_client=catalog_quote_stub,
+            freight_client=_StubFreightQuoteClient(),
         )
         return OrderService(
             repository=OrderRepository(session=session),

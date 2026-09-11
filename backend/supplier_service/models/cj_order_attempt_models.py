@@ -1,8 +1,9 @@
 from datetime import datetime
+from decimal import Decimal
 from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import JSON, DateTime, Index, String
+from sqlalchemy import JSON, DateTime, Index, Integer, Numeric, String
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -23,6 +24,8 @@ class CJOrderAttempt(Base, TimestampMixin):
         Index("idx_cj_order_attempt_status", "status"),
         # Drives the tracking poller's "oldest open orders first" scan.
         Index("idx_cj_order_attempt_poll", "status", "last_polled_at"),
+        # Drives the payment retry task's scan of unpaid orders.
+        Index("idx_cj_order_attempt_payment_due", "status", "date_updated"),
     )
 
     id: Mapped[UUID] = mapped_column(
@@ -51,3 +54,11 @@ class CJOrderAttempt(Base, TimestampMixin):
         DateTime(timezone=True), nullable=True
     )
     last_error: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    # What CJ billed, and the most it may bill before payment is held for
+    # review: expected product cost plus quoted freight, with tolerance.
+    cj_order_amount_usd: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
+    expected_max_amount_usd: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
+    paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    payment_attempts: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )

@@ -33,6 +33,7 @@ from event_publisher.event_publisher import ProductEventPublisher
 from shared.idempotency.idempotency_service import IdempotencyEventService
 from shared.enums.event_enums import ArtworkEvents, InventoryEvents, SupplierEvents
 from service_layer.supplier_product_mapper import SupplierProductMapper
+from shared.utils.supplier_pricing import SupplierRetailPricing
 from shared.settings import Settings
 
 """
@@ -355,6 +356,7 @@ class ProductEventConsumer:
                     category_service=category_service,
                 )
 
+                pricing = SupplierRetailPricing.from_settings(self.settings)
                 errors: list[str] = []
                 for supplier_product in event.products:
                     pid = supplier_product.supplier_pid or "<missing>"
@@ -365,6 +367,7 @@ class ProductEventConsumer:
                         product_data = SupplierProductMapper.map_supplier_product(
                             supplier_product,
                             local_category_id,
+                            pricing,
                         )
                         existing = await product_repository.get_by_supplier_pid(
                             supplier_product.supplier_id,

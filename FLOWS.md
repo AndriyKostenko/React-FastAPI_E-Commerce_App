@@ -234,201 +234,133 @@ Every request through the gateway passes this chain in order:
 
 
 
-## Order Creation Flow
+## Checkout, Payment & CJ Fulfillment Flow
 
-### Happy path (inventory available + payment succeeds)
+The card is **authorized** at checkout and **captured** only once the goods are
+secured, so a failed fulfillment voids a hold instead of refunding a charge.
+The order is created *before* the PaymentIntent, and the intent's amount is
+read from that order; the client never states an amount.
 
-```
-┌──────────┐     ┌────────────────────────────────────────┐     ┌──────────────────┐     ┌──────────────────┐     ┌──────────────────┐
-│  CLIENT  │     │          API-GATEWAY :8000             │     │  ORDER-SERVICE   │     │ PRODUCT-SERVICE  │     │  PAYMENT-SERVICE │
-│          │     │                                        │     │     :8005        │     │     :8002        │     │     :8006        │
-└────┬─────┘     └────────────────────┬───────────────────┘     └────────┬─────────┘     └────────┬─────────┘     └────────┬─────────┘
-     │                                │                                  │                      │                      │
-     │  POST /api/v1/orders           │                                  │                      │                      │
-     │  { items[], shipping_address } │                                  │                      │                      │
-     │───────────────────────────────>│                                  │                      │                      │
-     │                                │  AuthMiddleware + GatewayMiddleware + rate limit         │                      │
-     │                                │                                  │                      │                      │
-     │                                │  httpx POST /api/v1/orders       │                      │                      │
-     │                                │  { items[], user_id, user_email }│                      │                      │
-     │                                │─────────────────────────────────>│                      │                      │
-     │                                │                                  │                      │                      │
-     │                                │                                  │  1. validate items   │                      │
-     │                                │                                  │  2. calculate total  │                      │
-     │                                │                                  │  3. INSERT order     │                      │
-     │                                │                                  │     status=PENDING   │                      │
-     │                                │                                  │                      │                      │
-     │                                │                                  │  publish             │                      │
-     │                                │                                  │  "inventory.reserve. │                      │
-     │                                │                                  │   requested"         │                      │
-     │                                │                                  │  { order_id, items,  │                      │
-     │                                │                                  │    user_id, email }  │                      │
-     │                                │                                  │─────────────────────>│                      │
-     │                                │                                  │                      │  reserve inventory   │
-     │                                │                                  │                      │  (SELECT FOR UPDATE) │
-     │                                │                                  │                      │                      │
-     │                                │                                  │  publish             │                      │
-     │                                │                                  │  "inventory.reserve. │                      │
-     │                                │                                  │   succeeded"         │                      │
-     │                                │                                  │<─────────────────────│                      │
-     │                                │                                  │                      │                      │
-     │                                │                                  │  UPDATE order        │                      │
-     │                                │                                  │  status=CONFIRMED    │                      │
-     │                                │                                  │                      │                      │
-     │                                │                                  │  publish             │                      │
-     │                                │                                  │  "order.confirmed"   │                      │
-     │                                │                                  │  { order_id, total } │                      │
-     │                                │                                  │                      │                      │
-     │  HTTP 201                      │                                  │                      │                      │
-     │  { order_id, status: PENDING   │                                  │                      │                      │
-     │    ← immediate response }      │                                  │                      │                      │
-     │<───────────────────────────────│                                  │                      │                      │
-     │                                │                                  │                      │                      │
-     │  POST /api/v1/payments/create- │                                  │                      │                      │
-     │  intent { order_id, amount }   │                                  │                      │                      │
-     │───────────────────────────────>│                                  │                      │                      │
-     │                                │  forward to payment-service      │                      │                      │
-     │                                │─────────────────────────────────────────────────────────────────────────────────>│
-     │                                │                                  │                      │                      │
-     │                                │                                  │                      │                      │  Stripe PaymentIntent
-     │                                │                                  │                      │                      │  client_secret returned
-     │                                │                                  │                      │                      │
-     │  HTTP 200 { client_secret }    │                                  │                      │                      │
-     │<───────────────────────────────│<──────────────────────────────────────────────────────────────────────────────────│
-     │                                │                                  │                      │                      │
-     │  [Client confirms with Stripe] │                                  │                      │                      │
-     │                                │                                  │                      │                      │
-     │                                │  Stripe webhook POST /payments/webhook                   │                      │
-     │                                │─────────────────────────────────────────────────────────────────────────────────>│
-     │                                │                                  │                      │                      │
-     │                                │                                  │                      │                      │  verify signature
-     │                                │                                  │                      │                      │  update payment=succeeded
-     │                                │                                  │                      │                      │  publish "payment.succeeded"
-     │                                │                                  │                      │                      │
-     │                                │                                  │<──────────────────────────────────────────────────│
-     │                                │                                  │  confirm order again │                      │
-     │                                │                                  │  (idempotent)        │                      │
-     │                                │                                  │                      │                      │
-     │                                │                                  │  publish             │                      │
-     │                                │                                  │  "order.confirmed"   │                      │
-     │                                │                                  │─────┐                │                      │
-     │                                │                                  │     │                │                      │
-     │                                │                                  │     └───────────────►│  RABBITMQ            │
-     │                                │                                  │                      │  order.events.exchange│
-     │                                │                                  │                      │  payment.events      │
-     │                                │                                  │                      │                      │
-     │                                │                                  │                      │─────┐                │
-     │                                │                                  │                      │     │                │
-     │                                │                                  │                      │     └───────────────►│  NOTIFICATION-CONSUMER
-     │                                │                                  │                      │                      │  send_order_confirmed
-     │                                │                                  │                      │                      │  _email(event)
-     │                                │                                  │                      │                      │
-     │                                │                                  │                      │                      │──────────────────────> MAILSERVER
-     │                                │                                  │                      │                      │  📧 "Order Confirmed"│
-```
-
-### Failure path (out of stock)
+### 1. Price the cart for an address
 
 ```
-┌──────────┐     ┌────────────────────────────────────────┐     ┌──────────────────┐     ┌──────────────────┐
-│  CLIENT  │     │          API-GATEWAY :8000             │     │  ORDER-SERVICE   │     │ PRODUCT-SERVICE  │
-└────┬─────┘     └────────────────────┬───────────────────┘     └────────┬─────────┘     └────────┬─────────┘
-     │  POST /api/v1/orders           │                                  │                      │
-     │───────────────────────────────>│                                  │                      │
-     │                                │  forward to order-service        │                      │
-     │                                │─────────────────────────────────>│                      │
-     │                                │                                  │  INSERT order        │
-     │                                │                                  │  status=PENDING      │
-     │                                │                                  │                      │
-     │                                │                                  │  publish             │
-     │                                │                                  │  "inventory.reserve. │
-     │                                │                                  │   requested"         │
-     │                                │                                  │─────────────────────>│
-     │                                │                                  │                      │
-     │                                │                                  │                      │  cannot reserve      │
-     │                                │                                  │                      │  (out of stock)      │
-     │                                │                                  │                      │
-     │                                │                                  │  publish             │
-     │                                │                                  │  "inventory.reserve. │
-     │                                │                                  │   failed"            │
-     │                                │                                  │<─────────────────────│
-     │                                │                                  │                      │
-     │                                │                                  │  UPDATE order        │
-     │                                │                                  │  status=CANCELLED    │
-     │                                │                                  │                      │
-     │                                │                                  │  publish             │
-     │                                │                                  │  "order.cancelled"   │
-     │                                │                                  │                      │
-     │                                │                                  │─────┐                │
-     │                                │                                  │     └───────────────►│  RABBITMQ
-     │                                │                                  │                      │  order.events.exchange
-     │                                │                                  │                      │
-     │                                │                                  │                      │─────┐
-     │                                │                                  │                      │     └───────────────► NOTIFICATION-CONSUMER
-     │                                │                                  │                      │                       send_order_cancelled_email
-     │                                │                                  │                      │
-     │  HTTP 201 { order_id,          │                                  │                      │                       ──────────────────────> MAILSERVER
-     │  status: PENDING }             │                                  │                      │                       📧 "Order Cancelled"
-     │<───────────────────────────────│                                  │                      │
+┌──────────┐        ┌──────────────┐        ┌───────────────┐        ┌─────────────────┐   ┌──────────────────┐
+│  CLIENT  │        │ API-GATEWAY  │        │ ORDER-SERVICE │        │ PRODUCT-SERVICE │   │ SUPPLIER-SERVICE │
+└────┬─────┘        └──────┬───────┘        └───────┬───────┘        └────────┬────────┘   └────────┬─────────┘
+     │ POST /checkout/quote │                        │                         │                     │
+     │ {products, address,  │                        │                         │                     │
+     │  shipping_logistic_  │                        │                         │                     │
+     │  name?}              │                        │                         │                     │
+     │─────────────────────>│ POST /orders/quote     │                         │                     │
+     │                      │───────────────────────>│ POST /products/         │                     │
+     │                      │                        │   order-quote           │                     │
+     │                      │                        │────────────────────────>│ CAD retail prices   │
+     │                      │                        │<────────────────────────│                     │
+     │                      │                        │ POST /cjdropshipping/freight/quote (CJ lines)  │
+     │                      │                        │───────────────────────────────────────────────>│ CJ freightCalculate
+     │                      │                        │<───────────────────────────────────────────────│ USD options
+     │                      │                        │ shipping = CJ option (USD x buffer x FX)       │
+     │                      │                        │          + flat domestic rate (custom/catalog) │
+     │  {subtotal, shipping,│                        │                         │                     │
+     │   tax=0, amount,     │<───────────────────────│                         │                     │
+     │   shipping_options}  │                        │                         │                     │
+     │<─────────────────────│                        │                         │                     │
 ```
 
-### Payment failure path (inventory reserved, then payment fails)
+### 2. Place the order and authorize the card
 
 ```
-┌──────────────────┐     ┌──────────────────┐     ┌──────────────────┐     ┌──────────────────┐
-│  ORDER-SERVICE   │     │ PRODUCT-SERVICE  │     │  PAYMENT-SERVICE │     │ NOTIFICATION-CONSUMER │
-└────────┬─────────┘     └────────┬─────────┘     └────────┬─────────┘     └────────┬─────────┘
-         │                        │                        │                        │
-         │  inventory.reserve.    │                        │                        │
-         │  requested             │                        │                        │
-         │───────────────────────>│                        │                        │
-         │                        │  reserve inventory     │                        │
-         │  inventory.reserve.    │                        │                        │
-         │  succeeded             │                        │                        │
-         │<───────────────────────│                        │                        │
-         │                        │                        │                        │
-         │  UPDATE order          │                        │                        │
-         │  CONFIRMED             │                        │                        │
-         │                        │                        │                        │
-         │  [client attempts pay] │                        │                        │
-         │                        │                        │  Stripe charge fails   │
-         │                        │                        │                        │
-         │                        │                        │  publish "payment.failed"
-         │<─────────────────────────────────────────────────│                        │
-         │                        │                        │                        │
-         │  UPDATE order          │                        │                        │
-         │  CANCELLED             │                        │                        │
-         │                        │                        │                        │
-         │  publish "order.cancelled"                       │                        │
-         │─────────────────────────────────────────────────────────────────────────>│
-         │                        │                        │                        │
-         │                        │                        │  consume order.cancelled│
-         │                        │                        │  refund if charged      │
-         │                        │                        │  publish "payment.refunded"
-         │<─────────────────────────────────────────────────│                        │
-         │                        │                        │                        │
-         │  publish "inventory.release.requested"           │                        │
-         │───────────────────────>│                        │                        │
-         │                        │  release inventory     │                        │
-         │                        │                        │                        │
-         │                        │  📧 cancellation email │                        │
-         │                        │                        │                        │
+┌──────────┐        ┌──────────────┐        ┌───────────────┐        ┌─────────────────┐        ┌──────────┐
+│  CLIENT  │        │ API-GATEWAY  │        │ ORDER-SERVICE │        │ PAYMENT-SERVICE │        │  STRIPE  │
+└────┬─────┘        └──────┬───────┘        └───────┬───────┘        └────────┬────────┘        └────┬─────┘
+     │ POST /checkout       │                        │                         │                      │
+     │ {products, address,  │                        │                         │                      │
+     │  shipping_logistic_  │ POST /orders           │                         │                      │
+     │  name}               │ (user from token)      │                         │                      │
+     │─────────────────────>│───────────────────────>│ re-quote server-side    │                      │
+     │                      │                        │ INSERT order PENDING    │                      │
+     │                      │                        │ saga{payment: pending}  │                      │
+     │                      │                        │ outbox: order.created,  │                      │
+     │                      │                        │  inventory.reserve.requested                   │
+     │                      │<───────────────────────│ {id, amount_cents, ...} │                      │
+     │                      │ POST /payments/create-intent (amount = order.amount_cents)              │
+     │                      │─────────────────────────────────────────────────>│ PaymentIntent        │
+     │                      │                        │                         │ capture_method=manual│
+     │                      │                        │                         │─────────────────────>│
+     │  {order_id,          │<─────────────────────────────────────────────────│ client_secret        │
+     │   client_secret}     │                        │                         │                      │
+     │<─────────────────────│                        │                         │                      │
+     │ stripe.confirmPayment ──────────────────────────────────────────────────────────────────────>│ card AUTHORIZED
+     │ (decline → retry the same order; POST /checkout {order_id} resumes it)                         │ (held, not charged)
+     │                      │                        │                         │  webhook             │
+     │                      │                        │                         │  amount_capturable_  │
+     │                      │                        │                         │  updated             │
+     │                      │                        │  payment.authorized     │<─────────────────────│
+     │                      │                        │<────────────────────────│ status AUTHORIZED    │
+     │                      │                        │ validate user/amount/   │                      │
+     │                      │                        │ currency vs order       │                      │
+     │                      │                        │ saga.payment=authorized │                      │
+     │                      │                        │ + inventory reserved →  │                      │
+     │                      │                        │ CONFIRMED, order.confirmed                     │
 ```
+
+### 3. Secure fulfillment, then capture
+
+```
+┌───────────────┐        ┌──────────────────┐        ┌───────┐        ┌─────────────────┐        ┌──────────┐
+│ ORDER-SERVICE │        │ SUPPLIER-SERVICE │        │  CJ   │        │ PAYMENT-SERVICE │        │  STRIPE  │
+└───────┬───────┘        └────────┬─────────┘        └───┬───┘        └────────┬────────┘        └────┬─────┘
+        │ no CJ lines: outbox payment.capture.requested right away ───────────>│                      │
+        │                         │                      │                      │                      │
+        │ order.confirmed         │                      │                      │                      │
+        │ (CJ lines)              │                      │                      │                      │
+        │────────────────────────>│ createOrderV2        │                      │                      │
+        │                         │ payType=3,           │                      │                      │
+        │                         │ customer's logistic  │                      │                      │
+        │                         │─────────────────────>│ CREATED              │                      │
+        │                         │ confirmOrder         │                      │                      │
+        │                         │─────────────────────>│ UNPAID               │                      │
+        │                         │ getOrderDetail: orderAmount <= expected max?│                      │
+        │                         │ getBalance >= orderAmount?                  │                      │
+        │                         │   no → AWAITING_FUNDS, CRITICAL log, retried every 5 min           │
+        │                         │ payBalance           │                      │                      │
+        │                         │─────────────────────>│ PAID (CJ ships)      │                      │
+        │ cj.order.paid           │                      │                      │                      │
+        │<────────────────────────│                      │                      │                      │
+        │ CJ lines → SUBMITTED    │                      │                      │                      │
+        │ (blocks self-cancel)    │                      │                      │                      │
+        │ payment.capture.requested ──────────────────────────────────────────>│ capture (idempotent) │
+        │                         │                      │                      │─────────────────────>│ CHARGED
+        │                         │                      │  payment.succeeded   │                      │
+        │<─────────────────────────────────────────────────────────────────────│                      │
+        │ saga.payment=captured   │                      │                      │                      │
+        │                         │ tracking poller: shipped / delivered → cj.order.shipped/delivered  │
+```
+
+### Failure paths
+
+| When | What happens to the money |
+|---|---|
+| Card declined | Nothing: the order stays PENDING and the customer retries. The Saga timeout cancels abandoned orders. |
+| Inventory reservation fails, CJ rejects, or CJ can't be paid within `CJ_PAYMENT_MAX_WAIT_HOURS` | `order.cancelled` → payment-service **voids** the authorization (no charge, no refund, no Stripe fee). |
+| CJ bills above the expected maximum | CJ payment withheld (`reconciliation_required`); order stays confirmed and uncaptured for a human. |
+| Card authorized for an unknown or cancelled order | order-service sends `payment.release.requested` → void. |
+| Authorization lapses after CJ was paid | Order kept and flagged for reconciliation. The saga timeout worker alerts after `PAYMENT_CAPTURE_ALERT_HOURS` so capture can happen first. |
+| Cancelled after capture | Refund, unless goods were already made or paid for (held for a human). |
 
 ### Key events
 
 | Event | Publisher | Consumers | Purpose |
 |---|---|---|---|
-| `inventory.reserve.requested` | Order Service | Product Service | Ask product service to reserve stock |
-| `inventory.reserve.succeeded` | Product Service | Order Service | Reservation OK → order can be confirmed |
-| `inventory.reserve.failed` | Product Service | Order Service | Reservation failed → cancel order |
-| `inventory.release.requested` | Order Service | Product Service | Compensation: release reserved stock |
-| `order.confirmed` | Order Service | Notification, Payment | Order is confirmed |
-| `order.cancelled` | Order Service | Notification, Payment | Order cancelled → refund + email |
-| `payment.succeeded` | Payment Service | Order Service | Stripe confirmed charge |
-| `payment.failed` | Payment Service | Order Service | Charge failed → cancel order |
-| `payment.refunded` | Payment Service | Order Service | Refund processed |
-
+| `inventory.reserve.requested` / `.succeeded` / `.failed` | Order / Product | Product / Order | Stock gate |
+| `payment.authorized` | Payment | Order | Card held for exactly the order total |
+| `order.confirmed` | Order | Supplier, Notification, Shipping, Cart | Payment + stock gates passed |
+| `cj.order.created` / `cj.order.paid` / `cj.order.failed` | Supplier | Order, Notification | CJ purchase lifecycle |
+| `payment.capture.requested` | Order (order exchange) | Payment | Goods secured: charge the card |
+| `payment.release.requested` | Order (order exchange) | Payment | Void/refund money held for an unfulfillable order |
+| `payment.succeeded` | Payment | Order, Notification | Card captured |
+| `payment.cancelled` / `payment.refunded` | Payment | Order, Notification | Hold voided / charge refunded |
+| `order.cancelled` | Order | Payment, Supplier, Notification, … | Compensation |
 
 
 [FastAPI Services]
@@ -715,78 +647,16 @@ Consumer             Consumer
 
 ## Stripe Payment Flow
 
-### Create PaymentIntent
-```
-┌──────────┐     ┌──────────────────────┐     ┌──────────────────┐     ┌──────────────┐
-│  CLIENT  │     │   API-GATEWAY :8000  │     │ PAYMENT-SERVICE  │     │    STRIPE    │
-└────┬─────┘     └──────────┬───────────┘     └────────┬─────────┘     └──────┬───────┘
-     │                        │                        │                    │
-     │ POST /payments/create- │                        │                    │
-     │   intent               │                        │                    │
-     │ { order_id, amount }   │                        │                    │
-     │───────────────────────>│                        │                    │
-     │                        │  AuthMiddleware +      │                    │
-     │                        │  rate limit            │                    │
-     │                        │                        │                    │
-     │                        │  forward to payment    │                    │
-     │                        │  (adds user_id, email) │                    │
-     │                        │───────────────────────>│                    │
-     │                        │                        │                    │
-     │                        │                        │  create PaymentIntent
-     │                        │                        │  with order metadata │
-     │                        │                        │───────────────────>│
-     │                        │                        │                    │
-     │                        │                        │  client_secret,    │
-     │                        │                        │  payment_intent_id │
-     │                        │                        │<───────────────────│
-     │                        │                        │                    │
-     │                        │  HTTP 201              │                    │
-     │                        │  { client_secret, ...}│                    │
-     │                        │<───────────────────────│                    │
-     │  HTTP 201              │                        │                    │
-     │<───────────────────────│                        │                    │
-```
+See [Checkout, Payment & CJ Fulfillment Flow](#checkout-payment--cj-fulfillment-flow). Webhooks handled by
+`POST /payments/webhook` (signature-verified, idempotent per Stripe event id):
 
-### Webhook handling
-```
-┌──────────────┐     ┌──────────────────────┐     ┌──────────────────┐     ┌──────----───┐     ┌─────────────┐
-│    STRIPE    │     │   API-GATEWAY :8000  │     │ PAYMENT-SERVICE  │     │ORDER-SERVICE│     │NOTIFICATION │
-└──────┬───────┘     └──────────┬───────────┘     └────────┬─────────┘     └────┬──----──┘     └──────┬──────┘
-       │                        │                        │                    │                    │
-       │  POST /payments/webhook│                        │                    │                    │
-       │  Stripe event + sig    │                        │                    │                    │
-       │───────────────────────>│                        │                    │                    │
-       │                        │ forward raw body       │                    │                    │
-       │                        │───────────────────────>│                    │                    │
-       │                        │                        │                    │                    │
-       │                        │                        │  verify signature  │                    │
-       │                        │                        │  idempotency check │                    │                 │
-       │                        │                        │                    │                    │
-       │                        │                        │  match event type: │                    │
-       │                        │                        │  - succeeded →     │                    │
-       │                        │                        │    publish         │                    │
-       │                        │                        │    "payment.       │                    │
-       │                        │                        │     succeeded"     │                    │
-       │                        │                        │───────────────────>│                    │
-       │                        │                        │                    │  confirm order     │
-       │                        │                        │                    │  (idempotent)      │
-       │                        │                        │  - failed/canceled →                    │
-       │                        │                        │    publish         │                    │
-       │                        │                        │    "payment.failed"│                    │
-       │                        │                        │    /"payment.      │                    │
-       │                        │                        │     cancelled"     │                    │
-       │                        │                        │───────────────────>│                    │
-       │                        │                        │                    │  cancel order      │
-       │                        │                        │                    │                    │
-       │                        │                        │                    │  publish           │
-       │                        │                        │                    │  "order.cancelled" │
-       │                        │                        │                    │───────────────────>│
-       │                        │                        │                    │                    │  send email
-       │                        │  HTTP 200 ack          │                    │                    │
-       │                        │<───────────────────────│                    │                    │
-       │  HTTP 200 ack          │                        │                    │                    │
-       │<───────────────────────│                        │                    │                    │
-```
+| Stripe event | Effect |
+|---|---|
+| `payment_intent.amount_capturable_updated` | Payment AUTHORIZED → `payment.authorized` |
+| `payment_intent.succeeded` | Payment SUCCEEDED (no-op when `capture_payment` already recorded it) |
+| `payment_intent.payment_failed` | Decline reason recorded; payment stays open for a retry |
+| `payment_intent.canceled` | Payment CANCELLED → `payment.cancelled` |
+| `charge.refund.updated` | Payment REFUNDED → `payment.refunded` |
 
 ## Inventory Release / Compensation Flow
 

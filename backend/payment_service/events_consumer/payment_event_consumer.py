@@ -4,8 +4,12 @@ from logging import Logger
 
 from shared.idempotency.idempotency_service import IdempotencyEventService
 from shared.managers.database_session_manager import DatabaseSessionManager
-from shared.enums.event_enums import OrderEvents
-from shared.contracts.events import OrderCancelledEvent
+from shared.enums.event_enums import OrderEvents, PaymentCommands
+from shared.contracts.events import (
+    OrderCancelledEvent,
+    PaymentCaptureRequested,
+    PaymentReleaseRequested,
+)
 from database_layer.payment_repository import PaymentRepository
 from shared.database_layer.outbox_repository import OutboxRepository
 from service_layer.payment_service import PaymentService
@@ -18,8 +22,11 @@ class PaymentEventConsumer:
     """
     Consumes order events that require payment action.
 
-    Currently handles:
-    - order.cancelled: triggers a Stripe refund when a payment was already succeeded.
+    Handles:
+    - order.cancelled: voids an authorization or refunds a captured charge.
+    - payment.capture.requested: charges the card once fulfillment is secured.
+    - payment.release.requested: voids or refunds money held for an order
+      that is unknown or already cancelled.
     """
 
     def __init__(
@@ -54,6 +61,10 @@ class PaymentEventConsumer:
         match event_type:
             case OrderEvents.ORDER_CANCELLED:
                 await self.handle_order_cancelled(message)
+            case PaymentCommands.CAPTURE_REQUESTED:
+                await self.handle_capture_requested(message)
+            case PaymentCommands.RELEASE_REQUESTED:
+                await self.handle_release_requested(message)
             case _:
                 self.logger.warning(f"Unhandled payment consumer event type: {event_type}")
 
@@ -113,4 +124,55 @@ class PaymentEventConsumer:
         except Exception as e:
             await self.idempotency_service.release_claim(event_id=event.event_id, event_type=event.event_type)
             self.logger.error(f"Error handling order.cancelled for order {message.get('order_id')}: {e}")
+            raise
+
+    async def handle_capture_requested(self, message: dict[str, Any]) -> None:
+        """Capture the authorized card for an order whose goods are secured."""
+        command = PaymentCaptureRequested(**message)
+        if not await self.idempotency_service.try_claim_event(
+            event_id=command.event_id, event_type=command.event_type
+        ):
+            return
+        try:
+            async for payment_service in self._get_payment_service():
+                payment = await payment_service.capture_payment(order_id=command.order_id)
+            result = f"capture_{payment.status}" if payment else "capture_no_payment"
+            await self.idempotency_service.mark_event_as_processed(
+                event_id=command.event_id,
+                event_type=command.event_type,
+                order_id=command.order_id,
+                result=result,
+            )
+        except Exception as e:
+            await self.idempotency_service.release_claim(
+                event_id=command.event_id, event_type=command.event_type
+            )
+            self.logger.error(f"Error capturing payment for order {command.order_id}: {e}")
+            raise
+
+    async def handle_release_requested(self, message: dict[str, Any]) -> None:
+        """Void or refund money held for an order that can no longer be fulfilled."""
+        command = PaymentReleaseRequested(**message)
+        if not await self.idempotency_service.try_claim_event(
+            event_id=command.event_id, event_type=command.event_type
+        ):
+            return
+        try:
+            self.logger.warning(
+                f"Releasing payment for order {command.order_id}: {command.reason}"
+            )
+            async for payment_service in self._get_payment_service():
+                payment = await payment_service.handle_payment_refund(order_id=command.order_id)
+            result = f"release_{payment.status}" if payment else "release_no_payment"
+            await self.idempotency_service.mark_event_as_processed(
+                event_id=command.event_id,
+                event_type=command.event_type,
+                order_id=command.order_id,
+                result=result,
+            )
+        except Exception as e:
+            await self.idempotency_service.release_claim(
+                event_id=command.event_id, event_type=command.event_type
+            )
+            self.logger.error(f"Error releasing payment for order {command.order_id}: {e}")
             raise

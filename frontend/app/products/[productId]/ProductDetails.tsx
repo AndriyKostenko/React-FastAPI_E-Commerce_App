@@ -73,10 +73,7 @@ const ProductDetails: React.FC<{ product: ProductProps | null }> = ({
         name: product.name,
         description: product.description,
         brand: product.brand,
-        price:
-            initialVariant?.variant_sug_sell_price ??
-            initialVariant?.variant_sell_price ??
-            product.price,
+        price: initialVariant?.retail_price ?? product.price,
         date_created: product.date_created,
         selected_image: productImages[0],
         reviews: product.reviews,
@@ -121,10 +118,7 @@ const ProductDetails: React.FC<{ product: ProductProps | null }> = ({
             ...current,
             selected_variant_id: selected.id,
             selected_image: selectedImage ?? current.selected_image,
-            price:
-                selected.variant_sug_sell_price ??
-                selected.variant_sell_price ??
-                product.price,
+            price: selected.retail_price ?? product.price,
         }));
     }, [activeVariants, product.price, productImages]);
 

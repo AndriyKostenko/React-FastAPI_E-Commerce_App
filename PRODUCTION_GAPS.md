@@ -158,8 +158,8 @@ reconciliation, but refunding part of an order is §5 work.
     product/variant -> CJ vid, TTL-cached per ASGI process, cheapest option first)
   - `POST /api/v1/cjdropshipping/freight/quote`, proxied by api_gateway behind
     `get_current_user` (each call costs one live CJ request)
-  - **Remaining**: the React checkout still has to call it and add the chosen
-    option to the order total — that is frontend work (§6).
+  - ~~Remaining: checkout has to call it~~ — done in §3b: the chosen option is
+    now part of the order total.
 - [x] Tracking polling from CJ -> customer notification
   - `CJOrderTrackingService` + `poll_cj_order_tracking` taskiq job (every 5 min,
     each order re-queried at most every `CJ_DROPSHIPPING_TRACKING_POLL_INTERVAL_MINUTES`)
@@ -187,6 +187,43 @@ reconciliation, but refunding part of an order is §5 work.
 Schema: `supplier_service` migration `c4a7f1d2e9b8` adds the tracking columns
 (it also creates `cj_order_attempts` when absent, since that table had only ever
 been bootstrapped by `create_all`).
+
+### 3b. Checkout → Stripe → CJ money flow — DONE (2026-09-10)
+Branch `feature/checkout-payment-cj-flow`; diagram in `FLOWS.md` →
+"Checkout, Payment & CJ Fulfillment Flow".
+- [x] **CJ orders are actually paid.** They were created with `payType=3`
+  ("create only") and never confirmed or paid, so CJ never shipped anything.
+  `CJOrderPaymentService` now runs confirmOrder → cost-ceiling check → balance
+  check → payBalance as recorded steps (`CONFIRMED` / `AWAITING_FUNDS` / `PAID`),
+  emits `cj.order.paid`, and a taskiq job (`pay_unpaid_cj_orders`, every 5 min)
+  retries and gives up after `CJ_PAYMENT_MAX_WAIT_HOURS`.
+- [x] **Authorize at checkout, capture after fulfillment is secured.**
+  PaymentIntents use `capture_method=manual`; `payment.authorized` gates the
+  Saga; capture is requested at confirmation (no CJ lines) or on `cj.order.paid`.
+  Pre-capture failures void the hold instead of refunding.
+- [x] **Shipping is charged.** Live CJ freight (USD x `CJ_FREIGHT_PRICE_BUFFER`
+  x FX) for CJ lines plus `DOMESTIC_FLAT_SHIPPING_CAD` for in-house/catalog
+  lines; the order stores subtotal/shipping/tax and the chosen logistic, which
+  CJ ships with.
+- [x] **CJ USD prices are no longer sold as CAD.** Storefront price =
+  max(suggested, cost x `CJ_PRICE_MARKUP_MULTIPLIER`) x `CJ_USD_TO_CAD_RATE`,
+  rounded up to .99, stored as `product_variants.retail_price` (backfilled).
+- [x] **Order before PaymentIntent.** `POST /checkout` creates the order and
+  opens the intent for the order's own `amount_cents`; the client-callable
+  `POST /payments/create-intent` is gone, and resuming checks ownership.
+- [x] **No money kept without an order.** An authorization/capture for an
+  unknown or cancelled order sends `payment.release.requested`.
+- [x] **A card decline no longer cancels the order**; the customer retries.
+- [x] Cancelling a paid CJ order acks and flags reconciliation instead of
+  retrying `deleteOrder` into the DLQ.
+
+Migrations: product `7c3e9a51d2f4`, order `3d8b6f0e2a91`, supplier `e5b21c7d9f60`.
+**Before going live:** set `CJ_USD_TO_CAD_RATE` / `CJ_PRICE_MARKUP_MULTIPLIER`
+deliberately, prefund the CJ wallet, subscribe the Stripe webhook to
+`payment_intent.amount_capturable_updated`, and run the end-to-end checks
+against Stripe test mode + CJ sandbox (not yet done).
+**Still open:** Stripe Tax (the `tax_amount` slot is always 0), disputes,
+partial refunds, a live FX feed, `STRIPE_TEST_SECRET_KEY` naming for live keys.
 
 ### 4. Security & config hardening (2026-09-09)
 
@@ -293,7 +330,8 @@ already correct; three remain.
   Google OAuth → user.
 
 ### 5. Payments & tax/legal
-- Refunds / partial refunds, Stripe webhook signature verification, dispute handling
+- Partial refunds, dispute handling (`charge.dispute.created`). Full refunds,
+  voids and webhook signature verification exist (see §3b).
 - Sales tax / VAT / customs — selling physical goods worldwide (esp. via CJ) is a real
   obligation; consider Stripe Tax
 - Terms / privacy / returns policy pages
@@ -323,5 +361,5 @@ already correct; three remain.
    *distribution* per service + a secret manager is the one §4 item left
 4. ~~CJ shipping quotes + tracking + failure handling~~ (done — see §3)
 5. Tax, legal pages, GDPR, AI content moderation
-6. Frontend account / tracking / designer polish (incl. calling the new CJ
-   freight-quote endpoint from checkout)
+6. Frontend account / tracking / designer polish (checkout shipping options
+   are done — see §3b)

@@ -16,6 +16,7 @@ class OrderDeliveryStatus(StrEnum):
 
 class PaymentStatus(StrEnum):
     PENDING = "pending"
+    AUTHORIZED = "authorized"
     SUCCEEDED = "succeeded"
     FAILED = "failed"
     CANCELLED = "cancelled"
@@ -38,6 +39,8 @@ class LineFulfillmentStatus(StrEnum):
 
     PENDING = "pending"
     QUEUED = "queued"
+    # A dropshipped line whose supplier order is placed and paid for.
+    SUBMITTED = "submitted"
     IN_PRODUCTION = "in_production"
     PRINTED = "printed"
     SHIPPED = "shipped"
@@ -58,11 +61,11 @@ class LineFulfillmentStatus(StrEnum):
     def blocks_cancellation(cls) -> frozenset["LineFulfillmentStatus"]:
         """Statuses after which a self-serve cancellation must be refused.
 
-        Once a garment is printed the materials are spent, and once it is
-        posted the goods are gone; both need a human return decision rather
-        than an automatic refund.
+        Once a garment is printed the materials are spent, once a supplier
+        order is paid the money is spent, and once goods are posted they are
+        gone; all need a human return decision rather than an automatic refund.
         """
-        return frozenset({cls.PRINTED, cls.SHIPPED, cls.DELIVERED})
+        return frozenset({cls.SUBMITTED, cls.PRINTED, cls.SHIPPED, cls.DELIVERED})
 
 
 class ProductionJobStatus(StrEnum):

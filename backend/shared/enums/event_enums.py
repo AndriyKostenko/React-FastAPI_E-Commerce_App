@@ -91,15 +91,33 @@ class OrderEvents(StrEnum):
     ORDER_CANCELLED = "order.cancelled"
     CJ_ORDER_CREATED = "cj.order.created"
     CJ_ORDER_FAILED = "cj.order.failed"
+    # CJ accepted and was paid for the order from our balance: the goods are
+    # committed, so the customer's authorized card can now be captured.
+    CJ_ORDER_PAID = "cj.order.paid"
     CJ_ORDER_SHIPPED = "cj.order.shipped"
     CJ_ORDER_DELIVERED = "cj.order.delivered"
 
 
 class PaymentEvents(StrEnum):
+    # The card is authorized (funds held, not yet charged).
+    PAYMENT_AUTHORIZED = "payment.authorized"
+    # The authorized amount was captured: the customer is actually charged.
     PAYMENT_SUCCEEDED = "payment.succeeded"
     PAYMENT_FAILED = "payment.failed"
     PAYMENT_REFUNDED = "payment.refunded"
     PAYMENT_CANCELLED = "payment.cancelled"
+
+
+class PaymentCommands(StrEnum):
+    """Instructions order_service sends payment_service about a held card.
+
+    They travel on the order exchange under "payment.*.requested" keys, which
+    match none of the "order.#", "order.*", "cj.order.*" or "production.job.#"
+    bindings there, so only payment_service's own queue receives them.
+    """
+
+    CAPTURE_REQUESTED = "payment.capture.requested"
+    RELEASE_REQUESTED = "payment.release.requested"
 
 
 class ShippingEvents(StrEnum):

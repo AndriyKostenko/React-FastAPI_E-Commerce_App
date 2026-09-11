@@ -13,18 +13,6 @@ from shared.contracts.auth import TokenClaims as CurrentUserInfo
 order_proxy = APIRouter(tags=["Order Service Proxy"])
 
 
-@order_proxy.post("/orders/quote", summary="Build a canonical order quote")
-@rate_limited(times=30, seconds=60)
-async def quote_order(
-    request: Request,
-    current_user: CurrentUserInfo = Depends(get_current_user),
-):
-    return await api_gateway_manager.forward_request(
-        service_name="order-service",
-        request=request,
-    )
-
-
 # ==================== PUBLIC ENDPOINTS ====================
 
 @order_proxy.post("/orders", summary="Create a new order")
@@ -34,8 +22,14 @@ async def create_order(
     current_user: CurrentUserInfo = Depends(get_current_user),
 ):
     payload = await request.json()
+    # Checkout goes through POST /checkout. An order placed here may never
+    # choose its own id, price, or payment reference.
     override_body = {
-        **payload,
+        **{
+            key: value
+            for key, value in payload.items()
+            if key not in {"id", "amount", "payment_intent_id"}
+        },
         "user_id": str(current_user.id),
         "user_email": current_user.email,
     }
