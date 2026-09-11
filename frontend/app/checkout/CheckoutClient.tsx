@@ -1,10 +1,9 @@
 "use client";
 
-import { CheckoutAddress, CheckoutClientProps } from "@/types/cart";
+import { CheckoutClientProps, OrderProductInput } from "@/types/cart";
 import { useCart } from "@/hooks/useCart";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useCallback } from "react";
-import toast from "react-hot-toast";
+import { useCallback, useMemo, useState } from "react";
 import { StripeElementsOptions, loadStripe } from "@stripe/stripe-js";
 import { Elements } from "@stripe/react-stripe-js";
 import CheckoutForm from "./CheckOutForm";
@@ -16,7 +15,7 @@ import { settings } from "@/lib/config";
 
 const stripePromise = loadStripe(settings.stripe.publishableKey);
 
-const buildOrderProducts = (products: ProductProps[]) =>
+const buildOrderProducts = (products: ProductProps[]): OrderProductInput[] =>
     products.map((product) =>
         product.fulfillment_type === "custom"
             ? {
@@ -34,196 +33,77 @@ const buildOrderProducts = (products: ProductProps[]) =>
     );
 
 const CheckoutClient: React.FC<CheckoutClientProps> = ({ currentUserJWT }) => {
-    const { cartProducts, cartTotalAmount, handleSetPaymentIntent, paymentIntent, handleClearCart } = useCart();
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState(false);
-    const [clientSecret, setClientSecret] = useState<string | undefined>(undefined);
-    const [draftOrderId, setDraftOrderId] = useState<string | null>(null);
-    const [createdOrderId, setCreatedOrderId] = useState<string | null>(null);
+    const { cartProducts, cartTotalAmount, handleClearCart, handleSetPaymentIntent } = useCart();
+    const [quotedAmountCents, setQuotedAmountCents] = useState<number | null>(null);
     const [paymentSuccess, setPaymentSuccess] = useState(false);
-    const [canonicalTotal, setCanonicalTotal] = useState<number | null>(null);
     const router = useRouter();
 
-    useEffect(() => {
-        if (!cartProducts || cartProducts.length === 0 || !currentUserJWT || clientSecret) {
-            return;
-        }
+    const products = useMemo(
+        () => (cartProducts ? buildOrderProducts(cartProducts) : []),
+        [cartProducts],
+    );
 
-        const createIntent = async () => {
-            try {
-                setLoading(true);
-                setError(false);
-
-                const response = await fetch(settings.api.endpoints.paymentsCreateIntent, {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        "Authorization": `Bearer ${currentUserJWT}`,
-                    },
-                    body: JSON.stringify({
-                        order_id: draftOrderId,
-                        products: buildOrderProducts(cartProducts),
-                    }),
-                });
-
-                if (response.status === 401) {
-                    router.push("/login");
-                    return;
-                }
-
-                if (!response.ok) {
-                    setError(true);
-                    throw new Error("Failed to create payment intent");
-                }
-
-                const data = await response.json();
-                setClientSecret(data.client_secret);
-                setDraftOrderId(data.order_id);
-                setCanonicalTotal(Number(data.amount) / 100);
-                handleSetPaymentIntent(data.stripe_payment_intent_id);
-            } catch (fetchError) {
-                console.error("Create payment intent error:", fetchError);
-                toast.error("Failed to initialize checkout.");
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        createIntent();
-    }, [cartProducts, currentUserJWT, clientSecret, cartTotalAmount, handleSetPaymentIntent, router]);
-
+    // The Payment Element is created before any order exists (Stripe's
+    // deferred-intent mode). The card is only authorized here; the server
+    // captures it once the goods are secured, so the Element must be told
+    // captureMethod "manual" to match the PaymentIntent the server opens.
     const options: StripeElementsOptions = {
-        clientSecret,
+        mode: "payment",
+        amount: quotedAmountCents ?? Math.max(Math.round(cartTotalAmount * 100), 50),
+        currency: "cad",
+        captureMethod: "manual",
         appearance: {
             theme: "stripe",
             labels: "floating",
         },
     };
 
-    const createOrderBeforePayment = useCallback(async (address: CheckoutAddress): Promise<boolean> => {
-        if (createdOrderId) {
-            return true;
-        }
+    const handlePaid = useCallback(() => {
+        handleClearCart();
+        handleSetPaymentIntent(null);
+        setPaymentSuccess(true);
+    }, [handleClearCart, handleSetPaymentIntent]);
 
-        if (!cartProducts || !currentUserJWT || !paymentIntent || !draftOrderId) {
-            toast.error("Missing checkout data.");
-            return false;
-        }
+    if (paymentSuccess) {
+        return (
+            <div className="flex items-center flex-col gap-4">
+                <div className="text-teal-500 text-center">
+                    Order placed. Your card is authorized and will be charged once your items are on their way.
+                </div>
+                <div className="max-w-[220px] w-full">
+                    <Button label="View Your Orders" onClick={() => router.push("/orders/")} />
+                </div>
+            </div>
+        );
+    }
 
-        const products = buildOrderProducts(cartProducts);
+    if (!cartProducts || cartProducts.length === 0) {
+        return (
+            <Link href={"/"} className="text-slate-500 flex items-center gap-1 mt-2">
+                <MdArrowBack />
+                <span>No items for checkout, continue shopping</span>
+            </Link>
+        );
+    }
 
-        try {
-            setLoading(true);
-            setError(false);
-
-            const response = await fetch(settings.api.endpoints.orders, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": `Bearer ${currentUserJWT}`,
-                },
-                body: JSON.stringify({
-                    id: draftOrderId,
-                    payment_intent_id: paymentIntent,
-                    products,
-                    address: {
-                        street: address.line1,
-                        city: address.city,
-                        province: address.state,
-                        postal_code: address.postal_code,
-                        country: address.country,
-                        country_code: address.country_code,
-                        name: address.name,
-                        phone: address.phone,
-                    },
-                }),
-            });
-
-            if (response.status === 401) {
-                router.push("/login");
-                return false;
-            }
-
-            if (!response.ok) {
-                setError(true);
-                throw new Error("Failed to create order before payment");
-            }
-
-            const order = await response.json();
-            setCreatedOrderId(order.id || draftOrderId);
-            return true;
-        } catch (orderError) {
-            console.error("Order creation error:", orderError);
-            toast.error("Failed to create order.");
-            return false;
-        } finally {
-            setLoading(false);
-        }
-    }, [createdOrderId, cartProducts, currentUserJWT, paymentIntent, draftOrderId, router]);
-
-    const cancelOrderAfterFailure = useCallback(async (): Promise<void> => {
-        if (!draftOrderId || !currentUserJWT) return;
-        try {
-            await fetch(settings.api.endpoints.cancelOrder(draftOrderId), {
-                method: "PATCH",
-                headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": `Bearer ${currentUserJWT}`,
-                },
-                body: JSON.stringify({ reason: "Payment failed" }),
-            });
-        } catch (err) {
-            console.error("Failed to cancel order after payment failure:", err);
-        } finally {
-            setClientSecret(undefined);
-            setDraftOrderId(null);
-            setCreatedOrderId(null);
-            setCanonicalTotal(null);
-            handleSetPaymentIntent(null);
-        }
-    }, [draftOrderId, currentUserJWT, handleSetPaymentIntent]);
+    if (!currentUserJWT) {
+        return (
+            <Link href={"/login"} className="text-slate-500 flex items-center gap-1 mt-2">
+                <span>Please log in to check out</span>
+            </Link>
+        );
+    }
 
     return (
         <div className="w-full">
-            {(!cartProducts || cartProducts.length === 0) && (
-                <div>
-                    <Link href={"/"} className="text-slate-500 flex items-center gap-1 mt-2">
-                        <MdArrowBack />
-                        <span>No items for checkout, continue shopping</span>
-                    </Link>
-                </div>
-            )}
-
-            {clientSecret && cartProducts && cartProducts.length > 0 && (
-                <Elements options={options} stripe={stripePromise}>
-                    <CheckoutForm
-                        onCreateOrder={createOrderBeforePayment}
-                        totalAmount={canonicalTotal ?? cartTotalAmount}
-                        onPaymentFailed={cancelOrderAfterFailure}
-                        onPaymentConfirmed={async () => {
-                            handleClearCart();
-                            handleSetPaymentIntent(null);
-                            setDraftOrderId(null);
-                            setCreatedOrderId(null);
-                            setClientSecret(undefined);
-                            setCanonicalTotal(null);
-                            setPaymentSuccess(true);
-                            toast.success("Payment successful. Order created.");
-                        }}
-                    />
-                </Elements>
-            )}
-
-            {loading && <div className="text-center">Loading Checkout</div>}
-            {error && <div className="text-center text-rose-500">Something went wrong...</div>}
-            {paymentSuccess && (
-                <div className="flex items-center flex-col gap-4">
-                    <div className="text-teal-500 text-center">Payment Success</div>
-                    <div className="max-w-[220px] w-full">
-                        <Button label="View Your Orders" onClick={() => router.push("/orders/")} />
-                    </div>
-                </div>
-            )}
+            <Elements options={options} stripe={stripePromise}>
+                <CheckoutForm
+                    products={products}
+                    currentUserJWT={currentUserJWT}
+                    onAmountChange={setQuotedAmountCents}
+                    onPaid={handlePaid}
+                />
+            </Elements>
         </div>
     );
 };

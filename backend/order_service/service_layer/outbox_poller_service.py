@@ -5,6 +5,7 @@ from shared.enums.event_enums import (
     ArtworkEvents,
     InventoryEvents,
     OrderEvents,
+    PaymentCommands,
     ProductionEvents,
 )
 from events_publisher.order_event_publisher import OrderEventPublisher
@@ -30,6 +31,8 @@ async def route_order_event(
         ProductionEvents.PRODUCTION_JOB_CANCELLED: publisher.publish_production_job_cancelled,
         ArtworkEvents.ARTWORK_RETAINED: publisher.publish_artwork_retained,
         ArtworkEvents.ARTWORK_RELEASED: publisher.publish_artwork_released,
+        PaymentCommands.CAPTURE_REQUESTED: publisher.publish_payment_capture_requested,
+        PaymentCommands.RELEASE_REQUESTED: publisher.publish_payment_release_requested,
     }
     publish = routes.get(event_type)
     if not publish:

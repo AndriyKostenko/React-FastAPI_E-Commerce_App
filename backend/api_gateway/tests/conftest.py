@@ -98,8 +98,6 @@ def mock_forward() -> AsyncMock:
 @pytest.fixture
 def mock_service_request() -> AsyncMock:
     async def response_for(_request, _service, path, **_kwargs):
-        if path == "/orders/quote":
-            return HttpxResponse(200, json={"amount": 99.98, "currency": "cad"})
         return HttpxResponse(
             200,
             json={**MOCK_UPSTREAM_RESPONSE_BODY, "user_id": str(TEST_USER_ID)},

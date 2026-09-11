@@ -376,9 +376,13 @@ class ProductService:
                     raise ProductNotFoundError(
                         f"Insufficient inventory for variant {item.variant_id}"
                     )
-                candidate_price = variant.variant_sug_sell_price or variant.variant_sell_price
-                if candidate_price is not None and candidate_price > 0:
-                    unit_price = Decimal(candidate_price)
+                # Only the stored CAD shelf price is sellable. The raw variant
+                # prices are the supplier's USD cost and suggestion.
+                if variant.retail_price is None or variant.retail_price <= 0:
+                    raise ProductNotFoundError(
+                        f"Variant {item.variant_id} has no retail price yet; resync the supplier catalog"
+                    )
+                unit_price = Decimal(variant.retail_price)
                 variant_snapshot = {
                     "vid": variant.vid,
                     "name": variant.variant_name_en,
@@ -402,9 +406,8 @@ class ProductService:
                     raise ProductNotFoundError(
                         f"Insufficient inventory for variant {item.variant_id}"
                     )
-                candidate_price = variant.variant_sug_sell_price or variant.variant_sell_price
-                if candidate_price is not None and candidate_price > 0:
-                    unit_price = Decimal(candidate_price)
+                if variant.retail_price is not None and variant.retail_price > 0:
+                    unit_price = Decimal(variant.retail_price)
 
             unit_price = unit_price.quantize(Decimal("0.01"))
             total += unit_price * item.quantity

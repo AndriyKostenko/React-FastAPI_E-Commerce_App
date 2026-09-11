@@ -35,11 +35,51 @@ export type CheckoutAddress = {
     phone: string;
 };
 
+export interface ShippingOption {
+    logistic_name: string;
+    amount: string;
+    delivery_time?: string | null;
+}
+
+/** Server-priced cart for one address; money arrives as decimal strings. */
+export interface CheckoutQuote {
+    subtotal_amount: string;
+    shipping_amount: string;
+    tax_amount: string;
+    amount: string;
+    amount_cents: number;
+    currency: string;
+    shipping_options: ShippingOption[];
+    shipping_logistic_name: string | null;
+}
+
+export interface CheckoutSession {
+    order_id: string;
+    client_secret: string;
+    payment_intent_id: string;
+    amount_cents: number;
+    currency: string;
+}
+
+/** What survives a reload: the order to resume and the cart it was placed for. */
+export interface PendingCheckout {
+    orderId: string;
+    fingerprint: string;
+}
+
+export type OrderProductInput = {
+    id: string;
+    variant_id?: string;
+    quantity: number;
+    fulfillment_type: "catalog" | "cj" | "custom";
+    customization?: unknown;
+};
+
 export interface CheckoutFormProps {
-    onCreateOrder: (address: CheckoutAddress) => Promise<boolean>;
-    onPaymentConfirmed: () => Promise<void>;
-    onPaymentFailed: () => Promise<void>;
-    totalAmount: number;
+    products: OrderProductInput[];
+    currentUserJWT: string;
+    onAmountChange: (amountCents: number) => void;
+    onPaid: () => void;
 }
 
 export interface CheckoutClientProps {

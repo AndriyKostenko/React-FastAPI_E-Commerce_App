@@ -74,6 +74,7 @@ def _make_consumer(
     consumer._record_created = AsyncMock()
     consumer._record_failed = AsyncMock()
     consumer._mark_reconciliation = AsyncMock()
+    consumer.payment_service.advance = AsyncMock(return_value=CJOrderAttemptStatus.PAID)
     return consumer
 
 
@@ -146,6 +147,38 @@ class TestHandleOrderConfirmed:
         )
         consumer.publisher.publish_order_cancelled.assert_not_awaited()
         consumer.publisher.publish_inventory_release_requested.assert_not_awaited()
+
+    async def test_created_cj_order_is_paid_straight_away(self):
+        consumer = _make_consumer(
+            resolve_cj_ids=(TEST_PID, TEST_VID),
+            create_order_response={
+                "result": True,
+                "code": 200,
+                "data": {"orderId": TEST_CJ_ORDER_NUMBER},
+            },
+        )
+
+        await consumer.handle_order_confirmed(_make_order_confirmed_message())
+
+        consumer.payment_service.advance.assert_awaited_once_with(TEST_ORDER_ID)
+
+    async def test_deferred_payment_does_not_fail_the_created_order(self):
+        from service_layer.cj_order_payment_service import CJPaymentPending
+
+        consumer = _make_consumer(
+            resolve_cj_ids=(TEST_PID, TEST_VID),
+            create_order_response={
+                "result": True,
+                "code": 200,
+                "data": {"orderId": TEST_CJ_ORDER_NUMBER},
+            },
+        )
+        consumer.payment_service.advance = AsyncMock(side_effect=CJPaymentPending("CJ busy"))
+
+        await consumer.handle_order_confirmed(_make_order_confirmed_message())
+
+        consumer._record_failed.assert_not_awaited()
+        consumer.idempotency_service.release_claim.assert_not_awaited()
 
     async def test_duplicate_event_is_skipped(self):
         consumer = _make_consumer(claim_event=False)
@@ -298,6 +331,67 @@ class TestHandleOrderCancelled:
             consumer.idempotency_service.mark_event_as_processed.await_args.args[3]
             == "cj_order_already_shipped"
         )
+
+    async def test_paid_order_is_flagged_not_deleted(self):
+        """CJ cannot delete a paid order; that money needs a human decision."""
+        consumer = _make_consumer()
+        consumer._get_attempt = AsyncMock(
+            return_value=SimpleNamespace(
+                status=CJOrderAttemptStatus.PAID,
+                cj_order_number=TEST_CJ_ORDER_NUMBER,
+            )
+        )
+        consumer.cj_api_client.delete_order = AsyncMock()
+
+        await consumer.handle_order_cancelled(self._cancel_message())
+
+        consumer.cj_api_client.delete_order.assert_not_awaited()
+        consumer._mark_reconciliation.assert_awaited_once()
+        consumer.idempotency_service.release_claim.assert_not_awaited()
+
+    async def test_confirmed_unpaid_order_is_left_to_lapse_without_retrying(self):
+        from service_layer.cj_api_client import CJDropshippingAPIError
+
+        consumer = _make_consumer()
+        consumer._get_attempt = AsyncMock(
+            return_value=SimpleNamespace(
+                status=CJOrderAttemptStatus.AWAITING_FUNDS,
+                cj_order_number=TEST_CJ_ORDER_NUMBER,
+            )
+        )
+        consumer.cj_api_client.delete_order = AsyncMock(
+            side_effect=CJDropshippingAPIError("only CREATED or IN_CART orders can be deleted")
+        )
+        consumer.cj_api_client.get_order_detail = AsyncMock(
+            return_value={"result": True, "code": 200, "data": {"orderStatus": "UNPAID"}}
+        )
+        consumer._set_attempt_status = AsyncMock()
+
+        await consumer.handle_order_cancelled(self._cancel_message())
+
+        consumer._set_attempt_status.assert_awaited_once_with(
+            TEST_ORDER_ID, CJOrderAttemptStatus.CANCELLED
+        )
+        consumer._mark_reconciliation.assert_not_awaited()
+        consumer.idempotency_service.release_claim.assert_not_awaited()
+
+    async def test_network_error_while_deleting_is_retried(self):
+        from service_layer.cj_api_client import CJDropshippingNetworkError
+
+        consumer = _make_consumer()
+        consumer._get_attempt = AsyncMock(
+            return_value=SimpleNamespace(
+                status=CJOrderAttemptStatus.CREATED,
+                cj_order_number=TEST_CJ_ORDER_NUMBER,
+            )
+        )
+        consumer.cj_api_client.delete_order = AsyncMock(
+            side_effect=CJDropshippingNetworkError("timeout")
+        )
+
+        with pytest.raises(CJDropshippingNetworkError):
+            await consumer.handle_order_cancelled(self._cancel_message())
+        consumer.idempotency_service.release_claim.assert_awaited_once()
 
     async def test_order_without_a_cj_order_is_a_no_op(self):
         consumer = _make_consumer()

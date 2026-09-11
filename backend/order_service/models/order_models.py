@@ -1,6 +1,7 @@
+from decimal import Decimal
 from uuid import UUID, uuid4
 
-from sqlalchemy import ForeignKey, Index, inspect
+from sqlalchemy import ForeignKey, Index, Numeric, inspect
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 
@@ -22,6 +23,13 @@ class Order(Base, TimestampMixin):
     user_id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), nullable=False)
     user_email: Mapped[str] = mapped_column(nullable=False)
     amount: Mapped[float] = mapped_column(nullable=False)
+    # Breakdown of ``amount``. Null only on orders placed before it existed.
+    subtotal_amount: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
+    shipping_amount: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
+    tax_amount: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
+    # The CJ logistics option the customer paid for, and what CJ quoted for it.
+    shipping_logistic_name: Mapped[str | None] = mapped_column(nullable=True)
+    shipping_cost_usd: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
     currency: Mapped[str] = mapped_column(nullable=False)
     status: Mapped[str] = mapped_column(nullable=False)
     delivery_status: Mapped[str] = mapped_column(nullable=False)

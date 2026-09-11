@@ -18,11 +18,12 @@ from exceptions.payment_exceptions import (
     InvalidStripeWebhookSignature,
     StripePaymentIntentCreationError,
     PaymentRefundError,
+    PaymentCaptureError,
     PaymentDataIsNotProvided
 )
 from shared.contracts.events import (
+    PaymentAuthorizedEvent,
     PaymentSucceededEvent,
-    PaymentFailedEvent,
     PaymentRefundedEvent,
     PaymentCancelledEvent,
 )
@@ -60,6 +61,9 @@ class PaymentService:
     def _refund_idempotency_key(self, order_id: UUID) -> str:
         return f"payment_refund:create:{order_id}"
 
+    def _capture_idempotency_key(self, order_id: UUID) -> str:
+        return f"payment_intent:capture:{order_id}"
+
     async def _create_refund(self, payment: Payment) -> Any:
         """Create at most one Stripe refund across retries and worker crashes."""
         return await self._stripe.v1.refunds.create_async(
@@ -84,6 +88,10 @@ class PaymentService:
                     "user_email": user_email,
                 },
                 "automatic_payment_methods": {"enabled": True},
+                # Authorize only. The card is charged once the order's goods
+                # are secured, so a failed fulfillment voids a hold instead of
+                # refunding a charge (and losing Stripe's fee on it).
+                "capture_method": "manual",
             },
             options={"idempotency_key": self._create_intent_idempotency_key(order_id)},
         )
@@ -114,7 +122,11 @@ class PaymentService:
         try:
             existing_payment = await self.repository.get_by_field(field_name="order_id", value=order_id)
 
-            if existing_payment and existing_payment.status in {PaymentStatus.SUCCEEDED, PaymentStatus.REFUNDED}:
+            if existing_payment and existing_payment.status in {
+                PaymentStatus.AUTHORIZED,
+                PaymentStatus.SUCCEEDED,
+                PaymentStatus.REFUNDED,
+            }:
                 raise PaymentAlreadyFinalizedError(order_id=order_id)
 
             if existing_payment and existing_payment.status == PaymentStatus.PENDING:
@@ -199,12 +211,140 @@ class PaymentService:
         except (SignatureVerificationError, ValueError):
             raise
 
+    async def handle_payment_intent_amount_capturable_updated(
+        self, stripe_event_data: dict[str, Any]
+    ) -> None:
+        """
+        Handle payment_intent.amount_capturable_updated: the card is authorized.
+
+        The event carries Stripe's own authorized amount and currency rather
+        than the stored ones, so order_service validates what the card actually
+        holds against the canonical order.
+        """
+        intent = stripe_event_data["object"]
+        payment_intent_id: str = intent["id"]
+
+        payment = await self.repository.get_by_field(
+            field_name="stripe_payment_intent_id", value=payment_intent_id
+        )
+        if not payment:
+            raise PaymentNotFoundError(payment_id=payment_intent_id)
+        if payment.status != PaymentStatus.PENDING:
+            # Already authorized, captured, or released: a replay changes nothing.
+            return
+
+        async with self.repository.session.begin_nested():
+            await self.repository.update_by_id(
+                item_id=payment.id,
+                data={"status": PaymentStatus.AUTHORIZED, "failure_reason": None},
+            )
+            await self.outbox_event_service.add_outbox_event(
+                event_type=PaymentEvents.PAYMENT_AUTHORIZED,
+                payload=PaymentAuthorizedEvent(
+                    service=Services.PAYMENT_SERVICE,
+                    event_type=PaymentEvents.PAYMENT_AUTHORIZED,
+                    order_id=payment.order_id,
+                    user_id=payment.user_id,
+                    user_email=payment.user_email,
+                    payment_intent_id=payment_intent_id,
+                    amount=intent.get("amount_capturable") or payment.amount,
+                    currency=intent.get("currency") or payment.currency,
+                ),
+            )
+
+    async def capture_payment(self, order_id: UUID) -> Payment | None:
+        """
+        Charge the card authorized for ``order_id``.
+
+        Safe to repeat: a captured payment is left alone, and the Stripe
+        idempotency key makes a retried capture after an uncertain response
+        return the original result. An authorization Stripe already voided or
+        let expire is recorded as cancelled instead of being retried forever.
+        """
+        payment = await self.repository.get_by_field(field_name="order_id", value=order_id)
+        if not payment:
+            raise PaymentNotFoundError(payment_id=order_id)
+        if payment.status == PaymentStatus.SUCCEEDED:
+            return payment
+        if payment.status != PaymentStatus.AUTHORIZED:
+            self.logger.warning(
+                f"Capture requested for order {order_id} but its payment is "
+                f"{payment.status}; nothing to capture"
+            )
+            return payment
+
+        await self._finish_read_phase()
+        try:
+            await self._stripe.v1.payment_intents.capture_async(
+                payment.stripe_payment_intent_id,
+                options={"idempotency_key": self._capture_idempotency_key(order_id)},
+            )
+        except StripeError as exc:
+            try:
+                intent = await self._stripe.v1.payment_intents.retrieve_async(
+                    payment.stripe_payment_intent_id
+                )
+            except StripeError as reconcile_exc:
+                raise PaymentCaptureError(detail=str(reconcile_exc)) from reconcile_exc
+            if intent.status == "canceled":
+                self.logger.critical(
+                    f"Authorization for order {order_id} was cancelled before capture "
+                    f"({intent.cancellation_reason}); the order was not charged"
+                )
+                return await self._record_cancelled(
+                    payment, reason="Authorization was cancelled before capture"
+                )
+            if intent.status != "succeeded":
+                raise PaymentCaptureError(detail=str(exc)) from exc
+
+        async with self.repository.session.begin_nested():
+            updated = await self.repository.update_by_id(
+                item_id=payment.id,
+                data={"status": PaymentStatus.SUCCEEDED},
+            )
+            await self.outbox_event_service.add_outbox_event(
+                event_type=PaymentEvents.PAYMENT_SUCCEEDED,
+                payload=PaymentSucceededEvent(
+                    service=Services.PAYMENT_SERVICE,
+                    event_type=PaymentEvents.PAYMENT_SUCCEEDED,
+                    order_id=payment.order_id,
+                    user_id=payment.user_id,
+                    user_email=payment.user_email,
+                    payment_intent_id=payment.stripe_payment_intent_id,
+                    amount=payment.amount,
+                    currency=payment.currency,
+                ),
+            )
+        return updated
+
+    async def _record_cancelled(self, payment: Payment, reason: str) -> Payment | None:
+        async with self.repository.session.begin_nested():
+            updated = await self.repository.update_by_id(
+                item_id=payment.id,
+                data={"status": PaymentStatus.CANCELLED, "failure_reason": reason},
+            )
+            await self.outbox_event_service.add_outbox_event(
+                event_type=PaymentEvents.PAYMENT_CANCELLED,
+                payload=PaymentCancelledEvent(
+                    service=Services.PAYMENT_SERVICE,
+                    event_type=PaymentEvents.PAYMENT_CANCELLED,
+                    order_id=payment.order_id,
+                    user_id=payment.user_id,
+                    user_email=payment.user_email,
+                    payment_intent_id=payment.stripe_payment_intent_id,
+                    amount=payment.amount,
+                    currency=payment.currency,
+                    reason=reason,
+                ),
+            )
+        return updated
+
     async def handle_payment_intent_succeeded(self, stripe_event_data: dict[str, Any]) -> None:
         """
-        Handle payment_intent.succeeded webhook event.
+        Handle payment_intent.succeeded webhook event: the charge is captured.
 
-        Updates the Payment record to 'succeeded' and writes a payment.succeeded
-        outbox event for downstream services (order service, notifications).
+        ``capture_payment`` normally records this first, so the webhook only
+        acts for a capture made elsewhere (e.g. from the Stripe dashboard).
         """
         intent = stripe_event_data["object"]
         payment_intent_id: str = intent["id"]
@@ -215,6 +355,8 @@ class PaymentService:
         )
         if not payment:
             raise PaymentNotFoundError(payment_id=payment_intent_id)
+        if payment.status in {PaymentStatus.SUCCEEDED, PaymentStatus.REFUNDED}:
+            return
 
         async with self.repository.session.begin_nested():
             _ = await self.repository.update_by_id(
@@ -237,14 +379,14 @@ class PaymentService:
 
     async def handle_payment_intent_failed(self, stripe_event_data: dict[str, Any]) -> None:
         """
-        Handle payment_intent.payment_failed webhook event.
+        Handle payment_intent.payment_failed: one attempt was declined.
 
-        Updates the Payment record to 'failed' and writes a payment.failed
-        outbox event so upstream services can cancel the order.
+        A decline is not terminal. The PaymentIntent stays open and the
+        customer can retry with another card, so only the reason is recorded;
+        the order is released by a cancelled intent or the Saga timeout.
         """
         intent = stripe_event_data["object"]
         payment_intent_id: str = intent["id"]
-        metadata: dict[str, Any] = intent.get("metadata", {})
         failure_reason: str = (
             intent.get("last_payment_error", {}) or {}
         ).get("message", "Unknown error")
@@ -254,25 +396,13 @@ class PaymentService:
         )
         if not payment:
             raise PaymentNotFoundError(payment_id=payment_intent_id)
+        if payment.status != PaymentStatus.PENDING:
+            return
 
         async with self.repository.session.begin_nested():
             await self.repository.update_by_id(
                 item_id=payment.id,
-                data={"status": PaymentStatus.FAILED, "failure_reason": failure_reason},
-            )
-            await self.outbox_event_service.add_outbox_event(
-                event_type=PaymentEvents.PAYMENT_FAILED,
-                payload=PaymentFailedEvent(
-                    service=Services.PAYMENT_SERVICE,
-                    event_type=PaymentEvents.PAYMENT_FAILED,
-                    order_id=metadata.get("order_id") or payment.order_id,
-                    user_id=metadata.get("user_id") or payment.user_id,
-                    user_email=payment.user_email,
-                    payment_intent_id=payment_intent_id,
-                    amount=payment.amount,
-                    currency=payment.currency,
-                    reason=failure_reason,
-                ),
+                data={"failure_reason": failure_reason},
             )
 
     async def handle_payment_refund(self, order_id: UUID) -> Payment | None:
@@ -294,7 +424,8 @@ class PaymentService:
             )
             return None
 
-        if payment.status == PaymentStatus.PENDING:
+        if payment.status in {PaymentStatus.PENDING, PaymentStatus.AUTHORIZED}:
+            # Nothing has been charged yet: cancelling the intent voids any hold.
             await self._finish_read_phase()
             try:
                 await self._stripe.v1.payment_intents.cancel_async(
@@ -336,7 +467,7 @@ class PaymentService:
                             payment_intent_id=payment.stripe_payment_intent_id,
                             amount=payment.amount,
                             currency=payment.currency,
-                            reason="Order cancelled before payment completed",
+                            reason="Order cancelled before payment was captured",
                         ),
                     )
                 else:
@@ -450,6 +581,9 @@ class PaymentService:
         )
         if not payment:
             raise PaymentNotFoundError(payment_id=payment_intent_id)
+        if payment.status in {PaymentStatus.CANCELLED, PaymentStatus.REFUNDED}:
+            # Our own void already recorded this, from order cancellation.
+            return
 
         async with self.repository.session.begin_nested():
             _ = await self.repository.update_by_id(

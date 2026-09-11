@@ -173,6 +173,7 @@ def mock_stripe_client() -> MagicMock:
     stripe.v1.payment_intents.retrieve.return_value = intent_mock
     stripe.v1.payment_intents.retrieve_async = AsyncMock(return_value=intent_mock)
     stripe.v1.payment_intents.cancel_async = AsyncMock()
+    stripe.v1.payment_intents.capture_async = AsyncMock()
     # refunds
     refund_mock = MagicMock()
     refund_mock.id = "re_test_refund123"

@@ -37,3 +37,19 @@ class OrderSagaRepository(BaseRepository[OrderSagaState]):
             .with_for_update(skip_locked=True)
         )
         return list(result.tuples().all())
+
+    async def get_stale_uncaptured(
+        self, cutoff: datetime, limit: int = 100
+    ) -> list[OrderSagaState]:
+        """Confirmed orders whose card is still only authorized since before ``cutoff``."""
+        result = await self.session.execute(
+            select(OrderSagaState)
+            .join(Order, Order.id == OrderSagaState.order_id)
+            .where(
+                Order.status == OrderStatus.CONFIRMED,
+                OrderSagaState.payment_status.in_(("authorized", "capture_requested")),
+                OrderSagaState.date_updated < cutoff,
+            )
+            .limit(limit)
+        )
+        return list(result.scalars().all())

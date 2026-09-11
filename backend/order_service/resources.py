@@ -15,7 +15,7 @@ from shared.idempotency.idempotency_service import IdempotencyEventService
 from shared.managers.database_session_manager import DatabaseSessionManager
 from shared.settings import Settings
 from service_layer.artwork_asset_client import ArtworkAssetClient
-from service_layer.order_pricing_service import CatalogQuoteClient
+from service_layer.order_pricing_service import CatalogQuoteClient, FreightQuoteClient
 
 
 def create_database_session_manager(
@@ -48,6 +48,7 @@ class OrderApiResources:
     logger: Logger
     database: DatabaseSessionManager
     catalog_client: CatalogQuoteClient
+    freight_client: FreightQuoteClient
     artwork_client: ArtworkAssetClient
 
 
@@ -61,6 +62,7 @@ def create_order_api_resources(
         logger=app_logger,
         database=create_database_session_manager(app_settings, app_logger),
         catalog_client=CatalogQuoteClient(app_settings),
+        freight_client=FreightQuoteClient(app_settings),
         artwork_client=ArtworkAssetClient(app_settings),
     )
 
@@ -75,6 +77,7 @@ async def order_api_runtime(
     async with AsyncExitStack() as stack:
         await stack.enter_async_context(resources.database)
         await stack.enter_async_context(resources.catalog_client)
+        await stack.enter_async_context(resources.freight_client)
         await stack.enter_async_context(resources.artwork_client)
         yield resources
 

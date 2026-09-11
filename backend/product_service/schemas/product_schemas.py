@@ -31,6 +31,7 @@ class ProductVariantBase(BaseModel):
     variant_height: int | None = None
     variant_sell_price: Decimal | None = None
     variant_sug_sell_price: Decimal | None = None
+    retail_price: Decimal | None = None
     inventory_num: int | None = None
     active: bool = True
     date_created: datetime
@@ -54,6 +55,7 @@ class CreateProductVariant(BaseModel):
     variant_height: int | None = None
     variant_sell_price: Decimal | None = None
     variant_sug_sell_price: Decimal | None = None
+    retail_price: Decimal | None = None
     inventory_num: int | None = None
 
 

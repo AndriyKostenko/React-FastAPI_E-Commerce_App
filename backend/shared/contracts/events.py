@@ -1,3 +1,4 @@
+from decimal import Decimal
 from uuid import UUID, uuid4
 from datetime import datetime, timezone
 
@@ -10,6 +11,7 @@ from shared.enums.event_enums import (
     ArtworkEvents,
     InventoryEvents,
     OrderEvents,
+    PaymentCommands,
     PaymentEvents,
     ProductionEvents,
     ShippingEvents,
@@ -90,6 +92,9 @@ class OrderConfirmedEvent(OrderBaseEvent):
     event_type: str = Field(default_factory=lambda: OrderEvents.ORDER_CONFIRMED)
     items: list[ConfirmedOrderItem] = Field(default_factory=list)
     address: ConfirmedOrderAddress | None = None
+    # The CJ logistics option the customer paid for and CJ's quoted USD price.
+    shipping_logistic_name: str | None = None
+    shipping_cost_usd: Decimal | None = None
 
 
 class OrderCancelledEvent(OrderBaseEvent):
@@ -104,6 +109,14 @@ class OrderCancelledEvent(OrderBaseEvent):
     event_type: str = Field(default_factory=lambda: OrderEvents.ORDER_CANCELLED)
     reason: str
     reconciliation_required: bool = False
+
+
+class CJOrderPaidEvent(OrderBaseEvent):
+    """CJ confirmed the order and was paid from our CJ balance."""
+    event_type: str = Field(default_factory=lambda: OrderEvents.CJ_ORDER_PAID)
+    service: str = "supplier-service"
+    cj_order_number: str
+    amount_usd: Decimal | None = None
 
 
 class CJOrderFailedEvent(OrderBaseEvent):
@@ -149,8 +162,13 @@ class PaymentBaseEvent(BaseEvent):
     currency: str
 
 
+class PaymentAuthorizedEvent(PaymentBaseEvent):
+    """The card is authorized for the order total; nothing is charged yet."""
+    event_type: str = Field(default_factory=lambda: PaymentEvents.PAYMENT_AUTHORIZED)
+
+
 class PaymentSucceededEvent(PaymentBaseEvent):
-    """Event published when a Stripe payment intent succeeds"""
+    """The authorized amount was captured: the customer is charged."""
     event_type: str = Field(default_factory=lambda: PaymentEvents.PAYMENT_SUCCEEDED)
 
 
@@ -168,6 +186,30 @@ class PaymentRefundedEvent(PaymentBaseEvent):
 class PaymentCancelledEvent(PaymentBaseEvent):
     """Event published when a Stripe payment intent is cancelled"""
     event_type: str = Field(default_factory=lambda: PaymentEvents.PAYMENT_CANCELLED)
+    reason: str
+
+
+class PaymentCommandBase(BaseEvent):
+    """An order_service instruction about the card held for one order."""
+    order_id: UUID
+    user_id: UUID
+    user_email: EmailStr
+    service: str = Field(default_factory=lambda: Services.ORDER_SERVICE)
+
+
+class PaymentCaptureRequested(PaymentCommandBase):
+    """Fulfillment is secured: charge the authorized card."""
+    event_type: str = Field(default_factory=lambda: PaymentCommands.CAPTURE_REQUESTED)
+
+
+class PaymentReleaseRequested(PaymentCommandBase):
+    """Money is held for an order that cannot be fulfilled: void or refund it.
+
+    Sent when a payment lands for an order that is unknown or already
+    cancelled, so a card hold can never outlive the order it was for.
+    """
+    event_type: str = Field(default_factory=lambda: PaymentCommands.RELEASE_REQUESTED)
+    payment_intent_id: str | None = None
     reason: str
 
 

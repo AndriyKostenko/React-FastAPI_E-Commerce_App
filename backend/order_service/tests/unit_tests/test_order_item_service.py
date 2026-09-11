@@ -31,9 +31,11 @@ def _make_quote(num_products: int = 2) -> CanonicalOrderQuote:
         )
         for index in range(num_products)
     ]
+    subtotal = sum(line.unit_price * line.quantity for line in lines)
     return CanonicalOrderQuote(
         items=lines,
-        total_amount=sum(line.unit_price * line.quantity for line in lines),
+        subtotal_amount=subtotal,
+        total_amount=subtotal,
     )
 
 

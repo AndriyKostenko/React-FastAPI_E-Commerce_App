@@ -1,10 +1,10 @@
 from datetime import UTC, datetime
-from decimal import Decimal
 from uuid import UUID
 
 from sqlalchemy.exc import IntegrityError
 
 from config import logger
+from shared.utils.money import to_cents
 
 from database_layer.order_fulfillment_repository import (
     CustomProductionJobRepository,
@@ -47,8 +47,15 @@ from shared.contracts.events import (
     OrderCancelledEvent,
     OrderConfirmedEvent,
     OrderCreatedEvent,
+    PaymentCaptureRequested,
+    PaymentReleaseRequested,
 )
-from shared.enums.event_enums import ArtworkEvents, InventoryEvents, OrderEvents
+from shared.enums.event_enums import (
+    ArtworkEvents,
+    InventoryEvents,
+    OrderEvents,
+    PaymentCommands,
+)
 from shared.enums.services_enums import Services
 from shared.enums.status_enums import (
     LineFulfillmentStatus,
@@ -95,7 +102,6 @@ class OrderService:
             raise RuntimeError("OrderPricingService is required to create orders")
 
         quote = await self.pricing_service.build_quote(order_data)
-        self._validate_fulfillment_address(order_data, quote)
         inventory_required = any(
             item.fulfillment_type != "custom" for item in quote.items
         )
@@ -107,6 +113,18 @@ class OrderService:
                     "user_id": order_data.user_id,
                     "user_email": order_data.user_email,
                     "amount": float(quote.total_amount),
+                    "subtotal_amount": quote.subtotal_amount,
+                    "shipping_amount": quote.shipping_amount,
+                    "tax_amount": quote.tax_amount,
+                    "shipping_logistic_name": quote.shipping_logistic_name,
+                    "shipping_cost_usd": next(
+                        (
+                            option.cost_usd
+                            for option in quote.shipping_options
+                            if option.logistic_name == quote.shipping_logistic_name
+                        ),
+                        None,
+                    ),
                     "currency": quote.currency.lower(),
                     "status": OrderStatus.PENDING,
                     "delivery_status": OrderDeliveryStatus.PENDING,
@@ -161,26 +179,6 @@ class OrderService:
 
         return OrderSchema.model_validate(order)
 
-    @staticmethod
-    def _validate_fulfillment_address(
-        order_data: CreateOrder,
-        quote: CanonicalOrderQuote,
-    ) -> None:
-        if not any(line.fulfillment_type == "cj" for line in quote.items):
-            return
-        address = order_data.address
-        required = {
-            "country": address.country,
-            "country_code": address.country_code,
-            "name": address.name,
-            "phone": address.phone,
-        }
-        missing = [name for name, value in required.items() if not value]
-        if missing:
-            raise OrderQuoteError(
-                f"CJ fulfillment requires address fields: {', '.join(missing)}"
-            )
-
     async def record_inventory_succeeded(self, order_id: UUID) -> OrderSchema:
         """Record reservation and confirm only when payment also succeeded."""
         async with self.repository.session.begin_nested():
@@ -207,7 +205,7 @@ class OrderService:
                 await self._cancel_locked(order, saga, reason, release_inventory=False)
         return OrderSchema.model_validate(order)
 
-    async def record_payment_succeeded(
+    async def record_payment_authorized(
         self,
         order_id: UUID,
         *,
@@ -216,15 +214,22 @@ class OrderService:
         currency: str,
         payment_intent_id: str,
     ) -> OrderSchema:
-        """Record payment only after validating it against the canonical quote."""
+        """Record the card hold only after validating it against the canonical order."""
         async with self.repository.session.begin_nested():
             saga = await self._get_saga_for_update(order_id)
             order = await self._get_order(order_id)
             if order.status == OrderStatus.CANCELLED:
+                # Nothing will ever capture this hold, so release it now rather
+                # than leave the customer's funds held until it expires.
+                await self.request_payment_release(
+                    order_id=order.id,
+                    user_id=order.user_id,
+                    user_email=order.user_email,
+                    payment_intent_id=payment_intent_id,
+                    reason="Payment authorized for an order that is already cancelled",
+                )
                 return OrderSchema.model_validate(order)
-            expected_cents = int(
-                (Decimal(str(order.amount)) * 100).quantize(Decimal("1"))
-            )
+            expected_cents = to_cents(order.amount)
             identity_mismatch = (
                 order.user_id != user_id
                 or (
@@ -244,12 +249,133 @@ class OrderService:
                 )
                 return OrderSchema.model_validate(order)
             order.payment_intent_id = payment_intent_id
-            saga.payment_status = "succeeded"
+            saga.payment_status = "authorized"
             saga.version += 1
             await self.repository.update(order)
             await self.saga_repository.update(saga)
             await self._confirm_if_ready(order, saga)
         return OrderSchema.model_validate(order)
+
+    async def record_payment_captured(self, order_id: UUID) -> OrderSchema:
+        """Bookkeeping once the customer is actually charged."""
+        async with self.repository.session.begin_nested():
+            saga = await self._get_saga_for_update(order_id)
+            order = await self._get_order(order_id)
+            if order.status == OrderStatus.CANCELLED:
+                # Capture raced a cancellation whose refund was held for review
+                # (or ran first). Either way a human must reconcile the charge.
+                logger.critical(
+                    "RECONCILIATION REQUIRED for order %s: payment was captured "
+                    "after the order was cancelled.",
+                    order_id,
+                )
+                return OrderSchema.model_validate(order)
+            saga.payment_status = "captured"
+            saga.version += 1
+            await self.saga_repository.update(saga)
+        return OrderSchema.model_validate(order)
+
+    async def record_payment_cancelled(self, order_id: UUID, reason: str) -> OrderSchema:
+        """Compensate a cancelled PaymentIntent unless fulfillment already committed money.
+
+        A hold that lapses after the supplier was paid, or a garment printed,
+        cannot be undone by cancelling the order: those goods are spent. The
+        order is kept and flagged so a human can collect payment or recover
+        the goods.
+        """
+        async with self.repository.session.begin_nested():
+            saga = await self._get_saga_for_update(order_id)
+            order = await self._get_order(order_id)
+            saga.payment_status = "cancelled"
+            if order.status == OrderStatus.CANCELLED:
+                await self.saga_repository.update(saga)
+                return OrderSchema.model_validate(order)
+            blocking = await self._blocking_line_status(order_id)
+            if blocking is not None:
+                logger.critical(
+                    "RECONCILIATION REQUIRED for order %s: payment was cancelled "
+                    "(%s) after fulfillment committed goods (line status %s). The "
+                    "order is kept and the customer was not charged.",
+                    order_id,
+                    reason,
+                    blocking,
+                )
+                await self.saga_repository.update(saga)
+                return OrderSchema.model_validate(order)
+            await self._cancel_locked(order, saga, reason)
+        return OrderSchema.model_validate(order)
+
+    async def record_cj_order_paid(self, order_id: UUID) -> OrderSchema:
+        """CJ holds a paid order: lock its lines and charge the customer's card."""
+        async with self.repository.session.begin_nested():
+            saga = await self._get_saga_for_update(order_id)
+            order = await self._get_order(order_id)
+            if order.status == OrderStatus.CANCELLED:
+                logger.critical(
+                    "RECONCILIATION REQUIRED for order %s: CJ was paid for an "
+                    "order that is already cancelled.",
+                    order_id,
+                )
+                return OrderSchema.model_validate(order)
+
+            # Only lines still waiting move forward; a late event must never
+            # walk a parcel CJ already shipped back to "submitted".
+            waiting = {
+                line.order_item_id
+                for line in await self.fulfillment_status_service.get_lines(order_id)
+                if line.fulfillment_type == "cj"
+                and line.status in {LineFulfillmentStatus.PENDING, LineFulfillmentStatus.QUEUED}
+            }
+            if waiting:
+                await self.fulfillment_status_service.mark_lines(
+                    order,
+                    LineFulfillmentStatus.SUBMITTED,
+                    fulfillment_types={"cj"},
+                    order_item_ids=waiting,
+                )
+            if saga.payment_status == "authorized":
+                await self._request_capture(order, saga)
+        return OrderSchema.model_validate(order)
+
+    async def request_payment_release(
+        self,
+        *,
+        order_id: UUID,
+        user_id: UUID,
+        user_email: str,
+        payment_intent_id: str | None,
+        reason: str,
+    ) -> None:
+        """Ask payment_service to void or refund money held for an unfulfillable order.
+
+        Takes identity explicitly because the order row may not exist at all.
+        """
+        logger.warning("Requesting payment release for order %s: %s", order_id, reason)
+        await self.outbox_event_service.add_outbox_event(
+            event_type=PaymentCommands.RELEASE_REQUESTED,
+            payload=PaymentReleaseRequested(
+                service=Services.ORDER_SERVICE,
+                order_id=order_id,
+                user_id=user_id,
+                user_email=user_email,
+                payment_intent_id=payment_intent_id,
+                reason=reason,
+            ),
+        )
+
+    async def _request_capture(self, order: Order, saga: OrderSagaState) -> None:
+        saga.payment_status = "capture_requested"
+        saga.version += 1
+        await self.saga_repository.update(saga)
+        await self.outbox_event_service.add_outbox_event(
+            event_type=PaymentCommands.CAPTURE_REQUESTED,
+            payload=PaymentCaptureRequested(
+                service=Services.ORDER_SERVICE,
+                order_id=order.id,
+                user_id=order.user_id,
+                user_email=order.user_email,
+            ),
+        )
 
     async def record_payment_failed(self, order_id: UUID, reason: str) -> OrderSchema:
         async with self.repository.session.begin_nested():
@@ -276,9 +402,11 @@ class OrderService:
 
     async def _confirm_if_ready(self, order: Order, saga: OrderSagaState) -> None:
         inventory_ready = saga.inventory_status in {"reserved", "not_required"}
+        # "succeeded" is the pre-authorization vocabulary of orders already in flight.
+        payment_ready = saga.payment_status in {"authorized", "succeeded"}
         if (
             order.status != OrderStatus.PENDING
-            or saga.payment_status != "succeeded"
+            or not payment_ready
             or not inventory_ready
         ):
             return
@@ -298,6 +426,14 @@ class OrderService:
             event_type=OrderEvents.ORDER_CONFIRMED,
             payload=self._build_order_confirmed_event(detailed),
         )
+        # Without a CJ line nothing outside our control can still fail, so the
+        # card is charged now. A CJ order is charged once CJ holds it paid.
+        has_cj_lines = any(
+            item.fulfillment and item.fulfillment.fulfillment_type == "cj"
+            for item in detailed.items or []
+        )
+        if saga.payment_status == "authorized" and not has_cj_lines:
+            await self._request_capture(detailed, saga)
 
     async def _queue_custom_production(self, order: Order) -> None:
         for item in order.items:
@@ -391,6 +527,8 @@ class OrderService:
                 name=address.name,
                 phone=address.phone,
             ),
+            shipping_logistic_name=order.shipping_logistic_name,
+            shipping_cost_usd=order.shipping_cost_usd,
         )
 
     async def cancel_order(self, order_id: UUID, reason: str) -> OrderSchema:

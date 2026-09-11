@@ -321,6 +321,10 @@ class TestUpdateOrder:
         updated_orm.user_id = TEST_USER_ID
         updated_orm.user_email = TEST_EMAIL
         updated_orm.amount = TEST_AMOUNT
+        updated_orm.subtotal_amount = None
+        updated_orm.shipping_amount = None
+        updated_orm.tax_amount = None
+        updated_orm.shipping_logistic_name = None
         updated_orm.currency = TEST_CURRENCY
         updated_orm.status = OrderStatus.PENDING
         updated_orm.delivery_status = OrderDeliveryStatus.DELIVERED

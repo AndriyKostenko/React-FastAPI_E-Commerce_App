@@ -4,7 +4,6 @@ from uuid import UUID
 from fastapi import APIRouter, Request, status
 
 from schemas.order_schemas import (
-    AddressType,
     CreateOrder,
     UpdateOrder,
     OrderSchema,
@@ -31,16 +30,23 @@ async def quote_order(
     if order_service.pricing_service is None:
         raise RuntimeError("Order pricing service is unavailable")
     synthetic = CreateOrder(
-        user_id=request.state.user_id if hasattr(request.state, "user_id") else UUID(int=0),
+        user_id=UUID(int=0),
         user_email="quote@example.com",
         products=quote_data.products,
-        address=AddressType(street="quote", city="quote", province="quote", postal_code="quote"),
+        address=quote_data.address,
+        shipping_logistic_name=quote_data.shipping_logistic_name,
     )
     quote = await order_service.pricing_service.build_quote(synthetic)
     return QuoteOrderResponse(
+        subtotal_amount=quote.subtotal_amount,
+        shipping_amount=quote.shipping_amount,
+        tax_amount=quote.tax_amount,
         amount=quote.total_amount,
+        amount_cents=quote.amount_cents,
         currency=quote.currency.lower(),
         products=[line.model_dump(mode="json") for line in quote.items],
+        shipping_options=quote.shipping_options,
+        shipping_logistic_name=quote.shipping_logistic_name,
     )
 
 

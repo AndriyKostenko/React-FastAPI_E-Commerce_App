@@ -6,7 +6,13 @@ from faststream.rabbit import RabbitBroker, RabbitExchange
 from shared.settings import Settings
 from shared.events.event_publisher import BaseEventPublisher
 from messaging import payment_exchange
-from shared.contracts.events import PaymentSucceededEvent, PaymentFailedEvent, PaymentRefundedEvent, PaymentCancelledEvent
+from shared.contracts.events import (
+    PaymentAuthorizedEvent,
+    PaymentSucceededEvent,
+    PaymentFailedEvent,
+    PaymentRefundedEvent,
+    PaymentCancelledEvent,
+)
 
 
 class PaymentEventPublisher(BaseEventPublisher):
@@ -20,6 +26,16 @@ class PaymentEventPublisher(BaseEventPublisher):
     ) -> None:
         super().__init__(rabbitmq_broker, logger, settings)
         self.payment_exchange: RabbitExchange = payment_exchange
+
+    async def publish_payment_authorized(self, event_data: dict[str, Any]) -> None:
+        """Publish payment.authorized — lets the order Saga confirm the order."""
+        event = PaymentAuthorizedEvent(**event_data)
+        await self.publish_an_event(
+            event=event,
+            exchange=self.payment_exchange,
+            routing_key=event.event_type,
+        )
+        self.logger.info(f"Published PaymentAuthorizedEvent for order {event.order_id}")
 
     async def publish_payment_succeeded(self, event_data: dict[str, Any]) -> None:
         """Publish payment.succeeded — consumed by order service, notification service, etc."""

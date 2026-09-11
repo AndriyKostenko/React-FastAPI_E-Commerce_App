@@ -9,6 +9,7 @@ from shared.contracts.events import (
     CJOrderCreatedEvent,
     CJOrderDeliveredEvent,
     CJOrderFailedEvent,
+    CJOrderPaidEvent,
     CJOrderShippedEvent,
     InventoryReleaseRequested,
     OrderCancelledEvent,
@@ -62,6 +63,16 @@ class SupplierEventPublisher(BaseEventPublisher):
             routing_key=OrderEvents.CJ_ORDER_FAILED,
         )
         self.logger.info(f"Published CJOrderFailedEvent for order: {event.order_id}")
+
+    async def publish_cj_order_paid(self, event_data: dict[str, Any]) -> None:
+        """Publish a CJOrderPaidEvent to the order events exchange."""
+        event = CJOrderPaidEvent(**event_data)
+        await self.publish_an_event(
+            event=event,
+            exchange=self.order_exchange,
+            routing_key=OrderEvents.CJ_ORDER_PAID,
+        )
+        self.logger.info(f"Published CJOrderPaidEvent for order: {event.order_id}")
 
     async def publish_cj_order_shipped(self, event_data: dict[str, Any]) -> None:
         """Publish a CJOrderShippedEvent to the order events exchange."""

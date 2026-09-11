@@ -123,6 +123,28 @@ class TestWebhookEndpoint:
         assert response.status_code == 200
         assert response.json()["received"] is True
 
+    async def test_webhook_amount_capturable_updated_records_authorization(
+        self, client_for_unit_testing, mock_route_payment_service: MagicMock
+    ) -> None:
+        event_data = {"object": {"id": TEST_STRIPE_INTENT_ID, "amount_capturable": 999}}
+        mock_route_payment_service.construct_webhook_event.return_value = {
+            "type": "payment_intent.amount_capturable_updated",
+            "id": "evt_test_authorized",
+            "data": event_data,
+        }
+        mock_route_payment_service.handle_payment_intent_amount_capturable_updated = AsyncMock()
+
+        response = await client_for_unit_testing.post(
+            f"{TEST_API}/payments/webhook",
+            content=b"{}",
+            headers={"stripe-signature": "t=1,v1=fakesig"},
+        )
+
+        assert response.status_code == 200
+        mock_route_payment_service.handle_payment_intent_amount_capturable_updated.assert_awaited_once_with(
+            stripe_event_data=event_data
+        )
+
     async def test_webhook_failed_returns_200(
         self, client_for_unit_testing, mock_route_payment_service: MagicMock
     ) -> None:

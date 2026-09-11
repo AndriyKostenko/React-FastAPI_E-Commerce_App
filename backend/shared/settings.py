@@ -314,7 +314,13 @@ class Settings(BaseSettings):
     SECRET_ROLE: str
     POLLING_INTERVAL_FROM_DB: int | float
     CUSTOM_TSHIRT_BASE_PRICE: float
+    # Flat CAD rate charged once per order for lines shipped from here:
+    # in-house custom prints and local-warehouse catalog goods.
+    DOMESTIC_FLAT_SHIPPING_CAD: Decimal = Field(default=Decimal("9.99"), ge=0)
     ORDER_SAGA_TIMEOUT_SECONDS: int = 1800
+    # Card authorizations expire after about 7 days. A confirmed order still
+    # uncaptured after this long is alerted on while there is time to act.
+    PAYMENT_CAPTURE_ALERT_HOURS: int = Field(default=96, gt=0)
 
     # CJDropshipping
     CJ_DROPSHIPPING_API_KEY: SecretStr | None = None
@@ -329,6 +335,15 @@ class Settings(BaseSettings):
     CJ_DROPSHIPPING_DEFAULT_CATEGORY_NAME: str = "t-shirts"
     CJ_DROPSHIPPING_TSHIRT_CATEGORY_IDS: list[str] = Field(default_factory=list)
 
+    # Storefront pricing of supplier goods. CJ prices in USD while the store
+    # sells in CAD; keep the rate current, since it also converts freight.
+    CJ_USD_TO_CAD_RATE: Decimal = Field(default=Decimal("1.38"), gt=0)
+    # Retail never drops below CJ's cost times this multiplier.
+    CJ_PRICE_MARKUP_MULTIPLIER: Decimal = Field(default=Decimal("2.00"), ge=1)
+    # Padding on CJ freight charged to the customer. It absorbs FX drift and CJ
+    # re-pricing between the checkout quote and the moment CJ bills the order.
+    CJ_FREIGHT_PRICE_BUFFER: Decimal = Field(default=Decimal("0.10"), ge=0, le=1)
+
     # Live inventory verification before order confirmation
     CJ_DROPSHIPPING_VERIFY_INVENTORY: bool = True
     CJ_DROPSHIPPING_INVENTORY_BUFFER: int = 0
@@ -342,7 +357,20 @@ class Settings(BaseSettings):
     CJ_DROPSHIPPING_DELETE_ORDER_URL: str = "https://developers.cjdropshipping.com/api2.0/v1/shopping/order/deleteOrder"
     CJ_DROPSHIPPING_DEFAULT_LOGISTIC_NAME: str = "CJPacket"
     CJ_DROPSHIPPING_DEFAULT_FROM_COUNTRY_CODE: str = "CN"
+    # 3 = create only. Confirmation and balance payment then run as separate,
+    # individually recorded steps (see CJOrderPaymentService).
     CJ_DROPSHIPPING_PAY_TYPE: int = 3  # 1=page payment, 2=balance, 3=create only
+    CJ_DROPSHIPPING_CONFIRM_ORDER_URL: str = "https://developers.cjdropshipping.com/api2.0/v1/shopping/order/confirmOrder"
+    CJ_DROPSHIPPING_BALANCE_URL: str = "https://developers.cjdropshipping.com/api2.0/v1/shopping/pay/getBalance"
+    CJ_DROPSHIPPING_PAY_BALANCE_URL: str = "https://developers.cjdropshipping.com/api2.0/v1/shopping/pay/payBalance"
+    # CJ's bill may exceed the expected product cost plus quoted freight by this
+    # fraction before payment is held for review instead of sent.
+    CJ_ORDER_COST_TOLERANCE: Decimal = Field(default=Decimal("0.15"), ge=0, le=1)
+    # An unpaid CJ order is retried at this interval, and given up on (which
+    # cancels the order and voids the customer's card hold) after the max wait.
+    CJ_PAYMENT_RETRY_INTERVAL_MINUTES: int = Field(default=10, gt=0)
+    CJ_PAYMENT_MAX_WAIT_HOURS: int = Field(default=24, gt=0)
+    CJ_PAYMENT_BATCH_SIZE: int = Field(default=50, gt=0)
     CJ_DROPSHIPPING_PLATFORM: str = "Api"
     CJ_DROPSHIPPING_ORDER_CREATE_RETRIES: int = 2
     CJ_DROPSHIPPING_ORDER_CREATE_TIMEOUT_SECONDS: float = 15.0

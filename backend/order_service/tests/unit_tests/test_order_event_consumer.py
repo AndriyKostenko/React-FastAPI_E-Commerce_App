@@ -91,3 +91,69 @@ class TestHandleCJOrderCreated:
 
         order_service.get_order_by_id.assert_not_awaited()
         order_service.update_order.assert_not_awaited()
+
+
+def _payment_message(event_cls, **overrides) -> dict:
+    return event_cls(
+        order_id=TEST_ORDER_ID,
+        user_id=TEST_USER_ID,
+        user_email="test@example.com",
+        payment_intent_id="pi_orphan",
+        amount=9999,
+        currency="cad",
+        **overrides,
+    ).model_dump(mode="json")
+
+
+class TestPaymentHeldWithoutOrder:
+    async def test_authorization_for_unknown_order_requests_release(self):
+        from exceptions.order_exceptions import OrderNotFoundError
+        from shared.contracts.events import PaymentAuthorizedEvent
+
+        consumer, order_service = _make_consumer()
+        order_service.record_payment_authorized = AsyncMock(
+            side_effect=OrderNotFoundError(TEST_ORDER_ID)
+        )
+        order_service.request_payment_release = AsyncMock()
+
+        await consumer.handle_payment_event(_payment_message(PaymentAuthorizedEvent))
+
+        release = order_service.request_payment_release.await_args.kwargs
+        assert release["order_id"] == TEST_ORDER_ID
+        assert release["payment_intent_id"] == "pi_orphan"
+        assert (
+            consumer.idempotency_service.mark_event_as_processed.await_args.kwargs["result"]
+            == "order_not_found_release_requested"
+        )
+
+    async def test_capture_for_unknown_order_requests_release(self):
+        from exceptions.order_exceptions import OrderNotFoundError
+        from shared.contracts.events import PaymentSucceededEvent
+
+        consumer, order_service = _make_consumer()
+        order_service.record_payment_captured = AsyncMock(
+            side_effect=OrderNotFoundError(TEST_ORDER_ID)
+        )
+        order_service.request_payment_release = AsyncMock()
+
+        await consumer.handle_payment_event(_payment_message(PaymentSucceededEvent))
+
+        order_service.request_payment_release.assert_awaited_once()
+
+
+class TestCJOrderPaid:
+    async def test_routes_cj_order_paid_to_saga(self):
+        from shared.contracts.events import CJOrderPaidEvent
+
+        consumer, order_service = _make_consumer()
+        order_service.record_cj_order_paid = AsyncMock()
+        message = CJOrderPaidEvent(
+            order_id=TEST_ORDER_ID,
+            user_id=TEST_USER_ID,
+            user_email="test@example.com",
+            cj_order_number=TEST_CJ_ORDER_NUMBER,
+        ).model_dump(mode="json")
+
+        await consumer.handle_cj_order_event(message)
+
+        order_service.record_cj_order_paid.assert_awaited_once_with(TEST_ORDER_ID)

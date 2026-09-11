@@ -73,3 +73,23 @@ async def handle_payment_events(body: str) -> None:
     """
     message: dict[str, Any] = loads(body)
     await get_payment_event_consumer().handle_payment_event(message)
+
+
+# order_service's instructions about a held card. The "payment.*.requested"
+# keys share the order exchange but match no other binding on it.
+payment_commands_queue = RabbitQueue(
+    "payment.commands.queue",
+    durable=True,
+    routing_key="payment.*.requested",
+    arguments={
+        "x-dead-letter-exchange": "dlx",
+        "x-dead-letter-routing-key": "payment.commands.dlq",
+    },
+)
+
+
+@rabbitmq_broker.subscriber(queue=payment_commands_queue, exchange=order_exchange)
+async def handle_payment_commands(body: str) -> None:
+    """FastStream subscriber for capture and release commands from order_service."""
+    message: dict[str, Any] = loads(body)
+    await get_payment_event_consumer().handle_payment_event(message)

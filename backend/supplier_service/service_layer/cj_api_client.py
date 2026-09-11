@@ -209,6 +209,26 @@ class CJDropshippingAPIClient:
             params={"orderId": order_id},
         )
 
+    async def confirm_order(self, cj_order_id: str) -> dict[str, Any]:
+        """Confirm a created order, moving it to UNPAID so it can be paid."""
+        return await self.request(
+            "PATCH",
+            self.settings.CJ_DROPSHIPPING_CONFIRM_ORDER_URL,
+            json={"orderId": cj_order_id},
+        )
+
+    async def get_balance(self) -> dict[str, Any]:
+        """Return the account's CJ wallet balance (``data.amount``, USD)."""
+        return await self.request("GET", self.settings.CJ_DROPSHIPPING_BALANCE_URL)
+
+    async def pay_balance(self, cj_order_id: str) -> dict[str, Any]:
+        """Pay one confirmed order from the CJ wallet balance."""
+        return await self.request(
+            "POST",
+            self.settings.CJ_DROPSHIPPING_PAY_BALANCE_URL,
+            json={"orderId": cj_order_id},
+        )
+
     async def delete_order(self, order_id: str) -> dict[str, Any]:
         """Delete a CJ order while it is still in CREATED/IN_CART state."""
         return await self.request(
