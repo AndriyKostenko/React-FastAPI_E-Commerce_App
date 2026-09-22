@@ -1,173 +1,75 @@
-import os
-from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
-from datetime import datetime
-from time import perf_counter
+"""api-gateway ASGI entrypoint.
 
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, Response as PlainResponse
-from uvicorn import run
-from fastapi import FastAPI, Request, HTTPException
+Assembly — middleware order, health probes, the Prometheus endpoint and the
+exception contract — lives in ``shared.app``; this module only states what is
+specific to the gateway.
+"""
+
+from fastapi import HTTPException, Request
+from fastapi.responses import Response as PlainResponse
 from httpx import RequestError
-from prometheus_client import CollectorRegistry, generate_latest, multiprocess, REGISTRY, Histogram, Counter
+from uvicorn import run
 
-from shared.exceptions.base_exceptions import BaseAPIException
-from shared.middleware.logging_middleware import add_logging_middleware
-from shared.telemetry import setup_tracing
-from routes.user_routes import user_proxy
-from routes.product_routes import product_proxy
-from routes.supplier_routes import supplier_proxy
-from routes.order_routes import order_proxy
-from routes.notification_routes import notification_proxy
-from routes.payment_routes import payment_proxy
-from routes.checkout_routes import checkout_proxy
+from app_config import (
+    DESCRIPTOR,
+    api_gateway_lifespan,
+    authentication_middleware,
+    build_exception_handlers,
+    gateway_middleware,
+    resolve_resources,
+)
+from resources import ApiGatewayResources, get_api_gateway_resources, logger, settings
 from routes.cart_routes import cart_proxy
+from routes.checkout_routes import checkout_proxy
+from routes.notification_routes import notification_proxy
+from routes.order_routes import order_proxy
+from routes.payment_routes import payment_proxy
+from routes.product_routes import product_proxy
 from routes.shipping_routes import shipping_proxy
+from routes.supplier_routes import supplier_proxy
+from routes.user_routes import user_proxy
 from routes.wishlist_routes import wishlist_proxy
-from resources import api_gateway_runtime, get_api_gateway_resources, logger, settings
+from shared.app import ServiceAppBuilder
 
-
-
-"""
-Request  →  logging → CORS → authentication_middleware → gateway_middleware → route
-
-Response ←  logging ← CORS ← authentication_middleware ← gateway_middleware ← route
-"""
-
-REQUEST_COUNTER: Counter | None = None
-LATENCY_COUNTER: Histogram | None = None
-
-@asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    """Attach one lifespan-owned resource container to this app instance."""
-    global REQUEST_COUNTER
-    global LATENCY_COUNTER
-
-    REQUEST_COUNTER = Counter(
-        "gateway_requests_total",
-        "Total HTTP requests at API Gateway",
-        ["method", "path", "status"],
-    )
-
-    LATENCY_COUNTER = Histogram(
-        "gateway_request_duration_seconds",
-        "Gateway request latency",
-        ["method", "path"],
-        buckets=(0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 5),
-    )
-
-    logger.info(f"Server is starting up on {settings.APP_HOST}:{settings.API_GATEWAY_SERVICE_APP_PORT}...")
-    async with api_gateway_runtime() as resources:
-        app.state.resources = resources
-        try:
-            logger.info("Server startup complete!")
-            yield
-        finally:
-            del app.state.resources
-
-    logger.warning("Server has shut down !")
-
-
-# initializing the main app instance
-app = FastAPI(title="API Gateway", lifespan=lifespan)
-
-# initializing the OpenTelemetry tracing
-setup_tracing(app, service_name="api-gateway", instrument_sqlalchemy=False)
-
-
-
-# Ratelimiting and caching middleware on each request
-# Registered first → becomes the inner layer, runs AFTER authentication_middleware.
-# This ensures auth is always validated before cache is consulted or rate limits are tracked.
-@app.middleware("http")
-async def gateway_middleware(request: Request, call_next):
-    """
-    Gateway middleware: global rate limiting, response caching, and cache invalidation.
-    Monitoring paths bypass all gateway logic — they must never be rate-limited or cached.
-    """
-
-    if request.url.path in ("/metrics", "/health"):
-        return await call_next(request)
-
-    resources = get_api_gateway_resources(request)
-    is_public = resources.auth.is_public_endpoint(request.url.path, request.method)
-    start = perf_counter()
-    response = await resources.request_middleware(request, call_next, is_public=is_public)
-    duration = perf_counter() - start
-
-    if REQUEST_COUNTER and LATENCY_COUNTER:
-        REQUEST_COUNTER.labels(
-            method=request.method,
-            path=request.url.path,
-            status=f"{response.status_code // 100}xx",
-        ).inc()
-        LATENCY_COUNTER.labels(
-            method=request.method,
-            path=request.url.path,
-        ).observe(duration)
-
-    return response
-
-
-# Auth middleware registered second → becomes the outer layer, runs FIRST on every request.
-# This guarantees tokens are validated before cache lookups or rate limiting.
-@app.middleware("http")
-async def authentication_middleware(request: Request, call_next):
-    """
-    Authentication middleware to handle JWT tokens
-    """
-    logger.debug("Running authentication middleware...")
-    return await get_api_gateway_resources(request).auth.middleware(request, call_next)
-
-
-# CORS must be added AFTER @app.middleware decorators — Starlette builds the stack
-# in LIFO order, so the last add_middleware call becomes the outermost layer.
-# This ensures CORS headers are present on ALL responses, including auth 401s.
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.CORS_ALLOWED_ORIGINS,
-    allow_credentials=settings.CORS_ALLOW_CREDENTIALS,
-    allow_methods=settings.CORS_ALLOWED_METHODS,
-    allow_headers=settings.CORS_ALLOWED_HEADERS,
+PROXIES = (
+    (user_proxy, "User Service Proxy"),
+    (product_proxy, "Product Service Proxy"),
+    (supplier_proxy, "Supplier Service Proxy"),
+    (order_proxy, "Order Service Proxy"),
+    (notification_proxy, "Notification Service Proxy"),
+    (payment_proxy, "Payment Service Proxy"),
+    (checkout_proxy, "Checkout"),
+    (cart_proxy, "Cart Service Proxy"),
+    (shipping_proxy, "Shipping Service Proxy"),
+    (wishlist_proxy, "Wishlist Service Proxy"),
 )
 
-# adding the logging
-add_logging_middleware(app, service_name="api-gateway")
+builder = (
+    ServiceAppBuilder[ApiGatewayResources](DESCRIPTOR, settings=settings, logger=logger)
+    .with_lifespan(api_gateway_lifespan, resolve_resources)
+    # The gateway owns no database or Redis of its own; liveness is all it can
+    # honestly answer, so readiness is declared with no probes and stays 200
+    # while the process is up.
+    .with_readiness()
+    # The edge terminates the browser's Host header; Traefik has already matched
+    # the router rule by the time a request reaches here.
+    .without_host_validation()
+    # gateway_requests_total / gateway_request_duration_seconds are recorded
+    # inside gateway_middleware and are what the Grafana gateway panels query.
+    .without_request_metrics()
+    .without_instrumentator()
+    .with_tracing(instrument_sqlalchemy=False)
+    # Order matters: gateway_middleware is registered first and so becomes the
+    # INNER layer, guaranteeing tokens are validated before a cache lookup or a
+    # rate-limit bucket is touched.
+    .with_http_middleware(gateway_middleware, authentication_middleware)
+    .with_exception_handlers(build_exception_handlers())
+)
 
+for proxy, tag in PROXIES:
+    builder.with_router(proxy, prefix=DESCRIPTOR.api_prefix, tags=[tag])
 
-
-@app.get("/health", tags=["Health Check"])
-async def health_check():
-    """
-    A simple health check endpoint to verify that the service is running.
-    """
-    return JSONResponse(
-        content={
-            "status": "ok",
-            "timestamp": datetime.now().isoformat(),
-            "service": "api-gateway"
-        },
-        status_code=200,
-        headers={"Cache-Control": "no-cache"}
-    )
-
-@app.get("/metrics", include_in_schema=False)
-def metrics():
-    """Multiprocess-aware Prometheus metrics endpoint."""
-    multiproc_dir = os.environ.get("PROMETHEUS_MULTIPROC_DIR")
-
-    if multiproc_dir:
-        # Multi-worker: merge all worker .db files from the shared dir
-        registry = CollectorRegistry()
-        multiprocess.MultiProcessCollector(registry)
-    else:
-        # Single process (local dev): use the default registry directly
-        registry = REGISTRY
-
-    return PlainResponse(
-        content=generate_latest(registry),
-        media_type="text/plain; version=0.0.4; charset=utf-8",
-    )
+app = builder.build()
 
 
 @app.get("/media/{file_path:path}", include_in_schema=False)
@@ -205,40 +107,5 @@ async def proxy_product_media(request: Request, file_path: str):
     )
 
 
-def add_exception_handlers(app: FastAPI):
-    """
-    This function adds exception handlers to the FastAPI application.
-    """
-    @app.exception_handler(BaseAPIException)
-    async def base_api_exception_handler(request: Request, exc: BaseAPIException):
-        """Base exception handler for all custom API exceptions"""
-        return JSONResponse(
-            status_code=exc.status_code,
-            headers=exc.headers,
-            content={"detail": exc.detail,
-                     "timestamp": datetime.now().isoformat(),
-                     "path": request.url.path
-            },
-        )
-
-
-# adding exception handlers to the app
-add_exception_handlers(app)
-
-# Include the user service proxy routes
-app.include_router(user_proxy, prefix=settings.API_GATEWAY_SERVICE_URL_API_VERSION, tags=["User Service Proxy"])
-app.include_router(product_proxy, prefix=settings.API_GATEWAY_SERVICE_URL_API_VERSION, tags=["Product Service Proxy"])
-app.include_router(supplier_proxy, prefix=settings.API_GATEWAY_SERVICE_URL_API_VERSION, tags=["Supplier Service Proxy"])
-app.include_router(order_proxy, prefix=settings.API_GATEWAY_SERVICE_URL_API_VERSION, tags=["Order Service Proxy"])
-app.include_router(notification_proxy, prefix=settings.API_GATEWAY_SERVICE_URL_API_VERSION, tags=["Notification Service Proxy"])
-app.include_router(payment_proxy, prefix=settings.API_GATEWAY_SERVICE_URL_API_VERSION, tags=["Payment Service Proxy"])
-app.include_router(checkout_proxy, prefix=settings.API_GATEWAY_SERVICE_URL_API_VERSION, tags=["Checkout"])
-app.include_router(cart_proxy, prefix=settings.API_GATEWAY_SERVICE_URL_API_VERSION, tags=["Cart Service Proxy"])
-app.include_router(shipping_proxy, prefix=settings.API_GATEWAY_SERVICE_URL_API_VERSION, tags=["Shipping Service Proxy"])
-app.include_router(wishlist_proxy, prefix=settings.API_GATEWAY_SERVICE_URL_API_VERSION, tags=["Wishlist Service Proxy"])
-
 if __name__ == "__main__":
-    run("main:app",
-        host=settings.APP_HOST,
-        port=settings.API_GATEWAY_SERVICE_APP_PORT,
-        reload=True)
+    run("main:app", host=DESCRIPTOR.host, port=DESCRIPTOR.port, reload=True)

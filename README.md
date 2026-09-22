@@ -474,14 +474,15 @@ Router | Entry | Rule |
 
 
 
-## Prometheus AlertManager
-Alertmanager UI is at **http://localhost:9093
-Test:  curl -X POST http://localhost:9093/api/v2/alerts \
-  -H "Content-Type: application/json" \
-  -d '[{"labels":{"alertname":"TestAlert","severity":"warning","job":"test"},"annotations":{"description":"This is a test from Alertmanager"}}]'
+## Observability
 
+Metrics, logs, traces and alerting all live in **`backend/observability/`** —
+Prometheus, Alertmanager, Grafana, Tempo, Loki/Promtail and the OTel collector,
+with a README covering the wiring, the ports, how to verify each signal and how
+to add a new service. Note that `backend/local/dev.sh` does not start any of it.
 
-
+Quick links once the stack is up: Grafana <http://localhost:3002>,
+Prometheus <http://localhost:9090>, Alertmanager <http://localhost:9093>.
 
 ## Scaling of the APP
 
@@ -552,9 +553,3 @@ So the practical setup:
 - **Local dev**: 1 container, 1 worker — simple, easy logs
 - **Production**: `--scale 2-3`, 1-2 workers each — balance between resilience and resource use
 
-
-## OpenTelemetry
-1. Make some requests to your API (any endpoint through api-gateway)
-2. Open Grafana → **Explore** → select **Tempo** datasource
-3. Click **Search** → you'll see traces from all your services with full waterfall view
-4. From a Loki log line you can also click **"View in Traces"** to jump directly to the trace

@@ -31,7 +31,6 @@ class LockableRepositoryMixin(Generic[ModelType]):
         )
         result = await self.session.execute(query)
         return result.scalar_one_or_none()
-
     async def get_many_by_field_with_lock(
         self,
         field_name: str,

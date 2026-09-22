@@ -873,7 +873,7 @@ services:
     restart: unless-stopped
     command: ["--config=/etc/otelcol/otel-collector.yml"]
     volumes:
-      - ./otelcollector/otel-collector.yml:/etc/otelcol/otel-collector.yml:ro
+      - ./observability/otelcollector/otel-collector.yml:/etc/otelcol/otel-collector.yml:ro
     ports:
       - "4317:4317"
       - "4318:4318"
@@ -888,7 +888,7 @@ services:
     restart: unless-stopped
     command: ["-config.file=/etc/tempo/tempo.yml"]
     volumes:
-      - ./tempo/tempo.yml:/etc/tempo/tempo.yml:ro
+      - ./observability/tempo/tempo.yml:/etc/tempo/tempo.yml:ro
       - tempo_data:/var/tempo
     ports:
       - "3200:3200"
@@ -899,8 +899,8 @@ services:
     image: prom/prometheus:latest
     ports: ["9090:9090"]
     volumes:
-      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
-      - ./prometheus/rules:/etc/prometheus/rules
+      - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./observability/prometheus/rules:/etc/prometheus/rules
       - prom_data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
@@ -918,9 +918,9 @@ services:
     image: prom/alertmanager:v0.32.1
     ports: ["9093:9093"]
     volumes:
-      - ./alertmanager/alertmanager.yml.tmpl:/etc/alertmanager/alertmanager.yml.tmpl:ro
-      - ./alertmanager/templates:/etc/alertmanager/templates:ro
-      - ./alertmanager/docker-entrypoint.sh:/docker-entrypoint.sh:ro
+      - ./observability/alertmanager/alertmanager.yml.tmpl:/etc/alertmanager/alertmanager.yml.tmpl:ro
+      - ./observability/alertmanager/templates:/etc/alertmanager/templates:ro
+      - ./observability/alertmanager/docker-entrypoint.sh:/docker-entrypoint.sh:ro
       - alertmanager_data:/alertmanager
     entrypoint: ["/bin/sh", "/docker-entrypoint.sh"]
     environment:
@@ -939,8 +939,8 @@ services:
       # then add GRAFANA_SECRET_KEY=<value> to your .env file.
       GF_SECURITY_SECRET_KEY: ${GRAFANA_SECRET_KEY}
     volumes:
-      - ./grafana/provisioning:/etc/grafana/provisioning
-      - ./grafana/dashboards:/var/lib/grafana/dashboards
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards
       - grafana_data:/var/lib/grafana
     depends_on:
       - prometheus
@@ -966,7 +966,7 @@ services:
     image: grafana/promtail:3.6.11
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./promtail/config.yml:/etc/promtail/config.yml:ro
+      - ./observability/promtail/config.yml:/etc/promtail/config.yml:ro
     command: -config.file=/etc/promtail/config.yml
     depends_on:
       - loki

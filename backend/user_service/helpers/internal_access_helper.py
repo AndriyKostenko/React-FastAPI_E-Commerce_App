@@ -1,20 +1,10 @@
-from fastapi import Request
+"""Backwards-compatible shim.
 
+The implementation moved to ``shared.app.instrumentation`` so all services share
+one copy. Kept so existing imports (``from helpers.internal_access_helper import
+internal_access_helper``) keep resolving.
+"""
 
-class InternalAccessHelper:
-    """Encapsulates internal monitoring path and network checks."""
-    def __init__(self) -> None:
-        self._internal_paths = frozenset({"/metrics", "/health"})
-        self._private_prefixes = ("10.", "172.", "192.168.")
+from shared.app.instrumentation import InternalAccessHelper, internal_access_helper
 
-    def is_internal_path(self, path: str) -> bool:
-        return path in self._internal_paths
-
-    def is_internal_client(self, request: Request) -> bool:
-        client_host = request.client.host if request.client else ""
-        return self.is_internal_path(request.url.path) or any(
-            client_host.startswith(prefix) for prefix in self._private_prefixes
-        )
-
-
-internal_access_helper = InternalAccessHelper()
+__all__ = ["InternalAccessHelper", "internal_access_helper"]

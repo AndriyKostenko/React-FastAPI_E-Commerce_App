@@ -1,234 +1,45 @@
+"""product-service ASGI entrypoint.
+
+Assembly — middleware order, health probes, the Prometheus endpoint and the
+exception contract — lives in ``shared.app``; this module only states what is
+specific to product-service.
+"""
+
 import os
-from collections.abc import AsyncIterator
-from datetime import datetime
-from contextlib import asynccontextmanager
-from time import perf_counter
 from pathlib import Path
 
-from uvicorn import run
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, Response as PlainResponse
-from fastapi import FastAPI, Request, HTTPException
 from fastapi.staticfiles import StaticFiles
-from pydantic import ValidationError
-from fastapi.exceptions import ResponseValidationError, RequestValidationError
-from prometheus_client import CollectorRegistry, generate_latest, multiprocess, REGISTRY
-from prometheus_fastapi_instrumentator import Instrumentator
+from uvicorn import run
 
+from app_config import DESCRIPTOR, product_service_lifespan, resolve_resources
+from resources import ProductApiResources, logger, settings
+from routes.artwork_routes import artwork_routes
+from routes.category_routes import category_routes
 from routes.product_image_routes import product_images_routes
 from routes.product_routes import product_routes
-from routes.category_routes import category_routes
 from routes.review_routes import review_routes
-from routes.artwork_routes import artwork_routes
-from shared.exceptions.base_exceptions import (BaseAPIException,RateLimitExceededError)
-from shared.middleware.host_validation_middleware import add_host_validation_middleware
-from shared.middleware.logging_middleware import add_logging_middleware
-from shared.telemetry import setup_tracing
-from resources import logger, product_api_runtime, settings
-from helpers.internal_access_helper import internal_access_helper
-from helpers.request_helper import request_metrics_helper
-from tasks.broker import taskiq_broker
+from shared.app import DatabaseEngineProbe, RedisPingProbe, ServiceAppBuilder
 
-
-@asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    """Attach one lifespan-owned resource container to this app instance."""
-    logger.info(f"Server is starting up on {settings.APP_HOST}:{settings.PRODUCT_SERVICE_APP_PORT}...")
-    request_metrics_helper.initialize()
-    async with product_api_runtime() as resources:
-        app.state.resources = resources
-        taskiq_started = False
-        try:
-            # The schema is owned by Alembic, not by this process.
-            # create_all cannot alter an existing table, so bootstrapping
-            # here would silently leave a database that predates a
-            # migration missing its new columns while the service still
-            # reported a clean startup.
-            logger.info("Product service schema is managed by Alembic migrations.")
-            if not taskiq_broker.is_worker_process:
-                taskiq_started = True
-                await taskiq_broker.startup()
-                logger.info("TaskIQ broker started successfully.")
-            logger.info("Server startup complete!")
-            yield
-        finally:
-            try:
-                if taskiq_started:
-                    await taskiq_broker.shutdown()
-            finally:
-                del app.state.resources
-    logger.warning("Server has shut down !")
-
-
-
-app = FastAPI(
-    title="product-service",
-    description="This is a user service for managing products.",
-    version="0.0.1",
-    lifespan=lifespan,
+app = (
+    ServiceAppBuilder[ProductApiResources](DESCRIPTOR, settings=settings, logger=logger)
+    .with_lifespan(product_service_lifespan, resolve_resources)
+    # This service caches catalogue reads in Redis, so a dead cache is a
+    # not-ready signal rather than a slow request.
+    .with_readiness(DatabaseEngineProbe(), RedisPingProbe("cache"))
+    .with_router(product_routes, prefix=DESCRIPTOR.api_prefix)
+    .with_router(category_routes, prefix=DESCRIPTOR.api_prefix)
+    .with_router(review_routes, prefix=DESCRIPTOR.api_prefix)
+    .with_router(product_images_routes, prefix=DESCRIPTOR.api_prefix)
+    .with_router(artwork_routes, prefix=DESCRIPTOR.api_prefix)
+    .build()
 )
 
-#setup_tracing(app, service_name="product-service")
-
-#Instrumentator().instrument(app)
-
-# Registered second → inner layer → runs FIRST
-@app.middleware("http")
-async def metrics_middleware(request: Request, call_next):
-    """Records request latency into a multiprocess-safe histogram."""
-    # Skip internal paths — no value in tracking /metrics scraping itself
-    if internal_access_helper.is_internal_path(request.url.path):
-        return await call_next(request)
-
-    start = perf_counter()
-    response = await call_next(request)
-    duration = perf_counter() - start
-
-    request_metrics_helper.observe(request=request, response=response, duration=duration)
-    return response
-
-
-add_host_validation_middleware(app, settings=settings, logger=logger)
-
-
-@app.get("/health", tags=["Health Check"])
-async def health_check():
-    """
-    A simple health check endpoint to verify that the service is running.
-    """
-    return JSONResponse(
-        content={
-            "status": "ok",
-            "timestamp": datetime.now().isoformat(),
-            "service": "user-service"
-        },
-        status_code=200,
-        headers={"Cache-Control": "no-cache"}
-    )
-
-
-# @app.get("/metrics", include_in_schema=False)
-# def metrics():
-#     """Multiprocess-aware Prometheus metrics endpoint."""
-#     multiproc_dir = os.environ.get("PROMETHEUS_MULTIPROC_DIR")
-
-#     if multiproc_dir:
-#         # Multi-worker: merge all worker .db files from the shared dir
-#         registry = CollectorRegistry()
-#         multiprocess.MultiProcessCollector(registry)
-#     else:
-#         # Single process (local dev): use the default registry directly
-#         registry = REGISTRY
-
-#     return PlainResponse(
-#         content=generate_latest(registry),
-#         media_type="text/plain; version=0.0.4; charset=utf-8",
-#     )
-
-
-def add_exception_handlers(app: FastAPI):
-    """
-    This function adds exception handlers to the FastAPI application.
-    """
-
-    @app.exception_handler(ValidationError)
-    async def validation_exception_handler(request: Request, exc: ValidationError):
-        """Custom exception handler for Pydantic validation errors"""
-        return JSONResponse(
-            status_code=422,
-            content={
-                "detail": "Validation error",
-                "errors": [{"field": err["loc"][-1] if err.get("loc") else "unknown", "message": err.get("msg", "Unknown validation error")} for err in exc.errors()],
-                "timestamp": datetime.now().isoformat(),
-                "path": request.url.path
-            }
-        )
-
-    # Custom Exception handlers for Pydantic validation errors in request and response
-    @app.exception_handler(ResponseValidationError)
-    async def validation_response_exception_handler(request: Request, exc: ResponseValidationError):
-        """Custom exception handler for response validation errors"""
-        return JSONResponse(
-            status_code=422,
-            content={
-                "detail": "Validation response error",
-                "errors": [{"field": err["loc"][-1] if err.get("loc") else "unknown", "message": err.get("msg", "Unknown validation error")} for err in exc.errors()],
-                "timestamp": datetime.now().isoformat(),
-                "path": request.url.path
-            }
-        )
-
-    # Custom Exception handlers for Pydantic validation errors in request and response
-    @app.exception_handler(RequestValidationError)
-    async def validation_request_exception_handler(request: Request, exc: RequestValidationError):
-        """Custom exception handler for request validation errors"""
-        return JSONResponse(
-            status_code=422,
-            content={
-                "detail": "Validation request error",
-                "errors": [{"field": err["loc"][-1] if err.get("loc") else "unknown", "message": err.get("msg", "Unknown validation error")} for err in exc.errors()],
-                "timestamp": datetime.now().isoformat(),
-                "path": request.url.path
-            }
-        )
-
-    @app.exception_handler(BaseAPIException)
-    async def base_api_exception_handler(request: Request, exc: BaseAPIException):
-        """Base exception handler for all custom API exceptions"""
-        return JSONResponse(
-            status_code=exc.status_code,
-            headers=exc.headers,
-            content={"detail": exc.detail,
-                     "timestamp": datetime.now().isoformat(),
-                     "path": request.url.path
-            },
-        )
-
-
-    @app.exception_handler(RateLimitExceededError)
-    async def rate_limit_handler(request: Request, exc: RateLimitExceededError):
-        """Custom exception handler for rate limit exceeded errors"""
-        return JSONResponse(
-            status_code=exc.status_code,
-            headers=exc.headers,
-            content={
-                "detail": exc.detail,
-                "timestamp": datetime.now().isoformat(),
-                "path": request.url.path
-            }
-        )
-
-
-# adding exception handlers to the app
-add_exception_handlers(app)
-
-# CORS or "Cross-Origin Resource Sharing" is a mechanism that
-# allows restricted resources on a web page to be requested from another domain
-# outside the domain from which the first resource was served.
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.CORS_ALLOWED_ORIGINS,
-    allow_credentials=settings.CORS_ALLOW_CREDENTIALS,
-    allow_methods=settings.CORS_ALLOWED_METHODS,
-    allow_headers=settings.CORS_ALLOWED_HEADERS,
-)
-add_logging_middleware(app, service_name="product-service")
-
-# Static files configuration
+# Generated artwork and product images are served straight off disk; the gateway
+# proxies /media through to here so the frontend keeps one origin.
 _media_dir = Path(os.getenv("MEDIA_ROOT", "./media"))
 _media_dir.mkdir(parents=True, exist_ok=True)
 app.mount("/media", StaticFiles(directory=_media_dir), name="media")
 
-# including all the routers to the app
-app.include_router(product_routes, prefix=settings.PRODUCT_SERVICE_URL_API_VERSION)
-app.include_router(category_routes, prefix=settings.PRODUCT_SERVICE_URL_API_VERSION)
-app.include_router(review_routes, prefix=settings.PRODUCT_SERVICE_URL_API_VERSION)
-app.include_router(product_images_routes, prefix=settings.PRODUCT_SERVICE_URL_API_VERSION)
-app.include_router(artwork_routes, prefix=settings.PRODUCT_SERVICE_URL_API_VERSION)
-
 
 if __name__ == "__main__":
-    run("main:app",
-        host=settings.APP_HOST,
-        port=settings.PRODUCT_SERVICE_APP_PORT,
-        reload=True)
+    run("main:app", host=DESCRIPTOR.host, port=DESCRIPTOR.port, reload=True)

@@ -10,6 +10,7 @@ __pycache__/
 .env
 .env.*
 !.env.example
+.env.local
 
 
 # agents
@@ -20,6 +21,7 @@ __pycache__/
 .env.ci
 .env.local
 /backend/.env
+/backend/.env.local
 /backend/admin-js-service/.env
 /backend/user_service/.env
 /backend/product_service/.env
@@ -73,3 +75,8 @@ backend/**/__pycache__/
 frontend/npm-debug.log*
 frontend/yarn-debug.log*
 frontend/yarn-error.log*
+
+# local (no-Docker) dev runtime: native postgres/redis data, pids, service logs
+/backend/local/data/
+/backend/local/run/
+/backend/local/logs/

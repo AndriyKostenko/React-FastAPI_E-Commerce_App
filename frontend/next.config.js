@@ -1,6 +1,13 @@
 /** @type {import('next').NextConfig} */
 
 const nextConfig = {
+	// Pin the workspace root to this directory.  A stray package-lock.json two
+	// levels up (~/Documents/Projects) otherwise wins the root inference, and
+	// turbopack then resolves packages like @swc/helpers against a tree that has
+	// no node_modules -- which poisons .next with unresolvable chunk aliases.
+	turbopack: {
+		root: __dirname,
+	},
 	allowedDevOrigins: ["127.0.0.1"],
 	images: {
 		remotePatterns: [

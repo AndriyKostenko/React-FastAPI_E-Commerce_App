@@ -39,6 +39,7 @@ TEST_SERVICES=(
   supplier-service-test
   payment-service-test
   cart-service-test
+  wishlist-service-test
   order-service-test
   notification-service-test
   shipping-service-test

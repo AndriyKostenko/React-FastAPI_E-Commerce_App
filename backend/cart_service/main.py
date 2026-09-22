@@ -1,182 +1,26 @@
-import os
-from collections.abc import AsyncIterator
-from datetime import datetime
-from contextlib import asynccontextmanager
-from time import perf_counter
+"""cart-service ASGI entrypoint.
+
+Assembly — middleware order, health probes, the Prometheus endpoint and the
+exception contract — lives in ``shared.app``; this module only states what is
+specific to cart-service.
+"""
 
 from uvicorn import run
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, Response as PlainResponse
-from fastapi import FastAPI, Request, HTTPException
-from pydantic import ValidationError
-from fastapi.exceptions import ResponseValidationError, RequestValidationError
-from prometheus_client import CollectorRegistry, generate_latest, multiprocess, REGISTRY
-from prometheus_fastapi_instrumentator import Instrumentator
 
-from routes.cart_routes import cart_routes
-from shared.exceptions.base_exceptions import (BaseAPIException,RateLimitExceededError)
-from shared.middleware.host_validation_middleware import add_host_validation_middleware
-from shared.middleware.logging_middleware import add_logging_middleware
-from shared.telemetry import setup_tracing
+from app_config import DESCRIPTOR, resolve_resources, cart_service_lifespan
+from resources import CartApiResources
 from service_config import logger, settings
-from helpers.internal_access_helper import internal_access_helper
-from helpers.request_helper import request_metrics_helper
-from resources import cart_api_runtime
+from routes.cart_routes import cart_routes
+from shared.app import DatabaseEngineProbe, ServiceAppBuilder
 
-
-@asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    """Attach one lifespan-owned resource container to this app instance."""
-    logger.info(f"Server is starting up on {settings.APP_HOST}:{settings.CART_SERVICE_APP_PORT}...")
-    request_metrics_helper.initialize()
-    async with cart_api_runtime() as resources:
-        app.state.resources = resources
-        try:
-            # The schema is owned by Alembic, not by this process.
-            # create_all cannot alter an existing table, so bootstrapping
-            # here would silently leave a database that predates a
-            # migration missing its new columns while the service still
-            # reported a clean startup.
-            logger.info("Cart service schema is managed by Alembic migrations.")
-            logger.info("Server startup complete!")
-            yield
-        finally:
-            del app.state.resources
-    logger.warning("Server has shut down!")
-
-
-app = FastAPI(
-    title="cart-service",
-    description="This is a cart service for managing user shopping carts.",
-    version="0.0.1",
-    lifespan=lifespan,
+app = (
+    ServiceAppBuilder[CartApiResources](DESCRIPTOR, settings=settings, logger=logger)
+    .with_lifespan(cart_service_lifespan, resolve_resources)
+    .with_readiness(DatabaseEngineProbe())
+    .with_router(cart_routes, prefix=DESCRIPTOR.api_prefix)
+    .build()
 )
 
-setup_tracing(app, service_name="cart-service")
-
-Instrumentator().instrument(app)
-
-@app.middleware("http")
-async def metrics_middleware(request: Request, call_next):
-    if internal_access_helper.is_internal_path(request.url.path):
-        return await call_next(request)
-
-    start = perf_counter()
-    response = await call_next(request)
-    duration = perf_counter() - start
-
-    request_metrics_helper.observe(request=request, response=response, duration=duration)
-    return response
-
-
-add_host_validation_middleware(app, settings=settings, logger=logger)
-
-
-@app.get("/health", tags=["Health Check"])
-async def health_check():
-    return JSONResponse(
-        content={
-            "status": "ok",
-            "timestamp": datetime.now().isoformat(),
-            "service": "cart-service"
-        },
-        status_code=200,
-        headers={"Cache-Control": "no-cache"}
-    )
-
-
-@app.get("/metrics", include_in_schema=False)
-def metrics():
-    multiproc_dir = os.environ.get("PROMETHEUS_MULTIPROC_DIR")
-
-    if multiproc_dir:
-        registry = CollectorRegistry()
-        multiprocess.MultiProcessCollector(registry)
-    else:
-        registry = REGISTRY
-
-    return PlainResponse(
-        content=generate_latest(registry),
-        media_type="text/plain; version=0.0.4; charset=utf-8",
-    )
-
-
-def add_exception_handlers(app: FastAPI):
-    @app.exception_handler(ValidationError)
-    async def validation_exception_handler(request: Request, exc: ValidationError):
-        return JSONResponse(
-            status_code=422,
-            content={
-                "detail": "Validation error",
-                "errors": [{"field": err["loc"][-1] if err.get("loc") else "unknown", "message": err.get("msg", "Unknown validation error")} for err in exc.errors()],
-                "timestamp": datetime.now().isoformat(),
-                "path": request.url.path
-            }
-        )
-
-    @app.exception_handler(ResponseValidationError)
-    async def validation_response_exception_handler(request: Request, exc: ResponseValidationError):
-        return JSONResponse(
-            status_code=422,
-            content={
-                "detail": "Validation response error",
-                "errors": [{"field": err["loc"][-1] if err.get("loc") else "unknown", "message": err.get("msg", "Unknown validation error")} for err in exc.errors()],
-                "timestamp": datetime.now().isoformat(),
-                "path": request.url.path
-            }
-        )
-
-    @app.exception_handler(RequestValidationError)
-    async def validation_request_exception_handler(request: Request, exc: RequestValidationError):
-        return JSONResponse(
-            status_code=422,
-            content={
-                "detail": "Validation request error",
-                "errors": [{"field": err["loc"][-1] if err.get("loc") else "unknown", "message": err.get("msg", "Unknown validation error")} for err in exc.errors()],
-                "timestamp": datetime.now().isoformat(),
-                "path": request.url.path
-            }
-        )
-
-    @app.exception_handler(BaseAPIException)
-    async def base_api_exception_handler(request: Request, exc: BaseAPIException):
-        return JSONResponse(
-            status_code=exc.status_code,
-            headers=exc.headers,
-            content={"detail": exc.detail,
-                     "timestamp": datetime.now().isoformat(),
-                     "path": request.url.path
-            },
-        )
-
-    @app.exception_handler(RateLimitExceededError)
-    async def rate_limit_handler(request: Request, exc: RateLimitExceededError):
-        return JSONResponse(
-            status_code=exc.status_code,
-            headers=exc.headers,
-            content={
-                "detail": exc.detail,
-                "timestamp": datetime.now().isoformat(),
-                "path": request.url.path
-            }
-        )
-
-
-add_exception_handlers(app)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.CORS_ALLOWED_ORIGINS,
-    allow_credentials=settings.CORS_ALLOW_CREDENTIALS,
-    allow_methods=settings.CORS_ALLOWED_METHODS,
-    allow_headers=settings.CORS_ALLOWED_HEADERS,
-)
-add_logging_middleware(app, service_name="cart-service")
-
-app.include_router(cart_routes, prefix=settings.CART_SERVICE_URL_API_VERSION)
 
 if __name__ == "__main__":
-    run("main:app",
-        host=settings.APP_HOST,
-        port=settings.CART_SERVICE_APP_PORT,
-        reload=True)
+    run("main:app", host=DESCRIPTOR.host, port=DESCRIPTOR.port, reload=True)
