@@ -2,14 +2,23 @@ from fastapi import status
 from httpx import AsyncClient
 from uuid import uuid4
 
+import pytest
+
 from exceptions.image_generation_exceptions import (
     ImageGenerationJobNotFoundError,
     ImageGenerationLimitExceededError,
 )
 from tests.conftest import TEST_API
 from shared.settings import get_settings
+from shared.utils.authenticated_caller import USER_ID_HEADER, USER_ROLE_HEADER
 
 settings = get_settings()
+
+# The gateway asserts the caller through these headers; sending them exercises
+# the real identity dependency rather than overriding it.
+TEST_CALLER_ID = uuid4()
+SIGNED_IN = {USER_ID_HEADER: str(TEST_CALLER_ID), USER_ROLE_HEADER: "user"}
+ADMIN = {USER_ID_HEADER: str(uuid4()), USER_ROLE_HEADER: settings.SECRET_ROLE}
 
 
 class TestGenerateImageEndpoint:
@@ -25,75 +34,74 @@ class TestGenerateImageEndpoint:
         response = await client_for_unit_testing.post(
             f"{TEST_API}/images/generations",
             json=self._payload,
+            headers=SIGNED_IN,
         )
 
         assert response.status_code == status.HTTP_202_ACCEPTED
         body = response.json()
         assert "job_id" in body
         assert body["status"] == "pending"
+        assert body["remaining_generations"] == 2
+        assert body["generation_limit"] == settings.PRODUCT_IMAGE_GENERATION_LIMIT
 
-    async def test_guest_generation_sets_guest_cookie(
+    async def test_anonymous_caller_is_rejected_before_quota_is_spent(
         self,
         client_for_unit_testing: AsyncClient,
+        mock_route_image_generation_service,
     ):
         response = await client_for_unit_testing.post(
             f"{TEST_API}/images/generations",
             json=self._payload,
         )
 
-        assert response.status_code == status.HTTP_202_ACCEPTED
-        assert response.json()["remaining_generations"] == 2
-        assert f"{settings.GUEST_QUOTA_COOKIE}=" in response.headers.get("set-cookie", "")
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED
+        mock_route_image_generation_service.submit_job.assert_not_called()
+        client_for_unit_testing.app_mock_generate_image_task.kiq.assert_not_called()
 
-    async def test_existing_guest_cookie_reused_without_setting_new_cookie(
+    async def test_quota_and_job_belong_to_the_caller(
+        self,
+        client_for_unit_testing: AsyncClient,
+        mock_route_image_generation_service,
+    ):
+        await client_for_unit_testing.post(
+            f"{TEST_API}/images/generations",
+            json=self._payload,
+            headers=SIGNED_IN,
+        )
+
+        kwargs = mock_route_image_generation_service.submit_job.call_args.kwargs
+        assert kwargs["user_id"] == TEST_CALLER_ID
+
+    async def test_no_guest_cookie_is_set(
         self,
         client_for_unit_testing: AsyncClient,
     ):
-        guest_id = str(uuid4())
-        client_for_unit_testing.cookies.set(settings.GUEST_QUOTA_COOKIE, guest_id)
         response = await client_for_unit_testing.post(
             f"{TEST_API}/images/generations",
             json=self._payload,
+            headers=SIGNED_IN,
         )
-        client_for_unit_testing.cookies.delete(settings.GUEST_QUOTA_COOKIE)
 
         assert response.status_code == status.HTTP_202_ACCEPTED
-        assert response.json()["guest_limit"] == 3
         assert response.headers.get("set-cookie") is None
 
-    async def test_guest_limit_exceeded_returns_429(
+    async def test_limit_exceeded_returns_429_with_retry_after(
         self,
         client_for_unit_testing: AsyncClient,
         mock_route_image_generation_service,
     ):
         mock_route_image_generation_service.submit_job.side_effect = (
-            ImageGenerationLimitExceededError(retry_after=3600, limit=3)
+            ImageGenerationLimitExceededError(retry_after=3600, limit=10)
         )
-        guest_id = str(uuid4())
-        client_for_unit_testing.cookies.set(settings.GUEST_QUOTA_COOKIE, guest_id)
         response = await client_for_unit_testing.post(
             f"{TEST_API}/images/generations",
             json=self._payload,
+            headers=SIGNED_IN,
         )
-        client_for_unit_testing.cookies.delete(settings.GUEST_QUOTA_COOKIE)
 
         assert response.status_code == status.HTTP_429_TOO_MANY_REQUESTS
-
-    async def test_guest_cookie_not_marked_secure_on_http(
-        self,
-        client_for_unit_testing: AsyncClient,
-        mock_route_image_generation_service,
-    ):
-        mock_route_image_generation_service.settings.SECURE_COOKIES = True
-        response = await client_for_unit_testing.post(
-            f"{TEST_API}/images/generations",
-            json=self._payload,
-        )
-
-        set_cookie_header = response.headers.get("set-cookie", "")
-        assert response.status_code == status.HTTP_202_ACCEPTED
-        assert f"{settings.GUEST_QUOTA_COOKIE}=" in set_cookie_header
-        assert "Secure" not in set_cookie_header
+        assert response.headers.get("retry-after") == "3600"
+        client_for_unit_testing.app_mock_generate_image_task.kiq.assert_not_called()
 
     async def test_location_header_points_to_status_endpoint(
         self,
@@ -102,6 +110,7 @@ class TestGenerateImageEndpoint:
         response = await client_for_unit_testing.post(
             f"{TEST_API}/images/generations",
             json=self._payload,
+            headers=SIGNED_IN,
             follow_redirects=False,
         )
 
@@ -117,6 +126,7 @@ class TestGenerateImageEndpoint:
         response = await client_for_unit_testing.post(
             f"{TEST_API}/images/generations",
             json=self._payload,
+            headers=SIGNED_IN,
         )
 
         assert response.status_code == status.HTTP_202_ACCEPTED
@@ -128,13 +138,16 @@ class TestGenerateImageEndpoint:
         assert call_args.args[3] is False
 
 
+class TestGenerationJobStatusEndpoint:
     async def test_returns_completed_job(
         self,
         client_for_unit_testing: AsyncClient,
+        mock_route_image_generation_service,
     ):
         job_id = str(uuid4())
         response = await client_for_unit_testing.get(
             f"{TEST_API}/images/generations/{job_id}/status",
+            headers=SIGNED_IN,
         )
 
         assert response.status_code == status.HTTP_200_OK
@@ -143,6 +156,19 @@ class TestGenerateImageEndpoint:
         assert body["image_url"] == "/media/generated-designs/fake-image.png"
         assert body["design_asset"]["width_px"] == 4096
         assert body["job_id"] == job_id
+        mock_route_image_generation_service.get_job.assert_awaited_once_with(
+            job_id, user_id=TEST_CALLER_ID
+        )
+
+    async def test_anonymous_poll_is_rejected(
+        self,
+        client_for_unit_testing: AsyncClient,
+    ):
+        response = await client_for_unit_testing.get(
+            f"{TEST_API}/images/generations/{uuid4()}/status",
+        )
+
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
     async def test_unknown_job_returns_404(
         self,
@@ -152,6 +178,32 @@ class TestGenerateImageEndpoint:
         mock_route_image_generation_service.get_job.side_effect = ImageGenerationJobNotFoundError()
         response = await client_for_unit_testing.get(
             f"{TEST_API}/images/generations/{uuid4()}/status",
+            headers=SIGNED_IN,
         )
 
         assert response.status_code == status.HTTP_404_NOT_FOUND
+
+
+class TestAdminSchemaEndpoints:
+    @pytest.mark.parametrize("resource", ["products", "categories", "images", "reviews"])
+    async def test_admin_gets_schema(self, client_for_unit_testing: AsyncClient, resource: str):
+        response = await client_for_unit_testing.get(
+            f"{TEST_API}/admin/schema/{resource}", headers=ADMIN,
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["fields"]
+
+    @pytest.mark.parametrize("resource", ["products", "categories", "images", "reviews"])
+    async def test_regular_user_is_forbidden(self, client_for_unit_testing: AsyncClient, resource: str):
+        response = await client_for_unit_testing.get(
+            f"{TEST_API}/admin/schema/{resource}", headers=SIGNED_IN,
+        )
+
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    @pytest.mark.parametrize("resource", ["products", "categories", "images", "reviews"])
+    async def test_anonymous_is_rejected(self, client_for_unit_testing: AsyncClient, resource: str):
+        response = await client_for_unit_testing.get(f"{TEST_API}/admin/schema/{resource}")
+
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED

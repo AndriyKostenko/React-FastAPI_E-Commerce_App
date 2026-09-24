@@ -8,7 +8,7 @@ from exceptions.image_generation_exceptions import ImageGenerationLimitExceededE
 
 class GenerationQuotaService:
     """
-    Enforces per-user and per-guest image-generation rate limits via Redis.
+    Enforces the per-user image-generation limit via Redis.
 
     Uses atomic INCR + conditional EXPIRE so the sliding window is initialised
     exactly once without a read-modify-write race condition.
@@ -19,26 +19,21 @@ class GenerationQuotaService:
         self._settings = settings
         self._logger = logger
 
-    def _quota_key(self, entity_id: UUID, is_guest: bool) -> str:
-        user_type = "guest" if is_guest else "registered"
-        return f"{self._cache_manager.service_prefix}:image-generation:{user_type}:{entity_id}"
+    def _quota_key(self, user_id: UUID) -> str:
+        return f"{self._cache_manager.service_prefix}:image-generation:user:{user_id}"
 
-    async def consume(self, entity_id: UUID, is_guest: bool) -> int:
+    async def consume(self, user_id: UUID) -> int:
         """
-        Atomically increment the usage counter and enforce the rate limit.
+        Atomically increment the user's usage counter and enforce the limit.
 
         Returns:
             Remaining quota (≥ 0) after this successful call.
         Raises:
             ImageGenerationLimitExceededError: when the limit has been reached.
         """
-        limit = (
-            self._settings.PRODUCT_IMAGE_GUEST_GENERATION_LIMIT
-            if is_guest
-            else self._settings.PRODUCT_IMAGE_REGISTERED_GENERATION_LIMIT
-        )
-        window_seconds = self._settings.PRODUCT_IMAGE_GUEST_GENERATION_WINDOW_HOURS * 3600
-        key = self._quota_key(entity_id, is_guest)
+        limit = self._settings.PRODUCT_IMAGE_GENERATION_LIMIT
+        window_seconds = self._settings.PRODUCT_IMAGE_GENERATION_WINDOW_HOURS * 3600
+        key = self._quota_key(user_id)
 
         current_count = await self._cache_manager.redis.incr(key)
         if current_count == 1:

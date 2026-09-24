@@ -329,6 +329,81 @@ already correct; three remain.
   CJ → supplier (+ its worker/scheduler), mail → notification (+ its worker),
   Google OAuth → user.
 
+### 4b. Gateway auth follow-ups, generation access, background removal (2026-09-24)
+
+Worked from the bug list below and verified live against the running stack
+(anonymous / signed-in user / admin, through the gateway and directly against
+the services), not only in unit tests.
+
+- [x] **Wishlist was unusable.** `wishlist_service` read the caller from
+      `request.state.current_user`, which only exists inside the gateway
+      process, so every `/wishlists/me` call raised. It now reads the
+      gateway-asserted `X-Authenticated-User-*` headers via
+      `AuthenticatedCaller.require()`. Its tests had overridden the dependency
+      wholesale, which is why they never caught it; a new test drives the real
+      dependency with real headers.
+- [x] **Access tokens were written to the logs.** The gateway logged every
+      forwarded request's headers (Cookie, Authorization) at INFO. It now logs
+      header names only.
+- [x] **Public-route matching was a raw string prefix.** `startswith` made
+      `/products-export`, `/login-as-admin`, `/payments/webhook/replay`,
+      `/healthz`, … public. `PUBLIC_ENDPOINTS` is replaced by
+      `api_gateway/middleware/public_routes.py`: `PublicRoute` value objects
+      with an `EXACT` / `TREE` / `CHILDREN` scope matched on segment
+      boundaries, plus a `protected` carve-out list that overrides the trees.
+- [x] **Admin-only response replayed to anonymous users.** `/shipping/methods/all`
+      is admin-guarded in its route, but it sat under the public
+      `/shipping/methods` tree — and the gateway caches public GETs for every
+      caller, so an admin's response was served from cache to anyone. It is
+      now a protected carve-out. See the open cache item below.
+- [x] **Image generation is signed-in only.** It spends paid provider credit and
+      was open to anonymous callers. Gateway and product-service both require
+      a caller; the quota is per user (`PRODUCT_IMAGE_GENERATION_LIMIT` /
+      `_WINDOW_HOURS`), and a job is visible only to its owner (another user
+      gets 404, so job ids cannot be probed). The guest cookie/quota code and
+      `UserContextResolver` are gone — the resolver had the same
+      `request.state` bug, so even signed-in users were counted as guests.
+      Response field `guest_limit` → `generation_limit`. The frontend shows
+      "Sign in to generate" to guests and sends the token on status polls.
+- [x] **AdminJS schemas are admin-only.** They were public at the gateway, and
+      only user-service checked the role. Gateway, product-service (products,
+      categories, images, reviews) and order-service now all require an
+      admin; `/admin/schema/products` did not exist and was added. admin-js
+      loads the schemas with the admin's token right after login
+      (`schema-registry.ts`) and re-decorates each resource, falling back to
+      the first data request for sessions that outlive a restart.
+- [x] **Nobody could be an admin.** `users.ck_users_role` allows only
+      `user`/`admin`, but every check compared against `SECRET_ROLE`, set to
+      something else. Resolved by `SECRET_ROLE=admin`; `TEST_ADMIN_ROLE`
+      (which had the old value hardcoded in `shared/settings.py`) is `admin`.
+- [x] **Login was case-sensitive.** Registration stores emails lowercased;
+      login compared them verbatim, so a differently-cased email read as a
+      wrong password. `authenticate_user` now normalises the same way.
+- [x] **Generated artwork kept its backdrop.** Image models ignore
+      transparency requests, so designs printed as a solid rectangle. A
+      `BackgroundRemover` step (rembg, `isnet-general-use`) now cuts the design
+      out between the provider and storage; the job fails rather than store an
+      empty or resized cutout. The model is set explicitly because rembg's
+      default, `bria-rmbg`, is non-commercial. Verified live: 4096×4096 RGBA
+      at 300 DPI with a transparent backdrop. OpenRouter model switched to
+      `google/gemini-3.1-flash-image-preview`, the flash model that supports
+      the 4K size the print minimum requires.
+
+**Still open from this pass:**
+- **Gateway response cache is caller-blind.** Every public GET is cached for
+  all callers. Any public route whose response depends on the caller will leak
+  the same way `/shipping/methods/all` did. Cache an explicit allowlist, or key
+  by caller.
+- **Failed generations still spend quota.** The quota is taken at submit, so a
+  provider or cutout failure costs the user a generation. Refund on `failed`.
+- **Bake the rembg model into `Dockerfile.worker`.** It downloads (~170 MB) on
+  the first job otherwise.
+- **user-service ignores the session cookie.** Its `oauth2_scheme` reads only
+  the `Authorization` header, so cookie-only requests to it get 401. Resolves
+  with items 1/2b/6 below.
+- **admin-js** is not started by `dev.sh`, and its stored access token expires
+  with no refresh.
+
 ### 5. Payments & tax/legal
 - Partial refunds, dispute handling (`charge.dispute.created`). Full refunds,
   voids and webhook signature verification exist (see §3b).
@@ -363,3 +438,49 @@ already correct; three remain.
 5. Tax, legal pages, GDPR, AI content moderation
 6. Frontend account / tracking / designer polish (checkout shipping options
    are done — see §3b)
+7. Finish gateway auth (bug list 1, 2b/5/6, 4, 9) and the reliability items
+   (12–20) below; quick wins first: caller-aware gateway cache, quota refund
+   on failed generation (§4b)
+
+## Bug list — triage (2026-09-24)
+
+Backend:
+
+| # | Question | Status |
+|---|---|---|
+| 1 | Is the token decoded twice (gateway `AuthMiddleware` and user-service)? | **Yes, open.** user-service re-decodes via `oauth2_scheme` + a DB check; every other service trusts the gateway |
+| 2 | Gateway strips auth and injects identity headers? | **Mostly done.** `X-Authenticated-User-*` are injected and client copies stripped; wishlist/product/order/notification read them, user-service does not. The raw token is still forwarded |
+| 2b | Signing key out of the gateway, like Google login? | Open — gateway signs a short-lived assertion (Ed25519), services verify with the public key only |
+| 3 | `@public` decorator? | Superseded: `PublicRouteRegistry` (§4b). Secure-by-default router-level dependencies would remove the middleware entirely |
+| 4 | `self_or_admin` in the services? | **Partial.** Schema and generation routes check in-service (`AuthenticatedCaller.require_admin`); product CRUD, order admin, etc. still rely on the gateway alone |
+| 5 | Only the gateway may call services (`INTERNAL_HMAC_SECRET`, Vault)? | Open — prefer the asymmetric assertion from 2b over a shared HMAC secret, which lets any compromised service mint identities |
+| 6 | Signed header downstream; drop `oauth2_scheme` + `get_current_user()`? | Open — follows from 2b |
+| 7 | Remove service ports from compose? | Local ports already bind to `127.0.0.1`; add a prod override with `expose:` only |
+| 8 | NetworkPolicy? | Only once on Kubernetes; in compose, split `edge` / `internal` networks |
+| 9 | Token purposes? | `purpose` is enforced. Open: `aud`/`iss` claims, and only user-service should hold the signing key (RS256/EdDSA) |
+| 10 | Remove `PUBLIC_ENDPOINTS` completely? | Done (§4b) |
+| 11 | OpenAPI → TypeScript? | Open (tooling) |
+| 12 | Order saga frozen while waiting on CJ stock? | Open — a saga timeout worker exists; review its coverage |
+| 13 | Session/transaction held open while awaiting services or queues? | Open — audit |
+| 14 | Value objects (frozen dataclasses)? | Open (refactor) |
+| 15 | Unit of Work? | Open (refactor) |
+| 16 | Circuit breaker / retries for CJ? | Open — the gateway breaker is also disabled (`apigateway.py`) |
+| 17 | Process isolation: API, task queue, consumers, DB? | Open |
+| 18 | RabbitMQ ack policy + DLX? | Open |
+| 19 | One Postgres instance, one superuser? | Open — per-service least-privilege roles |
+| 19b | taskiq DLX? | Open |
+| 20 | `autoflush` / `expire_on_commit`; UoW transaction boundaries? | Open — audit |
+
+Frontend:
+/order/orderid is open for anyone?
+signout() doesn't clear the localstorage?
+SessionManager() should not be a singleton?
+money calculations is inconsistent?
+useCart mutates the state in place?
+ProductDetails and Addreview returned early before the hooks?
+useCart() re-render the entire provider subtree twice on every cart change?
+is checkout client stripe memorized? do clicking the size/color/qty re-render the panel?
+9. Cookie-based session, not a JWT in localStorage. Your gateway already sets HttpOnly — trust it and stop carrying tokens in JS? Removing NextAuth Dumb frontend, cookies are the session?
+10. TanStack Query for any client-side caching / refetch / optimistic UI. Not Redux.?
+
+

@@ -11,7 +11,7 @@ from fastapi import (
     status,
 )
 
-from dependencies.dependencies import category_service_dependency
+from dependencies.dependencies import admin_caller_dependency, category_service_dependency
 from models.category_models import ProductCategory
 from schemas.category_schema import (
     CategoriesFilterParams,
@@ -129,5 +129,5 @@ async def delete_category_by_id(
     response_model=dict[str, Any],
     status_code=status.HTTP_200_OK,
 )
-async def get_product_schema_for_admin_js(request: Request):
+async def get_category_schema_for_admin_js(_admin: admin_caller_dependency) -> dict[str, Any]:
     return {"fields": ProductCategory.get_admin_schema()}

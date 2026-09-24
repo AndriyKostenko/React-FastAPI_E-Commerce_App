@@ -1,6 +1,5 @@
 import {
-    DEFAULT_GUEST_GENERATION_LIMIT,
-    DEFAULT_REGISTERED_GENERATION_LIMIT,
+    DEFAULT_GENERATION_LIMIT,
     GENERATION_COUNTER_STORAGE_KEY,
     GENERATION_STATE_STORAGE_KEY,
 } from "@/utils/constants";
@@ -272,7 +271,10 @@ export class GenerationSessionController {
     }
 }
 
+/**
+ * Guests cannot generate at all, so they get no quota (0 = "no counter").
+ * Keeping the two limits distinct also makes `resetCounterOnAuthChange`
+ * start a fresh counter when a guest signs in.
+ */
 export const resolveDefaultLimit = (isRegisteredUser: boolean): number =>
-    isRegisteredUser
-        ? DEFAULT_REGISTERED_GENERATION_LIMIT
-        : DEFAULT_GUEST_GENERATION_LIMIT;
+    isRegisteredUser ? DEFAULT_GENERATION_LIMIT : 0;

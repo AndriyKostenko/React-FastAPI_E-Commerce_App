@@ -2,6 +2,7 @@
 
 from uuid import UUID
 
+from fastapi import HTTPException, status
 from starlette.requests import HTTPConnection
 
 
@@ -57,3 +58,25 @@ class AuthenticatedCaller:
             email=connection.headers.get(USER_EMAIL_HEADER),
             role=connection.headers.get(USER_ROLE_HEADER),
         )
+
+    @classmethod
+    def require(cls, connection: HTTPConnection) -> "AuthenticatedCaller":
+        """The asserted caller, or 401 — for routes that act on a user's behalf."""
+        caller = cls.from_request(connection)
+        if not caller.is_present:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Authentication required",
+            )
+        return caller
+
+    @classmethod
+    def require_admin(cls, connection: HTTPConnection, admin_role: str) -> "AuthenticatedCaller":
+        """The asserted caller if they hold the admin role; 401 or 403 otherwise."""
+        caller = cls.require(connection)
+        if not caller.is_admin(admin_role):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Admin privileges required",
+            )
+        return caller

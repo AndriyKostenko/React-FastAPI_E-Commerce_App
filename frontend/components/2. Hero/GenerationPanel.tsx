@@ -10,8 +10,9 @@ import {
 import type { GeneratedDesignPayload, StyleOption } from "@/types/generation";
 import type { GenerationPanelProps } from "@/types/generation-panel";
 import { useGenerationSession } from "@/hooks/useGenerationSession";
-import generateImage from "@/actions/generateImage";
+import generateImage, { GenerationAuthRequiredError } from "@/actions/generateImage";
 import toast from "react-hot-toast";
+import { useRouter } from "next/navigation";
 
 
 const GenerationPanel = ({ isGenerating,
@@ -19,11 +20,18 @@ const GenerationPanel = ({ isGenerating,
 							onDesignGenerated,
 							isRegisteredUser,
 							currentUserJWT }: GenerationPanelProps) => {
+    const router = useRouter();
     const { session, abortControllerRef, actions } = useGenerationSession(isRegisteredUser);
 
     const canCycleGeneratedStates = session.generationHistory.entries.length > 1;
     const isGenerationLimitReached = session.generationCounter.limit > 0 && session.generationCounter.used >= session.generationCounter.limit;
-    const generationLimitMessage = isRegisteredUser ? "Generation limit reached for today" : "Generation limit reached - Please Login to continue";
+    const generationLimitMessage = "Generation limit reached for today";
+
+    // Generation spends paid provider credit, so guests are sent to sign in.
+    const redirectToLogin = (message: string) => {
+        toast(message);
+        router.push("/login");
+    };
 
     const handleSelectPreviousState = () => {
         if (!canCycleGeneratedStates) {
@@ -68,6 +76,11 @@ const GenerationPanel = ({ isGenerating,
         }
 
         if (isGenerating) {
+            return;
+        }
+
+        if (!isRegisteredUser) {
+            redirectToLogin("Sign in to generate your own designs");
             return;
         }
 
@@ -120,28 +133,25 @@ const GenerationPanel = ({ isGenerating,
             actions.setStyle(targetStyle);
             actions.appendHistory(generatedPayload);
 
-            if (
-                generated.remainingGenerations !== null &&
-                generated.guestLimit !== null
-            ) {
-                actions.setCounter({
-                    used: Math.max(
-                        generated.guestLimit - generated.remainingGenerations,
-                        0,
-                    ),
-                    limit: generated.guestLimit,
-                });
-                toast.success(
-                    `Design generated! ${generated.remainingGenerations}/${generated.guestLimit} generations left`,
-                );
-                return;
-            }
-
-            toast.success("Design generated successfully!");
+            actions.setCounter({
+                used: Math.max(
+                    generated.generationLimit - generated.remainingGenerations,
+                    0,
+                ),
+                limit: generated.generationLimit,
+            });
+            toast.success(
+                `Design generated! ${generated.remainingGenerations}/${generated.generationLimit} generations left`,
+            );
         } catch (error) {
             // Swallow abort errors — user navigated away or component unmounted.
             if (error instanceof DOMException && error.name === "AbortError")
                 return;
+            // Session expired between page load and this request.
+            if (error instanceof GenerationAuthRequiredError) {
+                redirectToLogin(error.message);
+                return;
+            }
 
             const message =
                 error instanceof Error && error.message.trim()
@@ -224,7 +234,9 @@ const GenerationPanel = ({ isGenerating,
                                 <MdAutoAwesome
                                     className={`text-base ${isGenerating ? "animate-spin" : ""}`}
                                 />
-                                {isGenerationLimitReached
+                                {!isRegisteredUser
+                                    ? "Sign in to generate"
+                                    : isGenerationLimitReached
                                     ? generationLimitMessage
                                     : session.phase === "pending"
                                       ? "Queued..."
@@ -232,10 +244,12 @@ const GenerationPanel = ({ isGenerating,
                                         ? "Generating..."
                                         : "Generate Now"}
                             </Button>
-                            <span className="pointer-events-none absolute -top-2 -right-2 z-20 inline-flex min-w-11 items-center justify-center rounded-full bg-primary px-2.5 py-1 text-[11px] leading-none text-white shadow-md ring-2 ring-white/90">
-                                {session.generationCounter.used}/
-                                {session.generationCounter.limit}
-                            </span>
+                            {isRegisteredUser && (
+                                <span className="pointer-events-none absolute -top-2 -right-2 z-20 inline-flex min-w-11 items-center justify-center rounded-full bg-primary px-2.5 py-1 text-[11px] leading-none text-white shadow-md ring-2 ring-white/90">
+                                    {session.generationCounter.used}/
+                                    {session.generationCounter.limit}
+                                </span>
+                            )}
                         </div>
                         <Button
                             onClick={handleSelectPreviousState}

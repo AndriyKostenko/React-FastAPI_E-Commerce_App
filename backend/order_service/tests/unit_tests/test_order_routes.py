@@ -1,8 +1,12 @@
 """Route-level unit tests for order endpoints (all DB/IO mocked)."""
 from unittest.mock import AsyncMock, MagicMock
+from uuid import uuid4
 
 import pytest
 from httpx import AsyncClient
+
+from shared.settings import get_settings
+from shared.utils.authenticated_caller import USER_ID_HEADER, USER_ROLE_HEADER
 
 from exceptions.order_exceptions import (
     OrderNotFoundError, OrdersNotFoundError, OrderNotCancellableError
@@ -194,14 +198,32 @@ class TestDeleteOrderRoute:
 
 
 class TestAdminSchemaRoute:
-    async def test_get_admin_schema_returns_200(
-        self, client_for_unit_testing: AsyncClient
-    ):
-        response = await client_for_unit_testing.get(f"{TEST_API}/admin/schema/orders")
-        assert response.status_code == 200
+    """The schema is admin-only; identity arrives as gateway-asserted headers."""
 
-    async def test_get_admin_schema_has_fields_key(
+    @staticmethod
+    def _caller(role: str) -> dict[str, str]:
+        return {USER_ID_HEADER: str(uuid4()), USER_ROLE_HEADER: role}
+
+    async def test_admin_gets_schema_fields(
+        self, client_for_unit_testing: AsyncClient
+    ):
+        response = await client_for_unit_testing.get(
+            f"{TEST_API}/admin/schema/orders",
+            headers=self._caller(get_settings().SECRET_ROLE),
+        )
+        assert response.status_code == 200
+        assert response.json()["fields"]
+
+    async def test_regular_user_is_forbidden(
+        self, client_for_unit_testing: AsyncClient
+    ):
+        response = await client_for_unit_testing.get(
+            f"{TEST_API}/admin/schema/orders", headers=self._caller("user"),
+        )
+        assert response.status_code == 403
+
+    async def test_anonymous_is_rejected(
         self, client_for_unit_testing: AsyncClient
     ):
         response = await client_for_unit_testing.get(f"{TEST_API}/admin/schema/orders")
-        assert "fields" in response.json()
+        assert response.status_code == 401

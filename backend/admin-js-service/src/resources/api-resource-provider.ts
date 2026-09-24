@@ -1,11 +1,24 @@
-import {
+import AdminJS, {
     BaseResource,
     BaseRecord,
     BaseProperty,
     Filter,
     ActionContext,
     ParamsType,
+    PropertyType,
+    ResourceOptions,
 } from 'adminjs';
+
+/** One field as returned by the services' admin-only /admin/schema/* routes. */
+interface AdminSchemaField {
+    path: string;
+    type: PropertyType;
+    isId: boolean;
+}
+
+interface AdminSchemaResponse {
+    fields?: AdminSchemaField[];
+}
 
 export class ApiResourceProvider extends BaseResource {
     private dataEndpoint: string;
@@ -16,9 +29,22 @@ export class ApiResourceProvider extends BaseResource {
 
     private databaseTypeValue: string;
 
-    private cachedProperties: BaseProperty[] = [];
+    // Until an admin's token lets us read the real schema, expose only the id.
+    private cachedProperties: BaseProperty[] = [
+        new BaseProperty({ path: 'id', type: 'string', isId: true }),
+    ];
 
     private usesFormData: boolean;
+
+    private schemaLoaded = false;
+
+    private schemaLoading: Promise<void> | null = null;
+
+    // Kept so the resource can be re-decorated once its schema arrives:
+    // AdminJS reads properties() only when the decorator is built.
+    private adminInstance: AdminJS | null = null;
+
+    private resourceOptions: ResourceOptions = {};
 
     constructor(
         dataEndpoint: string,
@@ -35,46 +61,70 @@ export class ApiResourceProvider extends BaseResource {
         this.usesFormData = usesFormData;
     }
 
-    // Static factory method that handles async initialization
-    static async create(
-        dataEndpoint: string,
-        schemaEndpoint: string,
-        resourceName: string,
-        databaseType: string,
-        usesFormData = false,
-    ): Promise<ApiResourceProvider> {
-        const instance = new ApiResourceProvider(
-            dataEndpoint,
-            schemaEndpoint,
-            resourceName,
-            databaseType,
-            usesFormData,
-        );
-        await instance.loadSchema();
-        return instance;
+    override assignDecorator(admin: AdminJS, options: ResourceOptions = {}): void {
+        this.adminInstance = admin;
+        this.resourceOptions = options;
+        super.assignDecorator(admin, this.withSchemaProperties(options));
     }
 
-    private async loadSchema(): Promise<void> {
+    /**
+     * Load the admin-only field schema with the given admin token, once.
+     *
+     * Concurrent callers share one request; a failure leaves the id-only
+     * fallback in place and lets the next call retry.
+     */
+    public async ensureSchema(token: string): Promise<void> {
+        if (this.schemaLoaded) return;
+        if (!this.schemaLoading) {
+            this.schemaLoading = this.loadSchema(token).finally(() => {
+                this.schemaLoading = null;
+            });
+        }
+        await this.schemaLoading;
+    }
+
+    private async loadSchema(token: string): Promise<void> {
         try {
-            const schema = await this.fetchApi(this.schemaEndpoint);
+            const schema: AdminSchemaResponse = await this.fetchApi(this.schemaEndpoint, undefined, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
             if (!schema.fields?.length) {
                 console.warn(`No fields for ${this.resourceName}`);
                 return;
             }
 
-            this.cachedProperties = schema.fields.map((field: any) => {
-                return new BaseProperty({
-                    path: field.path,
-                    type: field.type,
-                    isId: field.isId,
-                });
-            });
+            this.cachedProperties = schema.fields.map((field) => new BaseProperty({
+                path: field.path,
+                type: field.type,
+                isId: field.isId,
+            }));
+            this.schemaLoaded = true;
+            this.redecorate();
         } catch (error) {
             console.error(`Failed to load schema for ${this.resourceName}:`, error);
-            // Set default property to prevent errors
-            this.cachedProperties = [
-                new BaseProperty({ path: 'id', type: 'string', isId: true }),
-            ];
+        }
+    }
+
+    /** Rebuild the AdminJS decorator so the freshly loaded properties are used. */
+    private redecorate(): void {
+        if (this.adminInstance) {
+            super.assignDecorator(this.adminInstance, this.withSchemaProperties(this.resourceOptions));
+        }
+    }
+
+    /** Generated per-field config, with any explicitly configured overrides on top. */
+    private withSchemaProperties(options: ResourceOptions): ResourceOptions {
+        return {
+            ...options,
+            properties: { ...this.generateAdminPropertiesConfig(), ...options.properties },
+        };
+    }
+
+    /** Fallback for sessions that outlived a restart and so skipped the login hook. */
+    private async ensureSchemaFor(context?: ActionContext): Promise<void> {
+        const token = context?.currentAdmin?.token;
+        if (typeof token === 'string' && token) {
+            await this.ensureSchema(token);
         }
     }
 
@@ -155,6 +205,7 @@ export class ApiResourceProvider extends BaseResource {
         context?: ActionContext,
     ): Promise<BaseRecord[]> {
         try {
+            await this.ensureSchemaFor(context);
             const {
                 limit,
                 offset,
@@ -254,6 +305,7 @@ export class ApiResourceProvider extends BaseResource {
 
     public async findOne(id: string, context?: ActionContext): Promise<BaseRecord | null> {
         try {
+            await this.ensureSchemaFor(context);
             const url = this.buildResourceUrl(id);
             console.log(`Fetching single ${this.resourceName} from URL:`, url);
             const data = await this.fetchApi(url, context);

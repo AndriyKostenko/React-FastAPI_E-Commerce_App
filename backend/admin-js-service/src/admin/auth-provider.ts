@@ -1,6 +1,7 @@
 import { DefaultAuthProvider } from 'adminjs';
 
 import componentLoader from './component-loader.js';
+import { schemaRegistry } from './schema-registry.js';
 
 
 /**
@@ -30,6 +31,8 @@ const provider = new DefaultAuthProvider({
                 return null;
             }
             console.log('Authentication successful for user:', data.user_email);
+            // The field schemas are admin-only; load them before the dashboard renders.
+            await schemaRegistry.loadAll(data.access_token);
 
             return {
                 email: data.user_email,

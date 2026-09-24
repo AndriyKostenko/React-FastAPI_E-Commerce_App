@@ -231,10 +231,15 @@ class Settings(BaseSettings):
     OPENROUTER_IMAGE_MODEL: str
     OPENROUTER_IMAGE_SIZE: str = "1024x1024"
     OPENROUTER_IMAGE_ASPECT_RATIO: str = "1:1"
-    PRODUCT_IMAGE_GUEST_GENERATION_LIMIT: int = 3
-    PRODUCT_IMAGE_REGISTERED_GENERATION_LIMIT: int = 10
-    PRODUCT_IMAGE_GUEST_GENERATION_WINDOW_HOURS: int = 24
-    GUEST_QUOTA_COOKIE: str
+    # Generation is for signed-in users only; each gets this many per window.
+    PRODUCT_IMAGE_GENERATION_LIMIT: int = 10
+    PRODUCT_IMAGE_GENERATION_WINDOW_HOURS: int = 24
+    # Background removal (rembg). The model must be licensed for commercial
+    # use — rembg's own default, bria-rmbg, is non-commercial.
+    PRODUCT_IMAGE_BG_REMOVAL_MODEL: str = "isnet-general-use"
+    # A cutout keeping less than this share of opaque pixels means the model
+    # removed the design itself, so the job fails instead of printing nothing.
+    PRODUCT_IMAGE_BG_MIN_FOREGROUND_RATIO: float = Field(default=0.01, gt=0, lt=1)
 
     # Dedicated production resolution; kept separate from the older preview
     # setting so an existing 1024x1024 environment cannot silently create
@@ -628,7 +633,7 @@ class TestSettings(BaseSettings):
     TEST_USER_ID: UUID = uuid4()
     TEST_ADMIN_ID: UUID = uuid4()
     TEST_USER_ROLE: str = "user"
-    TEST_ADMIN_ROLE: str = "shiba_inu"
+    TEST_ADMIN_ROLE: str = "admin"  # the only admin role users.ck_users_role allows
     TEST_NAME: str = "Test User"
     TEST_EMAIL: str = "test@example.com"
     TEST_ADMIN_EMAIL: str = "admin@example.com"

@@ -22,7 +22,9 @@ from service_layer.packing_slip_service import PackingSlipBuilder
 from service_layer.production_queue_service import ProductionQueueService
 from models.outbox_models import OutboxEvent
 from database_layer.order_repository import OrderRepository
+from config import settings
 from resources import OrderApiResources, get_order_api_resources
+from shared.utils.authenticated_caller import AuthenticatedCaller
 
 
 def get_api_resources(request: Request) -> OrderApiResources:
@@ -117,8 +119,14 @@ def get_production_queue_service(
     )
 
 
+def get_admin_caller(request: Request) -> AuthenticatedCaller:
+    """The asserted caller if they are an admin; 401/403 otherwise."""
+    return AuthenticatedCaller.require_admin(request, settings.SECRET_ROLE)
+
+
 order_address_dependency = Annotated[OrderAddressService, Depends(get_order_address_service)]
 order_item_dependency = Annotated[OrderItemService, Depends(get_order_item_service)]
 order_service_dependency = Annotated[OrderService, Depends(get_order_service)]
 production_queue_service_dependency = Annotated[ProductionQueueService, Depends(get_production_queue_service)]
 fulfillment_status_dependency = Annotated[OrderFulfillmentStatusService, Depends(get_fulfillment_status_service)]
+admin_caller_dependency = Annotated[AuthenticatedCaller, Depends(get_admin_caller)]

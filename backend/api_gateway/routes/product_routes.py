@@ -110,8 +110,11 @@ async def get_image_by_id(request: Request,
 
 @product_proxy.post("/images/generations", summary="Generate custom image")
 @rate_limited(times=10, seconds=60)
-async def generate_custom_image(request: Request):
-    """PUBLIC - Submit a background image-generation job (returns 202 immediately)."""
+async def generate_custom_image(
+    request: Request,
+    current_user: CurrentUserInfo = Depends(get_current_user),
+):
+    """Signed-in users only - submit a background image-generation job (202)."""
     return await api_gateway_manager.forward_request(
         service_name="product-service",
         request=request,
@@ -119,8 +122,12 @@ async def generate_custom_image(request: Request):
 
 
 @product_proxy.get("/images/generations/{job_id}/status", summary="Poll image generation job status")
-async def get_image_generation_status(request: Request, job_id: str):
-    """PUBLIC - Poll the status of a background image-generation job."""
+async def get_image_generation_status(
+    request: Request,
+    job_id: str,
+    current_user: CurrentUserInfo = Depends(get_current_user),
+):
+    """Signed-in users only - poll one of the caller's own generation jobs."""
     return await api_gateway_manager.forward_request(
         service_name="product-service",
         request=request,
@@ -363,7 +370,10 @@ async def add_to_favorites(request: Request,
 # ==================== ADMINJS ENDPOINTS ====================
 
 @product_proxy.get("/admin/schema/products", summary="Get product schema for AdminJS")
-async def get_product_schema_for_admin_js(request: Request):
+async def get_product_schema_for_admin_js(
+    request: Request,
+    admin: CurrentUserInfo = Depends(require_admin),
+):
     """Get product schema for AdminJS"""
     return await api_gateway_manager.forward_request(
         service_name="product-service",
@@ -371,7 +381,10 @@ async def get_product_schema_for_admin_js(request: Request):
     )
 
 @product_proxy.get("/admin/schema/categories", summary="Get category schema for AdminJS")
-async def get_category_schema_for_admin_js(request: Request):
+async def get_category_schema_for_admin_js(
+    request: Request,
+    admin: CurrentUserInfo = Depends(require_admin),
+):
     """Get category schema for AdminJS"""
     return await api_gateway_manager.forward_request(
         service_name="product-service",
@@ -380,7 +393,10 @@ async def get_category_schema_for_admin_js(request: Request):
 
 
 @product_proxy.get("/admin/schema/images", summary="Get product_images schema for AdminJS")
-async def get_images_schema_for_admin_js(request: Request):
+async def get_images_schema_for_admin_js(
+    request: Request,
+    admin: CurrentUserInfo = Depends(require_admin),
+):
     """Get category schema for AdminJS"""
     return await api_gateway_manager.forward_request(
         service_name="product-service",
@@ -389,7 +405,10 @@ async def get_images_schema_for_admin_js(request: Request):
 
 
 @product_proxy.get("/admin/schema/reviews", summary="Get product_reviews schema for AdminJS")
-async def get_reviews_schema_for_admin_js(request: Request):
+async def get_reviews_schema_for_admin_js(
+    request: Request,
+    admin: CurrentUserInfo = Depends(require_admin),
+):
     """Get category schema for AdminJS"""
     return await api_gateway_manager.forward_request(
         service_name="product-service",

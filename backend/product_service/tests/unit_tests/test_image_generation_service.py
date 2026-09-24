@@ -2,7 +2,7 @@ import base64
 import io
 import json
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import ANY, AsyncMock, MagicMock
 from uuid import uuid4
 
 import pytest
@@ -10,9 +10,11 @@ from pydantic import SecretStr
 from PIL import Image
 
 from exceptions.image_generation_exceptions import (
+    ImageBackgroundRemovalError,
     ImageGenerationLimitExceededError,
     ImageGenerationProviderError,
 )
+from service_layer.background_removal_service import BackgroundRemover
 from service_layer.image_generation_service import ImageGenerationService
 from service_layer.image_generation_quota import GenerationQuotaService
 from service_layer.image_job_store import ImageJobStore
@@ -81,10 +83,8 @@ def image_generation_settings() -> MagicMock:
     settings.OPENROUTER_IMAGE_SIZE = "0.5K"
     settings.PRINT_IMAGE_GENERATION_SIZE = "4K"
     settings.OPENROUTER_IMAGE_ASPECT_RATIO = "1:1"
-    settings.PRODUCT_IMAGE_GUEST_GENERATION_LIMIT = 3
-    settings.PRODUCT_IMAGE_REGISTERED_GENERATION_LIMIT = 10
-    settings.PRODUCT_IMAGE_GUEST_GENERATION_WINDOW_HOURS = 24
-    settings.GUEST_QUOTA_COOKIE = "guest_generation_id"
+    settings.PRODUCT_IMAGE_GENERATION_LIMIT = 3
+    settings.PRODUCT_IMAGE_GENERATION_WINDOW_HOURS = 24
     settings.FRONTEND_URL = "https://example.com"
     settings.WEBSITE_NAME = "react-fastapi-ecommerce"
     return settings
@@ -164,6 +164,7 @@ def image_generation_service_unit(
         job_store=MagicMock(spec=ImageJobStore),
         openrouter_client=MagicMock(spec=OpenRouterClient),
         storage_service=MagicMock(spec=ImageStorageService),
+        background_remover=MagicMock(spec=BackgroundRemover),
         settings=image_generation_settings,
         logger=MagicMock(),
     )
@@ -240,7 +241,7 @@ class TestOpenRouterClient:
         await client.generate(prompt="Tiger", style="Streetwear", remove_background=True)
         content = log["payload"]["messages"][0]["content"]
         assert "Style reference: Streetwear" in content
-        assert "Remove the background completely" in content
+        assert "plain, flat, uniform background" in content
         assert log["payload"]["image_config"]["background"] == "transparent"
         assert log["payload"]["image_config"]["output_format"] == "png"
 
@@ -390,51 +391,59 @@ class TestGenerationQuotaService:
         self, quota_service: GenerationQuotaService, mock_redis: MagicMock
     ) -> None:
         mock_redis.incr = AsyncMock(return_value=1)  # first use
-        remaining = await quota_service.consume("user-abc", is_guest=True)
+        remaining = await quota_service.consume(uuid4())
         assert remaining == 2  # limit=3, used=1
 
     async def test_sets_ttl_on_first_use(
         self, quota_service: GenerationQuotaService, mock_redis: MagicMock
     ) -> None:
         mock_redis.incr = AsyncMock(return_value=1)
-        await quota_service.consume("user-abc", is_guest=True)
-        mock_redis.expire.assert_awaited_once()
+        await quota_service.consume(uuid4())
+        mock_redis.expire.assert_awaited_once_with(ANY, 24 * 3600)
+
+    async def test_exactly_at_limit_is_allowed(
+        self, quota_service: GenerationQuotaService, mock_redis: MagicMock
+    ) -> None:
+        mock_redis.incr = AsyncMock(return_value=3)
+        assert await quota_service.consume(uuid4()) == 0
 
     async def test_raises_when_limit_exceeded(
         self, quota_service: GenerationQuotaService, mock_redis: MagicMock
     ) -> None:
-        mock_redis.incr = AsyncMock(return_value=4)  # over guest limit of 3
+        mock_redis.incr = AsyncMock(return_value=4)  # over the limit of 3
         with pytest.raises(ImageGenerationLimitExceededError):
-            await quota_service.consume("user-abc", is_guest=True)
+            await quota_service.consume(uuid4())
 
-    async def test_registered_user_uses_higher_limit(
+    async def test_quota_key_is_per_user(
         self, quota_service: GenerationQuotaService, mock_redis: MagicMock
     ) -> None:
-        mock_redis.incr = AsyncMock(return_value=10)  # registered limit=10, exactly at limit
-        remaining = await quota_service.consume("user-xyz", is_guest=False)
-        assert remaining == 0
-
-    async def test_quota_key_namespaced_by_user_type(
-        self, quota_service: GenerationQuotaService, mock_redis: MagicMock
-    ) -> None:
-        await quota_service.consume("user-abc", is_guest=True)
+        user_id = uuid4()
+        await quota_service.consume(user_id)
         key_used = mock_redis.incr.call_args[0][0]
-        assert "guest" in key_used
-        assert "user-abc" in key_used
+        assert key_used == f"product-service:image-generation:user:{user_id}"
 
 
 # ── ImageJobStore ──────────────────────────────────────────────────────────────
 
 class TestImageJobStore:
-    async def test_create_writes_pending_status(
+    async def test_create_writes_pending_status_and_owner(
         self, job_store: ImageJobStore, mock_redis: MagicMock
     ) -> None:
         from orjson import loads
-        await job_store.create("job-1")
-        raw = mock_redis.setex.call_args.kwargs["value"]
-        data = loads(raw)
+        owner_id = uuid4()
+        pipe = MagicMock()
+        pipe.execute = AsyncMock(return_value=[True, True])
+        mock_redis.pipeline = MagicMock(return_value=pipe)
+
+        await job_store.create("job-1", owner_id=owner_id)
+
+        job_call, owner_call = pipe.setex.call_args_list
+        data = loads(job_call.kwargs["value"])
         assert data["status"] == "pending"
         assert "submitted_at" in data
+        assert owner_call.kwargs["name"].endswith("image-job-owner:job-1")
+        assert owner_call.kwargs["value"] == str(owner_id)
+        pipe.execute.assert_awaited_once()
 
     async def test_set_state_writes_given_status(
         self, job_store: ImageJobStore, mock_redis: MagicMock
@@ -446,13 +455,23 @@ class TestImageJobStore:
         assert data["status"] == "completed"
         assert data["image_url"] == "/media/out.png"
 
-    async def test_get_returns_parsed_dict(
+    async def test_owner_gets_parsed_dict(
         self, job_store: ImageJobStore, mock_redis: MagicMock
     ) -> None:
         from orjson import dumps
-        mock_redis.get = AsyncMock(return_value=dumps({"status": "running"}))
-        result = await job_store.get("job-1")
+        owner_id = uuid4()
+        mock_redis.get = AsyncMock(side_effect=[str(owner_id).encode(), dumps({"status": "running"})])
+        result = await job_store.get("job-1", owner_id=owner_id)
         assert result["status"] == "running"
+
+    async def test_other_users_job_is_reported_missing(
+        self, job_store: ImageJobStore, mock_redis: MagicMock
+    ) -> None:
+        from orjson import dumps
+        from exceptions.image_generation_exceptions import ImageGenerationJobNotFoundError
+        mock_redis.get = AsyncMock(side_effect=[str(uuid4()).encode(), dumps({"status": "completed"})])
+        with pytest.raises(ImageGenerationJobNotFoundError):
+            await job_store.get("job-1", owner_id=uuid4())
 
     async def test_get_raises_when_job_not_found(
         self, job_store: ImageJobStore, mock_redis: MagicMock
@@ -460,7 +479,7 @@ class TestImageJobStore:
         from exceptions.image_generation_exceptions import ImageGenerationJobNotFoundError
         mock_redis.get = AsyncMock(return_value=None)
         with pytest.raises(ImageGenerationJobNotFoundError):
-            await job_store.get("missing-job")
+            await job_store.get("missing-job", owner_id=uuid4())
 
 
 # ── ImageGenerationService (orchestrator) ─────────────────────────────────────
@@ -469,6 +488,7 @@ class TestImageGenerationService:
     async def test_generate_image_delegates_to_collaborators(
         self, image_generation_service_unit: ImageGenerationService
     ) -> None:
+        user_id = uuid4()
         image_generation_service_unit._quota_service.consume = AsyncMock(return_value=2)
         image_generation_service_unit._openrouter_client.generate = AsyncMock(
             return_value=("data:image/png;base64,aGVsbG8=", "openai/gpt-5-image-mini")
@@ -480,40 +500,42 @@ class TestImageGenerationService:
         result = await image_generation_service_unit.generate_image(
             prompt="Cyberpunk tiger",
             style="Streetwear",
-            is_guest_user=True,
-            guest_id=str(uuid4()),
+            user_id=user_id,
         )
 
+        image_generation_service_unit._quota_service.consume.assert_awaited_once_with(user_id)
         assert result.image_url == "/media/generated-designs/out.png"
         assert result.design_asset == _asset()
         assert result.model == "openai/gpt-5-image-mini"
         assert result.remaining_generations == 2
-        assert result.guest_limit == 3
+        assert result.generation_limit == 3
 
-    async def test_generate_image_raises_without_guest_id(
+    async def test_submit_job_consumes_quota_and_creates_owned_job(
         self, image_generation_service_unit: ImageGenerationService
     ) -> None:
-        with pytest.raises(ImageGenerationProviderError):
-            await image_generation_service_unit.generate_image(
-                prompt="Tiger", style="Neon", is_guest_user=True, guest_id=None
-            )
-
-    async def test_submit_job_consumes_quota_and_creates_job(
-        self, image_generation_service_unit: ImageGenerationService
-    ) -> None:
+        user_id = uuid4()
         image_generation_service_unit._quota_service.consume = AsyncMock(return_value=1)
         image_generation_service_unit._job_store.create = AsyncMock()
 
-        remaining = await image_generation_service_unit.submit_job(
-            job_id="job-123",
-            prompt="Logo",
-            style="Modern",
-            is_guest_user=False,
-            user_id=str(uuid4()),
-        )
+        remaining = await image_generation_service_unit.submit_job(job_id="job-123", user_id=user_id)
 
         assert remaining == 1
-        image_generation_service_unit._job_store.create.assert_awaited_once_with("job-123")
+        image_generation_service_unit._quota_service.consume.assert_awaited_once_with(user_id)
+        image_generation_service_unit._job_store.create.assert_awaited_once_with(
+            "job-123", owner_id=user_id
+        )
+
+    async def test_spent_quota_creates_no_job(
+        self, image_generation_service_unit: ImageGenerationService
+    ) -> None:
+        image_generation_service_unit._quota_service.consume = AsyncMock(
+            side_effect=ImageGenerationLimitExceededError(retry_after=60, limit=3)
+        )
+        image_generation_service_unit._job_store.create = AsyncMock()
+
+        with pytest.raises(ImageGenerationLimitExceededError):
+            await image_generation_service_unit.submit_job(job_id="job-9", user_id=uuid4())
+        image_generation_service_unit._job_store.create.assert_not_awaited()
 
     async def test_run_job_sets_running_then_completed(
         self, image_generation_service_unit: ImageGenerationService
@@ -554,3 +576,64 @@ class TestImageGenerationService:
         image_generation_service_unit._storage_service.save = AsyncMock(return_value=stored)
         result = await image_generation_service_unit.save_image("data:image/png;base64,aGVsbG8=")
         assert result == stored
+
+
+# ── Background removal in the job pipeline ─────────────────────────────────────
+
+class TestBackgroundRemovalInPipeline:
+    """The remover sits between the provider and storage, only when requested."""
+
+    @staticmethod
+    def _wire(service: ImageGenerationService) -> None:
+        service._openrouter_client.generate = AsyncMock(
+            return_value=("data:image/png;base64,UFJPVklERVI=", "google/model")
+        )
+        service._background_remover.remove = AsyncMock(
+            return_value="data:image/png;base64,Q1VUT1VU"
+        )
+        service._storage_service.save = AsyncMock(
+            return_value=StoredImage("/media/generated-designs/out.png", _asset())
+        )
+        service._job_store.set_state = AsyncMock()
+
+    async def test_cutout_is_what_gets_stored(
+        self, image_generation_service_unit: ImageGenerationService
+    ) -> None:
+        self._wire(image_generation_service_unit)
+
+        await image_generation_service_unit.run_job("job-1", "Tiger", "Neon", remove_background=True)
+
+        image_generation_service_unit._background_remover.remove.assert_awaited_once_with(
+            "data:image/png;base64,UFJPVklERVI="
+        )
+        image_generation_service_unit._storage_service.save.assert_awaited_once_with(
+            "data:image/png;base64,Q1VUT1VU"
+        )
+        assert image_generation_service_unit._job_store.set_state.call_args_list[-1].args[1] == "completed"
+
+    async def test_remover_is_skipped_when_not_requested(
+        self, image_generation_service_unit: ImageGenerationService
+    ) -> None:
+        self._wire(image_generation_service_unit)
+
+        await image_generation_service_unit.run_job("job-2", "Tiger", "Neon", remove_background=False)
+
+        image_generation_service_unit._background_remover.remove.assert_not_awaited()
+        image_generation_service_unit._storage_service.save.assert_awaited_once_with(
+            "data:image/png;base64,UFJPVklERVI="
+        )
+
+    async def test_failed_cutout_fails_the_job_and_stores_nothing(
+        self, image_generation_service_unit: ImageGenerationService
+    ) -> None:
+        self._wire(image_generation_service_unit)
+        image_generation_service_unit._background_remover.remove = AsyncMock(
+            side_effect=ImageBackgroundRemovalError("Background removal left almost nothing")
+        )
+
+        await image_generation_service_unit.run_job("job-3", "Tiger", "Neon", remove_background=True)
+
+        image_generation_service_unit._storage_service.save.assert_not_awaited()
+        last = image_generation_service_unit._job_store.set_state.call_args_list[-1]
+        assert last.args[1] == "failed"
+        assert "left almost nothing" in last.args[2]["error"]

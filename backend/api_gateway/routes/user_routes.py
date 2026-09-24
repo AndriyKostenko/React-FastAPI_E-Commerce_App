@@ -223,7 +223,10 @@ async def get_all_users(request: Request,
 # ==================== ADMINJS ENDPOINTS ====================
 
 @user_proxy.get("/admin/schema/users")
-async def get_user_schema_for_admin_js(request: Request):
+async def get_user_schema_for_admin_js(
+    request: Request,
+    admin: CurrentUserInfo = Depends(require_admin),
+):
     return await api_gateway_manager.forward_request(
         service_name=Services.USER_SERVICE,
         request=request

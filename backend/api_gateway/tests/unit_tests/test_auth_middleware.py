@@ -74,13 +74,14 @@ class TestIsPublicEndpoint:
     def test_customization_pricing_get_is_public(self):
         assert self.mw.is_public_endpoint(f"{API}/customization/pricing", "GET") is True
 
-    def test_images_generations_post_is_public(self):
-        assert self.mw.is_public_endpoint(f"{API}/images/generations", "POST") is True
+    def test_images_generations_post_requires_session(self):
+        """Generation spends paid provider credit, so guests cannot trigger it."""
+        assert self.mw.is_public_endpoint(f"{API}/images/generations", "POST") is False
 
-    def test_images_generations_status_get_is_public(self):
+    def test_images_generations_status_get_requires_session(self):
         from uuid import uuid4
         job_id = str(uuid4())
-        assert self.mw.is_public_endpoint(f"{API}/images/generations/{job_id}/status", "GET") is True
+        assert self.mw.is_public_endpoint(f"{API}/images/generations/{job_id}/status", "GET") is False
 
     def test_images_generations_status_post_is_not_public(self):
         from uuid import uuid4
@@ -100,8 +101,9 @@ class TestIsPublicEndpoint:
     def test_notifications_get_is_not_public(self):
         assert self.mw.is_public_endpoint(f"{API}/notifications", "GET") is False
 
-    def test_admin_schema_users_get_is_public(self):
-        assert self.mw.is_public_endpoint(f"{API}/admin/schema/users", "GET") is True
+    @pytest.mark.parametrize("resource", ["users", "products", "categories", "images", "reviews", "orders"])
+    def test_admin_schemas_require_session(self, resource):
+        assert self.mw.is_public_endpoint(f"{API}/admin/schema/{resource}", "GET") is False
 
 
 class TestMiddlewareAuth:
@@ -187,3 +189,42 @@ class TestMiddlewareAuth:
 
         call_next.assert_awaited_once()
         assert response.status_code == 200
+
+
+class TestPublicRouteBoundaries:
+    """Public paths match on segment boundaries, never on a raw string prefix."""
+
+    def setup_method(self):
+        self.mw = AuthMiddleware.__new__(AuthMiddleware)
+        self.mw.__init__(settings=settings, logger=MagicMock(), token_manager=MagicMock())
+
+    @pytest.mark.parametrize("path", [
+        f"{API}/products/abc/reviews",
+        f"{API}/products/",
+        f"{API}/categories/abc",
+        f"{API}/shipping/methods/abc",
+        "/docs/oauth2-redirect",
+    ])
+    def test_tree_routes_cover_their_children(self, path):
+        assert self.mw.is_public_endpoint(path, "GET") is True
+
+    @pytest.mark.parametrize("path", [
+        f"{API}/products-export",
+        f"{API}/categoriesx",
+        f"{API}/login-as-admin",
+        f"{API}/login/extra",
+        f"{API}/payments/webhook/replay",
+        "/healthz",
+        "/openapi.json.bak",
+    ])
+    def test_sibling_and_nested_paths_stay_protected(self, path):
+        assert self.mw.is_public_endpoint(path, "GET") is False
+        assert self.mw.is_public_endpoint(path, "POST") is False
+
+    def test_exact_route_tolerates_trailing_slash(self):
+        assert self.mw.is_public_endpoint(f"{API}/login/", "POST") is True
+
+    def test_protected_carve_out_beats_public_tree(self):
+        """Public GETs are cached for everyone, so admin routes under a public tree must not be public."""
+        assert self.mw.is_public_endpoint(f"{API}/shipping/methods/all", "GET") is False
+        assert self.mw.is_public_endpoint(f"{API}/shipping/methods/abc", "GET") is True

@@ -122,11 +122,20 @@ class TestAdminProductRoutes:
         response = await admin_client.delete(f"{TEST_API}/images/{TEST_IMAGE_ID}")
         mock_forward.assert_awaited_once()
 
-    async def test_admin_schema_products_calls_forward(
-        self, client: AsyncClient, mock_forward: AsyncMock
+    @pytest.mark.parametrize("resource", ["products", "categories", "images", "reviews"])
+    async def test_admin_schema_as_admin_calls_forward(
+        self, admin_client: AsyncClient, mock_forward: AsyncMock, resource: str
     ):
-        response = await client.get(f"{TEST_API}/admin/schema/products")
+        response = await admin_client.get(f"{TEST_API}/admin/schema/{resource}")
         mock_forward.assert_awaited_once()
+
+    @pytest.mark.parametrize("resource", ["products", "categories", "images", "reviews"])
+    async def test_admin_schema_as_user_returns_403(
+        self, client: AsyncClient, mock_forward: AsyncMock, resource: str
+    ):
+        response = await client.get(f"{TEST_API}/admin/schema/{resource}")
+        assert response.status_code == 403
+        mock_forward.assert_not_awaited()
 
 
 class TestAuthenticatedProductRoutes:

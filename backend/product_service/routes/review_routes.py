@@ -4,7 +4,11 @@ from typing import Any, List
 from fastapi import APIRouter, status, Request
 
 from schemas.review_schemas import ReviewSchema, CreateReview, UpdateReview
-from dependencies.dependencies import review_service_dependency, product_service_dependency
+from dependencies.dependencies import (
+    admin_caller_dependency,
+    product_service_dependency,
+    review_service_dependency,
+)
 from models.review_models import ProductReview
 
 
@@ -122,5 +126,5 @@ async def delete_product_review(request: Request,
     response_model=dict[str, Any],
     status_code=status.HTTP_200_OK,
 )
-async def get_product_reviews_schema_for_admin_js(request: Request):
+async def get_product_reviews_schema_for_admin_js(_admin: admin_caller_dependency) -> dict[str, Any]:
     return {"fields": ProductReview.get_admin_schema()}

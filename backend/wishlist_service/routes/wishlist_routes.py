@@ -23,7 +23,7 @@ async def get_my_wishlist(
     wishlist_service: wishlist_service_dependency,
 ) -> WishlistSchema:
     """Get the wishlist for the authenticated user. Creates one if it doesn't exist."""
-    user_id = UUID(current_user["id"])
+    user_id = current_user.user_id
     return await wishlist_service.get_or_create_wishlist(user_id=user_id)
 
 
@@ -37,7 +37,7 @@ async def add_item_to_wishlist(
     http_client: http_client_dependency,
 ) -> WishlistSchema:
     """Add a product to the authenticated user's wishlist."""
-    user_id = UUID(current_user["id"])
+    user_id = current_user.user_id
     return await wishlist_service.add_item_to_wishlist(
         user_id=user_id,
         item_data=item_data,
@@ -54,7 +54,7 @@ async def remove_item_from_wishlist(
     wishlist_service: wishlist_service_dependency,
 ) -> WishlistSchema:
     """Remove an item from the authenticated user's wishlist."""
-    user_id = UUID(current_user["id"])
+    user_id = current_user.user_id
     return await wishlist_service.remove_item_from_wishlist(
         user_id=user_id,
         item_id=item_id,

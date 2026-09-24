@@ -6,6 +6,8 @@ from fastapi import Depends, Request
 from starlette.requests import HTTPConnection
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from shared.utils.authenticated_caller import AuthenticatedCaller
+
 from resources import WishlistApiResources, get_wishlist_api_resources
 from service_layer.wishlist_service import WishlistService
 from database_layer.wishlist_repository import WishlistRepository
@@ -46,11 +48,16 @@ def get_http_client(resources: resources_dependency) -> ClientSession:
     return resources.http_client
 
 
-def get_current_user(request: Request) -> dict:
-    """Extract the current authenticated user from request state (set by API Gateway)."""
-    return request.state.current_user
+def get_current_user(request: Request) -> AuthenticatedCaller:
+    """
+    Resolve the caller from the identity headers the API gateway asserts.
+
+    ``request.state`` belongs to this process, so the gateway's own
+    ``state.current_user`` never reaches it; the headers are the only channel.
+    """
+    return AuthenticatedCaller.require(request)
 
 
 wishlist_service_dependency = Annotated[WishlistService, Depends(get_wishlist_service)]
-current_user_dependency = Annotated[dict, Depends(get_current_user)]
+current_user_dependency = Annotated[AuthenticatedCaller, Depends(get_current_user)]
 http_client_dependency = Annotated[ClientSession, Depends(get_http_client)]

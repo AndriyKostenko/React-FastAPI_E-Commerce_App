@@ -515,7 +515,10 @@ class UserService:
         """
         Authenticate user with constant-time password verification and rotating refresh tokens.
         """
-        user = await self.repository.get_by_field("email", email)
+        # Registration stores emails lowercased, so the lookup must match that
+        # form or a differently-cased email would read as a wrong password.
+        normalized_email = str(email).strip().lower()
+        user = await self.repository.get_by_field("email", normalized_email)
         dummy_hash = self.password_manager.dummy_hash()
         hashed = user.hashed_password if user and user.hashed_password else dummy_hash
         is_valid = self.password_manager.verify_password(password, hashed)

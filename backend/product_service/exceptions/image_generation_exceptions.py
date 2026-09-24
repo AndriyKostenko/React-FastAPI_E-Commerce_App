@@ -11,12 +11,19 @@ class ImageGenerationProviderError(BaseAPIException):
         super().__init__(status_code=502, detail=detail)
 
 
+class ImageBackgroundRemovalError(BaseAPIException):
+    """The cutout step failed or produced artwork that would not print."""
+
+    def __init__(self, detail: str = "Background removal failed"):
+        super().__init__(status_code=502, detail=detail)
+
+
 class ImageGenerationLimitExceededError(BaseAPIException):
     def __init__(self, retry_after: int, limit: int):
         super().__init__(
             status_code=429,
             detail={
-                "message": f"Guest image generation limit ({limit}) reached",
+                "message": f"Image generation limit ({limit}) reached",
                 "retry_after": retry_after,
             },
             headers={"Retry-After": str(retry_after)},
