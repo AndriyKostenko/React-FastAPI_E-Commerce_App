@@ -605,6 +605,25 @@ class TestAuthenticateUser:
         pipeline.expire.assert_called_once()
         pipeline.execute.assert_awaited_once()
 
+    async def test_email_lookup_is_case_and_whitespace_insensitive(
+        self,
+        user_service,
+        mock_repository: MagicMock,
+        mock_user_orm: MagicMock,
+        mock_password_manager: MagicMock,
+        mock_token_manager: MagicMock,
+    ) -> None:
+        mock_repository.get_by_field.return_value = mock_user_orm
+        mock_password_manager.verify_password.return_value = True
+        mock_user_orm.is_verified = True
+        mock_user_orm.is_active = True
+        mock_token_manager.create_access_token.return_value = ("access_tok", 9999)
+        mock_token_manager.create_refresh_token.return_value = ("refresh_tok", 9999)
+
+        await user_service.authenticate_user("  Test@Example.COM ", "correct_pw")
+
+        mock_repository.get_by_field.assert_awaited_once_with("email", "test@example.com")
+
     async def test_raises_401_on_wrong_password(
         self,
         user_service,

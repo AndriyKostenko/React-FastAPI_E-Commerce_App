@@ -207,30 +207,19 @@ class CacheManager(RedisBase):
         except Exception as e:
             self.logger.error(f"Error caching response: {str(e)}")
 
-    async def get_cached_response(self, request: Request, is_public: bool = False) -> Optional[JSONResponse]:
+    async def get_cached_response(self, request: Request, is_cacheable: bool = False) -> Optional[JSONResponse]:
         """
         Return a cached response if available, or None.
 
-        For protected endpoints: skips cache when auth credentials are present
-        (Authorization header or access_token cookie) to avoid cross-user data leaks.
-        For public endpoints: serves from cache regardless of auth headers.
+        The key does not include the caller, so a hit is served to everyone:
+        only routes the caller has declared caller-invariant are looked up.
         """
-        if request.method != "GET":
-            self.logger.info("Skipping cache lookup: non-GET request.")
+        if request.method != "GET" or not is_cacheable:
             return None
 
         # Never serve stale responses for dynamic paths (e.g. job-status polls).
         if any(p in request.url.path for p in self._SKIP_CACHE_PATHS):
             return None
-
-        if not is_public:
-            is_authenticated = (
-                "Authorization" in request.headers
-                or request.cookies.get("access_token") is not None
-            )
-            if is_authenticated:
-                self.logger.info("Skipping cache lookup: authenticated request to protected endpoint.")
-                return None
 
         cache_key = self._generate_cache_key(request=request)
         if not cache_key:

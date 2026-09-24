@@ -24,7 +24,7 @@ class GatewayRequestMiddleware:
         self.rate_limit_manager: RateLimitManager = rate_limit_manager
 
 
-    async def __call__(self, request: Request, call_next: Any, is_public: bool) -> Response:
+    async def __call__(self, request: Request, call_next: Any, is_cacheable: bool) -> Response:
         """
         Execute the full gateway middleware pipeline for a single request.
 
@@ -38,8 +38,9 @@ class GatewayRequestMiddleware:
         Args:
             request:          Incoming FastAPI/Starlette request.
             call_next:        Middleware callable to forward to the next layer.
-            is_public:        True when the endpoint is caller-invariant
-                              (same response for all users).
+            is_cacheable:     True only for routes explicitly declared
+                              caller-invariant (``PublicRoute.cacheable``);
+                              their responses are shared with every caller.
         """
         # 1. Global rate limit: fail-open so Redis outages don't block all traffic.
         _ = await self.rate_limit_manager.is_rate_limited(
@@ -49,19 +50,15 @@ class GatewayRequestMiddleware:
         )
 
         # 2. Return from cache if available.
-        cached = await self.cache_manager.get_cached_response(request, is_public=is_public)
+        cached = await self.cache_manager.get_cached_response(request, is_cacheable=is_cacheable)
         if cached:
             return cached
 
-        # 3. Determine cache-write eligibility before forwarding.
-        #    Cache only when the response is identical for the caller:
-        #    - public endpoints: always (caller-invariant by definition)
-        #    - protected endpoints: only unauthenticated GETs (auth requests may carry user-specific data)
-        is_authenticated = (
-            "Authorization" in request.headers
-            or request.cookies.get("access_token") is not None
-        )
-        should_cache = request.method == "GET" and (is_public or not is_authenticated)
+        # 3. Cache-write eligibility: the cache key ignores the caller, so only
+        #    routes declared caller-invariant may be written. Being public is not
+        #    enough — that assumption is what replayed an admin-only response to
+        #    anonymous callers.
+        should_cache = request.method == "GET" and is_cacheable
 
         # 4. Forward to downstream microservice.
         response: Response = await call_next(request)

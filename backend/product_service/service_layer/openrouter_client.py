@@ -40,7 +40,12 @@ class OpenRouterClient:
     def _build_prompt(self, prompt: str, style: str, remove_background: bool = False) -> str:
         parts = [f"{prompt.strip()}\n\nStyle reference: {style.strip()}"]
         if remove_background:
-            parts.append("Remove the background completely, leaving only the subject.")
+            # The backdrop is cut out afterwards (BackgroundRemover); a flat one
+            # gives the matting model a clean edge to find.
+            parts.append(
+                "Draw a single isolated design on a plain, flat, uniform background "
+                "with no scenery, texture, gradient or vignette."
+            )
         return "\n".join(parts) + "\n"
 
     def _build_payload(

@@ -16,8 +16,8 @@ type JobStatus = "pending" | "running" | "completed" | "failed";
 type SubmitJobResponse = {
   job_id: string;
   status: JobStatus;
-  remaining_generations: number | null;
-  guest_limit: number | null;
+  remaining_generations: number;
+  generation_limit: number;
 };
 
 type JobStatusResponse = {
@@ -27,8 +27,6 @@ type JobStatusResponse = {
   design_asset: GeneratedArtworkAsset | null;
   model: string | null;
   error: string | null;
-  remaining_generations: number | null;
-  guest_limit: number | null;
 };
 
 type ErrorDetailPayload =
@@ -46,9 +44,17 @@ export type GenerateImageResult = {
   imageUrl: string;
   designAsset: GeneratedArtworkAsset;
   model: string;
-  remainingGenerations: number | null;
-  guestLimit: number | null;
+  remainingGenerations: number;
+  generationLimit: number;
 };
+
+/** The session is missing or expired: generation is for signed-in users only. */
+export class GenerationAuthRequiredError extends Error {
+  constructor() {
+    super("Please sign in to generate designs");
+    this.name = "GenerationAuthRequiredError";
+  }
+}
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -75,10 +81,12 @@ const generateImage = async (
   signal?: AbortSignal,
   onPhaseChange?: (phase: "pending" | "running") => void,
 ): Promise<GenerateImageResult> => {
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (authToken?.trim()) {
-    headers.Authorization = `Bearer ${authToken.trim()}`;
-  }
+  // Both the submit and every status poll need the session: the gateway only
+  // lets signed-in users generate, and a job is visible to its owner alone.
+  const authHeaders: Record<string, string> = authToken?.trim()
+    ? { Authorization: `Bearer ${authToken.trim()}` }
+    : {};
+  const headers: Record<string, string> = { "Content-Type": "application/json", ...authHeaders };
 
   // 1. Submit job → 202 Accepted
   const submitRes = await fetch(settings.api.endpoints.imageGenerations, {
@@ -94,12 +102,13 @@ const generateImage = async (
     signal,
   });
 
+  if (submitRes.status === 401) throw new GenerationAuthRequiredError();
   if (!submitRes.ok) {
     const payload: ErrorResponsePayload | null = await submitRes.json().catch(() => null);
     throw new Error(getErrorMessage(payload));
   }
 
-  const { job_id, remaining_generations, guest_limit }: SubmitJobResponse =
+  const { job_id, remaining_generations, generation_limit }: SubmitJobResponse =
     await submitRes.json();
 
   onPhaseChange?.("pending");
@@ -114,9 +123,10 @@ const generateImage = async (
 
     const statusRes = await fetch(
       settings.api.endpoints.imageGenerationsStatus(job_id),
-      { credentials: "include", cache: "no-store", signal },
+      { headers: authHeaders, credentials: "include", cache: "no-store", signal },
     );
 
+    if (statusRes.status === 401) throw new GenerationAuthRequiredError();
     if (!statusRes.ok) {
       const payload: ErrorResponsePayload | null = await statusRes.json().catch(() => null);
       throw new Error(getErrorMessage(payload));
@@ -131,8 +141,8 @@ const generateImage = async (
         imageUrl: resolveImageUrl(job.image_url),
         designAsset: job.design_asset,
         model: job.model ?? "unknown",
-        remainingGenerations: remaining_generations ?? null,
-        guestLimit: guest_limit ?? null,
+        remainingGenerations: remaining_generations,
+        generationLimit: generation_limit,
       };
     }
 

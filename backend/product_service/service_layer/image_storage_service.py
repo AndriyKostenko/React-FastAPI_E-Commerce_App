@@ -17,6 +17,7 @@ from botocore.exceptions import BotoCoreError, ClientError
 from PIL import Image, UnidentifiedImageError
 
 from exceptions.image_generation_exceptions import ImageGenerationProviderError
+from service_layer.image_payload import decode_image_payload
 from shared.contracts.artwork import GeneratedArtworkAsset, sign_artwork_asset
 from shared.settings import Settings
 
@@ -102,29 +103,7 @@ class ImageStorageService:
             ) from error
 
     def _prepare_print_image(self, b64_image: str) -> tuple[bytes, int, int]:
-        payload = b64_image.strip()
-        if payload.startswith("data:"):
-            header, separator, payload = payload.partition(",")
-            if (
-                not separator
-                or ";base64" not in header.lower()
-                or not header.lower().startswith("data:image/")
-            ):
-                raise ImageGenerationProviderError("Invalid image data URL")
-
-        max_encoded_size = (self._settings.PRINT_IMAGE_MAX_BYTES * 4 // 3) + 4
-        if not payload or len(payload) > max_encoded_size:
-            raise ImageGenerationProviderError("Generated image payload is too large")
-
-        try:
-            source_bytes = base64.b64decode(payload, validate=True)
-        except ValueError as error:
-            raise ImageGenerationProviderError(
-                "Generated image payload is not valid base64"
-            ) from error
-
-        if not source_bytes or len(source_bytes) > self._settings.PRINT_IMAGE_MAX_BYTES:
-            raise ImageGenerationProviderError("Generated image payload is too large")
+        source_bytes = decode_image_payload(b64_image, self._settings.PRINT_IMAGE_MAX_BYTES)
 
         try:
             with Image.open(io.BytesIO(source_bytes)) as source:

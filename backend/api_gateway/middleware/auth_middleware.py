@@ -6,6 +6,7 @@ from shared.settings import Settings
 from shared.managers.session_registry import SessionRegistry
 from shared.managers.token_manager import TokenManager
 from shared.enums.auth_enums import AuthCookies
+from middleware.public_routes import PublicRouteRegistry
 
 class AuthMiddleware:
     """
@@ -27,59 +28,19 @@ class AuthMiddleware:
         # without the registry a password reset would leave stolen access
         # tokens working until they expired on their own.
         self.session_registry = session_registry
-        self.PUBLIC_ENDPOINTS: dict[str, list[str] | None] = {
-            "/health": None,
-            "/metrics": None,
-            "/media": None,
-            "/docs": None,
-            "/redoc": None,
-            "/openapi.json": None,
-            f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/register": ['POST'],
-            f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/login": ['POST'],
-            f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/google-login": ['POST'],
-            f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/refresh": ['POST'],
-            f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/logout": ['POST'],
-            f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/forgot-password": ['POST'],
-            # The token travels in the body, so these are exact paths with no
-            # trailing segment. A trailing slash here would stop matching and
-            # silently make account activation and password reset require the
-            # very session the user cannot yet obtain.
-            f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/activate": ['POST'],
-            f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/password-reset": ['POST'],
-            f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/products": ['GET'],
-            f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/categories": ['GET'],
-            f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/customization/pricing": ['GET'],
-            f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/images/generations/": ['GET'],  # job status poll
-            f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/images/generations": ['POST'],
-            f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/admin/schema/users": ['GET'],
-            f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/admin/schema/products": ['GET'],
-            f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/admin/schema/categories": ['GET'],
-            f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/admin/schema/images": ['GET'],
-            f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/admin/schema/reviews": ['GET'],
-            f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/admin/schema/orders": ['GET'],
-            f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/payments/webhook": ['POST'],
-            f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/shipping/methods": ['GET'],
-            f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/shipping/methods/": ['GET'],
-            f"{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/shipping/rates": ['POST'],
-
-        }
+        # Secure by default: anything not declared here requires a session.
+        # Paths match on segment boundaries, never on a raw string prefix.
+        self.public_routes = PublicRouteRegistry.for_api_version(
+            self.settings.API_GATEWAY_SERVICE_URL_API_VERSION
+        )
 
     def is_public_endpoint(self, path: str, method: str) -> bool:
         """Check if the given path is a public endpoint that doesn't require authentication"""
-        # Check exact matches
-        if path in self.PUBLIC_ENDPOINTS:
-            allowed_methods = self.PUBLIC_ENDPOINTS[path]
-            if allowed_methods is None:
-                return True
-            return method in allowed_methods
+        return self.public_routes.is_public(path, method)
 
-
-        for endpoint_prefix, allowed_methods in self.PUBLIC_ENDPOINTS.items():
-            if path.startswith(endpoint_prefix):
-                if allowed_methods is None:
-                    return True
-                return method in allowed_methods
-        return False
+    def is_cacheable_endpoint(self, path: str, method: str) -> bool:
+        """Check if a response may be shared from cache with every caller"""
+        return self.public_routes.is_cacheable(path, method)
 
     async def _is_revoked(self, user_data) -> bool:
         """Report whether this token predates the user's current session generation."""

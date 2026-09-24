@@ -370,9 +370,8 @@ def mock_route_review_service() -> MagicMock:
 def mock_route_image_generation_service() -> MagicMock:
     svc = MagicMock(spec=ImageGenerationService)
     svc.settings = MagicMock()
-    svc.settings.SECURE_COOKIES = False
-    svc.settings.PRODUCT_IMAGE_GUEST_GENERATION_WINDOW_HOURS = 24
-    svc.settings.PRODUCT_IMAGE_GUEST_GENERATION_LIMIT = 3
+    svc.settings.PRODUCT_IMAGE_GENERATION_WINDOW_HOURS = settings.PRODUCT_IMAGE_GENERATION_WINDOW_HOURS
+    svc.settings.PRODUCT_IMAGE_GENERATION_LIMIT = settings.PRODUCT_IMAGE_GENERATION_LIMIT
     svc.generate_image = AsyncMock(
         return_value=GenerateImageResponse(
             image_url="/media/generated-designs/fake-image.png",
@@ -386,7 +385,7 @@ def mock_route_image_generation_service() -> MagicMock:
             ),
             model="openai/gpt-image-1",
             remaining_generations=2,
-            guest_limit=3,
+            generation_limit=10,
         )
     )
     # background-job API

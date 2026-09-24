@@ -15,8 +15,8 @@ class GenerateImageResponse(BaseModel):
     image_url: str
     design_asset: GeneratedArtworkAsset
     model: str
-    remaining_generations: int | None = None
-    guest_limit: int | None = None
+    remaining_generations: int
+    generation_limit: int
 
 
 class ImageJobStatus(str, Enum):
@@ -30,8 +30,8 @@ class ImageGenerationJobSubmitResponse(BaseModel):
     """Returned immediately (202) when a generation job is accepted."""
     job_id: str
     status: ImageJobStatus
-    remaining_generations: int | None = None
-    guest_limit: int | None = None
+    remaining_generations: int
+    generation_limit: int
 
 
 class ImageGenerationJobStatusResponse(BaseModel):

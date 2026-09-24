@@ -33,6 +33,7 @@ from service_layer.wishlist_service import WishlistService
 from shared.managers.test_database_session_manager import TestDatabaseSessionManager
 from schemas.wishlist_schemas import WishlistSchema, WishlistItemSchema
 from shared.testing.helpers import allow_testserver_host
+from shared.utils.authenticated_caller import AuthenticatedCaller
 from service_test_config import test_settings
 
 
@@ -186,9 +187,9 @@ async def _noop_lifespan(app):
 
 
 def _make_current_user_override(user_id: UUID):
-    """Factory for a dependency override that injects request.state.current_user."""
-    def _override() -> dict:
-        return {"id": str(user_id), "role": test_settings.TEST_USER_ROLE}
+    """Factory for a dependency override that injects the gateway-asserted caller."""
+    def _override() -> AuthenticatedCaller:
+        return AuthenticatedCaller(user_id=user_id, role=test_settings.TEST_USER_ROLE)
     return _override
 
 
@@ -202,7 +203,7 @@ async def client_for_unit_testing(
     - Replaces the FastAPI lifespan with a no-op so startup/shutdown don't
       attempt live connections.
     - Overrides the WishlistService dependency so no real DB is needed.
-    - Injects request.state.current_user so the /wishlists/me endpoints work.
+    - Injects the authenticated caller so the /wishlists/me endpoints work.
     """
     original_debug_mode = settings.DEBUG_MODE
     settings.DEBUG_MODE = True

@@ -85,9 +85,9 @@ async def gateway_middleware(request: Request, call_next):
         return await call_next(request)
 
     resources = get_api_gateway_resources(request)
-    is_public = resources.auth.is_public_endpoint(request.url.path, request.method)
+    is_cacheable = resources.auth.is_cacheable_endpoint(request.url.path, request.method)
     start = perf_counter()
-    response = await resources.request_middleware(request, call_next, is_public=is_public)
+    response = await resources.request_middleware(request, call_next, is_cacheable=is_cacheable)
     duration = perf_counter() - start
 
     if REQUEST_COUNTER and LATENCY_COUNTER:

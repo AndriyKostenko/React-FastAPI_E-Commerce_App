@@ -147,8 +147,8 @@ export const STYLE_PREVIEWS = {
 };
 
 export const GENERATION_STYLES = ["None", "Minimal", "Vintage", "Anime", "Streetwear", "Abstract", "Typography"]
-export const DEFAULT_GUEST_GENERATION_LIMIT = 3;
-export const DEFAULT_REGISTERED_GENERATION_LIMIT = 10;
+// Image generation is for signed-in users only; mirrors PRODUCT_IMAGE_GENERATION_LIMIT.
+export const DEFAULT_GENERATION_LIMIT = 10;
 export const GENERATION_COUNTER_STORAGE_KEY = "guest-image-generation-counter";
 export const GENERATION_STATE_STORAGE_KEY = "guest-image-generation-state";
 

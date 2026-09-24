@@ -11,7 +11,7 @@ from schemas.order_schemas import (
     QuoteOrderRequest,
     QuoteOrderResponse,
 )
-from dependencies.dependencies import order_service_dependency
+from dependencies.dependencies import admin_caller_dependency, order_service_dependency
 from models.order_models import Order
 
 order_routes = APIRouter(tags=["orders"])
@@ -156,5 +156,5 @@ async def delete_order_by_id(
     response_model=dict[str, Any],
     status_code=status.HTTP_200_OK,
 )
-async def get_order_schema_for_admin_js(request: Request) -> dict[str, Any]:
+async def get_order_schema_for_admin_js(_admin: admin_caller_dependency) -> dict[str, Any]:
     return {"fields": Order.get_admin_schema()}

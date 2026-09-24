@@ -399,10 +399,12 @@ class ApiGateway:
         headers = self._prepare_headers(request=request, new_content_type=content_type)
         timeout = self._resolve_timeout(service_name=service_name, service_path=service_path)
 
+        # Header names only: the values carry the session cookie and bearer
+        # token, which must never reach the log pipeline.
         self.logger.info(
             f"Forwarding request to: {url} with method: {request.method}, "
             f"Service path: {service_path}, Body type: {type(prepared_body)}, "
-            f"Content-Type: {content_type}, Headers: {headers}"
+            f"Content-Type: {content_type}, Header names: {sorted(headers)}"
         )
 
         try:

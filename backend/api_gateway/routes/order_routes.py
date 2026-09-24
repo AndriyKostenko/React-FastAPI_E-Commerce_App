@@ -127,7 +127,10 @@ async def delete_order(
 
 
 @order_proxy.get("/admin/schema/orders")
-async def get_order_schema_for_admin_js(request: Request):
+async def get_order_schema_for_admin_js(
+    request: Request,
+    admin: CurrentUserInfo = Depends(require_admin),
+):
     return await api_gateway_manager.forward_request(
         service_name="order-service",
         request=request

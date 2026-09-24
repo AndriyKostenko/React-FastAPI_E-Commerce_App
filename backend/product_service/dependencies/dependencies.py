@@ -11,7 +11,8 @@ from database_layer.product_repository import ProductRepository
 from database_layer.product_variant_repository import ProductVariantRepository
 from database_layer.retained_artwork_repository import RetainedArtworkRepository
 from database_layer.review_repository import ReviewRepository
-from helpers.user_context_resolver import UserContextResolver
+from shared.utils.authenticated_caller import AuthenticatedCaller
+from service_layer.background_removal_service import RembgBackgroundRemover
 from service_layer.artwork_asset_service import ArtworkAssetService
 from service_layer.category_service import CategoryService
 from service_layer.image_generation_quota import GenerationQuotaService
@@ -140,6 +141,7 @@ def get_image_generation_service(
         quota_service=quota_service,
         job_store=job_store,
         storage_service=storage_service,
+        background_remover=RembgBackgroundRemover(settings=resources.settings, logger=resources.logger),
         settings=resources.settings,
         logger=resources.logger,
     )
@@ -157,14 +159,17 @@ def get_artwork_asset_service(
     )
 
 
-def get_user_context_resolver(
+def get_authenticated_caller(request: Request) -> AuthenticatedCaller:
+    """The signed-in user the API gateway asserted, or 401."""
+    return AuthenticatedCaller.require(request)
+
+
+def get_admin_caller(
+    request: Request,
     resources: ProductApiResources = Depends(get_resources),
-) -> UserContextResolver:
-    """Dependency to provide UserContextResolver for resolving authenticated/guest user context."""
-    return UserContextResolver(
-        guest_quota_cookie_name=resources.settings.GUEST_QUOTA_COOKIE,
-        settings=resources.settings,
-    )
+) -> AuthenticatedCaller:
+    """The asserted caller if they are an admin; 401/403 otherwise."""
+    return AuthenticatedCaller.require_admin(request, resources.settings.SECRET_ROLE)
 
 
 product_service_dependency = Annotated[ProductService, Depends(get_product_service)]
@@ -172,5 +177,6 @@ category_service_dependency = Annotated[CategoryService, Depends(get_category_se
 review_service_dependency = Annotated[ReviewService, Depends(get_review_service)]
 product_image_service_dependency = Annotated[ProductImageService, Depends(get_product_image_service)]
 image_generation_service_dependency = Annotated[ImageGenerationService, Depends(get_image_generation_service)]
-user_context_resolver_dependency = Annotated[UserContextResolver, Depends(get_user_context_resolver)]
+authenticated_caller_dependency = Annotated[AuthenticatedCaller, Depends(get_authenticated_caller)]
+admin_caller_dependency = Annotated[AuthenticatedCaller, Depends(get_admin_caller)]
 artwork_asset_service_dependency = Annotated[ArtworkAssetService, Depends(get_artwork_asset_service)]

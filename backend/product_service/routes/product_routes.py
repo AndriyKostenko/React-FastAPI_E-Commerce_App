@@ -1,9 +1,10 @@
-from typing import Annotated
+from typing import Annotated, Any
 from uuid import UUID
 
 from fastapi import APIRouter, File, Form, Query, Request, UploadFile, status, Depends
 
 from dependencies.dependencies import (
+    admin_caller_dependency,
     product_service_dependency,
 )
 from models.product_models import Product
@@ -158,3 +159,13 @@ async def delete_product_by_id(
 ):
     await product_service.delete_product_by_id(product_id=product_id)
     return
+
+
+@product_routes.get(
+    "/admin/schema/products",
+    summary="Schema for AdminJS",
+    response_model=dict[str, Any],
+    status_code=status.HTTP_200_OK,
+)
+async def get_product_schema_for_admin_js(_admin: admin_caller_dependency) -> dict[str, Any]:
+    return {"fields": Product.get_admin_schema()}

@@ -2,15 +2,12 @@ from typing import Any
 from uuid import uuid4, UUID
 
 from fastapi import APIRouter, File, Form, Request, Response, UploadFile, status
-from fastapi.responses import JSONResponse
 
 from dependencies.dependencies import (
+    admin_caller_dependency,
+    authenticated_caller_dependency,
     image_generation_service_dependency,
     product_image_service_dependency,
-    user_context_resolver_dependency,
-)
-from exceptions.image_generation_exceptions import (
-    ImageGenerationLimitExceededError,
 )
 from models.product_image_models import ProductImage
 from schemas.image_generation_schema import (
@@ -36,31 +33,16 @@ async def generate_image(
     request: Request,
     response: Response,
     image_generation_service: image_generation_service_dependency,
-    user_context_resolver: user_context_resolver_dependency,
+    caller: authenticated_caller_dependency,
     generation_data: GenerateImageRequest,
-) -> ImageGenerationJobSubmitResponse | JSONResponse:
-    # Resolve user context (authenticated user or guest with quota tracking)
-    context = await user_context_resolver.resolve(request)
+) -> ImageGenerationJobSubmitResponse:
+    """Signed-in users only: the quota, and the job, belong to the caller."""
     job_id = str(uuid4())
-    try:
-        remaining_generations = await image_generation_service.submit_job(
-            job_id=job_id,
-            prompt=generation_data.prompt,
-            style=generation_data.style,
-            is_guest_user=context.is_guest_user,
-            guest_id=context.guest_id,
-            user_id=context.user_id,
-        )
-    except ImageGenerationLimitExceededError as exc:
-        # Return a JSONResponse directly so we can attach Set-Cookie
-        resp = JSONResponse(
-            status_code=exc.status_code,
-            content={"detail": exc.detail},
-            headers=exc.headers or {},
-        )
-        if context.cookie_kwargs:
-            resp.set_cookie(**{**context.cookie_kwargs, "value": context.new_guest_id})
-        return resp
+    # Raises ImageGenerationLimitExceededError (429 + Retry-After) when spent.
+    remaining_generations = await image_generation_service.submit_job(
+        job_id=job_id,
+        user_id=caller.user_id,
+    )
 
     await generate_image_task.kiq(
         job_id,
@@ -69,23 +51,14 @@ async def generate_image(
         generation_data.remove_background,
     )
 
-    if context.cookie_kwargs:
-        response.set_cookie(**{**context.cookie_kwargs, "value": context.new_guest_id})
-
     # Point the client at the status-poll endpoint
     response.headers["Location"] = f"{request.url.path}/{job_id}/status"
-
-    guest_limit = (
-        image_generation_service.settings.PRODUCT_IMAGE_GUEST_GENERATION_LIMIT
-        if context.is_guest_user
-        else image_generation_service.settings.PRODUCT_IMAGE_REGISTERED_GENERATION_LIMIT
-    )
 
     return ImageGenerationJobSubmitResponse(
         job_id=job_id,
         status=ImageJobStatus.pending,
         remaining_generations=remaining_generations,
-        guest_limit=guest_limit,
+        generation_limit=image_generation_service.settings.PRODUCT_IMAGE_GENERATION_LIMIT,
     )
 
 
@@ -96,11 +69,11 @@ async def generate_image(
     status_code=status.HTTP_200_OK,
 )
 async def get_generation_job_status(
-    request: Request,
     job_id: str,
     image_generation_service: image_generation_service_dependency,
+    caller: authenticated_caller_dependency,
 ) -> ImageGenerationJobStatusResponse:
-    job_data = await image_generation_service.get_job(job_id)
+    job_data = await image_generation_service.get_job(job_id, user_id=caller.user_id)
     return ImageGenerationJobStatusResponse(
         job_id=job_id,
         status=ImageJobStatus(job_data["status"]),
@@ -238,5 +211,5 @@ async def delete_product_image(
     response_model=dict[str, Any],
     status_code=status.HTTP_200_OK,
 )
-async def get_product_image_schema_for_admin_js(request: Request):
+async def get_product_image_schema_for_admin_js(_admin: admin_caller_dependency) -> dict[str, Any]:
     return {"fields": ProductImage.get_admin_schema()}
