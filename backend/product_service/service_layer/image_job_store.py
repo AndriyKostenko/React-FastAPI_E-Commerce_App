@@ -53,6 +53,11 @@ class ImageJobStore:
             value=orjson_dumps(data),
         )
 
+    async def get_owner(self, job_id: str) -> UUID | None:
+        """Who submitted the job, or None once the job has expired."""
+        owner = await self._cache_manager.redis.get(self._owner_key(job_id))
+        return UUID(_as_text(owner)) if owner else None
+
     async def get(self, job_id: str, owner_id: UUID) -> dict:
         """
         Return the job dict, or raise ImageGenerationJobNotFoundError.

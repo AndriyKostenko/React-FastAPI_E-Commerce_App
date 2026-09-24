@@ -38,6 +38,10 @@ class AuthMiddleware:
         """Check if the given path is a public endpoint that doesn't require authentication"""
         return self.public_routes.is_public(path, method)
 
+    def is_cacheable_endpoint(self, path: str, method: str) -> bool:
+        """Check if a response may be shared from cache with every caller"""
+        return self.public_routes.is_cacheable(path, method)
+
     async def _is_revoked(self, user_data) -> bool:
         """Report whether this token predates the user's current session generation."""
         if self.session_registry is None:

@@ -389,13 +389,20 @@ the services), not only in unit tests.
       `google/gemini-3.1-flash-image-preview`, the flash model that supports
       the 4K size the print minimum requires.
 
+- [x] **Gateway cache is opt-in per route.** The cache key ignores the caller,
+      and every public GET used to be cached — so any public route whose answer
+      depends on the caller would leak the way `/shipping/methods/all` did.
+      Caching now requires `PublicRoute(cacheable=True)` (products, categories,
+      customization pricing, shipping methods); new public routes are not
+      cached by default. The dead "cache unauthenticated protected GETs"
+      branch is gone. Verified live: pricing is cached and served from cache,
+      admin/per-user routes never reach the cache.
+- [x] **Failed generations give their quota back.** The quota is spent at
+      submit; a job that ends `failed` now refunds its owner through an atomic
+      Redis script that never goes below zero and keeps the window's TTL.
+      Verified against real Redis, not a mock.
+
 **Still open from this pass:**
-- **Gateway response cache is caller-blind.** Every public GET is cached for
-  all callers. Any public route whose response depends on the caller will leak
-  the same way `/shipping/methods/all` did. Cache an explicit allowlist, or key
-  by caller.
-- **Failed generations still spend quota.** The quota is taken at submit, so a
-  provider or cutout failure costs the user a generation. Refund on `failed`.
 - **Bake the rembg model into `Dockerfile.worker`.** It downloads (~170 MB) on
   the first job otherwise.
 - **user-service ignores the session cookie.** Its `oauth2_scheme` reads only
@@ -439,8 +446,7 @@ the services), not only in unit tests.
 6. Frontend account / tracking / designer polish (checkout shipping options
    are done — see §3b)
 7. Finish gateway auth (bug list 1, 2b/5/6, 4, 9) and the reliability items
-   (12–20) below; quick wins first: caller-aware gateway cache, quota refund
-   on failed generation (§4b)
+   (12–20) below
 
 ## Bug list — triage (2026-09-24)
 
@@ -455,7 +461,7 @@ Backend:
 | 4 | `self_or_admin` in the services? | **Partial.** Schema and generation routes check in-service (`AuthenticatedCaller.require_admin`); product CRUD, order admin, etc. still rely on the gateway alone |
 | 5 | Only the gateway may call services (`INTERNAL_HMAC_SECRET`, Vault)? | Open — prefer the asymmetric assertion from 2b over a shared HMAC secret, which lets any compromised service mint identities |
 | 6 | Signed header downstream; drop `oauth2_scheme` + `get_current_user()`? | Open — follows from 2b |
-| 7 | Remove service ports from compose? | Local ports already bind to `127.0.0.1`; add a prod override with `expose:` only |
+| 7 | Remove service ports from compose? | Local ports already bind to `127.0.0.1`; add a prod override wDid we close all the end issues?ith `expose:` only |
 | 8 | NetworkPolicy? | Only once on Kubernetes; in compose, split `edge` / `internal` networks |
 | 9 | Token purposes? | `purpose` is enforced. Open: `aud`/`iss` claims, and only user-service should hold the signing key (RS256/EdDSA) |
 | 10 | Remove `PUBLIC_ENDPOINTS` completely? | Done (§4b) |

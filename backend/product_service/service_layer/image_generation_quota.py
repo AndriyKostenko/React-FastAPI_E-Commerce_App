@@ -14,6 +14,16 @@ class GenerationQuotaService:
     exactly once without a read-modify-write race condition.
     """
 
+    # Give one generation back without ever going below zero, atomically, and
+    # without touching the key's TTL so the user's window is not extended.
+    _REFUND_SCRIPT = """
+    local used = tonumber(redis.call('GET', KEYS[1]) or '0')
+    if used > 0 then
+        return redis.call('DECR', KEYS[1])
+    end
+    return 0
+    """
+
     def __init__(self, cache_manager: CacheManager, settings: Settings, logger: Logger) -> None:
         self._cache_manager = cache_manager
         self._settings = settings
@@ -50,3 +60,7 @@ class GenerationQuotaService:
             raise ImageGenerationLimitExceededError(retry_after=retry_after, limit=limit)
 
         return max(limit - current_count, 0)
+
+    async def refund(self, user_id: UUID) -> None:
+        """Return one generation to a user whose job produced no artwork."""
+        await self._cache_manager.redis.eval(self._REFUND_SCRIPT, 1, self._quota_key(user_id))

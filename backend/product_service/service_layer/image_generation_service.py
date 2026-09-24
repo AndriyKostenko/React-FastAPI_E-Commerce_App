@@ -100,8 +100,12 @@ class ImageGenerationService(ImageGenerationInterface):
                             user_id: UUID,
                             remove_background: bool = False) -> GenerateImageResponse:
         remaining_generations = await self._quota_service.consume(user_id)
-        image_payload, model = await self._produce_artwork(prompt, style, remove_background)
-        stored_image = await self._storage_service.save(image_payload)
+        try:
+            image_payload, model = await self._produce_artwork(prompt, style, remove_background)
+            stored_image = await self._storage_service.save(image_payload)
+        except Exception:
+            await self._refund_quietly(user_id)
+            raise
         self._logger.debug("Image generated and saved: %s", stored_image.asset.key)
         return GenerateImageResponse(
             image_url=stored_image.image_url,
@@ -147,6 +151,18 @@ class ImageGenerationService(ImageGenerationInterface):
             await self._job_store.set_state(
                 job_id, "failed", {"error": error_message}
             )
+            # The quota was spent at submit time; a job that produced no
+            # artwork gives it back.
+            owner_id = await self._job_store.get_owner(job_id)
+            if owner_id is not None:
+                await self._refund_quietly(owner_id)
+
+    async def _refund_quietly(self, user_id: UUID) -> None:
+        """Refund a generation; a Redis hiccup must not mask the original failure."""
+        try:
+            await self._quota_service.refund(user_id)
+        except Exception as refund_error:
+            self._logger.error("Could not refund generation quota for %s: %s", user_id, refund_error)
 
     @override
     async def get_job(self, job_id: str, user_id: UUID) -> dict[str, Any]:

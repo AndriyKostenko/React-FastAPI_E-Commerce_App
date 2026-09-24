@@ -22,6 +22,10 @@ class PublicRoute:
     path: str
     methods: frozenset[str] | None = None  # None means every method
     scope: PathScope = PathScope.EXACT
+    # The gateway caches a GET response and replays it to every caller, so
+    # only routes whose answer is identical for everyone may opt in. Public
+    # is not enough: a public route can still personalise its response.
+    cacheable: bool = False
 
     def matches(self, path: str, method: str) -> bool:
         if self.methods is not None and method not in self.methods:
@@ -56,9 +60,18 @@ class PublicRouteRegistry:
         self._protected = protected
 
     def is_public(self, path: str, method: str) -> bool:
-        if any(route.matches(path, method) for route in self._protected):
+        if self._is_protected(path, method):
             return False
         return any(route.matches(path, method) for route in self._routes)
+
+    def is_cacheable(self, path: str, method: str) -> bool:
+        """Whether a response may be served from the shared, caller-blind cache."""
+        if self._is_protected(path, method):
+            return False
+        return any(route.cacheable and route.matches(path, method) for route in self._routes)
+
+    def _is_protected(self, path: str, method: str) -> bool:
+        return any(route.matches(path, method) for route in self._protected)
 
     @classmethod
     def for_api_version(cls, api: str) -> "PublicRouteRegistry":
@@ -82,13 +95,13 @@ class PublicRouteRegistry:
             PublicRoute(f"{api}/activate", post),
             PublicRoute(f"{api}/password-reset", post),
             # Catalogue browsing
-            PublicRoute(f"{api}/products", get, PathScope.TREE),
-            PublicRoute(f"{api}/categories", get, PathScope.TREE),
-            PublicRoute(f"{api}/customization/pricing", get),
+            PublicRoute(f"{api}/products", get, PathScope.TREE, cacheable=True),
+            PublicRoute(f"{api}/categories", get, PathScope.TREE, cacheable=True),
+            PublicRoute(f"{api}/customization/pricing", get, cacheable=True),
             # Stripe authenticates itself with the webhook signature
             PublicRoute(f"{api}/payments/webhook", post),
             # Shipping lookups at checkout
-            PublicRoute(f"{api}/shipping/methods", get, PathScope.TREE),
+            PublicRoute(f"{api}/shipping/methods", get, PathScope.TREE, cacheable=True),
             PublicRoute(f"{api}/shipping/rates", post),
         ), protected=(
             # Admin-only, including inactive methods

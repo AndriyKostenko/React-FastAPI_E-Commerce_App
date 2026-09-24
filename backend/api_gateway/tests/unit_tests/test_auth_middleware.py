@@ -228,3 +228,31 @@ class TestPublicRouteBoundaries:
         """Public GETs are cached for everyone, so admin routes under a public tree must not be public."""
         assert self.mw.is_public_endpoint(f"{API}/shipping/methods/all", "GET") is False
         assert self.mw.is_public_endpoint(f"{API}/shipping/methods/abc", "GET") is True
+
+
+class TestCacheableRoutes:
+    """The shared cache replays one response to every caller, so it is opt-in per route."""
+
+    def setup_method(self):
+        self.mw = AuthMiddleware.__new__(AuthMiddleware)
+        self.mw.__init__(settings=settings, logger=MagicMock(), token_manager=MagicMock())
+
+    @pytest.mark.parametrize("path", [
+        f"{API}/products",
+        f"{API}/products/abc/reviews",
+        f"{API}/categories/abc",
+        f"{API}/customization/pricing",
+        f"{API}/shipping/methods",
+    ])
+    def test_declared_caller_invariant_routes_are_cacheable(self, path):
+        assert self.mw.is_cacheable_endpoint(path, "GET") is True
+
+    @pytest.mark.parametrize("path,method", [
+        (f"{API}/shipping/methods/all", "GET"),   # admin-only carve-out under a cacheable tree
+        (f"{API}/login", "POST"),                 # public, but never cacheable
+        (f"{API}/wishlists/me", "GET"),           # per-user
+        (f"{API}/orders", "GET"),                 # protected
+        (f"{API}/products", "POST"),              # mutation
+    ])
+    def test_everything_else_is_not_cacheable(self, path, method):
+        assert self.mw.is_cacheable_endpoint(path, method) is False

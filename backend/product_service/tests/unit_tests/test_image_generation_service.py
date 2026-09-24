@@ -637,3 +637,86 @@ class TestBackgroundRemovalInPipeline:
         last = image_generation_service_unit._job_store.set_state.call_args_list[-1]
         assert last.args[1] == "failed"
         assert "left almost nothing" in last.args[2]["error"]
+
+
+# ── Quota refund on failed generation ──────────────────────────────────────────
+
+class TestQuotaRefund:
+    async def test_refund_decrements_the_callers_key_atomically(
+        self, quota_service: GenerationQuotaService, mock_redis: MagicMock
+    ) -> None:
+        user_id = uuid4()
+        mock_redis.eval = AsyncMock(return_value=2)
+
+        await quota_service.refund(user_id)
+
+        script, key_count, key = mock_redis.eval.call_args.args
+        assert key_count == 1
+        assert key == f"product-service:image-generation:user:{user_id}"
+        assert "DECR" in script and "used > 0" in script
+
+    async def test_job_store_reports_owner(
+        self, job_store: ImageJobStore, mock_redis: MagicMock
+    ) -> None:
+        owner_id = uuid4()
+        mock_redis.get = AsyncMock(return_value=str(owner_id).encode())
+        assert await job_store.get_owner("job-1") == owner_id
+
+    async def test_job_store_owner_is_none_after_expiry(
+        self, job_store: ImageJobStore, mock_redis: MagicMock
+    ) -> None:
+        mock_redis.get = AsyncMock(return_value=None)
+        assert await job_store.get_owner("job-1") is None
+
+    async def test_failed_job_refunds_its_owner(
+        self, image_generation_service_unit: ImageGenerationService
+    ) -> None:
+        owner_id = uuid4()
+        service = image_generation_service_unit
+        service._openrouter_client.generate = AsyncMock(side_effect=ImageGenerationProviderError("down"))
+        service._job_store.set_state = AsyncMock()
+        service._job_store.get_owner = AsyncMock(return_value=owner_id)
+        service._quota_service.refund = AsyncMock()
+
+        await service.run_job("job-9", "Tiger", "Neon")
+
+        service._quota_service.refund.assert_awaited_once_with(owner_id)
+
+    async def test_completed_job_is_not_refunded(
+        self, image_generation_service_unit: ImageGenerationService
+    ) -> None:
+        service = image_generation_service_unit
+        service._openrouter_client.generate = AsyncMock(return_value=("data:image/png;base64,QQ==", "m"))
+        service._storage_service.save = AsyncMock(return_value=StoredImage("/media/x.png", _asset()))
+        service._job_store.set_state = AsyncMock()
+        service._quota_service.refund = AsyncMock()
+
+        await service.run_job("job-10", "Tiger", "Neon")
+
+        service._quota_service.refund.assert_not_awaited()
+
+    async def test_refund_error_does_not_mask_the_job_failure(
+        self, image_generation_service_unit: ImageGenerationService
+    ) -> None:
+        service = image_generation_service_unit
+        service._openrouter_client.generate = AsyncMock(side_effect=ImageGenerationProviderError("down"))
+        service._job_store.set_state = AsyncMock()
+        service._job_store.get_owner = AsyncMock(return_value=uuid4())
+        service._quota_service.refund = AsyncMock(side_effect=ConnectionError("redis gone"))
+
+        await service.run_job("job-11", "Tiger", "Neon")   # must not raise
+
+        assert service._job_store.set_state.call_args_list[-1].args[1] == "failed"
+
+    async def test_synchronous_generation_refunds_on_failure(
+        self, image_generation_service_unit: ImageGenerationService
+    ) -> None:
+        user_id = uuid4()
+        service = image_generation_service_unit
+        service._quota_service.consume = AsyncMock(return_value=5)
+        service._quota_service.refund = AsyncMock()
+        service._openrouter_client.generate = AsyncMock(side_effect=ImageGenerationProviderError("down"))
+
+        with pytest.raises(ImageGenerationProviderError):
+            await service.generate_image("Tiger", "Neon", user_id=user_id)
+        service._quota_service.refund.assert_awaited_once_with(user_id)
