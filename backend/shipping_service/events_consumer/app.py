@@ -1,7 +1,8 @@
 from typing import Any
 
 from faststream import FastStream
-from faststream.rabbit import ExchangeType, RabbitBroker, RabbitExchange, RabbitQueue
+from faststream.rabbit import ExchangeType, RabbitBroker, RabbitExchange
+from faststream.rabbit.annotations import RabbitMessage
 
 from service_config import logger, settings
 from events_consumer.runtime import (
@@ -10,6 +11,7 @@ from events_consumer.runtime import (
 )
 from events_consumer.shipping_event_consumer import ShippingEventConsumer
 from shared.enums.event_enums import ShippingEventsQueue
+from shared.messaging import ConsumerTopology
 
 
 rabbitmq_broker = RabbitBroker(url=settings.RABBITMQ_BROKER_URL)
@@ -24,6 +26,8 @@ shipping_exchange = RabbitExchange(
     type=ExchangeType.TOPIC,
 )
 app = FastStream(rabbitmq_broker)
+# Owns every queue below plus their retry queues and DLQs.
+topology = ConsumerTopology(rabbitmq_broker, logger)
 consumer_resources: ShippingConsumerResources | None = None
 shipping_event_consumer: ShippingEventConsumer | None = None
 
@@ -31,6 +35,9 @@ shipping_event_consumer: ShippingEventConsumer | None = None
 @app.on_startup
 async def startup() -> None:
     global consumer_resources, shipping_event_consumer
+    # Before the broker starts consuming, so no failure can dead-letter into
+    # an exchange that does not exist yet.
+    await topology.declare()
     consumer_resources = create_shipping_consumer_resources(
         broker=rabbitmq_broker,
         shipping_exchange=shipping_exchange,
@@ -62,20 +69,21 @@ async def shutdown() -> None:
     logger.info("Shipping event consumer resources closed.")
 
 
-shipping_order_events_queue = RabbitQueue(
+shipping_order_events_queue = topology.queue(
     name=ShippingEventsQueue.SHIPPING_EVENTS_QUEUE,
-    durable=True,
     routing_key="order.*",
-    arguments={
-        "x-dead-letter-exchange": "dlx",
-        "x-dead-letter-routing-key": ShippingEventsQueue.SHIPPING_EVENTS_DEAD_LETTER_QUEUE,
-    },
+    dead_letter_key=ShippingEventsQueue.SHIPPING_EVENTS_DEAD_LETTER_QUEUE,
 )
 
 
-@rabbitmq_broker.subscriber(queue=shipping_order_events_queue, exchange=order_exchange)
-async def handle_shipping_order_events(body: dict[str, Any]) -> None:
+@rabbitmq_broker.subscriber(queue=shipping_order_events_queue.queue, exchange=order_exchange)
+async def handle_shipping_order_events(body: dict[str, Any], message: RabbitMessage) -> None:
     """Consume order lifecycle events relevant to shipping."""
     if shipping_event_consumer is None:
         raise RuntimeError("Shipping event consumer received a message before startup completed.")
-    await shipping_event_consumer.handle_order_event(body)
+    handler = shipping_event_consumer  # narrowed to non-None for the lambda below
+    await topology.dispatch(
+        shipping_order_events_queue,
+        message,
+        lambda: handler.handle_order_event(body),
+    )

@@ -1,7 +1,7 @@
 from typing import Any
 
 from faststream import FastStream
-from faststream.rabbit import RabbitQueue
+from faststream.rabbit.annotations import RabbitMessage
 
 from config import logger, settings
 from events_consumer.order_event_consumer import OrderEventConsumer
@@ -13,12 +13,15 @@ from messaging import (
     shipping_exchange,
 )
 from resources import OrderConsumerResources, create_consumer_resources
-from shared.enums.event_enums import OrderEvents, OrderSagaResponseQueue
+from shared.enums.event_enums import OrderSagaResponseQueue
+from shared.messaging import ConsumerTopology
 
 
 # Create the FastStream app
 rabbitmq_broker = create_rabbitmq_broker(settings)
 app = FastStream(rabbitmq_broker)
+# Owns every queue below plus their retry queues and DLQs.
+topology = ConsumerTopology(rabbitmq_broker, logger)
 _resources: OrderConsumerResources | None = None
 _consumer: OrderEventConsumer | None = None
 
@@ -32,6 +35,9 @@ def get_order_event_consumer() -> OrderEventConsumer:
 @app.on_startup
 async def startup() -> None:
     global _consumer, _resources
+    # Before the broker starts consuming, so no failure can dead-letter into
+    # an exchange that does not exist yet.
+    await topology.declare()
     resources = create_consumer_resources(rabbitmq_broker)
     try:
         await resources.start()
@@ -59,32 +65,24 @@ async def shutdown() -> None:
 
 
 # inventory.reserve.* binds to inventory.reserve.succeeded and inventory.reserve.failed
-order_saga_response_queue = RabbitQueue(
+order_saga_response_queue = topology.queue(
     name=OrderSagaResponseQueue.ORDER_SAGA_RESPONSE_QUEUE,
-    durable=True,
     routing_key="inventory.reserve.*", # Listen to both success and failure of inventory reservation
-    arguments={
-        "x-dead-letter-exchange": "dlx",
-        "x-dead-letter-routing-key": OrderSagaResponseQueue.ORDER_SAGA_RESPONSE_DEAD_LETTER_QUEUE
-    }
+    dead_letter_key=OrderSagaResponseQueue.ORDER_SAGA_RESPONSE_DEAD_LETTER_QUEUE,
 )
 
 # Listens for payment.failed and payment.cancelled so the order can be cancelled
 # when Stripe reports a failure or cancels the PaymentIntent
-order_payment_events_queue = RabbitQueue(
+order_payment_events_queue = topology.queue(
     name="order.payment.events.queue",
-    durable=True,
     routing_key="payment.*",  # binds payment.failed and payment.cancelled
-    arguments={
-        "x-dead-letter-exchange": "dlx",
-        "x-dead-letter-routing-key": "order.payment.events.dlq",
-    },
+    dead_letter_key="order.payment.events.dlq",
 )
 
 
 # Register the subscriber function (FastStream requires this at module level)
-@rabbitmq_broker.subscriber(queue=order_saga_response_queue, exchange=inventory_exchange)
-async def handle_order_saga_responses(body: dict[str, Any]):
+@rabbitmq_broker.subscriber(queue=order_saga_response_queue.queue, exchange=inventory_exchange)
+async def handle_order_saga_responses(body: dict[str, Any], message: RabbitMessage) -> None:
     """
     FastStream subscriber function that delegates to the OrderEventConsumer class.
     This pattern gives us:
@@ -92,50 +90,58 @@ async def handle_order_saga_responses(body: dict[str, Any]):
     - Proper FastStream integration with decorators
     - Clean separation of concerns
     """
-    await get_order_event_consumer().handle_order_saga_response(body)
+    await topology.dispatch(
+        order_saga_response_queue,
+        message,
+        lambda: get_order_event_consumer().handle_order_saga_response(body),
+    )
 
 
-order_shipping_events_queue = RabbitQueue(
+order_shipping_events_queue = topology.queue(
     name="order.shipping.events.queue",
-    durable=True,
     routing_key="shipping.*",
-    arguments={
-        "x-dead-letter-exchange": "dlx",
-        "x-dead-letter-routing-key": "order.shipping.events.dlq",
-    },
+    dead_letter_key="order.shipping.events.dlq",
 )
 
 
-@rabbitmq_broker.subscriber(queue=order_payment_events_queue, exchange=payment_exchange)
-async def handle_order_payment_events(body: dict[str, Any]) -> None:
+@rabbitmq_broker.subscriber(queue=order_payment_events_queue.queue, exchange=payment_exchange)
+async def handle_order_payment_events(body: dict[str, Any], message: RabbitMessage) -> None:
     """
     FastStream subscriber for payment events that affect order state.
     Routes payment.failed to handle_payment_failed so the order is cancelled
     and any reserved inventory is released.
     """
-    await get_order_event_consumer().handle_payment_event(body)
+    await topology.dispatch(
+        order_payment_events_queue,
+        message,
+        lambda: get_order_event_consumer().handle_payment_event(body),
+    )
 
 
-@rabbitmq_broker.subscriber(queue=order_shipping_events_queue, exchange=shipping_exchange)
-async def handle_order_shipping_events(body: dict[str, Any]) -> None:
+@rabbitmq_broker.subscriber(queue=order_shipping_events_queue.queue, exchange=shipping_exchange)
+async def handle_order_shipping_events(body: dict[str, Any], message: RabbitMessage) -> None:
     """FastStream subscriber for shipping events that affect order delivery status."""
-    await get_order_event_consumer().handle_shipping_event(body)
+    await topology.dispatch(
+        order_shipping_events_queue,
+        message,
+        lambda: get_order_event_consumer().handle_shipping_event(body),
+    )
 
 
 # "cj.order.*" covers created / shipped / delivered / failed — the whole CJ
 # fulfillment lifecycle lands on this one queue.
-cj_order_events_queue = RabbitQueue(
+cj_order_events_queue = topology.queue(
     name="order.cj.order.events.queue",
-    durable=True,
     routing_key="cj.order.*",
-    arguments={
-        "x-dead-letter-exchange": "dlx",
-        "x-dead-letter-routing-key": "order.cj.order.created.dlq",
-    },
+    dead_letter_key="order.cj.order.created.dlq",
 )
 
 
-@rabbitmq_broker.subscriber(queue=cj_order_events_queue, exchange=order_exchange)
-async def handle_cj_order_events(body: dict[str, Any]) -> None:
+@rabbitmq_broker.subscriber(queue=cj_order_events_queue.queue, exchange=order_exchange)
+async def handle_cj_order_events(body: dict[str, Any], message: RabbitMessage) -> None:
     """Track CJ fulfillment progress or compensate a definitive CJ failure."""
-    await get_order_event_consumer().handle_cj_order_event(body)
+    await topology.dispatch(
+        cj_order_events_queue,
+        message,
+        lambda: get_order_event_consumer().handle_cj_order_event(body),
+    )

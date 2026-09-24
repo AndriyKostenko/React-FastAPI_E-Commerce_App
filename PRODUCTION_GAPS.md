@@ -474,9 +474,9 @@ Backend:
 | 15 | Unit of Work? | Open (refactor) |
 | 16 | Circuit breaker / retries for CJ? | Open — the gateway breaker is also disabled (`apigateway.py`) |
 | 17 | Process isolation: API, task queue, consumers, DB? | Open |
-| 18 | RabbitMQ ack policy + DLX? | Open |
+| 18 | RabbitMQ ack policy + DLX? | **Done (2026-09-24).** Worse than open: every queue dead-lettered to a `dlx` exchange nothing declared, so RabbitMQ dropped every failed message. `shared.messaging.ConsumerTopology` now declares `dlx`, one DLQ per queue and 5s/30s/120s retry queues before consuming; `RetryDispatcher` retries transient failures and dead-letters payload errors at once. All 20 queues in 8 consumers, verified on the live broker |
 | 19 | One Postgres instance, one superuser? | Open — per-service least-privilege roles |
-| 19b | taskiq DLX? | Open |
+| 19b | taskiq DLX? | **Done for notifications (2026-09-24).** taskiq acks a failed task (its result is saved), so its DLQ never saw one. `DeadLetteringRetryMiddleware` retries emails with backoff and jitter, then parks them in `taskiq.notifications.dead_letter`. Image generation (refunds quota) and the supplier cron jobs (next run is the retry) deliberately do not retry |
 | 20 | `autoflush` / `expire_on_commit`; UoW transaction boundaries? | Open — audit |
 
 Frontend:
