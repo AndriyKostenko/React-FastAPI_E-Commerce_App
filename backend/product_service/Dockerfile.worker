@@ -31,6 +31,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends libpq5 gosu \
 COPY --from=builder /app/.venv /app/.venv
 ENV PATH="/app/.venv/bin:$PATH"
 
+# Bake the background-removal model into the image so the first job doesn't
+# download it (~170 MB). Keep REMBG_MODEL in sync with
+# PRODUCT_IMAGE_BG_REMOVAL_MODEL — any other model is still fetched on first use.
+# The session class is called directly because rembg's download_models() helper
+# only prints download errors, which would let the build pass without the model.
+# This layer sits before the source COPY so code changes don't re-download it.
+ARG REMBG_MODEL=isnet-general-use
+ENV U2NET_HOME=/opt/rembg
+RUN python -c "import sys; from rembg.sessions import sessions; sessions[sys.argv[1]].download_models()" "${REMBG_MODEL}" \
+    && chmod -R a+rX "${U2NET_HOME}"
+
 COPY --chown=taskiq_user:taskiq_group . .
 
 # Create and make entrypoint script executable (after COPY so it doesn't get overwritten)

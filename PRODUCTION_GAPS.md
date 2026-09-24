@@ -401,10 +401,12 @@ the services), not only in unit tests.
       submit; a job that ends `failed` now refunds its owner through an atomic
       Redis script that never goes below zero and keeps the window's TTL.
       Verified against real Redis, not a mock.
+- [x] **rembg model baked into `Dockerfile.worker`.** `isnet-general-use`
+      (~170 MB, md5-checked) is downloaded at build time into
+      `U2NET_HOME=/opt/rembg`, so the first job no longer pays for it. The
+      `REMBG_MODEL` build arg must match `PRODUCT_IMAGE_BG_REMOVAL_MODEL`.
 
 **Still open from this pass:**
-- **Bake the rembg model into `Dockerfile.worker`.** It downloads (~170 MB) on
-  the first job otherwise.
 - **user-service ignores the session cookie.** Its `oauth2_scheme` reads only
   the `Authorization` header, so cookie-only requests to it get 401. Resolves
   with items 1/2b/6 below.
@@ -461,7 +463,7 @@ Backend:
 | 4 | `self_or_admin` in the services? | **Partial.** Schema and generation routes check in-service (`AuthenticatedCaller.require_admin`); product CRUD, order admin, etc. still rely on the gateway alone |
 | 5 | Only the gateway may call services (`INTERNAL_HMAC_SECRET`, Vault)? | Open — prefer the asymmetric assertion from 2b over a shared HMAC secret, which lets any compromised service mint identities |
 | 6 | Signed header downstream; drop `oauth2_scheme` + `get_current_user()`? | Open — follows from 2b |
-| 7 | Remove service ports from compose? | Local ports already bind to `127.0.0.1`; add a prod override wDid we close all the end issues?ith `expose:` only |
+| 7 | Remove service ports from compose? | Local ports already bind to `127.0.0.1`; add a prod override with `expose:` only |
 | 8 | NetworkPolicy? | Only once on Kubernetes; in compose, split `edge` / `internal` networks |
 | 9 | Token purposes? | `purpose` is enforced. Open: `aud`/`iss` claims, and only user-service should hold the signing key (RS256/EdDSA) |
 | 10 | Remove `PUBLIC_ENDPOINTS` completely? | Done (§4b) |
