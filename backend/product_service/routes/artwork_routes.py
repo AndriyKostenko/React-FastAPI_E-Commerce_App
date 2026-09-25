@@ -4,6 +4,13 @@ from dependencies.dependencies import artwork_asset_service_dependency
 from helpers.internal_access_helper import internal_access_helper
 from schemas.artwork_schema import ArtworkDownloadRequest, ArtworkDownloadResponse
 from shared.exceptions.base_exceptions import BaseAPIException
+from shared.auth.service_assertion import require_service
+from typing import Annotated
+from fastapi import Depends
+
+# Called by order-service directly, never through the gateway: only a request
+# order-service signed with its own key is accepted (bug list 5).
+OrderServiceCaller = Annotated[str, Depends(require_service("order-service"))]
 
 
 artwork_routes = APIRouter(tags=["artwork"])
@@ -26,6 +33,7 @@ class ArtworkAccessForbiddenError(BaseAPIException):
     status_code=status.HTTP_200_OK,
 )
 async def create_artwork_download_link(
+    caller_service: OrderServiceCaller,
     request: Request,
     artwork_asset_service: artwork_asset_service_dependency,
     download_data: ArtworkDownloadRequest,

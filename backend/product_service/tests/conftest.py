@@ -84,6 +84,8 @@ from shared.testing.signing_keys import EphemeralSigningKeys
 # Throwaway gateway keys: the test clients' apps trust assertions signed
 # with these, exactly as a deployed service trusts the gateway's.
 SIGNING_KEYS = EphemeralSigningKeys()
+# The internal routes accept order-service's signature; trust the test key.
+SIGNING_KEYS.trust_order_service(get_settings())
 # Test clients call as a signed-in admin by default, so tests about business
 # logic are not tripped by authorisation. Authorisation has its own tests,
 # which pass an explicit per-request `auth=` (anonymous, owner, stranger).

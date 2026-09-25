@@ -1,4 +1,6 @@
 from logging import getLogger
+
+from shared.auth.service_assertion import ServiceAssertionAuth
 from decimal import Decimal, ROUND_HALF_UP
 from types import TracebackType
 from typing import Any, Self
@@ -79,7 +81,11 @@ class CatalogQuoteClient:
 
     async def start(self) -> None:
         if self._client is None:
-            self._client = AsyncClient(timeout=10.0)
+            # Signed as order-service: product-service accepts this route from it alone.
+            self._client = AsyncClient(
+                timeout=10.0,
+                auth=ServiceAssertionAuth.for_service(self.settings, "order-service"),
+            )
 
     async def close(self) -> None:
         if self._client is not None and self._owns_client:
@@ -124,7 +130,8 @@ class FreightQuoteClient:
         if self._client is None:
             # CJ itself can take up to its own freight timeout to answer.
             self._client = AsyncClient(
-                timeout=self.settings.CJ_DROPSHIPPING_FREIGHT_TIMEOUT_SECONDS + 5
+                timeout=self.settings.CJ_DROPSHIPPING_FREIGHT_TIMEOUT_SECONDS + 5,
+                auth=ServiceAssertionAuth.for_service(self.settings, "order-service"),
             )
 
     async def close(self) -> None:

@@ -194,6 +194,11 @@ class Settings(BaseSettings):
     USER_TOKEN_PUBLIC_KEY: str | None = None
     GATEWAY_ASSERTION_PRIVATE_KEY: SecretStr | None = None
     GATEWAY_ASSERTION_PUBLIC_KEY: str | None = None
+    # order-service's own identity for its direct calls to product-service and
+    # supplier-service (see shared.auth.service_assertion). Private key: only
+    # order-service. Public key: the services it calls.
+    ORDER_SERVICE_ASSERTION_PRIVATE_KEY: SecretStr | None = None
+    ORDER_SERVICE_ASSERTION_PUBLIC_KEY: str | None = None
     USER_TOKEN_ISSUER: str = "user-service"
     USER_TOKEN_AUDIENCE: str = "ecommerce-api"
     GATEWAY_ASSERTION_ISSUER: str = "api-gateway"
