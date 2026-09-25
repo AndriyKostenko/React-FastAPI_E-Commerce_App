@@ -6,7 +6,7 @@ from uuid import UUID, uuid4
 from datetime import datetime
 
 from sqlalchemy.engine import URL
-from pydantic import HttpUrl, SecretStr, DirectoryPath, Field
+from pydantic import AliasChoices, HttpUrl, SecretStr, DirectoryPath, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from shared.enums.status_enums import OrderStatus, OrderDeliveryStatus
@@ -217,7 +217,12 @@ class Settings(BaseSettings):
 
     # Stripe. Optional so a service that never charges a card can run
     # without holding the key at all — see MISSING_SECRET_HINT below.
-    STRIPE_TEST_SECRET_KEY: SecretStr | None = None
+    # Named for what it is, test or live. The old STRIPE_TEST_SECRET_KEY name
+    # is still read, so an existing env file keeps working.
+    STRIPE_SECRET_KEY: SecretStr | None = Field(
+        default=None,
+        validation_alias=AliasChoices("STRIPE_SECRET_KEY", "STRIPE_TEST_SECRET_KEY"),
+    )
     STRIPE_WEBHOOK_SECRET: SecretStr | None = None
     STRIPE_REQUEST_TIMEOUT_SECONDS: float = Field(default=30.0, gt=0, le=120)
     STRIPE_MAX_NETWORK_RETRIES: int = Field(default=2, ge=0, le=5)
@@ -316,7 +321,7 @@ class Settings(BaseSettings):
 
     @property
     def STRIPE_API_KEY(self) -> str:
-        return self._reveal(self.STRIPE_TEST_SECRET_KEY, "STRIPE_TEST_SECRET_KEY")
+        return self._reveal(self.STRIPE_SECRET_KEY, "STRIPE_SECRET_KEY")
 
     @property
     def STRIPE_WEBHOOK_SIGNING_SECRET(self) -> str:

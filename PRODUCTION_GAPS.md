@@ -223,7 +223,7 @@ deliberately, prefund the CJ wallet, subscribe the Stripe webhook to
 `payment_intent.amount_capturable_updated`, and run the end-to-end checks
 against Stripe test mode + CJ sandbox (not yet done).
 **Still open:** Stripe Tax (the `tax_amount` slot is always 0), disputes,
-partial refunds, a live FX feed, `STRIPE_TEST_SECRET_KEY` naming for live keys.
+partial refunds, a live FX feed. (`STRIPE_SECRET_KEY` rename done 2026-09-25; the old name still loads.)
 
 ### 4. Security & config hardening (2026-09-09)
 

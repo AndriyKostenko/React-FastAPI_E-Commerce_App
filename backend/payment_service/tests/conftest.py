@@ -164,7 +164,7 @@ def mock_settings() -> MagicMock:
     s = MagicMock()
     s.FULL_STRIPE_WEBHOOK_ENDPOINT = "https://example.com/api/v1/payments/webhook"
     s.STRIPE_WEBHOOK_SECRET = "whsec_test_secret"
-    s.STRIPE_TEST_SECRET_KEY = "sk_test_fake_key"
+    s.STRIPE_SECRET_KEY = "sk_test_fake_key"
     return s
 
 
