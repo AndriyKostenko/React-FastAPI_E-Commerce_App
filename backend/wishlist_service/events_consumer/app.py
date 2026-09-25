@@ -1,7 +1,8 @@
 from typing import Any
 
 from faststream import FastStream
-from faststream.rabbit import ExchangeType, RabbitBroker, RabbitExchange, RabbitQueue
+from faststream.rabbit import ExchangeType, RabbitBroker, RabbitExchange
+from faststream.rabbit.annotations import RabbitMessage
 
 from service_config import logger, settings
 from events_consumer.runtime import (
@@ -10,6 +11,7 @@ from events_consumer.runtime import (
 )
 from events_consumer.wishlist_event_consumer import WishlistEventConsumer
 from shared.enums.event_enums import WishlistEventsQueue
+from shared.messaging import ConsumerTopology
 
 
 rabbitmq_broker = RabbitBroker(url=settings.RABBITMQ_BROKER_URL)
@@ -19,6 +21,8 @@ user_exchange = RabbitExchange(
     type=ExchangeType.TOPIC,
 )
 app = FastStream(rabbitmq_broker)
+# Owns every queue below plus their retry queues and DLQs.
+topology = ConsumerTopology(rabbitmq_broker, logger)
 consumer_resources: WishlistConsumerResources | None = None
 wishlist_event_consumer: WishlistEventConsumer | None = None
 
@@ -26,6 +30,9 @@ wishlist_event_consumer: WishlistEventConsumer | None = None
 @app.on_startup
 async def startup() -> None:
     global consumer_resources, wishlist_event_consumer
+    # Before the broker starts consuming, so no failure can dead-letter into
+    # an exchange that does not exist yet.
+    await topology.declare()
     consumer_resources = create_wishlist_consumer_resources()
     try:
         await consumer_resources.start()
@@ -56,19 +63,15 @@ async def shutdown() -> None:
 
 # Queue that receives user lifecycle events relevant to the wishlist.
 # Binds to user.deleted so the wishlist can be cleaned up when a user is removed.
-wishlist_user_events_queue = RabbitQueue(
+wishlist_user_events_queue = topology.queue(
     name=WishlistEventsQueue.WISHLIST_EVENTS_QUEUE,
-    durable=True,
     routing_key="user.deleted",
-    arguments={
-        "x-dead-letter-exchange": "dlx",
-        "x-dead-letter-routing-key": WishlistEventsQueue.WISHLIST_EVENTS_DEAD_LETTER_QUEUE,
-    },
+    dead_letter_key=WishlistEventsQueue.WISHLIST_EVENTS_DEAD_LETTER_QUEUE,
 )
 
 
-@rabbitmq_broker.subscriber(queue=wishlist_user_events_queue, exchange=user_exchange)
-async def handle_wishlist_user_events(body: dict[str, Any]) -> None:
+@rabbitmq_broker.subscriber(queue=wishlist_user_events_queue.queue, exchange=user_exchange)
+async def handle_wishlist_user_events(body: dict[str, Any], message: RabbitMessage) -> None:
     """
     FastStream subscriber that delegates user events to WishlistEventConsumer.
 
@@ -76,4 +79,9 @@ async def handle_wishlist_user_events(body: dict[str, Any]) -> None:
     """
     if wishlist_event_consumer is None:
         raise RuntimeError("Wishlist event consumer received a message before startup completed.")
-    await wishlist_event_consumer.handle_user_event(body)
+    handler = wishlist_event_consumer  # narrowed to non-None for the lambda below
+    await topology.dispatch(
+        wishlist_user_events_queue,
+        message,
+        lambda: handler.handle_user_event(body),
+    )

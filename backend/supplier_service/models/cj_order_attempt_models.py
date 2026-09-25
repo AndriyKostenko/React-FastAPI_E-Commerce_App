@@ -62,3 +62,9 @@ class CJOrderAttempt(Base, TimestampMixin):
     payment_attempts: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0, server_default="0"
     )
+    # Held while one runner takes the order through confirm -> pay, so the
+    # order.confirmed consumer and the payment cron never both reach
+    # pay_balance. A crashed holder's lease simply expires.
+    payment_leased_until: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )

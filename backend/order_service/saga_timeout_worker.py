@@ -27,17 +27,7 @@ async def expire_once(resources) -> int:
         expired = await saga_repository.get_expired_pending_for_update(cutoff)
         if not expired:
             return 0
-        item_service = OrderItemService(OrderItemRepository(session))
-        service = OrderService(
-            repository=OrderRepository(session),
-            order_item_service=item_service,
-            order_address_service=OrderAddressService(OrderAddressRepository(session)),
-            outbox_event_service=OutboxEventService(
-                OutboxRepository(session=session, model=OutboxEvent)
-            ),
-            saga_repository=saga_repository,
-            production_repository=CustomProductionJobRepository(session),
-        )
+        service = _order_service(session, saga_repository)
         for saga, order in expired:
             await service._cancel_locked(
                 order,
@@ -45,6 +35,54 @@ async def expire_once(resources) -> int:
                 "Order Saga timed out before payment and inventory completed",
             )
         return len(expired)
+
+
+async def cancel_stalled_supplier_orders(resources) -> int:
+    """
+    Cancel confirmed orders whose CJ part never got going.
+
+    When CJ cannot take an order (an outage outlasting the event's retries, a
+    wallet left unfunded), the order used to sit confirmed with the card only
+    authorized until the hold lapsed about 7 days later. After
+    ORDER_SUPPLIER_STALL_HOURS it is compensated instead: the hold is released
+    (the customer is never charged), stock is returned, and supplier-service
+    withdraws any unpaid CJ order on the resulting order.cancelled.
+    """
+    cutoff = datetime.now(timezone.utc) - timedelta(
+        hours=resources.settings.ORDER_SUPPLIER_STALL_HOURS
+    )
+    async with resources.database.transaction() as session:
+        saga_repository = OrderSagaRepository(session)
+        stalled = await saga_repository.get_stalled_supplier_orders_for_update(cutoff)
+        if not stalled:
+            return 0
+        service = _order_service(session, saga_repository)
+        for saga, order in stalled:
+            resources.logger.warning(
+                "Cancelling order %s: CJ did not take it on within %s hours",
+                order.id,
+                resources.settings.ORDER_SUPPLIER_STALL_HOURS,
+            )
+            await service._cancel_locked(
+                order,
+                saga,
+                f"CJ did not accept the order within "
+                f"{resources.settings.ORDER_SUPPLIER_STALL_HOURS} hours",
+            )
+        return len(stalled)
+
+
+def _order_service(session, saga_repository: OrderSagaRepository) -> OrderService:
+    return OrderService(
+        repository=OrderRepository(session),
+        order_item_service=OrderItemService(OrderItemRepository(session)),
+        order_address_service=OrderAddressService(OrderAddressRepository(session)),
+        outbox_event_service=OutboxEventService(
+            OutboxRepository(session=session, model=OutboxEvent)
+        ),
+        saga_repository=saga_repository,
+        production_repository=CustomProductionJobRepository(session),
+    )
 
 
 async def alert_stale_authorizations(resources) -> int:
@@ -76,6 +114,9 @@ async def main() -> None:
             count = await expire_once(resources)
             if count:
                 resources.logger.warning("Cancelled %d timed-out order Sagas", count)
+            stalled = await cancel_stalled_supplier_orders(resources)
+            if stalled:
+                resources.logger.warning("Cancelled %d orders CJ never took on", stalled)
             # Hourly is plenty against a multi-day window, and keeps the alert
             # from repeating every loop.
             if loop.time() >= next_capture_check:

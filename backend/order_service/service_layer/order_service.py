@@ -413,6 +413,7 @@ class OrderService:
 
         order.status = OrderStatus.CONFIRMED
         saga.fulfillment_status = "ready"
+        saga.confirmed_at = datetime.now(UTC)
         saga.version += 1
         await self.repository.update(order)
         await self.saga_repository.update(saga)

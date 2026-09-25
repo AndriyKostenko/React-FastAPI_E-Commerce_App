@@ -19,6 +19,10 @@
 #   ./local/dev.sh restart <name>   # restart one process
 #   ./local/dev.sh migrate          # alembic upgrade head, every service
 #   ./local/dev.sh reset            # down + delete local data (destructive)
+#   ./local/dev.sh dlq list         # dead-letter queues and how many they hold
+#   ./local/dev.sh dlq replay <q>   # send parked messages back to their queue
+#                  [--to <queue>]   #   target for taskiq's parked tasks
+#                  [--limit N]      #   replay at most N
 #
 # RELOAD=1           ./local/dev.sh up   HTTP services start with --reload.
 # FRONTEND_PORT=3000 ./local/dev.sh up   override the Next.js port.
@@ -430,6 +434,26 @@ cmd_reset() {
   say "local data removed. Run './local/dev.sh init' to start over."
 }
 
+# Dead-letter queues: every consumer parks a message here once its retries
+# are exhausted (or its payload is invalid). Replay only after fixing the
+# cause -- a message that still fails just goes round and parks again.
+cmd_dlq() {
+  case "${1:-}" in
+    list)
+      rabbitmqctl list_queues name messages -q \
+        | awk '$1 ~ /(\.dlq|dead_letter)$/ { printf "  %6s  %s\n", $2, $1 }'
+      ;;
+    replay)
+      shift
+      [ -n "${1:-}" ] || die "dlq replay: queue name required (see: dlq list)"
+      # Any service venv has aio-pika and the shared package; order-service's is used.
+      (cd "$BACKEND_DIR/order_service" && \
+        PYTHONPATH="$BACKEND_DIR" .venv/bin/python -m shared.messaging.dead_letter_replay "$@")
+      ;;
+    *) die "dlq: list | replay <queue> [--to <queue>] [--limit N]" ;;
+  esac
+}
+
 case "${1:-}" in
   install)  shift; cmd_install "$@" ;;
   init)     shift; cmd_init "$@" ;;
@@ -442,5 +466,6 @@ case "${1:-}" in
   status)   shift; cmd_status "$@" ;;
   logs)     shift; cmd_logs "$@" ;;
   reset)    shift; cmd_reset "$@" ;;
+  dlq)      shift; cmd_dlq "$@" ;;
   *) sed -n '2,25p' "${BASH_SOURCE[0]}" | sed -E 's/^#[[:space:]]?//'; exit 1 ;;
 esac

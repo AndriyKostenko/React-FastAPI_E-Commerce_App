@@ -19,6 +19,10 @@ def get_resources(request: Request) -> SupplierApiResources:
     return get_supplier_api_resources(request)
 
 
+# Always depended on with scope="function": FastAPI's default runs a yield
+# dependency's exit code after the response is sent, so the commit below ran
+# after the client had been told "created" — a commit that then failed lost the
+# write silently. Function scope commits before the response goes out.
 async def get_db_session(
     resources: SupplierApiResources = Depends(get_resources),
 ) -> AsyncGenerator[AsyncSession, None]:
@@ -27,15 +31,15 @@ async def get_db_session(
         yield session
 
 
-def get_supplier_config_repository(session: AsyncSession = Depends(get_db_session)) -> SupplierConfigRepository:
+def get_supplier_config_repository(session: AsyncSession = Depends(get_db_session, scope="function")) -> SupplierConfigRepository:
     return SupplierConfigRepository(session=session)
 
 
-def get_supplier_sync_state_repository(session: AsyncSession = Depends(get_db_session)) -> SupplierSyncStateRepository:
+def get_supplier_sync_state_repository(session: AsyncSession = Depends(get_db_session, scope="function")) -> SupplierSyncStateRepository:
     return SupplierSyncStateRepository(session=session)
 
 
-def get_outbox_event_service(session: AsyncSession = Depends(get_db_session)) -> OutboxEventService:
+def get_outbox_event_service(session: AsyncSession = Depends(get_db_session, scope="function")) -> OutboxEventService:
     return OutboxEventService(repository=OutboxRepository(session=session, model=OutboxEvent))
 
 

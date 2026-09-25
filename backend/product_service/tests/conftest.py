@@ -75,6 +75,19 @@ from shared.contracts.artwork import GeneratedArtworkAsset
 
 
 from shared.testing.helpers import allow_testserver_host
+from shared.testing.signing_keys import EphemeralSigningKeys
+
+# Throwaway gateway keys: the test clients' apps trust assertions signed
+# with these, exactly as a deployed service trusts the gateway's.
+SIGNING_KEYS = EphemeralSigningKeys()
+# Test clients call as a signed-in admin by default, so tests about business
+# logic are not tripped by authorisation. Authorisation has its own tests,
+# which pass an explicit per-request `auth=` (anonymous, owner, stranger).
+DEFAULT_CALLER = SIGNING_KEYS.caller_auth(
+    user_id=UUID("00000000-0000-4000-8000-00000000ad01"),
+    role=get_settings().SECRET_ROLE,
+    email="admin@example.com",
+)
 
 
 settings = get_settings()
@@ -447,7 +460,8 @@ async def client_for_unit_testing(
 
     with patch("routes.product_image_routes.generate_image_task") as mock_task:
         mock_task.kiq = AsyncMock()
-        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://localhost") as async_client:
+        SIGNING_KEYS.install_verifier(app)
+        async with AsyncClient(transport=ASGITransport(app=app), auth=DEFAULT_CALLER, base_url="http://localhost") as async_client:
             async_client.app_mock_generate_image_task = mock_task
             yield async_client
 
@@ -542,7 +556,8 @@ async def integration_client(
     app.dependency_overrides[get_review_service] = _override_get_review_service
     app.dependency_overrides[get_product_service] = _override_get_product_service
 
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://localhost") as async_client:
+    SIGNING_KEYS.install_verifier(app)
+    async with AsyncClient(transport=ASGITransport(app=app), auth=DEFAULT_CALLER, base_url="http://localhost") as async_client:
         yield async_client
 
     app.dependency_overrides.clear()

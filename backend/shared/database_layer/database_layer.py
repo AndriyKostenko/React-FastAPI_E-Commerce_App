@@ -22,6 +22,30 @@ class BaseRepository(Generic[ModelType]):
         self.session: AsyncSession = session
         self.model: type[ModelType] = model
 
+    # ---------------- TRANSACTION ----------------
+    async def commit(self) -> None:
+        """
+        Commit what this request has written so far, immediately.
+
+        For a write that must persist even though the request then fails:
+        the request-scoped transaction rolls back on any exception, which
+        would otherwise undo it. Use sparingly — it splits the request's
+        unit of work in two.
+        """
+        await self.session.commit()
+
+    async def end_read_phase(self) -> None:
+        """
+        Finish the transaction a read opened and hand its connection back to
+        the pool, before waiting on something slow (HTTP, S3, a third-party API).
+
+        SQLAlchemy begins a transaction at the first statement and holds a
+        pooled connection until commit; awaiting a remote call in between
+        pins that connection — idle in transaction — for as long as the call
+        takes. Loaded objects stay usable: sessions use expire_on_commit=False.
+        """
+        await self.session.commit()
+
     # ---------------- CREATE ----------------
     async def create(self, obj: ModelType) -> ModelType:
         """Creating a new record"""
@@ -146,9 +170,14 @@ class BaseRepository(Generic[ModelType]):
 
 
     #  ---------------- DELETE ----------------
+    # Every delete flushes, as create and update already do. Sessions run with
+    # autoflush=False, so an unflushed delete stayed invisible to later reads in
+    # the same transaction, and a foreign-key violation surfaced only at commit
+    # — after the service had chosen its response — as an unhandled 500.
     async def delete(self, obj: ModelType) -> None:
         """Delete a record"""
         await self.session.delete(obj)
+        await self.session.flush()
 
     async def delete_by_id(self, item_id: UUID) -> bool:
         """Delete a record by ID"""
@@ -158,14 +187,14 @@ class BaseRepository(Generic[ModelType]):
             return True
         return False
 
-    async def delete_many_by_field(self, field_name: str, value: str | UUID) -> None:
-        """Delete multiple records by field value"""
-        objects_to_delete = await self.get_many_by_field(field_name, value)
-        if objects_to_delete:
-            for obj in objects_to_delete:
-                await self.session.delete(obj)
+    async def delete_many_by_field(self, field_name: str, value: str | UUID) -> int:
+        """Delete multiple records by field value; returns how many were deleted."""
+        objects_to_delete = await self.get_many_by_field(field_name, value) or []
+        await self.delete_many(objects_to_delete)
+        return len(objects_to_delete)
 
     async def delete_many(self, objects: list[ModelType]) -> None:
-        """Delete multiple records"""
+        """Delete multiple records in one flush"""
         for obj in objects:
             await self.session.delete(obj)
+        await self.session.flush()

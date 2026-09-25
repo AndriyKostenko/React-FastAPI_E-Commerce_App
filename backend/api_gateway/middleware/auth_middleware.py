@@ -4,7 +4,7 @@ from fastapi.responses import JSONResponse
 
 from shared.settings import Settings
 from shared.managers.session_registry import SessionRegistry
-from shared.managers.token_manager import TokenManager
+from shared.auth.user_tokens import UserTokenVerifier
 from shared.enums.auth_enums import AuthCookies
 from middleware.public_routes import PublicRouteRegistry
 
@@ -16,12 +16,12 @@ class AuthMiddleware:
         self,
         settings: Settings,
         logger: Logger,
-        token_manager: TokenManager,
+        token_verifier: UserTokenVerifier,
         session_registry: "SessionRegistry | None" = None,
     ):
         self.settings: Settings = settings
         self.logger: Logger = logger
-        self.token_manager = token_manager
+        self.token_verifier = token_verifier
         # Decoding a token proves it was issued and has not expired; it says
         # nothing about whether the user has since revoked it. Only this
         # service authenticates the requests that never reach user-service, so
@@ -80,7 +80,7 @@ class AuthMiddleware:
         # 3. Try to validate token if present (required for protected endpoints, optional for public)
         if token:
             try:
-                user_data = self.token_manager.decode_token(token)
+                user_data = self.token_verifier.decode(token)
                 if await self._is_revoked(user_data):
                     raise HTTPException(
                         status_code=401,

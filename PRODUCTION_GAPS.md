@@ -407,9 +407,6 @@ the services), not only in unit tests.
       `REMBG_MODEL` build arg must match `PRODUCT_IMAGE_BG_REMOVAL_MODEL`.
 
 **Still open from this pass:**
-- **user-service ignores the session cookie.** Its `oauth2_scheme` reads only
-  the `Authorization` header, so cookie-only requests to it get 401. Resolves
-  with items 1/2b/6 below.
 - **admin-js** is not started by `dev.sh`, and its stored access token expires
   with no refresh.
 
@@ -456,28 +453,28 @@ Backend:
 
 | # | Question | Status |
 |---|---|---|
-| 1 | Is the token decoded twice (gateway `AuthMiddleware` and user-service)? | **Yes, open.** user-service re-decodes via `oauth2_scheme` + a DB check; every other service trusts the gateway |
-| 2 | Gateway strips auth and injects identity headers? | **Mostly done.** `X-Authenticated-User-*` are injected and client copies stripped; wishlist/product/order/notification read them, user-service does not. The raw token is still forwarded |
-| 2b | Signing key out of the gateway, like Google login? | Open — gateway signs a short-lived assertion (Ed25519), services verify with the public key only |
+| 1 | Is the token decoded twice (gateway `AuthMiddleware` and user-service)? | **Done (2026-09-24).** Only the gateway decodes it; user-service reads the gateway's signed caller assertion and checks the account row |
+| 2 | Gateway strips auth and injects identity headers? | **Done (2026-09-24).** `Authorization` and `Cookie` stop at the gateway; identity travels only as the signed assertion |
+| 2b | Signing key out of the gateway, like Google login? | **Done (2026-09-24).** User tokens are EdDSA, private key in user-service only; the gateway signs 60s method+path-bound caller assertions (`X-Caller-Assertion`) that services verify with its public key |
 | 3 | `@public` decorator? | Superseded: `PublicRouteRegistry` (§4b). Secure-by-default router-level dependencies would remove the middleware entirely |
-| 4 | `self_or_admin` in the services? | **Partial.** Schema and generation routes check in-service (`AuthenticatedCaller.require_admin`); product CRUD, order admin, etc. still rely on the gateway alone |
-| 5 | Only the gateway may call services (`INTERNAL_HMAC_SECRET`, Vault)? | Open — prefer the asymmetric assertion from 2b over a shared HMAC secret, which lets any compromised service mint identities |
-| 6 | Signed header downstream; drop `oauth2_scheme` + `get_current_user()`? | Open — follows from 2b |
+| 4 | `self_or_admin` in the services? | **Done (2026-09-24).** `shared.auth.route_guards` on every non-public route; also closed payment/shipment reads by any user and an unguarded `GET /payments` |
+| 5 | Only the gateway may call services (`INTERNAL_HMAC_SECRET`, Vault)? | **Mostly done.** Only the gateway can assert an identity, so a direct call is at most anonymous. Open: `/artwork/download-link`, `/products/order-quote` and `/cjdropshipping/freight/quote` are called service-to-service without a caller and rely on network isolation — needs service identity |
+| 6 | Signed header downstream; drop `oauth2_scheme` + `get_current_user()`? | **Done (2026-09-24)** |
 | 7 | Remove service ports from compose? | Local ports already bind to `127.0.0.1`; add a prod override with `expose:` only |
 | 8 | NetworkPolicy? | Only once on Kubernetes; in compose, split `edge` / `internal` networks |
-| 9 | Token purposes? | `purpose` is enforced. Open: `aud`/`iss` claims, and only user-service should hold the signing key (RS256/EdDSA) |
+| 9 | Token purposes? | **Done (2026-09-24).** `purpose`, `iss`, `aud`, `iat`, `jti` are required; only user-service holds the signing key (Ed25519) |
 | 10 | Remove `PUBLIC_ENDPOINTS` completely? | Done (§4b) |
 | 11 | OpenAPI → TypeScript? | Open (tooling) |
-| 12 | Order saga frozen while waiting on CJ stock? | Open — a saga timeout worker exists; review its coverage |
-| 13 | Session/transaction held open while awaiting services or queues? | Open — audit |
-| 14 | Value objects (frozen dataclasses)? | Open (refactor) |
-| 15 | Unit of Work? | Open (refactor) |
-| 16 | Circuit breaker / retries for CJ? | Open — the gateway breaker is also disabled (`apigateway.py`) |
-| 17 | Process isolation: API, task queue, consumers, DB? | Open |
-| 18 | RabbitMQ ack policy + DLX? | Open |
+| 12 | Order saga frozen while waiting on CJ stock? | **Done (2026-09-25).** The timeout worker only covered *pending* sagas; a confirmed order CJ never took on sat until the card hold lapsed. It is now cancelled after `ORDER_SUPPLIER_STALL_HOURS` (24h, hold released). A CJ outage during the stock check is retried, no longer an instant cancel + refund |
+| 13 | Session/transaction held open while awaiting services or queues? | **Done (2026-09-25).** Audited every external call. Fixed: production artwork download (read txn held across a 10s HTTP call — proven idle-in-transaction on Postgres), wishlist add (uncommitted INSERT across HTTP), image replace (rows deleted before uploads were written), notification emails enqueued before the row committed (duplicate emails on retry). `BaseRepository.end_read_phase()` for the read → remote → write pattern payment-service already used. Also fixed a lost update on concurrent add-to-cart (row lock) |
+| 14 | Value objects (frozen dataclasses)? | **Assessed, not adopted (2026-09-25).** Money is already exact where it is computed (Decimal, integer cents to Stripe, `to_cents` via `str`). The one gap: `orders.amount` and `order_items.price` are float columns — no arithmetic touches them today, so migrate them to `Numeric(10,2)` together with partial refunds (§5), when they start being summed |
+| 15 | Unit of Work? | **Assessed, not needed (2026-09-25).** The session is the unit of work and `database.transaction()` is its boundary: one per request, one per consumed event, outbox rows in the same transaction. A wrapper class would add a layer without adding safety. What *was* unsafe is fixed: the request's commit ran after the response was sent (a failed commit lost a write the client was told succeeded) — now `scope="function"` everywhere, with a guard test. Deliberate splits (payment read -> Stripe -> write, sync checkpoints) use named repository methods |
+| 16 | Circuit breaker / retries for CJ? | **Done (2026-09-25).** Per-service breakers in the gateway (503 + Retry-After); CJ reads retry with backoff, writes never do; a process-wide CJ breaker; 429/5xx are 'unavailable', not a rejection |
+| 17 | Process isolation: API, task queue, consumers, DB? | **Already in place.** Every service runs API, consumer, outbox worker, taskiq worker and scheduler as separate processes (dev.sh) / containers (compose), each with its own database. The single Postgres instance is #19 |
+| 18 | RabbitMQ ack policy + DLX? | **Done (2026-09-24).** Worse than open: every queue dead-lettered to a `dlx` exchange nothing declared, so RabbitMQ dropped every failed message. `shared.messaging.ConsumerTopology` now declares `dlx`, one DLQ per queue and 5s/30s/120s retry queues before consuming; `RetryDispatcher` retries transient failures and dead-letters payload errors at once. All 20 queues in 8 consumers, verified on the live broker |
 | 19 | One Postgres instance, one superuser? | Open — per-service least-privilege roles |
-| 19b | taskiq DLX? | Open |
-| 20 | `autoflush` / `expire_on_commit`; UoW transaction boundaries? | Open — audit |
+| 19b | taskiq DLX? | **Done for notifications (2026-09-24).** taskiq acks a failed task (its result is saved), so its DLQ never saw one. `DeadLetteringRetryMiddleware` retries emails with backoff and jitter, then parks them in `taskiq.notifications.dead_letter`. Image generation (refunds quota) and the supplier cron jobs (next run is the retry) deliberately do not retry. Parked messages replay with `./local/dev.sh dlq list` / `dlq replay <queue>` |
+| 20 | `autoflush` / `expire_on_commit`; UoW transaction boundaries? | **Done (2026-09-25).** `expire_on_commit=False` is right for async; with `autoflush=False` the gap was deletes: they never flushed, so later reads saw deleted rows and constraint violations surfaced at commit as bare 500s. Deletes now flush; `IntegrityError` renders as 409. Deleting a category silently deleted all its products (ORM cascade) — now refused with 409 |
 
 Frontend:
 /order/orderid is open for anyone?

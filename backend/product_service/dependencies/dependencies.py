@@ -31,6 +31,10 @@ def get_resources(request: Request) -> ProductApiResources:
     return get_product_api_resources(request)
 
 
+# Always depended on with scope="function": FastAPI's default runs a yield
+# dependency's exit code after the response is sent, so the commit below ran
+# after the client had been told "created" — a commit that then failed lost the
+# write silently. Function scope commits before the response goes out.
 async def get_db_session(
     resources: ProductApiResources = Depends(get_resources),
 ) -> AsyncGenerator[AsyncSession, None]:
@@ -47,7 +51,7 @@ async def get_db_session(
 
 def get_category_service(
     resources: ProductApiResources = Depends(get_resources),
-    session: AsyncSession = Depends(get_db_session),
+    session: AsyncSession = Depends(get_db_session, scope="function"),
 ) -> CategoryService:
     """Dependency to provide CategoryService."""
     return CategoryService(
@@ -56,19 +60,19 @@ def get_category_service(
     )
 
 
-def get_review_service(session: AsyncSession = Depends(get_db_session)) -> ReviewService:
+def get_review_service(session: AsyncSession = Depends(get_db_session, scope="function")) -> ReviewService:
     """Dependency to provide ReviewService."""
     return ReviewService(ReviewRepository(session=session))
 
 
-def get_product_image_service(session: AsyncSession = Depends(get_db_session)) -> ProductImageService:
+def get_product_image_service(session: AsyncSession = Depends(get_db_session, scope="function")) -> ProductImageService:
     """Dependency to provide ProductImageService."""
     return ProductImageService(ProductImageRepository(session=session))
 
 
 def get_product_service(
     resources: ProductApiResources = Depends(get_resources),
-    session: AsyncSession = Depends(get_db_session),
+    session: AsyncSession = Depends(get_db_session, scope="function"),
 ) -> ProductService:
     """Dependency to provide ProductService."""
     image_repo = ProductImageRepository(session=session)
@@ -149,7 +153,7 @@ def get_image_generation_service(
 
 def get_artwork_asset_service(
     resources: ProductApiResources = Depends(get_resources),
-    session: AsyncSession = Depends(get_db_session),
+    session: AsyncSession = Depends(get_db_session, scope="function"),
 ) -> ArtworkAssetService:
     """Dependency to provide ArtworkAssetService for print-file downloads and retention."""
     return ArtworkAssetService(

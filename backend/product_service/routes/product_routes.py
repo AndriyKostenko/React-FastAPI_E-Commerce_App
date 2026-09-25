@@ -20,6 +20,7 @@ from schemas.product_schemas import (
     OrderQuoteRequest,
     OrderQuoteResponse,
 )
+from shared.auth.route_guards import AdminDep
 
 
 product_routes = APIRouter(tags=["products"])
@@ -51,7 +52,7 @@ async def get_custom_tshirt_pricing() -> CustomTshirtPricingResponse:
                     status_code=status.HTTP_201_CREATED,
                     summary="Create product (JSON)",
                     response_description="New product created")
-async def create_product_json(product_service: product_service_dependency, product_data: CreateProduct) -> ProductBase:
+async def create_product_json(admin: AdminDep, product_service: product_service_dependency, product_data: CreateProduct) -> ProductBase:
     """
     Create a new product using JSON payload.
     Used by AdminJS and API clients. (without images uploads for now)
@@ -64,7 +65,7 @@ async def create_product_json(product_service: product_service_dependency, produ
                     response_model=ProductSchema,
                     status_code=status.HTTP_201_CREATED,
                     summary="Create product with FormData")
-async def create_product_with_images(product_service: product_service_dependency,
+async def create_product_with_images(admin: AdminDep, product_service: product_service_dependency,
                                      form_data: ProductUploadForm = Depends(ProductUploadForm.return_as_form)) -> ProductBase:
     """
     Create a new product with optional image uploads.
@@ -133,6 +134,7 @@ async def get_product_by_id_detailed(product_id: UUID, product_service: product_
     response_description="Product updated",
 )
 async def update_product_json(
+    admin: AdminDep,
     request: Request,
     product_id: UUID,
     product_service: product_service_dependency,
@@ -155,6 +157,7 @@ async def update_product_json(
     status_code=status.HTTP_204_NO_CONTENT,
 )
 async def delete_product_by_id(
+    admin: AdminDep,
     request: Request, product_id: UUID, product_service: product_service_dependency
 ):
     await product_service.delete_product_by_id(product_id=product_id)

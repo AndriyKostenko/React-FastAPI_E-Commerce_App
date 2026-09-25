@@ -1,13 +1,32 @@
 """Unit tests for AuthMiddleware.is_public_endpoint and middleware logic."""
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from fastapi import Request
 from fastapi.responses import JSONResponse
 from starlette.datastructures import MutableHeaders
 
+from datetime import timedelta
+from uuid import uuid4
+
 from middleware.auth_middleware import AuthMiddleware
 from resources import settings
+from shared.testing.signing_keys import EphemeralSigningKeys
+
+
+# Real Ed25519 keys: the gateway's check is exercised, not stubbed out.
+KEYS = EphemeralSigningKeys()
+
+
+def _access_token(keys: EphemeralSigningKeys = KEYS, purpose: str = "access") -> str:
+    token, _ = keys.token_manager(settings).create_access_token(
+        email="user@example.com",
+        user_id=uuid4(),
+        role="user",
+        expires_delta=timedelta(minutes=5),
+        purpose=purpose,
+    )
+    return token
 
 
 def _make_request(path: str, method: str, headers: dict | None = None, cookies: dict | None = None) -> MagicMock:
@@ -33,7 +52,7 @@ class TestIsPublicEndpoint:
     def setup_method(self):
         """Re-create a fresh middleware instance (bypassing singleton for tests)."""
         self.mw = AuthMiddleware.__new__(AuthMiddleware)
-        self.mw.__init__(settings=settings, logger=MagicMock(), token_manager=MagicMock())
+        self.mw.__init__(settings=settings, logger=MagicMock(), token_verifier=KEYS.user_token_verifier())
 
     def test_health_endpoint_is_public(self):
         assert self.mw.is_public_endpoint("/health", "GET") is True
@@ -111,7 +130,7 @@ class TestMiddlewareAuth:
 
     def setup_method(self):
         self.mw = AuthMiddleware.__new__(AuthMiddleware)
-        self.mw.__init__(settings=settings, logger=MagicMock(), token_manager=MagicMock())
+        self.mw.__init__(settings=settings, logger=MagicMock(), token_verifier=KEYS.user_token_verifier())
 
     async def test_options_request_passes_through(self):
         req = _make_request("/api/v1/users", "OPTIONS")
@@ -143,33 +162,35 @@ class TestMiddlewareAuth:
     async def test_protected_endpoint_with_valid_bearer_token_passes(self):
         req = _make_request(
             f"{API}/users/abc", "GET",
-            headers={"Authorization": "Bearer valid.jwt.token"},
+            headers={"Authorization": f"Bearer {_access_token()}"},
         )
         call_next = AsyncMock(return_value=JSONResponse(content={}, status_code=200))
 
-        mock_user = MagicMock()
-        mock_user.email = "user@example.com"
-
-        with patch.object(self.mw.token_manager, "decode_token", return_value=mock_user):
-            response = await self.mw.middleware(req, call_next)
+        response = await self.mw.middleware(req, call_next)
 
         call_next.assert_awaited_once()
         assert response.status_code == 200
+        assert req.state.current_user.email == "user@example.com"
 
-    async def test_protected_endpoint_with_invalid_token_returns_401(self):
-        from fastapi import HTTPException
+    @pytest.mark.parametrize(
+        "token",
+        [
+            "bad.token",
+            # A well-formed token signed by a key the gateway does not trust.
+            _access_token(EphemeralSigningKeys()),
+            # A refresh token must never be accepted as an access token.
+            _access_token(purpose="refresh"),
+        ],
+        ids=["garbage", "foreign-key", "refresh-as-access"],
+    )
+    async def test_protected_endpoint_with_invalid_token_returns_401(self, token: str):
         req = _make_request(
             f"{API}/users/abc", "GET",
-            headers={"Authorization": "Bearer bad.token"},
+            headers={"Authorization": f"Bearer {token}"},
         )
         call_next = AsyncMock(return_value=JSONResponse(content={}, status_code=200))
 
-        with patch.object(
-            self.mw.token_manager,
-            "decode_token",
-            side_effect=HTTPException(status_code=401, detail="Token expired"),
-        ):
-            response = await self.mw.middleware(req, call_next)
+        response = await self.mw.middleware(req, call_next)
 
         assert response.status_code == 401
         call_next.assert_not_awaited()
@@ -177,15 +198,11 @@ class TestMiddlewareAuth:
     async def test_protected_endpoint_with_access_token_cookie_passes(self):
         req = _make_request(
             f"{API}/users/abc", "GET",
-            cookies={"access_token": "valid.cookie.token"},
+            cookies={"access_token": _access_token()},
         )
         call_next = AsyncMock(return_value=JSONResponse(content={}, status_code=200))
 
-        mock_user = MagicMock()
-        mock_user.email = "user@example.com"
-
-        with patch.object(self.mw.token_manager, "decode_token", return_value=mock_user):
-            response = await self.mw.middleware(req, call_next)
+        response = await self.mw.middleware(req, call_next)
 
         call_next.assert_awaited_once()
         assert response.status_code == 200
@@ -196,7 +213,7 @@ class TestPublicRouteBoundaries:
 
     def setup_method(self):
         self.mw = AuthMiddleware.__new__(AuthMiddleware)
-        self.mw.__init__(settings=settings, logger=MagicMock(), token_manager=MagicMock())
+        self.mw.__init__(settings=settings, logger=MagicMock(), token_verifier=KEYS.user_token_verifier())
 
     @pytest.mark.parametrize("path", [
         f"{API}/products/abc/reviews",
@@ -235,7 +252,7 @@ class TestCacheableRoutes:
 
     def setup_method(self):
         self.mw = AuthMiddleware.__new__(AuthMiddleware)
-        self.mw.__init__(settings=settings, logger=MagicMock(), token_manager=MagicMock())
+        self.mw.__init__(settings=settings, logger=MagicMock(), token_verifier=KEYS.user_token_verifier())
 
     @pytest.mark.parametrize("path", [
         f"{API}/products",

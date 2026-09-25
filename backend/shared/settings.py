@@ -183,9 +183,32 @@ class Settings(BaseSettings):
 
     # JWT configuration
     SECRET_KEY: str
-    ALGORITHM: str
+    # Unused since tokens are Ed25519-signed (EdDSA); kept so an existing .env
+    # that still sets it keeps loading.
+    ALGORITHM: str | None = None
+    # Ed25519 keys as PEM. Only user-service needs USER_TOKEN_PRIVATE_KEY and
+    # only the gateway needs GATEWAY_ASSERTION_PRIVATE_KEY; the public halves
+    # are safe anywhere. Optional so a process that never signs can run
+    # without the private key — see the accessor properties below.
+    USER_TOKEN_PRIVATE_KEY: SecretStr | None = None
+    USER_TOKEN_PUBLIC_KEY: str | None = None
+    GATEWAY_ASSERTION_PRIVATE_KEY: SecretStr | None = None
+    GATEWAY_ASSERTION_PUBLIC_KEY: str | None = None
+    USER_TOKEN_ISSUER: str = "user-service"
+    USER_TOKEN_AUDIENCE: str = "ecommerce-api"
+    GATEWAY_ASSERTION_ISSUER: str = "api-gateway"
+    GATEWAY_ASSERTION_AUDIENCE: str = "internal-services"
+    GATEWAY_ASSERTION_TTL_SECONDS: int = Field(default=60, gt=0, le=300)
+    # Per-service circuit breaker in the gateway.
+    GATEWAY_BREAKER_FAILURE_THRESHOLD: int = Field(default=5, ge=1)
+    # A confirmed order whose CJ part has not started by then is cancelled
+    # (card hold released) — well inside the ~7-day authorization window.
+    ORDER_SUPPLIER_STALL_HOURS: int = Field(default=24, ge=1, le=120)
+    GATEWAY_BREAKER_RECOVERY_SECONDS: float = Field(default=30.0, gt=0)
     TOKEN_TYPE: str
-    TOKEN_URL: str
+    # Unused since services stopped reading bearer tokens (the gateway's caller
+    # assertion replaced oauth2_scheme); optional so an existing env file loads.
+    TOKEN_URL: str | None = None
     TOKEN_TIME_DELTA_MINUTES: int
     REFRESH_TOKEN_TIME_DELTA_DAYS: int
     RESET_TOKEN_EXPIRY_MINUTES: int
@@ -300,6 +323,22 @@ class Settings(BaseSettings):
         return self._reveal(self.STRIPE_WEBHOOK_SECRET, "STRIPE_WEBHOOK_SECRET")
 
     @property
+    def USER_TOKEN_SIGNING_KEY_PEM(self) -> str:
+        return self._reveal(self.USER_TOKEN_PRIVATE_KEY, "USER_TOKEN_PRIVATE_KEY")
+
+    @property
+    def USER_TOKEN_VERIFYING_KEY_PEM(self) -> str:
+        return self._reveal(self.USER_TOKEN_PUBLIC_KEY, "USER_TOKEN_PUBLIC_KEY")
+
+    @property
+    def GATEWAY_ASSERTION_SIGNING_KEY_PEM(self) -> str:
+        return self._reveal(self.GATEWAY_ASSERTION_PRIVATE_KEY, "GATEWAY_ASSERTION_PRIVATE_KEY")
+
+    @property
+    def GATEWAY_ASSERTION_VERIFYING_KEY_PEM(self) -> str:
+        return self._reveal(self.GATEWAY_ASSERTION_PUBLIC_KEY, "GATEWAY_ASSERTION_PUBLIC_KEY")
+
+    @property
     def OPENROUTER_KEY(self) -> str:
         return self._reveal(self.OPENROUTER_API_KEY, "OPENROUTER_API_KEY")
 
@@ -353,6 +392,10 @@ class Settings(BaseSettings):
     CJ_DROPSHIPPING_VERIFY_INVENTORY: bool = True
     CJ_DROPSHIPPING_INVENTORY_BUFFER: int = 0
     CJ_DROPSHIPPING_VERIFY_RETRIES: int = 2
+    # Transient-failure handling for every CJ call (retries apply to reads only).
+    CJ_DROPSHIPPING_RETRY_MAX_ATTEMPTS: int = Field(default=3, ge=1, le=6)
+    CJ_DROPSHIPPING_BREAKER_FAILURE_THRESHOLD: int = Field(default=5, ge=1)
+    CJ_DROPSHIPPING_BREAKER_RECOVERY_SECONDS: float = Field(default=60.0, gt=0)
     CJ_DROPSHIPPING_VERIFY_TIMEOUT_SECONDS: float = 10.0
     CJ_DROPSHIPPING_REQUEST_TIMEOUT_SECONDS: float = 30.0
 
@@ -376,6 +419,8 @@ class Settings(BaseSettings):
     CJ_PAYMENT_RETRY_INTERVAL_MINUTES: int = Field(default=10, gt=0)
     CJ_PAYMENT_MAX_WAIT_HOURS: int = Field(default=24, gt=0)
     CJ_PAYMENT_BATCH_SIZE: int = Field(default=50, gt=0)
+    # Longer than a full confirm -> pay walk with CJ timeouts and retries.
+    CJ_PAYMENT_LEASE_MINUTES: int = Field(default=10, gt=0)
     CJ_DROPSHIPPING_PLATFORM: str = "Api"
     CJ_DROPSHIPPING_ORDER_CREATE_RETRIES: int = 2
     CJ_DROPSHIPPING_ORDER_CREATE_TIMEOUT_SECONDS: float = 15.0

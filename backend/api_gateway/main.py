@@ -54,6 +54,8 @@ builder = (
     # The edge terminates the browser's Host header; Traefik has already matched
     # the router rule by the time a request reaches here.
     .without_host_validation()
+    # The gateway signs caller assertions; it never has one to verify.
+    .without_caller_assertion()
     # gateway_requests_total / gateway_request_duration_seconds are recorded
     # inside gateway_middleware and are what the Grafana gateway panels query.
     .without_request_metrics()

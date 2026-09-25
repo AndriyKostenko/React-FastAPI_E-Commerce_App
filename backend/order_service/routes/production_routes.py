@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Query, Request, status
+from fastapi import APIRouter, Depends, Query, Request, status
 
 from dependencies.dependencies import production_queue_service_dependency
 from schemas.production_schemas import (
@@ -14,10 +14,17 @@ from schemas.production_schemas import (
     ShipProductionJobRequest,
     StartProductionJobRequest,
 )
+from shared.auth.route_guards import require_admin
 from shared.enums.status_enums import ProductionJobStatus
 
 
-production_routes = APIRouter(tags=["production"], prefix="/admin/production")
+# The in-house production queue is admin-only end to end, so the router carries
+# the guard and no route under it can be added without one.
+production_routes = APIRouter(
+    tags=["production"],
+    prefix="/admin/production",
+    dependencies=[Depends(require_admin)],
+)
 
 """
 Admin API for the in-house print queue.

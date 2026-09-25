@@ -69,10 +69,12 @@ class WishlistService:
         item_data: AddWishlistItem,
         http_session: ClientSession | None = None,
     ) -> WishlistSchema:
-        wishlist = await self._get_or_create_wishlist_model(user_id)
-
+        # Checked before any statement: creating the wishlist first held an
+        # uncommitted INSERT open for as long as product-service took to answer.
         if http_session is not None:
             await self._validate_product_exists(http_session, item_data.product_id)
+
+        wishlist = await self._get_or_create_wishlist_model(user_id)
 
         await self.repository.add_item(
             wishlist_id=wishlist.id,

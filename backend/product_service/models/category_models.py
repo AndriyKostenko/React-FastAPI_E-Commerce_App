@@ -24,7 +24,11 @@ class ProductCategory(Base, TimestampMixin):
     cj_category_id: Mapped[str | None] = mapped_column(nullable=True, unique=True)
     image_url: Mapped[str] = mapped_column(nullable=True)
 
-    products: Mapped[list['Product']] = relationship('Product', back_populates='category', cascade='all, delete-orphan') # pyright: ignore[reportUndefinedVariable]
+    # No delete cascade: deleting a category used to delete every product in it
+    # (images, variants, reviews too) in one admin click. passive_deletes='all'
+    # stops the ORM touching the products at all, so the foreign key refuses the
+    # delete and the API answers 409 until the products are moved or removed.
+    products: Mapped[list['Product']] = relationship('Product', back_populates='category', passive_deletes='all') # pyright: ignore[reportUndefinedVariable]
 
     @classmethod
     def get_search_fields(cls) -> list[str]:

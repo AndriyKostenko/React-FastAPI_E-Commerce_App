@@ -50,7 +50,6 @@ dependencies = [
     "pydantic-core==2.46.4",
     "pydantic-settings==2.9.1",
     "python-dotenv==1.1.0",
-    "python-jose==3.5.0",
     "python-multipart==0.0.20",
     "pyyaml==6.0.2",
     "redis==6.2.0",
@@ -78,6 +77,7 @@ dependencies = [
     "taskiq-redis>=1.1.2",
     "httpx >= 0.28.1",
     "rembg[cpu]>=2.0.60",
+    "pyjwt[crypto]>=2.10",
 ]
 
 [tool.uv.sources]

@@ -1,7 +1,7 @@
 from typing import Any
 
 from faststream import FastStream
-from faststream.rabbit import RabbitQueue
+from faststream.rabbit.annotations import RabbitMessage
 from orjson import loads
 
 from config import logger, settings
@@ -9,10 +9,13 @@ from events_consumer.payment_event_consumer import PaymentEventConsumer
 from messaging import create_rabbitmq_broker, order_exchange
 from resources import PaymentConsumerResources, create_consumer_resources
 from shared.enums.event_enums import OrderEvents
+from shared.messaging import ConsumerTopology
 
 
 rabbitmq_broker = create_rabbitmq_broker(settings)
 app = FastStream(rabbitmq_broker)
+# Owns every queue below plus their retry queues and DLQs.
+topology = ConsumerTopology(rabbitmq_broker, logger)
 _resources: PaymentConsumerResources | None = None
 _consumer: PaymentEventConsumer | None = None
 
@@ -26,6 +29,9 @@ def get_payment_event_consumer() -> PaymentEventConsumer:
 @app.on_startup
 async def startup() -> None:
     global _consumer, _resources
+    # Before the broker starts consuming, so no failure can dead-letter into
+    # an exchange that does not exist yet.
+    await topology.declare()
     resources = create_consumer_resources()
     try:
         await resources.start()
@@ -54,42 +60,40 @@ async def shutdown() -> None:
 
 # The payment service listens for order.cancelled events so it can issue
 # Stripe refunds when an order is cancelled after a successful payment.
-payment_order_events_queue = RabbitQueue(
-    "payment.order.events.queue",
-    durable=True,
+payment_order_events_queue = topology.queue(
+    name="payment.order.events.queue",
     routing_key=OrderEvents.ORDER_CANCELLED,
-    arguments={
-        "x-dead-letter-exchange": "dlx",
-        "x-dead-letter-routing-key": "payment.order.events.dlq",
-    },
+    dead_letter_key="payment.order.events.dlq",
 )
 
 
-@rabbitmq_broker.subscriber(queue=payment_order_events_queue, exchange=order_exchange)
-async def handle_payment_events(body: str) -> None:
+@rabbitmq_broker.subscriber(queue=payment_order_events_queue.queue, exchange=order_exchange)
+async def handle_payment_events(body: str, message: RabbitMessage) -> None:
     """
     FastStream subscriber for order events that require payment action.
     Delegates to PaymentEventConsumer for business logic.
     """
-    message: dict[str, Any] = loads(body)
-    await get_payment_event_consumer().handle_payment_event(message)
+    await topology.dispatch(
+        payment_order_events_queue,
+        message,
+        lambda: get_payment_event_consumer().handle_payment_event(loads(body)),
+    )
 
 
 # order_service's instructions about a held card. The "payment.*.requested"
 # keys share the order exchange but match no other binding on it.
-payment_commands_queue = RabbitQueue(
-    "payment.commands.queue",
-    durable=True,
+payment_commands_queue = topology.queue(
+    name="payment.commands.queue",
     routing_key="payment.*.requested",
-    arguments={
-        "x-dead-letter-exchange": "dlx",
-        "x-dead-letter-routing-key": "payment.commands.dlq",
-    },
+    dead_letter_key="payment.commands.dlq",
 )
 
 
-@rabbitmq_broker.subscriber(queue=payment_commands_queue, exchange=order_exchange)
-async def handle_payment_commands(body: str) -> None:
+@rabbitmq_broker.subscriber(queue=payment_commands_queue.queue, exchange=order_exchange)
+async def handle_payment_commands(body: str, message: RabbitMessage) -> None:
     """FastStream subscriber for capture and release commands from order_service."""
-    message: dict[str, Any] = loads(body)
-    await get_payment_event_consumer().handle_payment_event(message)
+    await topology.dispatch(
+        payment_commands_queue,
+        message,
+        lambda: get_payment_event_consumer().handle_payment_event(loads(body)),
+    )

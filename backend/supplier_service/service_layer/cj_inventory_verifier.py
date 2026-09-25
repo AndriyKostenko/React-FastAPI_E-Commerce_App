@@ -3,7 +3,11 @@ from dataclasses import dataclass
 from logging import Logger
 from typing import Any
 
-from service_layer.cj_api_client import CJDropshippingAPIClient, CJDropshippingAPIError
+from service_layer.cj_api_client import (
+    CJDropshippingAPIClient,
+    CJDropshippingAPIError,
+    CJDropshippingNetworkError,
+)
 from shared.settings import Settings
 
 
@@ -46,6 +50,10 @@ class CJDropshippingInventoryVerifier:
                     timeout=self.settings.CJ_DROPSHIPPING_VERIFY_TIMEOUT_SECONDS,
                 )
                 return self._parse_response(raw, requested_quantity)
+            except CJDropshippingNetworkError:
+                # CJ unreachable: the client already retried. Propagate it as
+                # such so the order is retried later, not failed and refunded.
+                raise
             except CJDropshippingAPIError as exc:
                 last_error = exc
                 if self.logger:
@@ -75,6 +83,10 @@ class CJDropshippingInventoryVerifier:
                     timeout=self.settings.CJ_DROPSHIPPING_VERIFY_TIMEOUT_SECONDS,
                 )
                 return self._parse_variant_response(raw, requested_quantity)
+            except CJDropshippingNetworkError:
+                # CJ unreachable: the client already retried. Propagate it as
+                # such so the order is retried later, not failed and refunded.
+                raise
             except CJDropshippingAPIError as exc:
                 last_error = exc
                 if self.logger:

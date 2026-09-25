@@ -1,6 +1,7 @@
+from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import ForeignKey, String
+from sqlalchemy import DateTime, ForeignKey, String
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -26,4 +27,9 @@ class OrderSagaState(Base, TimestampMixin):
         String(30), nullable=False, default="pending"
     )
     cancellation_reason: Mapped[str | None] = mapped_column(nullable=True)
+    # When payment and inventory both cleared. The stalled-supplier sweep
+    # measures from here; date_updated moves with every later change.
+    confirmed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     version: Mapped[int] = mapped_column(nullable=False, default=0)

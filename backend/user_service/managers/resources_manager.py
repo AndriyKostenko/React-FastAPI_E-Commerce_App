@@ -116,7 +116,7 @@ class ResourceManager:
                 ),
             ),
             password_manager=PasswordManager(settings=self.settings),
-            token_manager=TokenManager(settings=self.settings),
+            token_manager=TokenManager.from_settings(self.settings),
             # Shared with the API gateway, which reads it to refuse access
             # tokens from a session generation the user has already revoked.
             session_registry=SessionRegistry(

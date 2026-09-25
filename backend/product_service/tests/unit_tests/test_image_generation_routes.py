@@ -10,15 +10,16 @@ from exceptions.image_generation_exceptions import (
 )
 from tests.conftest import TEST_API
 from shared.settings import get_settings
-from shared.utils.authenticated_caller import USER_ID_HEADER, USER_ROLE_HEADER
+from tests.conftest import SIGNING_KEYS
+from shared.testing.signing_keys import ANONYMOUS
 
 settings = get_settings()
 
 # The gateway asserts the caller through these headers; sending them exercises
 # the real identity dependency rather than overriding it.
 TEST_CALLER_ID = uuid4()
-SIGNED_IN = {USER_ID_HEADER: str(TEST_CALLER_ID), USER_ROLE_HEADER: "user"}
-ADMIN = {USER_ID_HEADER: str(uuid4()), USER_ROLE_HEADER: settings.SECRET_ROLE}
+SIGNED_IN = SIGNING_KEYS.caller_auth(user_id=TEST_CALLER_ID, role="user")
+ADMIN = SIGNING_KEYS.caller_auth(user_id=uuid4(), role=settings.SECRET_ROLE)
 
 
 class TestGenerateImageEndpoint:
@@ -34,7 +35,7 @@ class TestGenerateImageEndpoint:
         response = await client_for_unit_testing.post(
             f"{TEST_API}/images/generations",
             json=self._payload,
-            headers=SIGNED_IN,
+            auth=SIGNED_IN,
         )
 
         assert response.status_code == status.HTTP_202_ACCEPTED
@@ -52,6 +53,7 @@ class TestGenerateImageEndpoint:
         response = await client_for_unit_testing.post(
             f"{TEST_API}/images/generations",
             json=self._payload,
+            auth=ANONYMOUS,
         )
 
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
@@ -66,7 +68,7 @@ class TestGenerateImageEndpoint:
         await client_for_unit_testing.post(
             f"{TEST_API}/images/generations",
             json=self._payload,
-            headers=SIGNED_IN,
+            auth=SIGNED_IN,
         )
 
         kwargs = mock_route_image_generation_service.submit_job.call_args.kwargs
@@ -79,7 +81,7 @@ class TestGenerateImageEndpoint:
         response = await client_for_unit_testing.post(
             f"{TEST_API}/images/generations",
             json=self._payload,
-            headers=SIGNED_IN,
+            auth=SIGNED_IN,
         )
 
         assert response.status_code == status.HTTP_202_ACCEPTED
@@ -96,7 +98,7 @@ class TestGenerateImageEndpoint:
         response = await client_for_unit_testing.post(
             f"{TEST_API}/images/generations",
             json=self._payload,
-            headers=SIGNED_IN,
+            auth=SIGNED_IN,
         )
 
         assert response.status_code == status.HTTP_429_TOO_MANY_REQUESTS
@@ -110,7 +112,7 @@ class TestGenerateImageEndpoint:
         response = await client_for_unit_testing.post(
             f"{TEST_API}/images/generations",
             json=self._payload,
-            headers=SIGNED_IN,
+            auth=SIGNED_IN,
             follow_redirects=False,
         )
 
@@ -126,7 +128,7 @@ class TestGenerateImageEndpoint:
         response = await client_for_unit_testing.post(
             f"{TEST_API}/images/generations",
             json=self._payload,
-            headers=SIGNED_IN,
+            auth=SIGNED_IN,
         )
 
         assert response.status_code == status.HTTP_202_ACCEPTED
@@ -147,7 +149,7 @@ class TestGenerationJobStatusEndpoint:
         job_id = str(uuid4())
         response = await client_for_unit_testing.get(
             f"{TEST_API}/images/generations/{job_id}/status",
-            headers=SIGNED_IN,
+            auth=SIGNED_IN,
         )
 
         assert response.status_code == status.HTTP_200_OK
@@ -166,6 +168,7 @@ class TestGenerationJobStatusEndpoint:
     ):
         response = await client_for_unit_testing.get(
             f"{TEST_API}/images/generations/{uuid4()}/status",
+            auth=ANONYMOUS,
         )
 
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
@@ -178,7 +181,7 @@ class TestGenerationJobStatusEndpoint:
         mock_route_image_generation_service.get_job.side_effect = ImageGenerationJobNotFoundError()
         response = await client_for_unit_testing.get(
             f"{TEST_API}/images/generations/{uuid4()}/status",
-            headers=SIGNED_IN,
+            auth=SIGNED_IN,
         )
 
         assert response.status_code == status.HTTP_404_NOT_FOUND
@@ -188,7 +191,7 @@ class TestAdminSchemaEndpoints:
     @pytest.mark.parametrize("resource", ["products", "categories", "images", "reviews"])
     async def test_admin_gets_schema(self, client_for_unit_testing: AsyncClient, resource: str):
         response = await client_for_unit_testing.get(
-            f"{TEST_API}/admin/schema/{resource}", headers=ADMIN,
+            f"{TEST_API}/admin/schema/{resource}", auth=ADMIN,
         )
 
         assert response.status_code == status.HTTP_200_OK
@@ -197,13 +200,13 @@ class TestAdminSchemaEndpoints:
     @pytest.mark.parametrize("resource", ["products", "categories", "images", "reviews"])
     async def test_regular_user_is_forbidden(self, client_for_unit_testing: AsyncClient, resource: str):
         response = await client_for_unit_testing.get(
-            f"{TEST_API}/admin/schema/{resource}", headers=SIGNED_IN,
+            f"{TEST_API}/admin/schema/{resource}", auth=SIGNED_IN,
         )
 
         assert response.status_code == status.HTTP_403_FORBIDDEN
 
     @pytest.mark.parametrize("resource", ["products", "categories", "images", "reviews"])
     async def test_anonymous_is_rejected(self, client_for_unit_testing: AsyncClient, resource: str):
-        response = await client_for_unit_testing.get(f"{TEST_API}/admin/schema/{resource}")
+        response = await client_for_unit_testing.get(f"{TEST_API}/admin/schema/{resource}", auth=ANONYMOUS)
 
         assert response.status_code == status.HTTP_401_UNAUTHORIZED

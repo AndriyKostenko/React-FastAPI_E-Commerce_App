@@ -1,5 +1,6 @@
 """Integration tests for order endpoints using a real PostgreSQL test database."""
 from datetime import datetime, timedelta, timezone
+from logging import getLogger
 from types import SimpleNamespace
 from uuid import UUID, uuid4
 
@@ -8,8 +9,12 @@ from httpx import AsyncClient
 from sqlalchemy import select
 
 from models.order_fulfillment_models import OrderLineFulfillment
+from models.order_item_models import OrderItem
+from models.order_models import Order
 from models.order_saga_models import OrderSagaState
-from saga_timeout_worker import expire_once
+from models.outbox_models import OutboxEvent
+from shared.enums.event_enums import OrderEvents
+from saga_timeout_worker import cancel_stalled_supplier_orders, expire_once
 from config import settings
 from shared.contracts.artwork import GeneratedArtworkAsset, sign_artwork_asset
 from shared.managers.test_database_session_manager import TestDatabaseSessionManager
@@ -293,6 +298,121 @@ class TestCancelOrderIntegration:
         response = await integration_client.get(f"{TEST_API}/orders/{order_id}")
         assert expired == 1
         assert response.json()["status"] == OrderStatus.CANCELLED
+
+
+class TestStalledSupplierOrders:
+    """
+    A confirmed order whose CJ part never got going is cancelled after
+    ORDER_SUPPLIER_STALL_HOURS instead of waiting for the card hold to lapse.
+    """
+
+    STALL_HOURS = 24
+
+    async def _confirmed_cj_order(
+        self,
+        client: AsyncClient,
+        stub,
+        db: TestDatabaseSessionManager,
+        *,
+        confirmed_hours_ago: float,
+        line_status: str = "pending",
+    ) -> UUID:
+        stub.cj_product_ids.add(str(TEST_PRODUCT_ID))
+        response = await client.post(
+            f"{TEST_API}/orders",
+            json=_order_payload(
+                products=[{
+                    "id": str(TEST_PRODUCT_ID),
+                    "variant_id": str(uuid4()),
+                    "price": "20.00",
+                    "quantity": 1,
+                    "fulfillment_type": "cj",
+                }],
+                address={
+                    "street": "1 Main St", "city": "Calgary", "province": "AB",
+                    "postal_code": "T1T 1T1", "country": "Canada", "country_code": "CA",
+                    "name": "Test Buyer", "phone": "4035550100",
+                },
+            ),
+        )
+        assert response.status_code == 201, response.text
+        order_id = UUID(response.json()["id"])
+        # The state payment.authorized + inventory.reserved leave behind.
+        async with db.transaction() as session:
+            saga = await session.get(OrderSagaState, order_id)
+            saga.payment_status = "authorized"
+            saga.inventory_status = "reserved"
+            saga.fulfillment_status = "ready"
+            saga.confirmed_at = datetime.now(timezone.utc) - timedelta(hours=confirmed_hours_ago)
+            order = await session.get(Order, order_id)
+            order.status = OrderStatus.CONFIRMED
+            lines = (await session.execute(
+                select(OrderLineFulfillment)
+                .join(OrderItem, OrderItem.id == OrderLineFulfillment.order_item_id)
+                .where(OrderItem.order_id == order_id)
+            )).scalars().all()
+            assert lines and all(line.fulfillment_type == "cj" for line in lines)
+            for line in lines:
+                line.status = line_status
+        return order_id
+
+    def _resources(self, db: TestDatabaseSessionManager) -> SimpleNamespace:
+        return SimpleNamespace(
+            database=db,
+            settings=SimpleNamespace(ORDER_SUPPLIER_STALL_HOURS=self.STALL_HOURS),
+            logger=getLogger("test.stalled-orders"),
+        )
+
+    async def test_an_order_cj_never_took_on_is_cancelled(
+        self, integration_client: AsyncClient, catalog_quote_stub, test_database_session_manager
+    ):
+        order_id = await self._confirmed_cj_order(
+            integration_client, catalog_quote_stub, test_database_session_manager, confirmed_hours_ago=25
+        )
+
+        cancelled = await cancel_stalled_supplier_orders(self._resources(test_database_session_manager))
+
+        assert cancelled == 1
+        order = (await integration_client.get(f"{TEST_API}/orders/{order_id}")).json()
+        assert order["status"] == OrderStatus.CANCELLED
+        async with test_database_session_manager.transaction() as session:
+            saga = await session.get(OrderSagaState, order_id)
+            # order.cancelled is what makes payment-service void the hold.
+            events = (await session.execute(
+                select(OutboxEvent.event_type).where(OutboxEvent.payload["order_id"].as_string() == str(order_id))
+            )).scalars().all()
+        assert "CJ did not accept" in saga.cancellation_reason
+        assert OrderEvents.ORDER_CANCELLED in events
+
+    @pytest.mark.parametrize(
+        ("confirmed_hours_ago", "line_status", "why"),
+        [
+            (2, "pending", "still inside the window"),
+            (25, "submitted", "CJ was paid; capture is under way"),
+        ],
+    )
+    async def test_orders_that_are_not_stalled_are_left_alone(
+        self,
+        integration_client: AsyncClient,
+        catalog_quote_stub,
+        test_database_session_manager,
+        confirmed_hours_ago: float,
+        line_status: str,
+        why: str,
+    ):
+        order_id = await self._confirmed_cj_order(
+            integration_client,
+            catalog_quote_stub,
+            test_database_session_manager,
+            confirmed_hours_ago=confirmed_hours_ago,
+            line_status=line_status,
+        )
+
+        cancelled = await cancel_stalled_supplier_orders(self._resources(test_database_session_manager))
+
+        assert cancelled == 0, why
+        order = (await integration_client.get(f"{TEST_API}/orders/{order_id}")).json()
+        assert order["status"] == OrderStatus.CONFIRMED, why
 
 
 class TestDeleteOrderIntegration:

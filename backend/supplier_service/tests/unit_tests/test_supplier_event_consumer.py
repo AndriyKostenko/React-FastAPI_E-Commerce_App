@@ -9,7 +9,7 @@ import pytest
 from event_consumer.supplier_event_consumer import SupplierEventConsumer
 from enums.cj_order_enums import CJOrderAttemptStatus
 from exceptions.cj_order_exceptions import CJOrderCreationError, CJOrderAmbiguousError
-from service_layer.cj_api_client import CJDropshippingAPIError
+from service_layer.cj_api_client import CJDropshippingAPIError, CJDropshippingUnavailableError
 from service_layer.product_service_client import ProductServiceError
 from shared.enums.event_enums import InventoryEvents, OrderEvents, SupplierEvents
 from shared.settings import get_settings
@@ -265,6 +265,24 @@ class TestHandleOrderConfirmed:
         consumer.cj_api_client.create_order_v2.assert_not_awaited()
         consumer._record_failed.assert_awaited_once()
         assert "Insufficient live CJ stock" in consumer._record_failed.await_args.args[1]
+
+    async def test_cj_outage_during_the_stock_check_is_retried_not_refunded(self):
+        """
+        CJ unreachable is not an answer about stock. The event must fail so it
+        is retried with backoff; recording a failure would cancel and refund
+        an order that could have been fulfilled once CJ came back.
+        """
+        consumer = _make_consumer(resolve_cj_ids=(TEST_PID, TEST_VID))
+        consumer.inventory_verifier.verify_variant_stock = AsyncMock(
+            side_effect=CJDropshippingUnavailableError("CJ API returned 503")
+        )
+
+        with pytest.raises(CJDropshippingUnavailableError):
+            await consumer.handle_order_confirmed(_make_order_confirmed_message())
+
+        consumer.cj_api_client.create_order_v2.assert_not_awaited()
+        consumer._record_failed.assert_not_awaited()
+        consumer.idempotency_service.release_claim.assert_awaited_once()
 
     async def test_cj_response_missing_order_id_raises(self):
         consumer = _make_consumer(

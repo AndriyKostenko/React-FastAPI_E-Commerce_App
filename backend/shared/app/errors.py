@@ -15,6 +15,7 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError, ResponseValidationError
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
+from sqlalchemy.exc import IntegrityError
 
 from shared.exceptions.base_exceptions import BaseAPIException, RateLimitExceededError
 
@@ -79,6 +80,25 @@ def api_exception_renderer(request: Request, exc: BaseAPIException) -> JSONRespo
     )
 
 
+def integrity_error_renderer(request: Request, exc: IntegrityError) -> JSONResponse:
+    """
+    A write that breaks a database constraint (a duplicate, a row still
+    referenced elsewhere) is a conflict with existing data: 409, not 500.
+
+    The database's message names tables and constraints, so it is never sent
+    to the client. Deletes now flush at the call site, which is what lets this
+    reach a handler instead of failing at commit after the response was chosen.
+    """
+    return JSONResponse(
+        status_code=409,
+        content={
+            "detail": "The request conflicts with existing data",
+            "timestamp": utc_timestamp(),
+            "path": request.url.path,
+        },
+    )
+
+
 class ExceptionHandlerRegistry:
     """Maps exception type to renderer, then installs the lot onto an app.
 
@@ -102,6 +122,7 @@ class ExceptionHandlerRegistry:
             # MRO, so the mapping stays readable and a future divergence is a
             # one-line change here.
             RateLimitExceededError: api_exception_renderer,
+            IntegrityError: integrity_error_renderer,
         }
 
     def register[ExcT: Exception](

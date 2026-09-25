@@ -1,7 +1,8 @@
 from typing import Any
 
 from faststream import FastStream
-from faststream.rabbit import ExchangeType, RabbitBroker, RabbitExchange, RabbitQueue
+from faststream.rabbit import ExchangeType, RabbitBroker, RabbitExchange
+from faststream.rabbit.annotations import RabbitMessage
 
 from .event_handlers import (
     CJOrderEventHandler,
@@ -16,6 +17,7 @@ from shared.enums.event_enums import (
     ProductionEventsQueue,
     UserEventsQueue,
 )
+from shared.messaging import ConsumerTopology
 from resources import (
     NotificationConsumerResources,
     create_notification_consumer_resources,
@@ -38,6 +40,8 @@ user_exchange = RabbitExchange(name="user.events.exchange", durable=True, type=E
 order_exchange = RabbitExchange(name="order.events.exchange", durable=True, type=ExchangeType.TOPIC)
 payment_exchange = RabbitExchange(name="payment.events.exchange", durable=True, type=ExchangeType.TOPIC)
 app = FastStream(rabbitmq_broker)
+# Owns every queue below plus their retry queues and DLQs.
+topology = ConsumerTopology(rabbitmq_broker, logger)
 
 user_handler: UserEventHandler | None = None
 order_handler: OrderEventHandler | None = None
@@ -52,6 +56,9 @@ taskiq_started = False
 async def startup():
     global consumer_resources, taskiq_started
     global user_handler, order_handler, payment_handler, cj_order_handler, production_handler
+    # Before the broker starts consuming, so no failure can dead-letter into
+    # an exchange that does not exist yet.
+    await topology.declare()
     resources = create_notification_consumer_resources()
     taskiq_start_attempted = False
     started_taskiq = False
@@ -125,77 +132,81 @@ async def shutdown():
 # Queue definitions — bound to their respective TOPIC exchanges via routing key patterns.
 # user.# matches: user.registered, user.logged.in, user.email.verified, etc.
 # order.# matches: order.created, order.confirmed, order.cancelled
-user_events_queue = RabbitQueue(
-    UserEventsQueue.USER_EVENTS_QUEUE, # declares a queue bound to user.events.exchange TOPIC
-    durable=True,
+user_events_queue = topology.queue(
+    name=UserEventsQueue.USER_EVENTS_QUEUE,
     routing_key="user.#", # matches all user-related events, but we only handle user.registered, user.logged.in, and user.email.verified for notifications. password.reset.* events are ignored.
-    arguments={
-        "x-dead-letter-exchange": "dlx",
-        "x-dead-letter-routing-key": UserEventsQueue.USER_EVENTS_DEAD_LETTER_QUEUE,
-    },
+    dead_letter_key=UserEventsQueue.USER_EVENTS_DEAD_LETTER_QUEUE,
 )
 
-order_events_queue = RabbitQueue(
-    OrderEventsQueue.ORDER_EVENTS_QUEUE, # declares a queue bound to order.events.exchange TOPIC
-    durable=True,
+order_events_queue = topology.queue(
+    name=OrderEventsQueue.ORDER_EVENTS_QUEUE,
     routing_key="order.#", # matches all order-related events, but we only handle order.confirmed and order.cancelled for notifications. order.created is ignored.
-    arguments={
-        "x-dead-letter-exchange": "dlx",
-        "x-dead-letter-routing-key": OrderEventsQueue.ORDER_EVENTS_DEAD_LETTER_QUEUE,
-    },
+    dead_letter_key=OrderEventsQueue.ORDER_EVENTS_DEAD_LETTER_QUEUE,
 )
 
-payment_events_queue = RabbitQueue(
-    PaymentEventsQueue.PAYMENT_EVENTS_QUEUE, # declares a queue bound to payment.events.exchange TOPIC
-    durable=True,
+payment_events_queue = topology.queue(
+    name=PaymentEventsQueue.PAYMENT_EVENTS_QUEUE,
     routing_key="payment.#",
-    arguments={
-        "x-dead-letter-exchange": "dlx",
-        "x-dead-letter-routing-key": PaymentEventsQueue.PAYMENT_EVENTS_DEAD_LETTER_QUEUE,
-    },
+    dead_letter_key=PaymentEventsQueue.PAYMENT_EVENTS_DEAD_LETTER_QUEUE,
 )
 
 # Subscribers — exchange param wires up the queue binding on startup
-@rabbitmq_broker.subscriber(queue=user_events_queue, exchange=user_exchange)
-async def handle_user_events(body: dict[str, Any]) -> None:
+@rabbitmq_broker.subscriber(queue=user_events_queue.queue, exchange=user_exchange)
+async def handle_user_events(body: dict[str, Any], message: RabbitMessage) -> None:
     if user_handler is None:
         raise RuntimeError("Notification consumer resources are not initialized")
-    await user_handler.handle(body)
+    handler = user_handler  # narrowed to non-None for the lambda below
+    await topology.dispatch(
+        user_events_queue,
+        message,
+        lambda: handler.handle(body),
+    )
 
 
-@rabbitmq_broker.subscriber(queue=order_events_queue, exchange=order_exchange)
-async def handle_order_events(body: dict[str, Any]) -> None:
+@rabbitmq_broker.subscriber(queue=order_events_queue.queue, exchange=order_exchange)
+async def handle_order_events(body: dict[str, Any], message: RabbitMessage) -> None:
     if order_handler is None:
         raise RuntimeError("Notification consumer resources are not initialized")
-    await order_handler.handle(body)
+    handler = order_handler  # narrowed to non-None for the lambda below
+    await topology.dispatch(
+        order_events_queue,
+        message,
+        lambda: handler.handle(body),
+    )
 
 
 # CJ fulfillment events share the order exchange but use a "cj.order.*"
 # routing key, which the "order.#" binding above does not match. Binding them
 # on a separate queue keeps the two flows independently retryable.
-cj_order_events_queue = RabbitQueue(
-    OrderEventsQueue.NOTIFICATION_CJ_ORDER_EVENTS_QUEUE,
-    durable=True,
+cj_order_events_queue = topology.queue(
+    name=OrderEventsQueue.NOTIFICATION_CJ_ORDER_EVENTS_QUEUE,
     routing_key="cj.order.#",
-    arguments={
-        "x-dead-letter-exchange": "dlx",
-        "x-dead-letter-routing-key": OrderEventsQueue.NOTIFICATION_CJ_ORDER_EVENTS_DEAD_LETTER_QUEUE,
-    },
+    dead_letter_key=OrderEventsQueue.NOTIFICATION_CJ_ORDER_EVENTS_DEAD_LETTER_QUEUE,
 )
 
 
-@rabbitmq_broker.subscriber(queue=cj_order_events_queue, exchange=order_exchange)
-async def handle_cj_order_events(body: dict[str, Any]) -> None:
+@rabbitmq_broker.subscriber(queue=cj_order_events_queue.queue, exchange=order_exchange)
+async def handle_cj_order_events(body: dict[str, Any], message: RabbitMessage) -> None:
     if cj_order_handler is None:
         raise RuntimeError("Notification consumer resources are not initialized")
-    await cj_order_handler.handle(body)
+    handler = cj_order_handler  # narrowed to non-None for the lambda below
+    await topology.dispatch(
+        cj_order_events_queue,
+        message,
+        lambda: handler.handle(body),
+    )
 
 
-@rabbitmq_broker.subscriber(queue=payment_events_queue, exchange=payment_exchange)
-async def handle_payment_events(body: dict[str, Any]) -> None:
+@rabbitmq_broker.subscriber(queue=payment_events_queue.queue, exchange=payment_exchange)
+async def handle_payment_events(body: dict[str, Any], message: RabbitMessage) -> None:
     if payment_handler is None:
         raise RuntimeError("Notification consumer resources are not initialized")
-    await payment_handler.handle(body)
+    handler = payment_handler  # narrowed to non-None for the lambda below
+    await topology.dispatch(
+        payment_events_queue,
+        message,
+        lambda: handler.handle(body),
+    )
 
 
 # In-house fulfillment events share the order exchange but use a
@@ -203,19 +214,20 @@ async def handle_payment_events(body: dict[str, Any]) -> None:
 # "cj.order.#" binding above matches. A custom T-shirt is printed and posted
 # by hand rather than by a carrier integration, so this queue carries the only
 # dispatch notice the buyer of one ever gets.
-production_events_queue = RabbitQueue(
-    ProductionEventsQueue.NOTIFICATION_PRODUCTION_EVENTS_QUEUE,
-    durable=True,
+production_events_queue = topology.queue(
+    name=ProductionEventsQueue.NOTIFICATION_PRODUCTION_EVENTS_QUEUE,
     routing_key="production.job.#",
-    arguments={
-        "x-dead-letter-exchange": "dlx",
-        "x-dead-letter-routing-key": ProductionEventsQueue.NOTIFICATION_PRODUCTION_EVENTS_DEAD_LETTER_QUEUE,
-    },
+    dead_letter_key=ProductionEventsQueue.NOTIFICATION_PRODUCTION_EVENTS_DEAD_LETTER_QUEUE,
 )
 
 
-@rabbitmq_broker.subscriber(queue=production_events_queue, exchange=order_exchange)
-async def handle_production_events(body: dict[str, Any]) -> None:
+@rabbitmq_broker.subscriber(queue=production_events_queue.queue, exchange=order_exchange)
+async def handle_production_events(body: dict[str, Any], message: RabbitMessage) -> None:
     if production_handler is None:
         raise RuntimeError("Notification consumer resources are not initialized")
-    await production_handler.handle(body)
+    handler = production_handler  # narrowed to non-None for the lambda below
+    await topology.dispatch(
+        production_events_queue,
+        message,
+        lambda: handler.handle(body),
+    )

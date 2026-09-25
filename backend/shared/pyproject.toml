@@ -14,7 +14,6 @@ dependencies = [
     "prometheus-fastapi-instrumentator>=7.1.0",
     "redis>=6.2.0",
     "passlib>=1.7.4",
-    "python-jose>=3.5.0",
     "sqlalchemy>=2.0.45",
     "taskiq>=0.12.1",
     "taskiq-aio-pika>=0.6.0",
@@ -28,6 +27,7 @@ dependencies = [
     "opentelemetry-instrumentation-sqlalchemy>=0.50b0",
     "opentelemetry-instrumentation-redis>=0.50b0",
     "httpx>=0.28.1",
+    "pyjwt[crypto]>=2.10",
 ]
 
 [tool.uv.sources]

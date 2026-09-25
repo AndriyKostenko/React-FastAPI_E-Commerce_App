@@ -16,7 +16,7 @@ from service_layer.cj_address_validator import (
     CJShippingAddressValidator,
     ValidatedShippingAddress,
 )
-from service_layer.cj_api_client import CJDropshippingAPIError
+from service_layer.cj_api_client import CJDropshippingAPIError, CJDropshippingNetworkError
 from service_layer.cj_inventory_verifier import CJDropshippingInventoryVerifier
 from service_layer.product_service_client import (
     ProductNotFoundError,
@@ -121,6 +121,12 @@ class CJOrderPayloadBuilder:
                 verification = await self.inventory_verifier.verify_variant_stock(
                     vid, requested
                 )
+            except CJDropshippingNetworkError:
+                # CJ could not be reached: that is not an answer about stock.
+                # Raising it (rather than failing the order) lets the
+                # order.confirmed event retry with backoff — an outage used to
+                # cancel and refund every order placed during it.
+                raise
             except CJDropshippingAPIError as exc:
                 raise CJOrderCreationError(
                     f"Unable to verify live CJ stock for variant {vid}: {exc}"

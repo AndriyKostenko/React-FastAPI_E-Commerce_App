@@ -3,7 +3,6 @@ from uuid import UUID
 
 from fastapi import Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
-from fastapi.security import OAuth2PasswordBearer
 from httpx import AsyncClient
 
 from service_layer.user_service import UserService
@@ -15,6 +14,7 @@ from shared.managers.token_manager import TokenManager
 from shared.managers.password_manager import PasswordManager
 from managers import ResourceManager, UserApiResources, settings
 from schemas.user_schemas import CurrentUserInfo
+from shared.utils.authenticated_caller import AuthenticatedCaller
 
 
 """
@@ -40,13 +40,10 @@ FLow Diagram for Database Session Management in FastAPI:
     8.After the response (or on error), the AsyncSession context manager exits and closes/cleans up.
 """
 
-# OAuth2PasswordBearer is a class that provides a way to extract the token from the request
-# scheme_name is similar to variable name
-oauth2_scheme = OAuth2PasswordBearer(
-    tokenUrl=settings.TOKEN_URL,
-    scheme_name="oauth2_scheme"
- )
-
+# Always depended on with scope="function": FastAPI's default runs a yield
+# dependency's exit code after the response is sent, so the commit below ran
+# after the client had been told "created" — a commit that then failed lost the
+# write silently. Function scope commits before the response goes out.
 async def get_db_session(request: Request) -> AsyncGenerator[AsyncSession, None]:
     """
     Providing a transactional scope around for each series (request) of operations with database.
@@ -66,7 +63,7 @@ def get_token_manager(request: Request) -> TokenManager:
     """Provide token manager instance"""
     return ResourceManager.resolve(request).token_manager
 
-def get_outbox_event_service(session: AsyncSession = Depends(get_db_session)) -> OutboxEventService:
+def get_outbox_event_service(session: AsyncSession = Depends(get_db_session, scope="function")) -> OutboxEventService:
     """Dependency to provide OutboxEventService for transactional event publishing."""
     return OutboxEventService(repository=OutboxRepository(session=session, model=OutboxEvent))
 
@@ -80,7 +77,7 @@ def get_resources(request: Request) -> UserApiResources:
     return ResourceManager.resolve(request)
 
 
-def get_user_service(session: AsyncSession = Depends(get_db_session),
+def get_user_service(session: AsyncSession = Depends(get_db_session, scope="function"),
                      password_manager: PasswordManager = Depends(get_password_manager),
                      token_manager: TokenManager = Depends(get_token_manager),
                      outbox_event_service: OutboxEventService = Depends(get_outbox_event_service),
@@ -102,13 +99,17 @@ def get_user_service(session: AsyncSession = Depends(get_db_session),
 user_service_dependency = Annotated[UserService, Depends(get_user_service)]
 
 
-async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)], user_service: user_service_dependency) -> CurrentUserInfo:
+async def get_current_user(request: Request, user_service: user_service_dependency) -> CurrentUserInfo:
     """
-    Dependency
-    - extracts token from request
-    - delegates validation to UserService
+    The caller the gateway asserted, confirmed against the account as it is now.
+
+    The access token was verified once, at the gateway; this service never
+    sees it. What it adds is the database's view: a deactivated account is
+    refused, and the role comes from the row rather than from a token that
+    may predate a role change.
     """
-    return await user_service.get_current_user_from_token(token)
+    caller = AuthenticatedCaller.require(request)
+    return await user_service.get_active_user(caller.user_id)
 
 current_user_dependency = Annotated[CurrentUserInfo, Depends(get_current_user)]
 

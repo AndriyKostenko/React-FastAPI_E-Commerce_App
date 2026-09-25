@@ -6,12 +6,21 @@ from httpx import Response as HttpxResponse
 
 from starlette.requests import Request
 
+from uuid import uuid4
+from urllib.parse import urlparse
+
 from gateway.apigateway import ApiGateway
 from resources import logger, settings
+from shared.auth.caller_assertion import CALLER_ASSERTION_HEADER, RequestTarget
+from shared.contracts.auth import TokenClaims
+from shared.testing.signing_keys import EphemeralSigningKeys
+
+
+KEYS = EphemeralSigningKeys()
 
 
 def _make_gateway() -> ApiGateway:
-    return ApiGateway(settings=settings, logger=logger)
+    return ApiGateway(settings=settings, logger=logger, assertion_signer=KEYS.assertion_signer())
 
 
 def _make_request(headers: dict[str, str] | None = None, peer: str = "203.0.113.9") -> Request:
@@ -52,7 +61,25 @@ class TestPrepareHeaders:
         assert "transfer-encoding" not in result
         assert "connection" not in result
         assert "content-type" not in result
-        assert "authorization" in result
+
+    def test_strips_the_callers_credentials_and_any_identity_it_claims(self):
+        # The session token and cookies stop at the gateway; a client-made
+        # assertion or a retired identity header must never reach a service.
+        request = _make_request({
+            "authorization": "Bearer token",
+            "cookie": "access_token=abc; refresh_token=def",
+            CALLER_ASSERTION_HEADER: "forged",
+            "X-Authenticated-User-Id": str(uuid4()),
+            "X-Authenticated-User-Role": "admin",
+        })
+        forwarded = {name.lower() for name in self.gw._prepare_headers(request)}
+        assert forwarded.isdisjoint({
+            "authorization",
+            "cookie",
+            CALLER_ASSERTION_HEADER.lower(),
+            "x-authenticated-user-id",
+            "x-authenticated-user-role",
+        })
 
     def test_adds_new_content_type(self):
         result = self.gw._prepare_headers(_make_request(), new_content_type="application/json")
@@ -109,7 +136,32 @@ class TestForwardRequest:
         req.cookies = {}
         req.client = MagicMock()
         req.client.host = "172.20.0.4"
+        req.state = MagicMock(current_user=None)
         return req
+
+    async def test_forward_attaches_an_assertion_the_service_can_verify(self):
+        req = self._make_mock_request("DELETE", "/api/v1/products/abc")
+        user_id = uuid4()
+        req.state.current_user = TokenClaims(email="admin@example.com", id=user_id, role="admin")
+
+        mock_response = MagicMock(spec=HttpxResponse)
+        mock_response.status_code = 204
+        mock_response.headers = {}
+        mock_response.content = b""
+        mock_http_client = AsyncMock()
+        mock_http_client.request = AsyncMock(return_value=mock_response)
+
+        with patch.object(self.gw, "_http_client", mock_http_client):
+            await self.gw.forward_request(request=req, service_name="product-service")
+
+        sent = mock_http_client.request.call_args.kwargs
+        # Verified exactly as product-service would: for the downstream method and path.
+        caller = KEYS.assertion_verifier().verify(
+            sent["headers"][CALLER_ASSERTION_HEADER],
+            RequestTarget(method=sent["method"], path=urlparse(sent["url"]).path),
+        )
+        assert caller.user_id == user_id
+        assert caller.role == "admin"
 
     async def test_forward_get_returns_upstream_json(self):
         req = self._make_mock_request("GET", "/api/v1/products")
@@ -136,7 +188,7 @@ class TestForwardRequest:
 
         assert exc_info.value.status_code == 404
 
-    async def test_forward_request_error_raises_500(self):
+    async def test_unreachable_service_is_a_503_not_a_500(self):
         from httpx import RequestError
         from fastapi import HTTPException
 
@@ -149,7 +201,8 @@ class TestForwardRequest:
             with pytest.raises(HTTPException) as exc_info:
                 await self.gw.forward_request(request=req, service_name="product-service")
 
-        assert exc_info.value.status_code == 500
+        # The service did not answer; the gateway itself is fine.
+        assert exc_info.value.status_code == 503
 
     async def test_forward_with_override_body_sends_json(self):
         req = self._make_mock_request("POST", "/api/v1/orders")
@@ -211,3 +264,94 @@ class TestForwardRequest:
 
         call_kwargs = mock_http_client.request.call_args.kwargs
         assert call_kwargs["timeout"] == self.gw._TIMEOUT
+
+
+class TestServiceRegistry:
+    def test_every_known_service_is_routable(self):
+        # cart-service was missing, so every cart route answered 404
+        # "Service not found" while the service itself was healthy.
+        from shared.enums.services_enums import Services
+
+        assert set(Services) <= set(_make_gateway().config.services)
+
+    def test_cart_url_resolves_to_the_cart_service(self):
+        gateway = _make_gateway()
+        url = gateway.url_manager.build_url("cart-service", "/users/abc/cart")
+        assert url.startswith(settings.FULL_CART_SERVICE_URL)
+
+
+
+class TestPerServiceCircuitBreakers:
+    """Each service has its own breaker; the old shared one tripped them all."""
+
+    def _request(self, path: str) -> MagicMock:
+        req = MagicMock()
+        req.method = "GET"
+        req.url = MagicMock()
+        req.url.__str__ = MagicMock(return_value=f"http://localhost:8000{path}")
+        req.url.scheme = "http"
+        req.url.hostname = "localhost"
+        req.url.netloc = "localhost:8000"
+        req.headers = {}
+        req.cookies = {}
+        req.client = MagicMock()
+        req.client.host = "172.20.0.4"
+        req.state = MagicMock(current_user=None)
+        return req
+
+    @staticmethod
+    def _response(status: int) -> MagicMock:
+        response = MagicMock(spec=HttpxResponse)
+        response.status_code = status
+        response.headers = {}
+        response.content = b'{"ok": true}'
+        response.json.return_value = {"ok": True}
+        return response
+
+    async def _forward(self, gw: ApiGateway, service: str, path: str):
+        from fastapi import HTTPException
+        try:
+            return await gw.forward_request(request=self._request(path), service_name=service)
+        except HTTPException as error:
+            return error
+
+    async def test_repeated_failures_open_only_that_services_breaker(self):
+        from httpx import ConnectError
+
+        gw = _make_gateway()
+        http = AsyncMock()
+        http.request = AsyncMock(side_effect=ConnectError("connection refused"))
+        with patch.object(gw, "_http_client", http):
+            for _ in range(settings.GATEWAY_BREAKER_FAILURE_THRESHOLD):
+                await self._forward(gw, "product-service", "/api/v1/products")
+            calls_while_closed = http.request.await_count
+
+            refused = await self._forward(gw, "product-service", "/api/v1/products")
+            assert refused.status_code == 503
+            assert int(refused.headers["Retry-After"]) >= 1
+            # Failing fast: the service was not called again.
+            assert http.request.await_count == calls_while_closed
+
+            http.request = AsyncMock(return_value=self._response(200))
+            healthy = await self._forward(gw, "order-service", "/api/v1/orders/abc")
+            assert healthy.status_code == 200
+
+    async def test_a_client_error_does_not_count_against_the_service(self):
+        gw = _make_gateway()
+        http = AsyncMock()
+        http.request = AsyncMock(return_value=self._response(404))
+        with patch.object(gw, "_http_client", http):
+            for _ in range(settings.GATEWAY_BREAKER_FAILURE_THRESHOLD + 2):
+                result = await self._forward(gw, "product-service", "/api/v1/products/missing")
+                assert result.status_code == 404
+
+    async def test_upstream_503s_open_the_breaker(self):
+        gw = _make_gateway()
+        http = AsyncMock()
+        http.request = AsyncMock(return_value=self._response(503))
+        with patch.object(gw, "_http_client", http):
+            for _ in range(settings.GATEWAY_BREAKER_FAILURE_THRESHOLD):
+                await self._forward(gw, "cart-service", "/api/v1/users/x/cart")
+            refused = await self._forward(gw, "cart-service", "/api/v1/users/x/cart")
+        assert refused.status_code == 503
+        assert http.request.await_count == settings.GATEWAY_BREAKER_FAILURE_THRESHOLD

@@ -13,6 +13,7 @@ from schemas.order_schemas import (
 )
 from dependencies.dependencies import admin_caller_dependency, order_service_dependency
 from models.order_models import Order
+from shared.auth.route_guards import AdminDep, CallerDep, SelfOrAdminDep, ensure_owner_or_admin
 
 order_routes = APIRouter(tags=["orders"])
 
@@ -23,6 +24,7 @@ order_routes = APIRouter(tags=["orders"])
     summary="Build a canonical order quote",
 )
 async def quote_order(
+    caller: CallerDep,
     request: Request,
     order_service: order_service_dependency,
     quote_data: QuoteOrderRequest,
@@ -58,10 +60,13 @@ async def quote_order(
     status_code=status.HTTP_201_CREATED,
 )
 async def create_order(
+    caller: CallerDep,
     request: Request,
     order_service: order_service_dependency,
     order_data: CreateOrder,
 ) -> OrderSchema:
+    # An order is placed for yourself; only an admin may place one for someone else.
+    ensure_owner_or_admin(caller, order_data.user_id)
     return await order_service.create_order(order_data=order_data)
 
 
@@ -71,6 +76,7 @@ async def create_order(
     status_code=status.HTTP_200_OK,
 )
 async def get_orders(
+    admin: AdminDep,
     request: Request,
     order_service: order_service_dependency,
 ) -> list[OrderSchema]:
@@ -84,11 +90,14 @@ async def get_orders(
     status_code=status.HTTP_200_OK,
 )
 async def get_order_by_id(
+    caller: CallerDep,
     request: Request,
     order_id: UUID,
     order_service: order_service_dependency,
 ) -> OrderSchema:
-    return await order_service.get_order_by_id(order_id=order_id)
+    order = await order_service.get_order_by_id(order_id=order_id)
+    ensure_owner_or_admin(caller, order.user_id)
+    return order
 
 
 @order_routes.get(
@@ -98,6 +107,7 @@ async def get_order_by_id(
     status_code=status.HTTP_200_OK,
 )
 async def get_orders_by_user_id(
+    caller: SelfOrAdminDep,
     request: Request,
     user_id: UUID,
     order_service: order_service_dependency,
@@ -112,6 +122,7 @@ async def get_orders_by_user_id(
     status_code=status.HTTP_200_OK,
 )
 async def update_order(
+    admin: AdminDep,
     request: Request,
     order_id: UUID,
     order_service: order_service_dependency,
@@ -127,11 +138,15 @@ async def update_order(
     status_code=status.HTTP_200_OK,
 )
 async def cancel_order(
+    caller: CallerDep,
     request: Request,
     order_id: UUID,
     order_service: order_service_dependency,
     cancel_data: CancelOrder,
 ) -> OrderSchema:
+    # Ownership is checked before anything changes, not after.
+    order = await order_service.get_order_by_id(order_id=order_id)
+    ensure_owner_or_admin(caller, order.user_id)
     return await order_service.cancel_order(order_id=order_id, reason=cancel_data.reason)
 
 
@@ -142,6 +157,7 @@ async def cancel_order(
     status_code=status.HTTP_204_NO_CONTENT,
 )
 async def delete_order_by_id(
+    admin: AdminDep,
     request: Request,
     order_id: UUID,
     order_service: order_service_dependency,

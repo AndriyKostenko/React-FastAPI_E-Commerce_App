@@ -10,6 +10,7 @@ from dependencies.dependencies import (
     review_service_dependency,
 )
 from models.review_models import ProductReview
+from shared.auth.route_guards import SelfOrAdminDep
 
 
 review_routes = APIRouter(
@@ -21,7 +22,7 @@ review_routes = APIRouter(
                    response_model=ReviewSchema,
                    response_description="Create product review",
                    status_code=status.HTTP_201_CREATED)
-async def create_product_review(request: Request,
+async def create_product_review(caller: SelfOrAdminDep, request: Request,
                                 product_id: UUID,
                                 user_id: UUID,
                                 review: CreateReview,
@@ -92,7 +93,7 @@ async def get_review_by_product_id_and_user_id(request: Request,
                   response_model=ReviewSchema,
                   response_description="Update product review",
                   status_code=status.HTTP_200_OK)
-async def update_product_review(request: Request,
+async def update_product_review(caller: SelfOrAdminDep, request: Request,
                                 product_id: UUID,
                                 user_id: UUID,
                                 review_data: UpdateReview,
@@ -109,7 +110,7 @@ async def update_product_review(request: Request,
                      response_description="Delete product review",
                      response_model=None,
                      status_code=status.HTTP_204_NO_CONTENT)
-async def delete_product_review(request: Request,
+async def delete_product_review(caller: SelfOrAdminDep, request: Request,
                                 product_id: UUID,
                                 user_id: UUID,
                                 review_service: review_service_dependency) -> None:

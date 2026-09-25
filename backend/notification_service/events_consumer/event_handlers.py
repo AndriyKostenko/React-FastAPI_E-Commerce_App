@@ -4,6 +4,7 @@ from uuid import UUID
 
 from shared.idempotency.idempotency_service import IdempotencyEventService
 from shared.managers.database_session_manager import DatabaseSessionManager
+from taskiq import AsyncTaskiqDecoratedTask
 from shared.contracts.events import (
     CJOrderDeliveredEvent,
     CJOrderShippedEvent,
@@ -42,6 +43,10 @@ DatabaseSessionManager - they don't specialize them.
 All handlers receive the same consumer-owned idempotency resource
 (one Redis connection pool for the whole notification consumer process).
 """
+
+# An email task, chosen by the event and enqueued after the notification is saved.
+type EmailTask = AsyncTaskiqDecoratedTask[[dict[str, Any]], None]
+
 
 class BaseEventHandler:
     """
@@ -102,21 +107,23 @@ class UserEventHandler(BaseEventHandler):
             user_id = self._parse_user_id(message)
             notification_message: str
 
+            email_task: EmailTask | None = None
+
             match event_type:
                 case UserEvents.USER_REGISTERED:
-                    await send_verification_email.kiq(message)       # sending to TaskiQ queue .kiq() instead of direct call
+                    email_task = send_verification_email
                     notification_message = "Welcome! Please verify your email address."
                 case UserEvents.USER_EMAIL_VERIFIED:
-                    await send_email_verified_notification.kiq(message)
+                    email_task = send_email_verified_notification
                     notification_message = "Your email address has been successfully verified."
                 case UserEvents.USER_LOGGED_IN:
-                    await send_login_notification.kiq(message)
+                    email_task = send_login_notification
                     notification_message = "A new login was detected on your account."
                 case UserEvents.USER_PASSWORD_RESET_REQUEST:
-                    await send_password_reset_email.kiq(message)
+                    email_task = send_password_reset_email
                     notification_message = "A password reset has been requested."
                 case UserEvents.USER_PASSWORD_RESET_SUCCESS:
-                    await send_password_reset_success.kiq(message)
+                    email_task = send_password_reset_success
                     notification_message = "Your password has been reset successfully."
                 case _:
                     self._logger.warning(f"Unhandled user event type: {event_type}")
@@ -128,6 +135,10 @@ class UserEventHandler(BaseEventHandler):
                 message=notification_message,
                 notification_type=event_type,
             )
+            # Enqueued only once the notification is committed: a failed save used to
+            # release the claim after the email was already queued, so the retry sent it twice.
+            if email_task is not None:
+                await email_task.kiq(message)
             await self._mark_processed(event_id=event_id, event_type=event_type)
 
         except Exception as error:
@@ -154,16 +165,18 @@ class OrderEventHandler(BaseEventHandler):
             order_id: str | None = message.get("order_id")
             notification_message: str
 
+            email_task: EmailTask | None = None
+
             match event_type:
                 case OrderEvents.ORDER_CREATED:
                     self._logger.info(f"Order created event received for order: {order_id}, skipping notification.")
                     await self._mark_processed(event_id=event_id, event_type=event_type, order_id=order_id, result="skipped")
                     return
                 case OrderEvents.ORDER_CONFIRMED:
-                    await send_order_confirmed_email.kiq(message)
+                    email_task = send_order_confirmed_email
                     notification_message = f"Your order #{order_id} has been confirmed."
                 case OrderEvents.ORDER_CANCELLED:
-                    await send_order_cancelled_email.kiq(message)
+                    email_task = send_order_cancelled_email
                     notification_message = f"Your order #{order_id} has been cancelled."
                 case _:
                     self._logger.warning(f"Unhandled order event type: {event_type}")
@@ -171,6 +184,14 @@ class OrderEventHandler(BaseEventHandler):
                     return
 
             await self._save_notification(user_id=user_id,message=notification_message,notification_type=event_type)
+
+            # Enqueued only once the notification is committed: a failed save used to
+
+            # release the claim after the email was already queued, so the retry sent it twice.
+
+            if email_task is not None:
+
+                await email_task.kiq(message)
             await self._mark_processed(event_id=event_id, event_type=event_type, order_id=order_id)
 
         except Exception as error:
@@ -196,6 +217,8 @@ class PaymentEventHandler(BaseEventHandler):
             order_id: str | None = message.get("order_id")
             notification_message: str
 
+            email_task: EmailTask | None = None
+
             match event_type:
                 case PaymentEvents.PAYMENT_SUCCEEDED:
                     _ = PaymentSucceededEvent(**message)
@@ -215,6 +238,14 @@ class PaymentEventHandler(BaseEventHandler):
                     return
 
             await self._save_notification(user_id=user_id, message=notification_message, notification_type=event_type)
+
+            # Enqueued only once the notification is committed: a failed save used to
+
+            # release the claim after the email was already queued, so the retry sent it twice.
+
+            if email_task is not None:
+
+                await email_task.kiq(message)
             await self._mark_processed(event_id=event_id, event_type=event_type, order_id=order_id)
 
         except Exception as error:
@@ -246,17 +277,19 @@ class CJOrderEventHandler(BaseEventHandler):
             order_id: str | None = message.get("order_id")
             notification_message: str
 
+            email_task: EmailTask | None = None
+
             match event_type:
                 case OrderEvents.CJ_ORDER_SHIPPED:
                     event = CJOrderShippedEvent(**message)
-                    await send_order_shipped_email.kiq(message)
+                    email_task = send_order_shipped_email
                     notification_message = (
                         f"Your order #{order_id} has shipped. "
                         f"Tracking number: {event.tracking_number}."
                     )
                 case OrderEvents.CJ_ORDER_DELIVERED:
                     _ = CJOrderDeliveredEvent(**message)
-                    await send_order_delivered_email.kiq(message)
+                    email_task = send_order_delivered_email
                     notification_message = f"Your order #{order_id} has been delivered."
                 case OrderEvents.CJ_ORDER_CREATED | OrderEvents.CJ_ORDER_FAILED:
                     # Fulfillment bookkeeping. The customer hears about a
@@ -280,6 +313,14 @@ class CJOrderEventHandler(BaseEventHandler):
                 message=notification_message,
                 notification_type=event_type,
             )
+
+            # Enqueued only once the notification is committed: a failed save used to
+
+            # release the claim after the email was already queued, so the retry sent it twice.
+
+            if email_task is not None:
+
+                await email_task.kiq(message)
             await self._mark_processed(event_id=event_id, event_type=event_type, order_id=order_id)
 
         except Exception as error:
@@ -313,6 +354,8 @@ class ProductionEventHandler(BaseEventHandler):
             order_id: str | None = message.get("order_id")
             notification_message: str
 
+            email_task: EmailTask | None = None
+
             match event_type:
                 case ProductionEvents.PRODUCTION_JOB_STARTED:
                     notification_message = (
@@ -325,14 +368,14 @@ class ProductionEventHandler(BaseEventHandler):
                     )
                 case ProductionEvents.PRODUCTION_JOB_SHIPPED:
                     event = ProductionJobShippedEvent(**message)
-                    await send_order_shipped_email.kiq(message)
+                    email_task = send_order_shipped_email
                     notification_message = (
                         f"Your order #{order_id} has shipped. "
                         f"Tracking number: {event.tracking_number}."
                     )
                 case ProductionEvents.PRODUCTION_JOB_DELIVERED:
                     _ = ProductionJobDeliveredEvent(**message)
-                    await send_order_delivered_email.kiq(message)
+                    email_task = send_order_delivered_email
                     notification_message = f"Your order #{order_id} has been delivered."
                 case ProductionEvents.PRODUCTION_JOB_CANCELLED:
                     # Workshop bookkeeping. The customer hears about a
@@ -360,6 +403,14 @@ class ProductionEventHandler(BaseEventHandler):
                 message=notification_message,
                 notification_type=event_type,
             )
+
+            # Enqueued only once the notification is committed: a failed save used to
+
+            # release the claim after the email was already queued, so the retry sent it twice.
+
+            if email_task is not None:
+
+                await email_task.kiq(message)
             await self._mark_processed(event_id=event_id, event_type=event_type, order_id=order_id)
 
         except Exception as error:

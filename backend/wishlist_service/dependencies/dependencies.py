@@ -22,6 +22,10 @@ def get_resources(connection: HTTPConnection) -> WishlistApiResources:
 resources_dependency = Annotated[WishlistApiResources, Depends(get_resources)]
 
 
+# Always depended on with scope="function": FastAPI's default runs a yield
+# dependency's exit code after the response is sent, so the commit below ran
+# after the client had been told "created" — a commit that then failed lost the
+# write silently. Function scope commits before the response goes out.
 async def get_db_session(
     resources: resources_dependency,
 ) -> AsyncGenerator[AsyncSession, None]:
@@ -34,7 +38,7 @@ async def get_db_session(
 
 def get_wishlist_service(
     resources: resources_dependency,
-    session: AsyncSession = Depends(get_db_session),
+    session: AsyncSession = Depends(get_db_session, scope="function"),
 ) -> WishlistService:
     """Dependency to provide WishlistService which operates WishlistRepository."""
     return WishlistService(

@@ -23,6 +23,10 @@ def get_resources(connection: HTTPConnection) -> ShippingApiResources:
 resources_dependency = Annotated[ShippingApiResources, Depends(get_resources)]
 
 
+# Always depended on with scope="function": FastAPI's default runs a yield
+# dependency's exit code after the response is sent, so the commit below ran
+# after the client had been told "created" — a commit that then failed lost the
+# write silently. Function scope commits before the response goes out.
 async def get_db_session(
     resources: resources_dependency,
 ) -> AsyncGenerator[AsyncSession, None]:
@@ -31,14 +35,14 @@ async def get_db_session(
         yield session
 
 
-def get_shipping_method_service(session: Annotated[AsyncSession, Depends(get_db_session)]) -> ShippingMethodService:
+def get_shipping_method_service(session: Annotated[AsyncSession, Depends(get_db_session, scope="function")]) -> ShippingMethodService:
     """Build the shipping method service with a fresh repository."""
     return ShippingMethodService(repository=ShippingMethodRepository(session=session))
 
 
 def get_shipment_service(
     resources: resources_dependency,
-    session: Annotated[AsyncSession, Depends(get_db_session)],
+    session: Annotated[AsyncSession, Depends(get_db_session, scope="function")],
 ) -> ShipmentService:
     """Build the shipment service with fresh repositories."""
     return ShipmentService(

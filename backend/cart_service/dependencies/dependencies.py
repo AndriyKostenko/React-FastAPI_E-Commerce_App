@@ -18,6 +18,10 @@ def get_resources(connection: HTTPConnection) -> CartApiResources:
 resources_dependency = Annotated[CartApiResources, Depends(get_resources)]
 
 
+# Always depended on with scope="function": FastAPI's default runs a yield
+# dependency's exit code after the response is sent, so the commit below ran
+# after the client had been told "created" — a commit that then failed lost the
+# write silently. Function scope commits before the response goes out.
 async def get_db_session(
     resources: resources_dependency,
 ) -> AsyncGenerator[AsyncSession, None]:
@@ -27,7 +31,7 @@ async def get_db_session(
     async with resources.database.transaction() as session:
         yield session
 
-def get_cart_service(session: AsyncSession = Depends(get_db_session)) -> CartService:
+def get_cart_service(session: AsyncSession = Depends(get_db_session, scope="function")) -> CartService:
     """Dependency to provide CartService which operates CartRepository."""
     return CartService(CartRepository(session=session))
 

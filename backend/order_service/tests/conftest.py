@@ -7,7 +7,7 @@ with mocks so the tests run without any live services.
 Integration-test fixtures use the real PostgreSQL test database
 (ORDER_SERVICE_TEST_DB) and truncate all tables between tests.
 """
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from decimal import Decimal
 from typing import Any
@@ -74,6 +74,21 @@ from tests.constants import (
 
 
 from shared.testing.helpers import allow_testserver_host
+from shared.settings import get_settings
+from schemas.order_schemas import OrderSchema
+from shared.testing.signing_keys import EphemeralSigningKeys
+
+# Throwaway gateway keys: the test clients' apps trust assertions signed
+# with these, exactly as a deployed service trusts the gateway's.
+SIGNING_KEYS = EphemeralSigningKeys()
+# Test clients call as a signed-in admin by default, so tests about business
+# logic are not tripped by authorisation. Authorisation has its own tests,
+# which pass an explicit per-request `auth=` (anonymous, owner, stranger).
+DEFAULT_CALLER = SIGNING_KEYS.caller_auth(
+    user_id=UUID("00000000-0000-4000-8000-00000000ad01"),
+    role=get_settings().SECRET_ROLE,
+    email="admin@example.com",
+)
 
 
 # ---------------------------------------------------------------------------
@@ -320,7 +335,8 @@ def mock_route_order_service() -> MagicMock:
     svc = MagicMock()
     svc.create_order = AsyncMock(return_value=MOCK_ORDER_RESULT)
     svc.get_orders = AsyncMock(return_value=[MOCK_ORDER_RESULT])
-    svc.get_order_by_id = AsyncMock(return_value=MOCK_ORDER_RESULT)
+    # The real method returns an OrderSchema; routes now read its user_id.
+    svc.get_order_by_id = AsyncMock(return_value=OrderSchema.model_validate(MOCK_ORDER_RESULT))
     svc.get_orders_by_user_id = AsyncMock(return_value=[MOCK_ORDER_RESULT])
     svc.update_order = AsyncMock(return_value=MOCK_ORDER_RESULT)
     svc.cancel_order = AsyncMock(return_value=MOCK_ORDER_RESULT)
@@ -346,7 +362,8 @@ async def client_for_unit_testing(
     app.router.lifespan_context = _noop_lifespan
     app.dependency_overrides[get_order_service] = lambda: mock_route_order_service
 
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as async_client:
+    SIGNING_KEYS.install_verifier(app)
+    async with AsyncClient(transport=ASGITransport(app=app), auth=DEFAULT_CALLER, base_url="http://testserver") as async_client:
         yield async_client
 
     app.dependency_overrides.clear()
@@ -431,9 +448,14 @@ class _StubArtworkAssetClient:
 
     def __init__(self) -> None:
         self.requested_keys: list[str] = []
+        # Runs while the "HTTP call" is in flight, to observe what the caller
+        # is holding at that moment (e.g. database connections).
+        self.during_call: Callable[[], Awaitable[None]] | None = None
 
     async def get_download(self, asset) -> ArtworkDownload:
         self.requested_keys.append(asset.key)
+        if self.during_call is not None:
+            await self.during_call()
         return ArtworkDownload(
             download_url=f"/media/{asset.key}",
             filename=asset.key.rsplit("/", 1)[-1],
@@ -566,7 +588,8 @@ async def integration_client(
     app.dependency_overrides[get_fulfillment_status_service] = _override_get_fulfillment_status_service
     app.dependency_overrides[get_production_queue_service] = _override_get_production_queue_service
 
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as async_client:
+    SIGNING_KEYS.install_verifier(app)
+    async with AsyncClient(transport=ASGITransport(app=app), auth=DEFAULT_CALLER, base_url="http://testserver") as async_client:
         yield async_client
 
     app.dependency_overrides.clear()

@@ -2,8 +2,11 @@ from types import TracebackType
 from typing import Any, Self
 from urllib.parse import urlencode
 
+from logging import Logger, getLogger
+
 from httpx import AsyncClient, HTTPStatusError, RequestError
 
+from shared.resilience import CircuitBreaker, CircuitOpenError, RetryableError, RetryPolicy
 from shared.settings import Settings
 
 
@@ -12,10 +15,27 @@ class CJDropshippingAPIError(Exception):
     pass
 
 
-class CJDropshippingNetworkError(CJDropshippingAPIError):
+class CJDropshippingNetworkError(CJDropshippingAPIError, RetryableError):
     """The request outcome is unknown because no authoritative response arrived."""
 
     pass
+
+
+class CJDropshippingUnavailableError(CJDropshippingNetworkError):
+    """
+    CJ gave no authoritative answer: a 5xx, a 429, or our circuit breaker is
+    open after repeated failures.
+
+    A subclass of the network error on purpose: every caller already treats
+    that as "outcome unknown, try again later" — never as CJ rejecting the
+    request, which would fail (and refund) an order because CJ was down.
+    """
+
+    pass
+
+
+# Answers that mean "CJ is not really answering" rather than "CJ said no".
+_UNAVAILABLE_STATUSES = frozenset({429, 500, 502, 503, 504})
 
 
 class CJDropshippingAPIClient:
@@ -30,11 +50,40 @@ class CJDropshippingAPIClient:
            all subsequent requests.
     """
 
-    def __init__(self, settings: Settings, http_client: AsyncClient | None = None) -> None:
+    # One breaker per process, shared by every client instance: API routes,
+    # consumers and tasks each build their own client, and a breaker per
+    # instance would never see enough failures to trip.
+    _shared_breaker: CircuitBreaker | None = None
+
+    def __init__(
+        self,
+        settings: Settings,
+        http_client: AsyncClient | None = None,
+        *,
+        breaker: CircuitBreaker | None = None,
+        retry_policy: RetryPolicy | None = None,
+        logger: Logger | None = None,
+    ) -> None:
         self.settings: Settings = settings
         self._access_token: str | None = None
         self._http_client = http_client
         self._owns_http_client = http_client is None
+        self._logger = logger or getLogger("supplier-service.cj")
+        self._breaker = breaker or self._process_breaker(settings, self._logger)
+        self._retry_policy = retry_policy or RetryPolicy(
+            max_attempts=settings.CJ_DROPSHIPPING_RETRY_MAX_ATTEMPTS
+        )
+
+    @classmethod
+    def _process_breaker(cls, settings: Settings, logger: Logger) -> CircuitBreaker:
+        if cls._shared_breaker is None:
+            cls._shared_breaker = CircuitBreaker(
+                "cj-dropshipping",
+                logger,
+                failure_threshold=settings.CJ_DROPSHIPPING_BREAKER_FAILURE_THRESHOLD,
+                recovery_timeout=settings.CJ_DROPSHIPPING_BREAKER_RECOVERY_SECONDS,
+            )
+        return cls._shared_breaker
 
     async def __aenter__(self) -> Self:
         """Start the owned HTTP client and clean up if startup fails."""
@@ -93,9 +142,70 @@ class CJDropshippingAPIClient:
         params: dict[str, Any] | None = None,
         access_token: str | None = None,
         timeout: float | None = None,
+        idempotent: bool | None = None,
         _retry_on_401: bool = True,
     ) -> dict[str, Any]:
-        """Send an HTTP request and return the parsed JSON body."""
+        """
+        Send an HTTP request and return the parsed JSON body.
+
+        ``idempotent`` (default: GET only) allows retrying a transient failure
+        with backoff. It must stay off for writes — create, confirm, pay,
+        delete — whose outcome is unknown after a lost response: retrying
+        ``pay_balance`` could pay twice. Their callers reconcile instead.
+        """
+        repeatable = method.upper() == "GET" if idempotent is None else idempotent
+
+        async def attempt() -> dict[str, Any]:
+            return await self._send_once(
+                method, url, json=json, params=params, access_token=access_token,
+                timeout=timeout, _retry_on_401=_retry_on_401,
+            )
+
+        if not repeatable:
+            return await attempt()
+        return await self._retry_policy.run(attempt, name=f"CJ {method} {url}", logger=self._logger)
+
+    async def _send_once(
+        self,
+        method: str,
+        url: str,
+        *,
+        json: dict[str, Any] | None,
+        params: dict[str, Any] | None,
+        access_token: str | None,
+        timeout: float | None,
+        _retry_on_401: bool,
+    ) -> dict[str, Any]:
+        """One call through the breaker. A business rejection still proves CJ is up."""
+        try:
+            self._breaker.before_call()
+        except CircuitOpenError as exc:
+            raise CJDropshippingUnavailableError(str(exc), retry_after=exc.retry_after) from exc
+        try:
+            payload = await self._exchange(
+                method, url, json=json, params=params, access_token=access_token,
+                timeout=timeout, _retry_on_401=_retry_on_401,
+            )
+        except CJDropshippingNetworkError:
+            self._breaker.record_failure()
+            raise
+        except CJDropshippingAPIError:
+            self._breaker.record_success()
+            raise
+        self._breaker.record_success()
+        return payload
+
+    async def _exchange(
+        self,
+        method: str,
+        url: str,
+        *,
+        json: dict[str, Any] | None,
+        params: dict[str, Any] | None,
+        access_token: str | None,
+        timeout: float | None,
+        _retry_on_401: bool,
+    ) -> dict[str, Any]:
         if url != self.settings.CJ_DROPSHIPPING_ACCESS_TOKEN_URL and access_token is None and not self._access_token:
             await self.ensure_access_token()
 
@@ -126,15 +236,20 @@ class CJDropshippingAPIClient:
         except HTTPStatusError as exc:
             if exc.response.status_code == 401 and _retry_on_401 and url != self.settings.CJ_DROPSHIPPING_ACCESS_TOKEN_URL:
                 new_token = await self.ensure_access_token(force_refresh=True)
-                return await self.request(
-                    method=method,
-                    url=url,
+                return await self._exchange(
+                    method,
+                    url,
                     json=json,
                     params=params,
                     access_token=new_token,
                     timeout=timeout,
                     _retry_on_401=False,
                 )
+            if exc.response.status_code in _UNAVAILABLE_STATUSES:
+                raise CJDropshippingUnavailableError(
+                    f"CJ API returned {exc.response.status_code}: {exc.response.text}",
+                    retry_after=_retry_after_seconds(exc.response.headers.get("Retry-After")),
+                ) from exc
             raise CJDropshippingAPIError(
                 f"CJ API returned {exc.response.status_code}: {exc.response.text}"
             ) from exc
@@ -145,6 +260,7 @@ class CJDropshippingAPIClient:
             "POST",
             self.settings.CJ_DROPSHIPPING_ACCESS_TOKEN_URL,
             json=self.settings.CJ_DROPSHIPPING_AUTH_PAYLOAD,
+            idempotent=True,  # issuing a token changes nothing at CJ
             _retry_on_401=False,
         )
         access_token = response.get("data", {}).get("accessToken")
@@ -191,6 +307,7 @@ class CJDropshippingAPIClient:
             self.settings.CJ_DROPSHIPPING_FREIGHT_CALCULATE_URL,
             json=payload,
             timeout=self.settings.CJ_DROPSHIPPING_FREIGHT_TIMEOUT_SECONDS,
+            idempotent=True,  # a POST, but only a quote
         )
 
     async def get_tracking_info(self, tracking_number: str) -> dict[str, Any]:
@@ -236,3 +353,11 @@ class CJDropshippingAPIClient:
             self.settings.CJ_DROPSHIPPING_DELETE_ORDER_URL,
             params={"orderId": order_id},
         )
+
+
+def _retry_after_seconds(header: str | None) -> float | None:
+    """A Retry-After given in seconds; the HTTP-date form is ignored."""
+    try:
+        return float(header) if header else None
+    except ValueError:
+        return None

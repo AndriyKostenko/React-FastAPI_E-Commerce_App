@@ -12,7 +12,7 @@ from fastapi import Query
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.exceptions import HTTPException
 from sqlalchemy.exc import IntegrityError
-from jose import jwt as jose_jwt, jwk, JWTError
+import jwt
 
 from models.user_models import User
 from schemas.user_schemas import CurrentUserInfo
@@ -266,7 +266,7 @@ class UserService:
     async def _verify_google_id_token(self, id_token: str) -> dict:
         """Verify a Google ID token locally against Google's rotating JWKS."""
         try:
-            header = jose_jwt.get_unverified_header(id_token)
+            header = jwt.get_unverified_header(id_token)
             kid = header.get("kid")
             if not kid or header.get("alg") not in {"RS256"}:
                 raise ValueError("unsupported Google token header")
@@ -278,14 +278,16 @@ class UserService:
                 key_data = next((item for item in keys if item.get("kid") == kid), None)
             if not key_data:
                 raise ValueError("unknown Google signing key")
-            return jose_jwt.decode(
+            return jwt.decode(
                 id_token,
-                jwk.construct(key_data, algorithm="RS256"),
+                jwt.PyJWK.from_dict(key_data, algorithm="RS256").key,
                 algorithms=["RS256"],
                 audience=self.settings.GOOGLE_CLIENT_ID,
-                issuer="https://accounts.google.com",
+                # Google signs with either form of its issuer.
+                issuer=["https://accounts.google.com", "accounts.google.com"],
+                options={"require": ["exp", "iat", "iss", "aud", "sub"]},
             )
-        except (JWTError, ValueError, KeyError, TypeError):
+        except (jwt.InvalidTokenError, jwt.PyJWKError, ValueError, KeyError, TypeError):
             raise HTTPException(status_code=401, detail="Invalid Google token")
 
     async def _get_google_jwks(self, force_refresh: bool = False) -> list[dict]:
@@ -576,6 +578,13 @@ class UserService:
                 await self.repository.update_by_id(
                     item_id=reused_by.id, data={"token_version": bumped_version}
                 )
+                # Committed before the 401 below: the request's transaction
+                # rolls back on it, which used to undo this bump while the new
+                # generation stayed published — every later login then minted
+                # a token the gateway refused, locking the victim out for good.
+                # Committing first also keeps the registry from ever running
+                # ahead of the database.
+                await self.repository.commit()
             await self._revoke_all_sessions_for_user(token_data.id, bumped_version)
             raise HTTPException(status_code=401, detail="Refresh token reuse detected or token expired")
 
@@ -617,12 +626,16 @@ class UserService:
         if user_id:
             await self.cache_manager.redis.srem(self._user_refresh_set_key(user_id), token_hash)
 
-    async def get_current_user_from_token(self, token: str) -> CurrentUserInfo:
-        """Validate an access token against the current account state."""
-        user_info = self.token_manager.decode_token(token, required_purpose="access")
-        user = await self.repository.get_by_id(user_info.id)
-        if not user or not user.is_active or user_info.token_version != user.token_version:
-            raise HTTPException(status_code=401, detail="Token is revoked or account is unavailable")
+    async def get_active_user(self, user_id: UUID | None) -> CurrentUserInfo:
+        """
+        The account ``user_id`` names, provided it still exists and is active.
+
+        Session revocation (token_version) is enforced once, at the gateway,
+        for every service alike; this is the account-state check on top.
+        """
+        user = await self.repository.get_by_id(user_id) if user_id else None
+        if not user or not user.is_active:
+            raise HTTPException(status_code=401, detail="Account is unavailable")
         return CurrentUserInfo(
             email=user.email,
             id=user.id,
