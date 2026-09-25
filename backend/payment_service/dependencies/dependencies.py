@@ -18,6 +18,10 @@ def get_api_resources(request: Request) -> PaymentApiResources:
     return get_payment_api_resources(request)
 
 
+# Always depended on with scope="function": FastAPI's default runs a yield
+# dependency's exit code after the response is sent, so the commit below ran
+# after the client had been told "created" — a commit that then failed lost the
+# write silently. Function scope commits before the response goes out.
 async def get_db_session(
     resources: PaymentApiResources = Depends(get_api_resources),
 ) -> AsyncGenerator[AsyncSession, None]:
@@ -32,12 +36,12 @@ def get_idempotency_service(
     return resources.idempotency
 
 
-def get_outbox_service(session: AsyncSession = Depends(get_db_session)) -> OutboxEventService:
+def get_outbox_service(session: AsyncSession = Depends(get_db_session, scope="function")) -> OutboxEventService:
     """Create an instance of OutboxEventService with the current database session."""
     return OutboxEventService(repository=OutboxRepository(session=session, model=OutboxEvent))
 
 
-def get_payment_service(session: AsyncSession = Depends(get_db_session),
+def get_payment_service(session: AsyncSession = Depends(get_db_session, scope="function"),
                         outbox_event_service: OutboxEventService = Depends(get_outbox_service),
                         resources: PaymentApiResources = Depends(get_api_resources)) -> PaymentService:
     """Create an instance of PaymentService with the current database session and outbox event service."""

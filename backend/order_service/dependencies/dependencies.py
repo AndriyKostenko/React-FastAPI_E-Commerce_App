@@ -32,6 +32,10 @@ def get_api_resources(request: Request) -> OrderApiResources:
     return get_order_api_resources(request)
 
 
+# Always depended on with scope="function": FastAPI's default runs a yield
+# dependency's exit code after the response is sent, so the commit below ran
+# after the client had been told "created" — a commit that then failed lost the
+# write silently. Function scope commits before the response goes out.
 async def get_db_session(
     resources: OrderApiResources = Depends(get_api_resources),
 ) -> AsyncGenerator[AsyncSession, None]:
@@ -45,21 +49,21 @@ async def get_db_session(
     async with resources.database.transaction() as session:
         yield session
 
-def get_order_item_service(session: AsyncSession = Depends(get_db_session)) -> OrderItemService:
+def get_order_item_service(session: AsyncSession = Depends(get_db_session, scope="function")) -> OrderItemService:
     """
     Dependency to provide an OrderItemService(for buisiness logic and data validation),
     which operates OrderItemRepository(inherits BaseRepository) for db session management.
     """
     return OrderItemService(repository=OrderItemRepository(session=session))
 
-def get_order_address_service(session: AsyncSession = Depends(get_db_session)) -> OrderAddressService:
+def get_order_address_service(session: AsyncSession = Depends(get_db_session, scope="function")) -> OrderAddressService:
     """
     Dependency to provide OrderAdressService (for buisiness logic and data validation),
     which operates OrderAddressRepository(inherits BaseRepository) for db session management.
     """
     return OrderAddressService(repository=OrderAddressRepository(session=session))
 
-def get_outbox_service(session: AsyncSession = Depends(get_db_session)) -> OutboxEventService:
+def get_outbox_service(session: AsyncSession = Depends(get_db_session, scope="function")) -> OutboxEventService:
     """
     Dependency to provide OutboxEventService (for buisiness logic and data validation),
     which operates OutboxRepository(inherits BaseRepository) for db session management.
@@ -67,7 +71,7 @@ def get_outbox_service(session: AsyncSession = Depends(get_db_session)) -> Outbo
     return OutboxEventService(repository=OutboxRepository(session=session, model=OutboxEvent))
 
 def get_order_service(resources: OrderApiResources = Depends(get_api_resources),
-                      session: AsyncSession = Depends(get_db_session),
+                      session: AsyncSession = Depends(get_db_session, scope="function"),
                       order_item_service: OrderItemService = Depends(get_order_item_service),
                       order_address_service: OrderAddressService = Depends(get_order_address_service),
                       outbox_event_service: OutboxEventService = Depends(get_outbox_service)) -> OrderService:
@@ -86,7 +90,7 @@ def get_order_service(resources: OrderApiResources = Depends(get_api_resources),
                         ))
 
 def get_fulfillment_status_service(
-    session: AsyncSession = Depends(get_db_session),
+    session: AsyncSession = Depends(get_db_session, scope="function"),
 ) -> OrderFulfillmentStatusService:
     """
     Dependency to provide OrderFulfillmentStatusService, which records per-line
@@ -100,7 +104,7 @@ def get_fulfillment_status_service(
 
 def get_production_queue_service(
     resources: OrderApiResources = Depends(get_api_resources),
-    session: AsyncSession = Depends(get_db_session),
+    session: AsyncSession = Depends(get_db_session, scope="function"),
     fulfillment_status_service: OrderFulfillmentStatusService = Depends(
         get_fulfillment_status_service
     ),

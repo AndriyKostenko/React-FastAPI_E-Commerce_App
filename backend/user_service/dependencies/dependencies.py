@@ -40,6 +40,10 @@ FLow Diagram for Database Session Management in FastAPI:
     8.After the response (or on error), the AsyncSession context manager exits and closes/cleans up.
 """
 
+# Always depended on with scope="function": FastAPI's default runs a yield
+# dependency's exit code after the response is sent, so the commit below ran
+# after the client had been told "created" — a commit that then failed lost the
+# write silently. Function scope commits before the response goes out.
 async def get_db_session(request: Request) -> AsyncGenerator[AsyncSession, None]:
     """
     Providing a transactional scope around for each series (request) of operations with database.
@@ -59,7 +63,7 @@ def get_token_manager(request: Request) -> TokenManager:
     """Provide token manager instance"""
     return ResourceManager.resolve(request).token_manager
 
-def get_outbox_event_service(session: AsyncSession = Depends(get_db_session)) -> OutboxEventService:
+def get_outbox_event_service(session: AsyncSession = Depends(get_db_session, scope="function")) -> OutboxEventService:
     """Dependency to provide OutboxEventService for transactional event publishing."""
     return OutboxEventService(repository=OutboxRepository(session=session, model=OutboxEvent))
 
@@ -73,7 +77,7 @@ def get_resources(request: Request) -> UserApiResources:
     return ResourceManager.resolve(request)
 
 
-def get_user_service(session: AsyncSession = Depends(get_db_session),
+def get_user_service(session: AsyncSession = Depends(get_db_session, scope="function"),
                      password_manager: PasswordManager = Depends(get_password_manager),
                      token_manager: TokenManager = Depends(get_token_manager),
                      outbox_event_service: OutboxEventService = Depends(get_outbox_event_service),
