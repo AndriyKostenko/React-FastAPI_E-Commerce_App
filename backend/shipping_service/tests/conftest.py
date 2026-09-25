@@ -26,6 +26,11 @@ from shared.managers.test_database_session_manager import TestDatabaseSessionMan
 from schemas.shipping_schemas import ShippingMethodSchema, ShipmentSchema
 from shared.testing.helpers import allow_testserver_host
 from service_test_config import test_settings
+from shared.testing.signing_keys import EphemeralSigningKeys
+
+# Throwaway gateway keys: the test clients' apps trust assertions signed
+# with these, exactly as a deployed service trusts the gateway's.
+SIGNING_KEYS = EphemeralSigningKeys()
 
 
 @pytest.fixture(autouse=True)
@@ -215,6 +220,7 @@ async def client_for_unit_testing(
     app.dependency_overrides[get_shipping_method_service] = lambda: mock_route_shipping_method_service
     app.dependency_overrides[get_shipment_service] = lambda: mock_route_shipment_service
 
+    SIGNING_KEYS.install_verifier(app)
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://testserver"
     ) as async_client:
@@ -265,6 +271,7 @@ async def integration_client(
     app.dependency_overrides[get_shipping_method_service] = _override_get_shipping_method_service
     app.dependency_overrides[get_shipment_service] = _override_get_shipment_service
 
+    SIGNING_KEYS.install_verifier(app)
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://testserver"
     ) as async_client:

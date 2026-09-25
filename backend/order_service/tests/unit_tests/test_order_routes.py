@@ -6,7 +6,8 @@ import pytest
 from httpx import AsyncClient
 
 from shared.settings import get_settings
-from shared.utils.authenticated_caller import USER_ID_HEADER, USER_ROLE_HEADER
+from shared.testing.signing_keys import GatewayCallerAuth
+from tests.conftest import SIGNING_KEYS
 
 from exceptions.order_exceptions import (
     OrderNotFoundError, OrdersNotFoundError, OrderNotCancellableError
@@ -198,18 +199,18 @@ class TestDeleteOrderRoute:
 
 
 class TestAdminSchemaRoute:
-    """The schema is admin-only; identity arrives as gateway-asserted headers."""
+    """The schema is admin-only; identity arrives as the gateway's signed assertion."""
 
     @staticmethod
-    def _caller(role: str) -> dict[str, str]:
-        return {USER_ID_HEADER: str(uuid4()), USER_ROLE_HEADER: role}
+    def _caller(role: str) -> GatewayCallerAuth:
+        return SIGNING_KEYS.caller_auth(user_id=uuid4(), role=role)
 
     async def test_admin_gets_schema_fields(
         self, client_for_unit_testing: AsyncClient
     ):
         response = await client_for_unit_testing.get(
             f"{TEST_API}/admin/schema/orders",
-            headers=self._caller(get_settings().SECRET_ROLE),
+            auth=self._caller(get_settings().SECRET_ROLE),
         )
         assert response.status_code == 200
         assert response.json()["fields"]
@@ -218,7 +219,7 @@ class TestAdminSchemaRoute:
         self, client_for_unit_testing: AsyncClient
     ):
         response = await client_for_unit_testing.get(
-            f"{TEST_API}/admin/schema/orders", headers=self._caller("user"),
+            f"{TEST_API}/admin/schema/orders", auth=self._caller("user"),
         )
         assert response.status_code == 403
 

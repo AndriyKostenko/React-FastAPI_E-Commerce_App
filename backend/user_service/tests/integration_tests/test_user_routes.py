@@ -18,6 +18,8 @@ from fastapi import status
 
 from shared.settings import get_test_settings
 from shared.enums.event_enums import UserEvents
+from tests.conftest import as_gateway
+from shared.testing.signing_keys import EphemeralSigningKeys
 
 test_settings = get_test_settings()
 
@@ -303,7 +305,7 @@ class TestLogoutEndpoint:
         response = await integration_client.post(
             f"{test_settings.API}/logout",
             json={"refresh_token": login_data["refresh_token"]},
-            headers={"Authorization": f"Bearer {login_data['access_token']}"},
+            headers=as_gateway(login_data["access_token"], "POST", f"{test_settings.API}/logout"),
         )
         assert response.status_code == status.HTTP_200_OK
         assert response.json()["detail"] == "Logged out successfully"
@@ -321,7 +323,7 @@ class TestGetMeEndpoint:
         login_data = await _setup_authenticated_user(integration_client, get_outbox_event)
         response = await integration_client.get(
             f"{test_settings.API}/me",
-            headers={"Authorization": f"Bearer {login_data['access_token']}"},
+            headers=as_gateway(login_data["access_token"], "GET", f"{test_settings.API}/me"),
         )
         assert response.status_code == status.HTTP_200_OK
         body = response.json()
@@ -334,12 +336,25 @@ class TestGetMeEndpoint:
         response = await integration_client.get(f"{test_settings.API}/me")
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
-    async def test_get_me_with_invalid_token_returns_401(
+    async def test_get_me_with_forged_assertion_returns_401(
         self, integration_client: AsyncClient
     ):
+        # Signed by a key the service does not trust: what reaching the
+        # service directly and claiming to be someone looks like now.
+        forged = EphemeralSigningKeys().caller_headers(
+            "GET", f"{test_settings.API}/me", user_id=test_settings.TEST_USER_ID
+        )
+        response = await integration_client.get(f"{test_settings.API}/me", headers=forged)
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
+    async def test_get_me_ignores_a_bearer_token_sent_directly(
+        self, integration_client: AsyncClient, get_outbox_event
+    ):
+        # The service no longer reads tokens; only the gateway's assertion counts.
+        login_data = await _setup_authenticated_user(integration_client, get_outbox_event)
         response = await integration_client.get(
             f"{test_settings.API}/me",
-            headers={"Authorization": "Bearer this.is.invalid"},
+            headers={"Authorization": f"Bearer {login_data['access_token']}"},
         )
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 

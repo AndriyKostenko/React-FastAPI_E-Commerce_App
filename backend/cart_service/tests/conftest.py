@@ -30,6 +30,11 @@ from schemas.cart_schemas import CartSchema, CartItemSchema, CartSummary
 from shared.managers.test_database_session_manager import TestDatabaseSessionManager
 from shared.testing.helpers import allow_testserver_host
 from service_test_config import test_settings
+from shared.testing.signing_keys import EphemeralSigningKeys
+
+# Throwaway gateway keys: the test clients' apps trust assertions signed
+# with these, exactly as a deployed service trusts the gateway's.
+SIGNING_KEYS = EphemeralSigningKeys()
 
 
 # ---------------------------------------------------------------------------
@@ -208,6 +213,7 @@ async def client_for_unit_testing(
 
     app.dependency_overrides[get_cart_service] = lambda: mock_route_cart_service
 
+    SIGNING_KEYS.install_verifier(app)
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://testserver"
     ) as async_client:
@@ -260,6 +266,7 @@ async def integration_client(
     app.dependency_overrides[get_db_session] = _override_get_db_session
     app.dependency_overrides[get_cart_service] = _override_get_cart_service
 
+    SIGNING_KEYS.install_verifier(app)
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://testserver"
     ) as async_client:

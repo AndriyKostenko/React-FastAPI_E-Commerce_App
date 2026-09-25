@@ -9,7 +9,10 @@ from fastapi import HTTPException, Request, Response
 from httpx import AsyncClient, HTTPStatusError, RequestError, Timeout, Limits
 from shared.utils.customized_json_response import JSONResponse
 
+from shared.auth.caller_assertion import CALLER_ASSERTION_HEADER, CallerAssertionSigner, RequestTarget
+from shared.contracts.auth import TokenClaims
 from shared.settings import Settings
+from shared.utils.authenticated_caller import LEGACY_IDENTITY_HEADERS
 from shared.utils.client_ip import ClientIPResolver
 from schemas.gateway_schemas import GatewayConfig, ServiceConfig
 
@@ -103,9 +106,10 @@ class ApiGateway:
     # Connection pool limits.
     _LIMITS: Limits = Limits(max_connections=100, max_keepalive_connections=20, keepalive_expiry=30)
 
-    def __init__(self, settings: Settings, logger: Logger):
+    def __init__(self, settings: Settings, logger: Logger, assertion_signer: CallerAssertionSigner):
         self.settings: Settings = settings
         self.logger: Logger = logger
+        self._assertion_signer = assertion_signer
         self._http_client: AsyncClient | None = None
         self._client_ip_resolver = ClientIPResolver(settings.TRUSTED_PROXY_NETWORKS)
         self.config: GatewayConfig = GatewayConfig(
@@ -208,10 +212,16 @@ class ApiGateway:
         service_name: str,
         path: str,
         *,
+        caller: TokenClaims | None,
         method: str = "GET",
         json: dict[str, Any] | None = None,
     ):
-        """Make a service-to-service request without deriving the path from a client request."""
+        """
+        Make a service-to-service request without deriving the path from a client request.
+
+        ``caller`` is required (pass None explicitly for an anonymous call) so a
+        composite route cannot forget to say whom it is acting for.
+        """
         if service_name not in self.config.services:
             raise HTTPException(status_code=404, detail="Service not found")
         url = self.url_manager.build_url(service_name, path)
@@ -219,8 +229,18 @@ class ApiGateway:
             method=method,
             url=url,
             json=json,
+            headers={CALLER_ASSERTION_HEADER: self._sign_for(caller, method, url)},
             timeout=self._resolve_timeout(service_name, path),
         )
+
+    def _assert_caller(self, request: Request, method: str, url: str) -> str:
+        """Sign for the user this request's session belongs to (None when anonymous)."""
+        return self._sign_for(getattr(request.state, "current_user", None), method, url)
+
+    def _sign_for(self, caller: TokenClaims | None, method: str, url: str) -> str:
+        # Bound to the exact downstream method and path, so it cannot be
+        # replayed against another route while it is still valid.
+        return self._assertion_signer.sign(caller, RequestTarget(method=method, path=urlparse(url).path))
 
     async def _detect_and_prepare_body(self, request: Request, path: str):
         """
@@ -299,13 +319,16 @@ class ApiGateway:
         "x-forwarded-port",
         "x-real-ip",
         "forwarded",
-        # Identity headers are asserted by this gateway alone. Stripping any
-        # the caller sent is what makes them trustworthy downstream: a service
-        # that believed a client-supplied X-Authenticated-User-Id would let
-        # anyone act as anyone.
-        "x-authenticated-user-id",
-        "x-authenticated-user-email",
-        "x-authenticated-user-role",
+        # The user's credentials stop here. Services learn who the caller is
+        # from the signed assertion alone; forwarding the token would hand
+        # every service a bearer credential it has no use for.
+        "authorization",
+        "cookie",
+        # Only this gateway may assert a caller. A client-sent assertion is
+        # dropped (it would fail verification anyway), and so are the retired
+        # plain identity headers.
+        CALLER_ASSERTION_HEADER.lower(),
+        *(header.lower() for header in LEGACY_IDENTITY_HEADERS),
     })
 
     @staticmethod
@@ -336,21 +359,6 @@ class ApiGateway:
         filtered_headers["X-Forwarded-Proto"] = request.url.scheme
         if request.url.hostname:
             filtered_headers["X-Forwarded-Host"] = request.url.netloc
-
-        # Tell the downstream service who the caller is, so it can enforce
-        # ownership itself rather than trusting that some gateway route
-        # remembered to check.
-        current_user = getattr(request.state, "current_user", None)
-        if current_user is not None:
-            user_id = getattr(current_user, "id", None)
-            user_email = getattr(current_user, "email", None)
-            user_role = getattr(current_user, "role", None)
-            if user_id:
-                filtered_headers["X-Authenticated-User-Id"] = str(user_id)
-            if user_email:
-                filtered_headers["X-Authenticated-User-Email"] = str(user_email)
-            if user_role:
-                filtered_headers["X-Authenticated-User-Role"] = str(user_role)
 
         if new_content_type:
             filtered_headers["Content-Type"] = new_content_type
@@ -397,6 +405,7 @@ class ApiGateway:
 
         # Prepare headers
         headers = self._prepare_headers(request=request, new_content_type=content_type)
+        headers[CALLER_ASSERTION_HEADER] = self._assert_caller(request, request.method, url)
         timeout = self._resolve_timeout(service_name=service_name, service_path=service_path)
 
         # Header names only: the values carry the session cookie and bearer

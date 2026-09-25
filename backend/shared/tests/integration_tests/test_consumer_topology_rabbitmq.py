@@ -29,6 +29,10 @@ from shared.settings import get_settings
 
 
 
+# The project runs async fixtures on the session loop; the AMQP connection the
+# fixture opens must live on the loop the tests await it from.
+pytestmark = pytest.mark.asyncio(loop_scope="session")
+
 FAST_RETRIES = RetrySchedule(delays_ms=(200, 400))
 BROKER_URL = get_settings().RABBITMQ_BROKER_URL
 EXCHANGE = RabbitExchange(

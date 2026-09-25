@@ -3,7 +3,6 @@ from uuid import UUID
 
 from fastapi import Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
-from fastapi.security import OAuth2PasswordBearer
 from httpx import AsyncClient
 
 from service_layer.user_service import UserService
@@ -15,6 +14,7 @@ from shared.managers.token_manager import TokenManager
 from shared.managers.password_manager import PasswordManager
 from managers import ResourceManager, UserApiResources, settings
 from schemas.user_schemas import CurrentUserInfo
+from shared.utils.authenticated_caller import AuthenticatedCaller
 
 
 """
@@ -39,13 +39,6 @@ FLow Diagram for Database Session Management in FastAPI:
     7.Data flows back up to the FastAPI endpoint, which serializes the result and returns it to the Client.
     8.After the response (or on error), the AsyncSession context manager exits and closes/cleans up.
 """
-
-# OAuth2PasswordBearer is a class that provides a way to extract the token from the request
-# scheme_name is similar to variable name
-oauth2_scheme = OAuth2PasswordBearer(
-    tokenUrl=settings.TOKEN_URL,
-    scheme_name="oauth2_scheme"
- )
 
 async def get_db_session(request: Request) -> AsyncGenerator[AsyncSession, None]:
     """
@@ -102,13 +95,17 @@ def get_user_service(session: AsyncSession = Depends(get_db_session),
 user_service_dependency = Annotated[UserService, Depends(get_user_service)]
 
 
-async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)], user_service: user_service_dependency) -> CurrentUserInfo:
+async def get_current_user(request: Request, user_service: user_service_dependency) -> CurrentUserInfo:
     """
-    Dependency
-    - extracts token from request
-    - delegates validation to UserService
+    The caller the gateway asserted, confirmed against the account as it is now.
+
+    The access token was verified once, at the gateway; this service never
+    sees it. What it adds is the database's view: a deactivated account is
+    refused, and the role comes from the row rather than from a token that
+    may predate a role change.
     """
-    return await user_service.get_current_user_from_token(token)
+    caller = AuthenticatedCaller.require(request)
+    return await user_service.get_active_user(caller.user_id)
 
 current_user_dependency = Annotated[CurrentUserInfo, Depends(get_current_user)]
 

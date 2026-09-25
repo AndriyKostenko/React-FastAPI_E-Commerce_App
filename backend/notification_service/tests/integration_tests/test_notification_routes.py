@@ -21,6 +21,8 @@ from service_layer.notification_service import NotificationService
 from database_layer.notification_repository import NotificationRepository
 from schemas.notifications_schemas import NotificationInfo
 from tests.constants import TEST_USER_ID, TEST_MESSAGE, TEST_NOTIFICATION_TYPE, TEST_API
+from shared.testing.signing_keys import GatewayCallerAuth
+from tests.conftest import SIGNING_KEYS
 
 
 @pytest.fixture
@@ -47,14 +49,14 @@ def create_notification(
     return _create
 
 
-def _as(user_id=TEST_USER_ID) -> dict[str, str]:
-    """The identity headers the API gateway asserts for an authenticated caller.
+def _as(user_id=TEST_USER_ID) -> GatewayCallerAuth:
+    """The caller the API gateway asserts, signed per request as the gateway does.
 
     Routes keyed on a notification id have no other way to learn who is asking,
     so they refuse without this — which is what stops one user reading and
     deleting another user's notifications.
     """
-    return {"X-Authenticated-User-Id": str(user_id)}
+    return SIGNING_KEYS.caller_auth(user_id=user_id)
 
 
 
@@ -147,7 +149,7 @@ class TestMarkAsReadIntegration:
         notif_id = notif.id
 
         response = await integration_client.patch(
-            f"{TEST_API}/notifications/{notif_id}/read", headers=_as()
+            f"{TEST_API}/notifications/{notif_id}/read", auth=_as()
         )
         assert response.status_code == 200
         assert response.json()["is_read"] is True
@@ -155,7 +157,7 @@ class TestMarkAsReadIntegration:
     async def test_returns_404_for_nonexistent_id(self, integration_client: AsyncClient):
         from uuid import uuid4
         response = await integration_client.patch(
-            f"{TEST_API}/notifications/{uuid4()}/read", headers=_as()
+            f"{TEST_API}/notifications/{uuid4()}/read", auth=_as()
         )
         assert response.status_code == 404
 
@@ -168,7 +170,7 @@ class TestMarkAsReadIntegration:
         await create_notification(message="Another notification")
 
         await integration_client.patch(
-            f"{TEST_API}/notifications/{notif.id}/read", headers=_as()
+            f"{TEST_API}/notifications/{notif.id}/read", auth=_as()
         )
 
         response = await integration_client.get(
@@ -235,7 +237,7 @@ class TestDeleteNotificationIntegration:
         notif = await create_notification()
 
         response = await integration_client.delete(
-            f"{TEST_API}/notifications/{notif.id}", headers=_as()
+            f"{TEST_API}/notifications/{notif.id}", auth=_as()
         )
         assert response.status_code == 204
 
@@ -247,7 +249,7 @@ class TestDeleteNotificationIntegration:
         notif = await create_notification()
 
         await integration_client.delete(
-            f"{TEST_API}/notifications/{notif.id}", headers=_as()
+            f"{TEST_API}/notifications/{notif.id}", auth=_as()
         )
 
         get_response = await integration_client.get(
@@ -281,7 +283,7 @@ class TestNotificationOwnership:
     ):
         notif = await create_notification()
         response = await integration_client.patch(
-            f"{TEST_API}/notifications/{notif.id}/read", headers=_as(uuid4())
+            f"{TEST_API}/notifications/{notif.id}/read", auth=_as(uuid4())
         )
         assert response.status_code == 403
 
@@ -290,7 +292,7 @@ class TestNotificationOwnership:
     ):
         notif = await create_notification()
         response = await integration_client.delete(
-            f"{TEST_API}/notifications/{notif.id}", headers=_as(uuid4())
+            f"{TEST_API}/notifications/{notif.id}", auth=_as(uuid4())
         )
         assert response.status_code == 403
 
@@ -310,6 +312,6 @@ class TestNotificationOwnership:
     ):
         notif = await create_notification()
         response = await integration_client.delete(
-            f"{TEST_API}/notifications/{notif.id}", headers=_as()
+            f"{TEST_API}/notifications/{notif.id}", auth=_as()
         )
         assert response.status_code == 204

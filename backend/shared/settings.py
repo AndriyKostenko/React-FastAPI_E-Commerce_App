@@ -200,7 +200,9 @@ class Settings(BaseSettings):
     GATEWAY_ASSERTION_AUDIENCE: str = "internal-services"
     GATEWAY_ASSERTION_TTL_SECONDS: int = Field(default=60, gt=0, le=300)
     TOKEN_TYPE: str
-    TOKEN_URL: str
+    # Unused since services stopped reading bearer tokens (the gateway's caller
+    # assertion replaced oauth2_scheme); optional so an existing env file loads.
+    TOKEN_URL: str | None = None
     TOKEN_TIME_DELTA_MINUTES: int
     REFRESH_TOKEN_TIME_DELTA_DAYS: int
     RESET_TOKEN_EXPIRY_MINUTES: int

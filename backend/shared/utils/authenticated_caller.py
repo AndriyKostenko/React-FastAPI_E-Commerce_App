@@ -1,4 +1,4 @@
-"""Reads the caller identity the API gateway asserts on a proxied request."""
+"""The caller a service is acting for, as the API gateway's signed assertion states it."""
 
 from uuid import UUID
 
@@ -6,18 +6,25 @@ from fastapi import HTTPException, status
 from starlette.requests import HTTPConnection
 
 
-USER_ID_HEADER = "X-Authenticated-User-Id"
-USER_EMAIL_HEADER = "X-Authenticated-User-Email"
-USER_ROLE_HEADER = "X-Authenticated-User-Role"
+# Where CallerAssertionMiddleware leaves the verified caller for this request.
+CALLER_STATE_KEY = "authenticated_caller"
+
+# Retired identity headers. Nothing trusts them any more; the gateway still
+# strips them so a stale client or service cannot even appear to use them.
+LEGACY_IDENTITY_HEADERS = (
+    "X-Authenticated-User-Id",
+    "X-Authenticated-User-Email",
+    "X-Authenticated-User-Role",
+)
 
 
 class AuthenticatedCaller:
     """The user a downstream service is acting on behalf of.
 
-    The gateway validates the token and restates these headers, stripping any
-    the client sent, so a service may trust them *only* because nothing outside
-    the mesh can reach it directly — which is what the Host allowlist and the
-    private Docker network enforce.
+    Built only from an assertion the gateway signed with its private key and
+    this service verified with the public one — see ``CallerAssertionMiddleware``.
+    Plain headers are never read, so reaching a service directly (bypassing
+    the gateway) can at most make a request anonymous, never impersonate.
 
     Every field is optional: internal calls between services, event consumers,
     and public endpoints all arrive without a caller. A service must therefore
@@ -44,20 +51,9 @@ class AuthenticatedCaller:
 
     @classmethod
     def from_request(cls, connection: HTTPConnection) -> "AuthenticatedCaller":
-        raw_id = connection.headers.get(USER_ID_HEADER)
-        user_id: UUID | None = None
-        if raw_id:
-            try:
-                user_id = UUID(raw_id)
-            except ValueError:
-                # A malformed id is treated as no identity at all rather than
-                # being passed on as a string that would never match an owner.
-                user_id = None
-        return cls(
-            user_id=user_id,
-            email=connection.headers.get(USER_EMAIL_HEADER),
-            role=connection.headers.get(USER_ROLE_HEADER),
-        )
+        """The verified caller, or an anonymous one when the request carried no assertion."""
+        caller = getattr(connection.state, CALLER_STATE_KEY, None)
+        return caller if isinstance(caller, AuthenticatedCaller) else cls()
 
     @classmethod
     def require(cls, connection: HTTPConnection) -> "AuthenticatedCaller":

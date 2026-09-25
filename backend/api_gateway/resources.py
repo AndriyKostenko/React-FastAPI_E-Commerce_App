@@ -16,6 +16,7 @@ from middleware.cache_middleware import GatewayRequestMiddleware
 from shared.managers.cache_manager import CacheManager
 from shared.managers.logger_manager import setup_logger
 from shared.managers.ratelimit_manager import RateLimitManager
+from shared.auth.caller_assertion import CallerAssertionSigner
 from shared.auth.user_tokens import UserTokenVerifier
 from shared.managers.session_registry import SessionRegistry
 from shared.settings import Settings, get_settings
@@ -54,7 +55,12 @@ def create_api_gateway_resources(
         logger=app_logger,
         trusted_proxy_networks=app_settings.TRUSTED_PROXY_NETWORKS,
     )
-    gateway = ApiGateway(settings=app_settings, logger=app_logger)
+    gateway = ApiGateway(
+        settings=app_settings,
+        logger=app_logger,
+        # The only private key that can speak for a user to the services.
+        assertion_signer=CallerAssertionSigner.from_settings(app_settings),
+    )
     # Written by user-service when a session is revoked; read here so a token
     # from a superseded generation is refused on every proxied request.
     session_registry = SessionRegistry(
@@ -133,9 +139,12 @@ class RequestScopedGateway:
         method: str = "GET",
         json: dict[str, Any] | None = None,
     ) -> Any:
+        # Acts for whoever this request's session belongs to — the same user
+        # the gateway authenticated for the route that is composing the call.
         return await get_api_gateway(request).request_service(
             service_name,
             path,
+            caller=getattr(request.state, "current_user", None),
             method=method,
             json=json,
         )

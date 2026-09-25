@@ -30,6 +30,10 @@ from shared.settings import get_settings
 BROKER_URL = get_settings().RABBITMQ_BROKER_URL
 MAX_ATTEMPTS = 3
 
+# The project runs async fixtures on the session loop; the broker connection
+# the fixture opens must live on the same loop the tests await it from.
+pytestmark = pytest.mark.asyncio(loop_scope="session")
+
 
 @dataclass
 class TaskHarness:

@@ -35,6 +35,11 @@ from schemas.wishlist_schemas import WishlistSchema, WishlistItemSchema
 from shared.testing.helpers import allow_testserver_host
 from shared.utils.authenticated_caller import AuthenticatedCaller
 from service_test_config import test_settings
+from shared.testing.signing_keys import EphemeralSigningKeys
+
+# Throwaway gateway keys: the test clients' apps trust assertions signed
+# with these, exactly as a deployed service trusts the gateway's.
+SIGNING_KEYS = EphemeralSigningKeys()
 
 
 # ---------------------------------------------------------------------------
@@ -215,6 +220,7 @@ async def client_for_unit_testing(
     app.dependency_overrides[get_current_user] = _make_current_user_override(test_settings.TEST_USER_ID)
     app.dependency_overrides[get_http_client] = lambda: MagicMock()
 
+    SIGNING_KEYS.install_verifier(app)
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://testserver"
     ) as async_client:
@@ -274,6 +280,7 @@ async def integration_client(
     app.dependency_overrides[get_current_user] = _make_current_user_override(test_settings.TEST_USER_ID)
     app.dependency_overrides[get_http_client] = lambda: None
 
+    SIGNING_KEYS.install_verifier(app)
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://testserver"
     ) as async_client:

@@ -6,12 +6,21 @@ from httpx import Response as HttpxResponse
 
 from starlette.requests import Request
 
+from uuid import uuid4
+from urllib.parse import urlparse
+
 from gateway.apigateway import ApiGateway
 from resources import logger, settings
+from shared.auth.caller_assertion import CALLER_ASSERTION_HEADER, RequestTarget
+from shared.contracts.auth import TokenClaims
+from shared.testing.signing_keys import EphemeralSigningKeys
+
+
+KEYS = EphemeralSigningKeys()
 
 
 def _make_gateway() -> ApiGateway:
-    return ApiGateway(settings=settings, logger=logger)
+    return ApiGateway(settings=settings, logger=logger, assertion_signer=KEYS.assertion_signer())
 
 
 def _make_request(headers: dict[str, str] | None = None, peer: str = "203.0.113.9") -> Request:
@@ -52,7 +61,25 @@ class TestPrepareHeaders:
         assert "transfer-encoding" not in result
         assert "connection" not in result
         assert "content-type" not in result
-        assert "authorization" in result
+
+    def test_strips_the_callers_credentials_and_any_identity_it_claims(self):
+        # The session token and cookies stop at the gateway; a client-made
+        # assertion or a retired identity header must never reach a service.
+        request = _make_request({
+            "authorization": "Bearer token",
+            "cookie": "access_token=abc; refresh_token=def",
+            CALLER_ASSERTION_HEADER: "forged",
+            "X-Authenticated-User-Id": str(uuid4()),
+            "X-Authenticated-User-Role": "admin",
+        })
+        forwarded = {name.lower() for name in self.gw._prepare_headers(request)}
+        assert forwarded.isdisjoint({
+            "authorization",
+            "cookie",
+            CALLER_ASSERTION_HEADER.lower(),
+            "x-authenticated-user-id",
+            "x-authenticated-user-role",
+        })
 
     def test_adds_new_content_type(self):
         result = self.gw._prepare_headers(_make_request(), new_content_type="application/json")
@@ -109,7 +136,32 @@ class TestForwardRequest:
         req.cookies = {}
         req.client = MagicMock()
         req.client.host = "172.20.0.4"
+        req.state = MagicMock(current_user=None)
         return req
+
+    async def test_forward_attaches_an_assertion_the_service_can_verify(self):
+        req = self._make_mock_request("DELETE", "/api/v1/products/abc")
+        user_id = uuid4()
+        req.state.current_user = TokenClaims(email="admin@example.com", id=user_id, role="admin")
+
+        mock_response = MagicMock(spec=HttpxResponse)
+        mock_response.status_code = 204
+        mock_response.headers = {}
+        mock_response.content = b""
+        mock_http_client = AsyncMock()
+        mock_http_client.request = AsyncMock(return_value=mock_response)
+
+        with patch.object(self.gw, "_http_client", mock_http_client):
+            await self.gw.forward_request(request=req, service_name="product-service")
+
+        sent = mock_http_client.request.call_args.kwargs
+        # Verified exactly as product-service would: for the downstream method and path.
+        caller = KEYS.assertion_verifier().verify(
+            sent["headers"][CALLER_ASSERTION_HEADER],
+            RequestTarget(method=sent["method"], path=urlparse(sent["url"]).path),
+        )
+        assert caller.user_id == user_id
+        assert caller.role == "admin"
 
     async def test_forward_get_returns_upstream_json(self):
         req = self._make_mock_request("GET", "/api/v1/products")

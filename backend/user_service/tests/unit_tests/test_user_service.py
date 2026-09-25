@@ -791,11 +791,11 @@ class TestLogoutUser:
 
 
 # ---------------------------------------------------------------------------
-# get_current_user_from_token
+# get_active_user
 # ---------------------------------------------------------------------------
 
 
-class TestGetCurrentUserFromToken:
+class TestGetActiveUser:
     async def test_returns_current_user_info(
         self,
         user_service,
@@ -803,20 +803,21 @@ class TestGetCurrentUserFromToken:
         mock_token_manager: MagicMock,
         mock_user_orm: MagicMock,
     ) -> None:
-        decoded = DecodedTokenSchema(
-            email="test@example.com",
-            id=mock_user_orm.id,
-            role="user",
-            purpose="access",
-            token_version=1,
-        )
-        mock_token_manager.decode_token.return_value = decoded
         mock_repository.get_by_id.return_value = mock_user_orm
 
-        result = await user_service.get_current_user_from_token("valid_access_token")
+        result = await user_service.get_active_user(mock_user_orm.id)
 
-        assert result.email == "test@example.com"
-        assert result.role == "user"
-        mock_token_manager.decode_token.assert_called_once_with(
-            "valid_access_token", required_purpose="access"
-        )
+        assert result.email == mock_user_orm.email
+        assert result.role == mock_user_orm.role
+        # The token was checked at the gateway; this service never decodes one.
+        mock_token_manager.decode_token.assert_not_called()
+
+    @pytest.mark.parametrize("state", ["missing", "inactive", "no-id"])
+    async def test_refuses_an_unavailable_account(
+        self, user_service, mock_repository: MagicMock, mock_user_orm: MagicMock, state: str
+    ) -> None:
+        mock_user_orm.is_active = state != "inactive"
+        mock_repository.get_by_id.return_value = None if state == "missing" else mock_user_orm
+        with pytest.raises(HTTPException) as exc_info:
+            await user_service.get_active_user(None if state == "no-id" else mock_user_orm.id)
+        assert exc_info.value.status_code == 401

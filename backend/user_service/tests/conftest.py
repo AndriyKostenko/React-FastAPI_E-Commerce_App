@@ -37,6 +37,11 @@ from shared.settings import get_test_settings
 from shared.managers.test_database_session_manager import TestDatabaseSessionManager
 from shared.managers.token_manager import TokenManager
 from shared.testing.signing_keys import EphemeralSigningKeys
+
+# One set of throwaway keys for the whole session, playing both user-service's
+# token key and the gateway's assertion key — so an integration test can log
+# in, then call a protected route exactly the way the gateway would.
+SIGNING_KEYS = EphemeralSigningKeys()
 from shared.managers.password_manager import PasswordManager
 from schemas.user_schemas import CurrentUserInfo, UserInfo
 
@@ -268,7 +273,7 @@ def mock_route_service() -> MagicMock:
     svc.get_all_users = AsyncMock(return_value=[TEST_USER_INFO])
     svc.update_user_basic_info = AsyncMock(return_value=TEST_USER_INFO)
     svc.delete_user_by_id = AsyncMock(return_value=None)
-    svc.get_current_user_from_token = AsyncMock(return_value=TEST_CURRENT_USER)
+    svc.get_active_user = AsyncMock(return_value=TEST_CURRENT_USER)
     return svc
 
 
@@ -371,7 +376,7 @@ async def integration_client(
 
     # ── 2. Build real managers ───────────────────────────────────────────────
     real_password_manager = PasswordManager(settings)
-    real_token_manager    = EphemeralSigningKeys().token_manager(settings)
+    real_token_manager    = SIGNING_KEYS.token_manager(settings)
 
     # ── 3. Fake Redis — dict-backed, so token flows behave like production ───
     #
@@ -522,6 +527,7 @@ async def integration_client(
     for _guard in (self_or_admin, _admin_only_guard()):
         app.dependency_overrides[_guard] = _override_authorised_admin
 
+    SIGNING_KEYS.install_verifier(app)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as async_client:
         yield async_client
 
@@ -532,3 +538,12 @@ async def integration_client(
 
     # ── 6. Wipe all rows so the next test starts with an empty database ─────
     await test_database_session_manager.truncate_all_tables(Base.metadata)
+
+
+def as_gateway(access_token: str, method: str, path: str) -> dict[str, str]:
+    """
+    What the gateway sends user-service for a request carrying ``access_token``:
+    it verifies the token, then signs an assertion for this method and path.
+    """
+    claims = SIGNING_KEYS.user_token_verifier().decode(access_token)
+    return SIGNING_KEYS.caller_headers(method, path, user_id=claims.id, role=claims.role or "user", email=str(claims.email))

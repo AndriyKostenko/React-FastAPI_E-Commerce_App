@@ -619,12 +619,16 @@ class UserService:
         if user_id:
             await self.cache_manager.redis.srem(self._user_refresh_set_key(user_id), token_hash)
 
-    async def get_current_user_from_token(self, token: str) -> CurrentUserInfo:
-        """Validate an access token against the current account state."""
-        user_info = self.token_manager.decode_token(token, required_purpose="access")
-        user = await self.repository.get_by_id(user_info.id)
-        if not user or not user.is_active or user_info.token_version != user.token_version:
-            raise HTTPException(status_code=401, detail="Token is revoked or account is unavailable")
+    async def get_active_user(self, user_id: UUID | None) -> CurrentUserInfo:
+        """
+        The account ``user_id`` names, provided it still exists and is active.
+
+        Session revocation (token_version) is enforced once, at the gateway,
+        for every service alike; this is the account-state check on top.
+        """
+        user = await self.repository.get_by_id(user_id) if user_id else None
+        if not user or not user.is_active:
+            raise HTTPException(status_code=401, detail="Account is unavailable")
         return CurrentUserInfo(
             email=user.email,
             id=user.id,

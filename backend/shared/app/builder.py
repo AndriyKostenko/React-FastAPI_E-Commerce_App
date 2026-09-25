@@ -29,6 +29,11 @@ from shared.app.instrumentation import (
     internal_access_helper,
 )
 from shared.app.metrics import build_metrics_router
+from shared.auth.caller_assertion import CallerAssertionVerifier
+from shared.middleware.caller_assertion_middleware import (
+    VERIFIER_STATE_KEY,
+    CallerAssertionMiddleware,
+)
 from shared.middleware.host_validation_middleware import add_host_validation_middleware
 from shared.middleware.logging_middleware import add_logging_middleware
 from shared.settings import Settings
@@ -85,6 +90,7 @@ class ServiceAppBuilder[ResourcesT]:
         self._instrument_sqlalchemy = True
         self._instrument_redis = True
         self._host_validation = True
+        self._caller_assertion = True
         self._request_metrics = True
         self._instrumentator = True
 
@@ -156,6 +162,15 @@ class ServiceAppBuilder[ResourcesT]:
         self._instrument_redis = instrument_redis
         return self
 
+    def without_caller_assertion(self) -> Self:
+        """Opt out of verifying the gateway's caller assertion.
+
+        Only the gateway does: it is the process that signs assertions, and it
+        authenticates its callers from their session token instead.
+        """
+        self._caller_assertion = False
+        return self
+
     def without_host_validation(self) -> Self:
         """Opt out of Host-header validation.
 
@@ -207,6 +222,10 @@ class ServiceAppBuilder[ResourcesT]:
             instrument_redis=self._instrument_redis,
         )
 
+        if self._caller_assertion:
+            # Built at startup so a service missing the gateway's public key
+            # refuses to start rather than treating every caller as anonymous.
+            setattr(app.state, VERIFIER_STATE_KEY, CallerAssertionVerifier.from_settings(self._settings))
         self._add_middleware(app)
         self._add_routes(app)
         self._errors.install(app)
@@ -234,7 +253,7 @@ class ServiceAppBuilder[ResourcesT]:
         Starlette runs middleware LAST-ADDED-FIRST, so this block reads
         innermost-to-outermost and produces this execution chain:
 
-            logging → [extra, e.g. GZip] → CORS → host validation
+            logging → [extra, e.g. GZip] → CORS → host validation → caller assertion
                     → [service http middleware] → metrics → instrumentator → route
 
         That is the chain the services run today. Host validation must stay
@@ -255,6 +274,10 @@ class ServiceAppBuilder[ResourcesT]:
             )
         for dispatch in self._http_middleware:
             app.middleware("http")(dispatch)
+        if self._caller_assertion:
+            # Inside host validation, outside every service middleware and
+            # route: nothing downstream runs before the caller is established.
+            app.add_middleware(CallerAssertionMiddleware, logger=self._logger)
         if self._host_validation:
             # The probe and scrape paths are exempt: kubelet sends the pod IP as
             # the Host header, which can never be in ALLOWED_HOSTS, so validating
