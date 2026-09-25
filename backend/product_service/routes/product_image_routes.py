@@ -18,6 +18,7 @@ from schemas.image_generation_schema import (
 )
 from schemas.product_image_schema import ProductImageSchema
 from tasks.image_tasks import generate_image_task
+from shared.auth.route_guards import AdminDep
 
 
 product_images_routes = APIRouter(tags=["product_images"])
@@ -91,6 +92,7 @@ async def get_generation_job_status(
     status_code=status.HTTP_201_CREATED,
 )
 async def add_product_images(
+    admin: AdminDep,
     request: Request,
     image_service: product_image_service_dependency,
     product_id: UUID,
@@ -153,6 +155,7 @@ async def get_image_by_id(
     status_code=status.HTTP_200_OK,
 )
 async def replace_product_images(
+    admin: AdminDep,
     request: Request,
     image_service: product_image_service_dependency,
     product_id: UUID,
@@ -176,6 +179,7 @@ async def replace_product_images(
     status_code=status.HTTP_200_OK,
 )
 async def update_product_image(
+    admin: AdminDep,
     request: Request,
     image_id: UUID,
     image_service: product_image_service_dependency,
@@ -199,6 +203,7 @@ async def update_product_image(
     status_code=status.HTTP_204_NO_CONTENT,
 )
 async def delete_product_image(
+    admin: AdminDep,
     request: Request, image_id: UUID, image_service: product_image_service_dependency
 ) -> None:
     await image_service.delete_product_image(image_id)

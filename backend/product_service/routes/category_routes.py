@@ -19,6 +19,7 @@ from schemas.category_schema import (
     CreateCategory,
     UpdateCategory,
 )
+from shared.auth.route_guards import AdminDep
 
 category_routes = APIRouter(tags=["categories"])
 
@@ -31,6 +32,7 @@ category_routes = APIRouter(tags=["categories"])
     status_code=status.HTTP_201_CREATED,
 )
 async def create_category_json(
+    admin: AdminDep,
     request: Request,
     category_service: category_service_dependency,
     category_data: CreateCategory,
@@ -51,6 +53,7 @@ async def create_category_json(
     status_code=status.HTTP_201_CREATED,
 )
 async def create_category_with_image(
+    admin: AdminDep,
     request: Request,
     category_service: category_service_dependency,
     name: str = Form(...),
@@ -99,6 +102,7 @@ async def get_category_by_id(
     status_code=status.HTTP_200_OK,
 )
 async def update_category_by_id(
+    admin: AdminDep,
     request: Request,
     category_id: UUID,
     category_service: category_service_dependency,
@@ -117,6 +121,7 @@ async def update_category_by_id(
     status_code=status.HTTP_204_NO_CONTENT,
 )
 async def delete_category_by_id(
+    admin: AdminDep,
     request: Request, category_id: UUID, category_service: category_service_dependency
 ) -> None:
     await category_service.delete_category(category_id=category_id)

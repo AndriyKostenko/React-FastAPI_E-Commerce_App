@@ -13,6 +13,7 @@ from dependencies.dependencies import (
     idempotency_service_dependency,
     payment_service_dependency,
 )
+from shared.auth.route_guards import AdminDep, CallerDep, ensure_owner_or_admin
 
 
 payment_routes = APIRouter(tags=["payments"])
@@ -26,10 +27,12 @@ payment_routes = APIRouter(tags=["payments"])
     status_code=status.HTTP_201_CREATED,
 )
 async def create_payment_intent(
+    caller: CallerDep,
     request: Request,
     payment_service: payment_service_dependency,
     payment_data: PaymentSchema,
 ) -> PaymentIntentResponse:
+    ensure_owner_or_admin(caller, payment_data.user_id)
     result = await payment_service.create_payment_intent(
         order_id=payment_data.order_id,
         user_id=payment_data.user_id,
@@ -100,6 +103,7 @@ async def stripe_webhook(
     status_code=status.HTTP_200_OK,
 )
 async def get_payments(
+    admin: AdminDep,
     request: Request,
     payment_service: payment_service_dependency,
 ) -> list[PaymentResponse]:
@@ -113,8 +117,12 @@ async def get_payments(
     status_code=status.HTTP_200_OK,
 )
 async def get_payment_by_id(
+    caller: CallerDep,
     request: Request,
     payment_id: UUID,
     payment_service: payment_service_dependency,
 ) -> PaymentResponse:
-    return await payment_service.get_payment_by_id(payment_id)
+    # Previously any signed-in user could read any payment by id.
+    payment = await payment_service.get_payment_by_id(payment_id)
+    ensure_owner_or_admin(caller, payment.user_id)
+    return payment

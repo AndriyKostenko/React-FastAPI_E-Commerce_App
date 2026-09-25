@@ -11,6 +11,7 @@ from exceptions.image_generation_exceptions import (
 from tests.conftest import TEST_API
 from shared.settings import get_settings
 from tests.conftest import SIGNING_KEYS
+from shared.testing.signing_keys import ANONYMOUS
 
 settings = get_settings()
 
@@ -52,6 +53,7 @@ class TestGenerateImageEndpoint:
         response = await client_for_unit_testing.post(
             f"{TEST_API}/images/generations",
             json=self._payload,
+            auth=ANONYMOUS,
         )
 
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
@@ -166,6 +168,7 @@ class TestGenerationJobStatusEndpoint:
     ):
         response = await client_for_unit_testing.get(
             f"{TEST_API}/images/generations/{uuid4()}/status",
+            auth=ANONYMOUS,
         )
 
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
@@ -204,6 +207,6 @@ class TestAdminSchemaEndpoints:
 
     @pytest.mark.parametrize("resource", ["products", "categories", "images", "reviews"])
     async def test_anonymous_is_rejected(self, client_for_unit_testing: AsyncClient, resource: str):
-        response = await client_for_unit_testing.get(f"{TEST_API}/admin/schema/{resource}")
+        response = await client_for_unit_testing.get(f"{TEST_API}/admin/schema/{resource}", auth=ANONYMOUS)
 
         assert response.status_code == status.HTTP_401_UNAUTHORIZED

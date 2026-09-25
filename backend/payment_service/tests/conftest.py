@@ -52,11 +52,21 @@ from tests.constants import (
 
 
 from shared.testing.helpers import allow_testserver_host
+from uuid import UUID
+from shared.settings import get_settings
 from shared.testing.signing_keys import EphemeralSigningKeys
 
 # Throwaway gateway keys: the test clients' apps trust assertions signed
 # with these, exactly as a deployed service trusts the gateway's.
 SIGNING_KEYS = EphemeralSigningKeys()
+# Test clients call as a signed-in admin by default, so tests about business
+# logic are not tripped by authorisation. Authorisation has its own tests,
+# which pass an explicit per-request `auth=` (anonymous, owner, stranger).
+DEFAULT_CALLER = SIGNING_KEYS.caller_auth(
+    user_id=UUID("00000000-0000-4000-8000-00000000ad01"),
+    role=get_settings().SECRET_ROLE,
+    email="admin@example.com",
+)
 
 
 # ---------------------------------------------------------------------------
@@ -270,7 +280,7 @@ async def client_for_unit_testing(
     settings.DEBUG_MODE = True
 
     SIGNING_KEYS.install_verifier(app)
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as async_client:
+    async with AsyncClient(transport=ASGITransport(app=app), auth=DEFAULT_CALLER, base_url="http://testserver") as async_client:
         yield async_client
 
     app.dependency_overrides.clear()
@@ -363,7 +373,7 @@ async def integration_client(
     app.dependency_overrides[get_idempotency_service] = lambda: mock_idempotency
 
     SIGNING_KEYS.install_verifier(app)
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as async_client:
+    async with AsyncClient(transport=ASGITransport(app=app), auth=DEFAULT_CALLER, base_url="http://testserver") as async_client:
         yield async_client
 
     app.dependency_overrides.clear()

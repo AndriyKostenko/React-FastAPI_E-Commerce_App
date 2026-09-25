@@ -10,6 +10,7 @@ from schemas.notifications_schemas import (
     UnreadCountResponse,
 )
 from dependencies.dependencies import notification_service_dependency
+from shared.auth.route_guards import SelfOrAdminDep
 
 
 notification_routes = APIRouter(tags=["notification-service"])
@@ -22,6 +23,7 @@ notification_routes = APIRouter(tags=["notification-service"])
     status_code=status.HTTP_200_OK,
 )
 async def get_user_notifications(
+    caller: SelfOrAdminDep,
     request: Request,
     user_id: UUID,
     notification_service: notification_service_dependency,
@@ -54,6 +56,7 @@ async def get_user_notifications(
     status_code=status.HTTP_200_OK,
 )
 async def get_unread_count(
+    caller: SelfOrAdminDep,
     request: Request,
     user_id: UUID,
     notification_service: notification_service_dependency,
@@ -94,6 +97,7 @@ async def mark_notification_as_read(
     status_code=status.HTTP_200_OK,
 )
 async def mark_all_notifications_as_read(
+    caller: SelfOrAdminDep,
     request: Request,
     user_id: UUID,
     notification_service: notification_service_dependency,

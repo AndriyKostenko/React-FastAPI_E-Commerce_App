@@ -44,6 +44,11 @@ class GatewayCallerAuth(httpx.Auth):
         yield request
 
 
+# Per-request ``auth=ANONYMOUS`` overrides a test client's default caller and
+# sends no assertion at all — what an anonymous request looks like.
+ANONYMOUS = httpx.Auth()
+
+
 class EphemeralSigningKeys:
     """Fresh user-token and gateway-assertion keypairs per instance — real crypto, no mocks."""
 

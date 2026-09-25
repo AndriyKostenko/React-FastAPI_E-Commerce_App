@@ -13,6 +13,7 @@ from schemas.dropshipping_schemas import (
     CJProductsFilterParams,
 )
 from schemas.supplier_schemas import CJProductPreview, SupplierSyncRunSummary
+from shared.auth.route_guards import AdminDep
 
 
 supplier_routes = APIRouter(tags=["suppliers"])
@@ -84,6 +85,7 @@ async def get_cjdropshipping_product_details(
     summary="Synchronize one CJ Dropshipping product",
 )
 async def sync_cjdropshipping_product(
+    admin: AdminDep,
     pid: str,
     sync_orchestrator: sync_orchestrator_dependency,
 ) -> SupplierSyncRunSummary:
@@ -102,6 +104,7 @@ async def sync_cjdropshipping_product(
     summary="Synchronize CJ Dropshipping products",
 )
 async def sync_cjdropshipping_products(
+    admin: AdminDep,
     sync_orchestrator: sync_orchestrator_dependency,
     filters_query: Annotated[CJProductsFilterParams, Query()],
 ) -> SupplierSyncRunSummary:
@@ -121,6 +124,7 @@ async def sync_cjdropshipping_products(
     summary="Trigger a manual supplier sync",
 )
 async def sync_supplier_products(
+    admin: AdminDep,
     supplier_id: str,
     sync_orchestrator: sync_orchestrator_dependency,
     filters_query: Annotated[CJProductsFilterParams, Query()],
