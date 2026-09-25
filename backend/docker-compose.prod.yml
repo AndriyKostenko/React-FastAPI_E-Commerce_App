@@ -1,0 +1,58 @@
+# Production override — layer on top of the base file:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# Nothing but Traefik publishes a host port. Services, databases, brokers and
+# dashboards stay reachable only over the Docker networks (edge / backend);
+# operators reach UIs through Traefik's allow-listed routers or an SSH tunnel.
+# `!reset` (Compose v2.24+) replaces the base file's list instead of merging.
+
+services:
+  db:
+    ports: !reset []
+  pgadmin:
+    ports: !reset []
+  redis:
+    ports: !reset []
+  rabbitmq:
+    ports: !reset []
+  api-gateway:
+    ports: !reset []
+  user-service:
+    ports: !reset []
+  product-service:
+    ports: !reset []
+  supplier-service:
+    ports: !reset []
+  notification-service:
+    ports: !reset []
+  order-service:
+    ports: !reset []
+  payment-service:
+    ports: !reset []
+  cart-service:
+    ports: !reset []
+  wishlist-service:
+    ports: !reset []
+  shipping-service:
+    ports: !reset []
+  admin-js-service:
+    ports: !reset []
+  otel-collector:
+    ports: !reset []
+  tempo:
+    ports: !reset []
+  prometheus:
+    ports: !reset []
+  alertmanager:
+    ports: !reset []
+  grafana:
+    ports: !reset []
+  loki:
+    ports: !reset []
+  cadvisor:
+    ports: !reset []
+  traefik:
+    ports: !override
+      - "80:80"
+      - "443:443"
+      # the dashboard (8090) is served through its router, not a host port

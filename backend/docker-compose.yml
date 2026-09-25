@@ -4,7 +4,7 @@ services:
     image: postgres:16-alpine
     restart: always
     ports:
-      - "5432:5432"
+      - "${INTERNAL_BIND_HOST:-127.0.0.1}:5432:5432"
     env_file:
       - .env
     # Raise connection ceiling and tune shared memory for higher throughput.
@@ -21,7 +21,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./db/init-databases.sql:/docker-entrypoint-initdb.d/init-databases.sql
     networks:
-      - usernet
+      - backend
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
       interval: 60s
@@ -34,9 +34,9 @@ services:
     env_file:
       - .env
     ports:
-      - "5050:80"
+      - "${INTERNAL_BIND_HOST:-127.0.0.1}:5050:80"
     networks:
-      - usernet
+      - backend
     depends_on:
       db:
         condition: service_healthy
@@ -45,12 +45,12 @@ services:
     image: redis:7-alpine
     restart: always
     ports:
-      - "6380:6379"
+      - "${INTERNAL_BIND_HOST:-127.0.0.1}:6380:6379"
     volumes:
       - redis_data:/data
     command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
     networks:
-      - usernet
+      - backend
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 60s
@@ -61,15 +61,15 @@ services:
     image: rabbitmq:3-management-alpine
     restart: always
     ports:
-      - "5672:5672"
-      - "15672:15672"
+      - "${INTERNAL_BIND_HOST:-127.0.0.1}:5672:5672"
+      - "${INTERNAL_BIND_HOST:-127.0.0.1}:15672:15672"
     environment:
       - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER}
       - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASSWORD}
     env_file:
       - .env
     networks:
-      - usernet
+      - backend
     healthcheck:
       test: ["CMD", "rabbitmqctl", "status"]
       interval: 60s
@@ -104,9 +104,10 @@ services:
       - ./shared:/app/shared:ro
       - /tmp/prometheus_multiproc:/tmp/prometheus_multiproc
     ports:
-      - "8000:8000"
+      - "${INTERNAL_BIND_HOST:-127.0.0.1}:8000:8000"
     networks:
-      - usernet
+      - edge
+      - backend
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 60s
@@ -149,7 +150,7 @@ services:
     ports:
       - "${INTERNAL_BIND_HOST:-127.0.0.1}:8001:8001"
     networks:
-      - usernet
+      - backend
     healthcheck:
       test:
         [
@@ -184,7 +185,7 @@ services:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${USER_SERVICE_DB}
       RABBITMQ_BROKER_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@${RABBITMQ_HOST}:${RABBITMQ_PORT}
     networks:
-      - usernet
+      - backend
     volumes:
       - ./shared:/app/shared:ro
 
@@ -217,7 +218,7 @@ services:
     ports:
       - "${INTERNAL_BIND_HOST:-127.0.0.1}:8002:8002"
     networks:
-      - usernet
+      - backend
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
       interval: 60s
@@ -241,7 +242,7 @@ services:
     env_file:
       - .env
     networks:
-      - usernet
+      - backend
     volumes:
       - ./shared:/app/shared:ro
 
@@ -264,7 +265,7 @@ services:
     env_file:
       - .env
     networks:
-      - usernet
+      - backend
     volumes:
       - ./shared:/app/shared:ro
 
@@ -285,7 +286,7 @@ services:
     environment:
       MEDIA_ROOT: /media
     networks:
-      - usernet
+      - backend
     volumes:
       - product_media:/media
       - ./shared:/app/shared:ro
@@ -311,7 +312,7 @@ services:
     ports:
       - "${INTERNAL_BIND_HOST:-127.0.0.1}:8010:8010"
     networks:
-      - usernet
+      - backend
     volumes:
       - ./shared:/app/shared:ro
       - /tmp/prometheus_multiproc:/tmp/prometheus_multiproc
@@ -343,7 +344,7 @@ services:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${SUPPLIER_SERVICE_DB}
       RABBITMQ_BROKER_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@${RABBITMQ_HOST}:${RABBITMQ_PORT}
     networks:
-      - usernet
+      - backend
     volumes:
       - ./shared:/app/shared:ro
 
@@ -364,7 +365,7 @@ services:
     env_file:
       - .env
     networks:
-      - usernet
+      - backend
     volumes:
       - ./shared:/app/shared:ro
 
@@ -385,7 +386,7 @@ services:
     env_file:
       - .env
     networks:
-      - usernet
+      - backend
     volumes:
       - ./shared:/app/shared:ro
 
@@ -404,7 +405,7 @@ services:
     env_file:
       - .env
     networks:
-      - usernet
+      - backend
     volumes:
       - ./shared:/app/shared:ro
 
@@ -429,7 +430,7 @@ services:
     ports:
       - "${INTERNAL_BIND_HOST:-127.0.0.1}:8003:8003"
     networks:
-      - usernet
+      - backend
     volumes:
       - ./shared:/app/shared:ro
       - ./shared/templates:/app/templates:ro
@@ -457,7 +458,7 @@ services:
     env_file:
       - .env
     networks:
-      - usernet
+      - backend
     volumes:
       - ./shared:/app/shared:ro
       - ./shared/templates:/app/templates:ro
@@ -477,7 +478,7 @@ services:
     env_file:
       - .env
     networks:
-      - usernet
+      - backend
     volumes:
       - ./shared:/app/shared:ro
       - ./shared/templates:/app/templates:ro
@@ -506,7 +507,7 @@ services:
     ports:
       - "${INTERNAL_BIND_HOST:-127.0.0.1}:8005:8005"
     networks:
-      - usernet
+      - backend
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8005/health"]
       interval: 60s
@@ -535,7 +536,7 @@ services:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${ORDER_SERVICE_DB}
       RABBITMQ_BROKER_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@${RABBITMQ_HOST}:${RABBITMQ_PORT}
     networks:
-      - usernet
+      - backend
     volumes:
       - ./shared:/app/shared:ro
 
@@ -558,7 +559,7 @@ services:
     env_file:
       - .env
     networks:
-      - usernet
+      - backend
     volumes:
       - ./shared:/app/shared:ro
 
@@ -579,7 +580,7 @@ services:
     env_file:
       - .env
     networks:
-      - usernet
+      - backend
     volumes:
       - ./shared:/app/shared:ro
 
@@ -609,7 +610,7 @@ services:
     ports:
       - "${INTERNAL_BIND_HOST:-127.0.0.1}:8006:8006"
     networks:
-      - usernet
+      - backend
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8006/health"]
       interval: 60s
@@ -638,7 +639,7 @@ services:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${PAYMENT_SERVICE_DB}
       RABBITMQ_BROKER_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@${RABBITMQ_HOST}:${RABBITMQ_PORT}
     networks:
-      - usernet
+      - backend
     volumes:
       - ./shared:/app/shared:ro
 
@@ -659,7 +660,7 @@ services:
     env_file:
       - .env
     networks:
-      - usernet
+      - backend
     volumes:
       - ./shared:/app/shared:ro
 
@@ -687,7 +688,7 @@ services:
     ports:
       - "${INTERNAL_BIND_HOST:-127.0.0.1}:8007:8007"
     networks:
-      - usernet
+      - backend
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8007/health"]
       interval: 60s
@@ -711,7 +712,7 @@ services:
     env_file:
       - .env
     networks:
-      - usernet
+      - backend
     volumes:
       - ./shared:/app/shared:ro
 
@@ -739,7 +740,7 @@ services:
     ports:
       - "${INTERNAL_BIND_HOST:-127.0.0.1}:8009:8009"
     networks:
-      - usernet
+      - backend
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8009/health"]
       interval: 60s
@@ -763,7 +764,7 @@ services:
     env_file:
       - .env
     networks:
-      - usernet
+      - backend
     volumes:
       - ./shared:/app/shared:ro
 
@@ -793,7 +794,7 @@ services:
     ports:
       - "${INTERNAL_BIND_HOST:-127.0.0.1}:8008:8008"
     networks:
-      - usernet
+      - backend
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8008/health"]
       interval: 60s
@@ -817,7 +818,7 @@ services:
     env_file:
       - .env
     networks:
-      - usernet
+      - backend
     volumes:
       - ./shared:/app/shared:ro
 
@@ -840,7 +841,7 @@ services:
     env_file:
       - .env
     networks:
-      - usernet
+      - backend
     volumes:
       - ./shared:/app/shared:ro
 
@@ -858,7 +859,8 @@ services:
       api-gateway:
         condition: service_healthy
     networks:
-      - usernet
+      - edge
+      - backend
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.admin-js.rule=Host(`admin.${DOMAIN}`)"
@@ -875,10 +877,10 @@ services:
     volumes:
       - ./observability/otelcollector/otel-collector.yml:/etc/otelcol/otel-collector.yml:ro
     ports:
-      - "4317:4317"
-      - "4318:4318"
+      - "${INTERNAL_BIND_HOST:-127.0.0.1}:4317:4317"
+      - "${INTERNAL_BIND_HOST:-127.0.0.1}:4318:4318"
     networks:
-      - usernet
+      - backend
     depends_on:
       - tempo
 
@@ -891,9 +893,9 @@ services:
       - ./observability/tempo/tempo.yml:/etc/tempo/tempo.yml:ro
       - tempo_data:/var/tempo
     ports:
-      - "3200:3200"
+      - "${INTERNAL_BIND_HOST:-127.0.0.1}:3200:3200"
     networks:
-      - usernet
+      - backend
 
   prometheus:
     image: prom/prometheus:latest
@@ -912,7 +914,8 @@ services:
     depends_on:
       - alertmanager
     networks:
-      - usernet
+      - edge
+      - backend
 
   alertmanager:
     image: prom/alertmanager:v0.32.1
@@ -927,7 +930,7 @@ services:
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
     networks:
-      - usernet
+      - backend
     restart: unless-stopped
 
   grafana:
@@ -946,7 +949,8 @@ services:
       - prometheus
       - loki
     networks:
-      - usernet
+      - edge
+      - backend
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.grafana.rule=Host(`grafana.${DOMAIN}`)"
@@ -960,7 +964,7 @@ services:
     ports: ["3100:3100"]
     command: -config.file=/etc/loki/local-config.yaml
     networks:
-      - usernet
+      - backend
 
   promtail:
     image: grafana/promtail:3.6.11
@@ -971,7 +975,7 @@ services:
     depends_on:
       - loki
     networks:
-      - usernet
+      - backend
 
   # CPU / RAM / net / disk metrics per container
   cadvisor:
@@ -993,7 +997,7 @@ services:
       - --max_housekeeping_interval=35s
       - --disable_metrics=advtcp,cpuset,hugetlb,referenced_memory,resctrl,tcp,udp
     networks:
-      - usernet
+      - backend
 
   # Docker socket proxy: rewrites Traefik's hardcoded API v1.24 → v1.41 so it
   # works with OrbStack (which rejects anything below 1.40). Only Traefik
@@ -1005,7 +1009,7 @@ services:
       - ${DOCKER_SOCK:-/var/run/docker.sock}:/var/run/docker.sock:ro
       - ./traefik/socket-proxy.conf:/etc/nginx/nginx.conf:ro
     networks:
-      - usernet
+      - edge
 
   # Edge proxy: TLS termination, HTTP→HTTPS redirect, security headers,
   # edge rate limiting, and routing to api-gateway / admin tools.
@@ -1018,14 +1022,14 @@ services:
       - "80:80"
       - "443:443"
       # Local dev: Traefik dashboard at http://localhost:8090/dashboard/
-      - "8090:8090"
+      - "${INTERNAL_BIND_HOST:-127.0.0.1}:8090:8090"
     volumes:
       # No docker.sock mount here — traffic goes through socket-proxy instead.
       - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
       - ./traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro
       - ./traefik/acme.json:/acme/acme.json
     networks:
-      - usernet
+      - edge
     depends_on:
       socket-proxy:
         condition: service_started
@@ -1044,8 +1048,14 @@ services:
 
 
 networks:
-  usernet:
-    name: usernet
+  # edge: Traefik and only what it routes to. backend: services, databases,
+  # brokers and workers. Traefik is never on backend, so the proxy facing the
+  # internet has no route to Postgres, Redis or RabbitMQ. backend is not
+  # `internal: true` because services call Stripe, CJ, OpenRouter, SMTP, Google.
+  edge:
+    name: edge
+  backend:
+    name: backend
 
 
 volumes:

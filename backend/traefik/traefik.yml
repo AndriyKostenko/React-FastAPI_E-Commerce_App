@@ -86,7 +86,7 @@ providers:
   docker:
     endpoint: "tcp://socket-proxy:2375"
     exposedByDefault: false   # security: opt-in only
-    network: usernet
+    network: edge   # route only over the edge network; Traefik is not on backend
     watch: true
 
   # File provider: dynamic config (middlewares, TLS options).

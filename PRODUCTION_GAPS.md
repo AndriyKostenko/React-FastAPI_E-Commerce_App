@@ -460,8 +460,8 @@ Backend:
 | 4 | `self_or_admin` in the services? | **Done (2026-09-24).** `shared.auth.route_guards` on every non-public route; also closed payment/shipment reads by any user and an unguarded `GET /payments` |
 | 5 | Only the gateway may call services (`INTERNAL_HMAC_SECRET`, Vault)? | **Mostly done.** Only the gateway can assert an identity, so a direct call is at most anonymous. Open: `/artwork/download-link`, `/products/order-quote` and `/cjdropshipping/freight/quote` are called service-to-service without a caller and rely on network isolation — needs service identity |
 | 6 | Signed header downstream; drop `oauth2_scheme` + `get_current_user()`? | **Done (2026-09-24)** |
-| 7 | Remove service ports from compose? | Local ports already bind to `127.0.0.1`; add a prod override with `expose:` only |
-| 8 | NetworkPolicy? | Only once on Kubernetes; in compose, split `edge` / `internal` networks |
+| 7 | Remove service ports from compose? | **Done (2026-09-25).** Worse than listed: Postgres, Redis, RabbitMQ, pgAdmin and the observability stack published on 0.0.0.0. The base file now binds every host port to 127.0.0.1 (`INTERNAL_BIND_HOST`) except Traefik's 80/443; `docker-compose.prod.yml` publishes nothing but Traefik |
+| 8 | NetworkPolicy? | **Done for compose (2026-09-25).** `usernet` split into `edge` (Traefik, socket-proxy + gateway/admin-js/Grafana/Prometheus) and `backend` (everything else); Traefik routes over `edge` and has no route to the databases. NetworkPolicy once on Kubernetes |
 | 9 | Token purposes? | **Done (2026-09-24).** `purpose`, `iss`, `aud`, `iat`, `jti` are required; only user-service holds the signing key (Ed25519) |
 | 10 | Remove `PUBLIC_ENDPOINTS` completely? | Done (§4b) |
 | 11 | OpenAPI → TypeScript? | Open (tooling) |
