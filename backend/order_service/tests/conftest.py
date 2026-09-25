@@ -7,6 +7,10 @@ with mocks so the tests run without any live services.
 Integration-test fixtures use the real PostgreSQL test database
 (ORDER_SERVICE_TEST_DB) and truncate all tables between tests.
 """
+import os
+
+# Tests never call the Bank of Canada: prices use the configured rate.
+os.environ.setdefault("CJ_FX_SOURCE", "fixed")
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from decimal import Decimal

@@ -1,3 +1,4 @@
+from logging import getLogger
 from decimal import Decimal, ROUND_HALF_UP
 from types import TracebackType
 from typing import Any, Self
@@ -13,6 +14,8 @@ from shared.settings import Settings
 from shared.exceptions.base_exceptions import BaseAPIException
 from shared.utils.money import CENT, to_cents
 from shared.utils.supplier_pricing import SupplierRetailPricing
+
+_logger = getLogger("order-service.pricing")
 
 
 class OrderQuoteError(BaseAPIException):
@@ -319,7 +322,8 @@ class OrderPricingService:
                 for line in cj_lines
             ],
         )
-        options = [self._to_shipping_option(option) for option in raw_options]
+        pricing = await SupplierRetailPricing.live(self.settings, _logger)
+        options = [self._to_shipping_option(option, pricing) for option in raw_options]
         if not options:
             raise OrderQuoteError(f"No shipping option to {country_code} for this cart")
 
@@ -333,9 +337,10 @@ class OrderPricingService:
             )
         return options, selected
 
-    def _to_shipping_option(self, option: dict[str, Any]) -> ShippingOption:
+    def _to_shipping_option(
+        self, option: dict[str, Any], pricing: SupplierRetailPricing
+    ) -> ShippingOption:
         """Convert one CJ USD option to the padded CAD price the customer pays."""
-        pricing = SupplierRetailPricing.from_settings(self.settings)
         padded_usd = Decimal(str(option["price"])) * (
             1 + Decimal(str(self.settings.CJ_FREIGHT_PRICE_BUFFER))
         )

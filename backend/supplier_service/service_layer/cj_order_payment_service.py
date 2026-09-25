@@ -101,7 +101,7 @@ class CJOrderPaymentService:
 
     @staticmethod
     def expected_max_amount_usd(
-        event: OrderConfirmedEvent, settings: Settings
+        event: OrderConfirmedEvent, settings: Settings, usd_to_cad_rate: Decimal | None = None
     ) -> Decimal | None:
         """The most CJ may bill for the CJ lines of ``event`` before review.
 
@@ -112,7 +112,7 @@ class CJOrderPaymentService:
         """
         if event.shipping_cost_usd is None:
             return None
-        pricing = SupplierRetailPricing.from_settings(settings)
+        pricing = SupplierRetailPricing.from_settings(settings, usd_to_cad_rate)
         goods_cad = sum(
             (Decimal(str(item.price)) * item.quantity for item in event.items),
             start=Decimal("0"),

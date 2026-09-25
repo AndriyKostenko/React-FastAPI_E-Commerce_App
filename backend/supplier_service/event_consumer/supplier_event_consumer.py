@@ -39,6 +39,7 @@ from shared.contracts.events import (
 from shared.idempotency.idempotency_service import IdempotencyEventService
 from shared.managers.database_session_manager import DatabaseSessionManager
 from shared.settings import Settings
+from shared.utils.supplier_pricing import SupplierRetailPricing
 
 
 class SupplierEventConsumer:
@@ -403,7 +404,8 @@ class SupplierEventConsumer:
     async def _record_creating(
         self, event: OrderConfirmedEvent, payload: dict[str, Any]
     ) -> None:
-        expected_max = CJOrderPaymentService.expected_max_amount_usd(event, self.settings)
+        rate = (await SupplierRetailPricing.live(self.settings, self.logger)).usd_to_cad_rate
+        expected_max = CJOrderPaymentService.expected_max_amount_usd(event, self.settings, rate)
         async with self.database.transaction() as session:
             repository = CJOrderAttemptRepository(session)
             attempt = await repository.get_for_update(event.order_id)
@@ -441,7 +443,9 @@ class SupplierEventConsumer:
                         status=CJOrderAttemptStatus.CREATED,
                         cj_order_number=cj_order_number,
                         expected_max_amount_usd=CJOrderPaymentService.expected_max_amount_usd(
-                            event, self.settings
+                            event,
+                            self.settings,
+                            (await SupplierRetailPricing.live(self.settings, self.logger)).usd_to_cad_rate,
                         ),
                     )
                 )

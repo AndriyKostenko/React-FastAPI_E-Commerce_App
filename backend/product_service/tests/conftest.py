@@ -8,6 +8,10 @@ Integration-test fixtures use the real PostgreSQL test database
 (PRODUCT_SERVICE_TEST_DB) and truncate every table between tests.
 """
 import os
+
+# Tests never call the Bank of Canada: prices use the configured rate.
+os.environ.setdefault("CJ_FX_SOURCE", "fixed")
+import os
 import tempfile
 
 # Ensure the media mount point exists before importing main.py,

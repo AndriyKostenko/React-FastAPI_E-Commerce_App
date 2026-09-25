@@ -21,6 +21,7 @@ def _settings():
         PRINT_IMAGE_MIN_EFFECTIVE_DPI=150,
         DOMESTIC_FLAT_SHIPPING_CAD=Decimal("9.99"),
         CJ_USD_TO_CAD_RATE=Decimal("1.40"),
+        CJ_FX_SOURCE="fixed",
         CJ_PRICE_MARKUP_MULTIPLIER=Decimal("2.00"),
         CJ_FREIGHT_PRICE_BUFFER=Decimal("0.10"),
     )

@@ -387,6 +387,9 @@ class Settings(BaseSettings):
     # Storefront pricing of supplier goods. CJ prices in USD while the store
     # sells in CAD; keep the rate current, since it also converts freight.
     CJ_USD_TO_CAD_RATE: Decimal = Field(default=Decimal("1.38"), gt=0)
+    # Where the USD->CAD rate comes from: the Bank of Canada's daily rate
+    # (cached; CJ_USD_TO_CAD_RATE is then only the fallback), or "fixed".
+    CJ_FX_SOURCE: Literal["bank_of_canada", "fixed"] = "bank_of_canada"
     # Retail never drops below CJ's cost times this multiplier.
     CJ_PRICE_MARKUP_MULTIPLIER: Decimal = Field(default=Decimal("2.00"), ge=1)
     # Padding on CJ freight charged to the customer. It absorbs FX drift and CJ
