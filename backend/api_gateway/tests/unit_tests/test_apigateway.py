@@ -188,7 +188,7 @@ class TestForwardRequest:
 
         assert exc_info.value.status_code == 404
 
-    async def test_forward_request_error_raises_500(self):
+    async def test_unreachable_service_is_a_503_not_a_500(self):
         from httpx import RequestError
         from fastapi import HTTPException
 
@@ -201,7 +201,8 @@ class TestForwardRequest:
             with pytest.raises(HTTPException) as exc_info:
                 await self.gw.forward_request(request=req, service_name="product-service")
 
-        assert exc_info.value.status_code == 500
+        # The service did not answer; the gateway itself is fine.
+        assert exc_info.value.status_code == 503
 
     async def test_forward_with_override_body_sends_json(self):
         req = self._make_mock_request("POST", "/api/v1/orders")
@@ -277,3 +278,80 @@ class TestServiceRegistry:
         gateway = _make_gateway()
         url = gateway.url_manager.build_url("cart-service", "/users/abc/cart")
         assert url.startswith(settings.FULL_CART_SERVICE_URL)
+
+
+
+class TestPerServiceCircuitBreakers:
+    """Each service has its own breaker; the old shared one tripped them all."""
+
+    def _request(self, path: str) -> MagicMock:
+        req = MagicMock()
+        req.method = "GET"
+        req.url = MagicMock()
+        req.url.__str__ = MagicMock(return_value=f"http://localhost:8000{path}")
+        req.url.scheme = "http"
+        req.url.hostname = "localhost"
+        req.url.netloc = "localhost:8000"
+        req.headers = {}
+        req.cookies = {}
+        req.client = MagicMock()
+        req.client.host = "172.20.0.4"
+        req.state = MagicMock(current_user=None)
+        return req
+
+    @staticmethod
+    def _response(status: int) -> MagicMock:
+        response = MagicMock(spec=HttpxResponse)
+        response.status_code = status
+        response.headers = {}
+        response.content = b'{"ok": true}'
+        response.json.return_value = {"ok": True}
+        return response
+
+    async def _forward(self, gw: ApiGateway, service: str, path: str):
+        from fastapi import HTTPException
+        try:
+            return await gw.forward_request(request=self._request(path), service_name=service)
+        except HTTPException as error:
+            return error
+
+    async def test_repeated_failures_open_only_that_services_breaker(self):
+        from httpx import ConnectError
+
+        gw = _make_gateway()
+        http = AsyncMock()
+        http.request = AsyncMock(side_effect=ConnectError("connection refused"))
+        with patch.object(gw, "_http_client", http):
+            for _ in range(settings.GATEWAY_BREAKER_FAILURE_THRESHOLD):
+                await self._forward(gw, "product-service", "/api/v1/products")
+            calls_while_closed = http.request.await_count
+
+            refused = await self._forward(gw, "product-service", "/api/v1/products")
+            assert refused.status_code == 503
+            assert int(refused.headers["Retry-After"]) >= 1
+            # Failing fast: the service was not called again.
+            assert http.request.await_count == calls_while_closed
+
+            http.request = AsyncMock(return_value=self._response(200))
+            healthy = await self._forward(gw, "order-service", "/api/v1/orders/abc")
+            assert healthy.status_code == 200
+
+    async def test_a_client_error_does_not_count_against_the_service(self):
+        gw = _make_gateway()
+        http = AsyncMock()
+        http.request = AsyncMock(return_value=self._response(404))
+        with patch.object(gw, "_http_client", http):
+            for _ in range(settings.GATEWAY_BREAKER_FAILURE_THRESHOLD + 2):
+                result = await self._forward(gw, "product-service", "/api/v1/products/missing")
+                assert result.status_code == 404
+
+    async def test_upstream_503s_open_the_breaker(self):
+        gw = _make_gateway()
+        http = AsyncMock()
+        http.request = AsyncMock(return_value=self._response(503))
+        with patch.object(gw, "_http_client", http):
+            for _ in range(settings.GATEWAY_BREAKER_FAILURE_THRESHOLD):
+                await self._forward(gw, "cart-service", "/api/v1/users/x/cart")
+            refused = await self._forward(gw, "cart-service", "/api/v1/users/x/cart")
+        assert refused.status_code == 503
+        assert http.request.await_count == settings.GATEWAY_BREAKER_FAILURE_THRESHOLD

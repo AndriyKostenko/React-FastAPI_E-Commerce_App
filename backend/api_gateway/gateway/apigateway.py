@@ -1,4 +1,6 @@
 import random
+from collections.abc import Awaitable, Callable
+from math import ceil
 from types import TracebackType
 from typing import Any, Self
 from urllib.parse import urlparse, urlunparse
@@ -6,11 +8,13 @@ from logging import Logger
 
 import orjson
 from fastapi import HTTPException, Request, Response
-from httpx import AsyncClient, HTTPStatusError, RequestError, Timeout, Limits
+from httpx import AsyncClient, HTTPStatusError, Limits, RequestError, Timeout, TimeoutException
+from httpx import Response as HttpxResponse
 from shared.utils.customized_json_response import JSONResponse
 
 from shared.auth.caller_assertion import CALLER_ASSERTION_HEADER, CallerAssertionSigner, RequestTarget
 from shared.contracts.auth import TokenClaims
+from shared.resilience import CircuitBreaker, CircuitOpenError
 from shared.settings import Settings
 from shared.utils.authenticated_caller import LEGACY_IDENTITY_HEADERS
 from shared.utils.client_ip import ClientIPResolver
@@ -173,6 +177,17 @@ class ApiGateway:
             }
         )
         self.url_manager: UrlManager = UrlManager(config=self.config, logger=self.logger)
+        # One breaker per service: the old shared decorator tripped every
+        # service when any one of them failed.
+        self._breakers: dict[str, CircuitBreaker] = {
+            name: CircuitBreaker(
+                name,
+                self.logger,
+                failure_threshold=settings.GATEWAY_BREAKER_FAILURE_THRESHOLD,
+                recovery_timeout=settings.GATEWAY_BREAKER_RECOVERY_SECONDS,
+            )
+            for name in self.config.services
+        }
 
     async def __aenter__(self) -> Self:
         """Start the owned HTTP client and clean up if startup fails."""
@@ -233,13 +248,46 @@ class ApiGateway:
         if service_name not in self.config.services:
             raise HTTPException(status_code=404, detail="Service not found")
         url = self.url_manager.build_url(service_name, path)
-        return await self.client.request(
-            method=method,
-            url=url,
-            json=json,
-            headers={CALLER_ASSERTION_HEADER: self._sign_for(caller, method, url)},
-            timeout=self._resolve_timeout(service_name, path),
+        return await self._call_service(
+            service_name,
+            lambda: self.client.request(
+                method=method,
+                url=url,
+                json=json,
+                headers={CALLER_ASSERTION_HEADER: self._sign_for(caller, method, url)},
+                timeout=self._resolve_timeout(service_name, path),
+            ),
         )
+
+    async def _call_service(
+        self, service_name: str, send: Callable[[], Awaitable[HttpxResponse]]
+    ) -> HttpxResponse:
+        """
+        Send through the service's own circuit breaker.
+
+        Connection failures, timeouts and 502/503/504 count against it; any
+        other answer, errors included, proves the service is up. While open,
+        callers get a 503 at once instead of each waiting out a timeout.
+        """
+        breaker = self._breakers[service_name]
+        try:
+            breaker.before_call()
+        except CircuitOpenError as error:
+            raise HTTPException(
+                status_code=503,
+                detail=f"{service_name} is temporarily unavailable",
+                headers={"Retry-After": str(max(1, ceil(error.retry_after)))},
+            ) from error
+        try:
+            response = await send()
+        except RequestError:
+            breaker.record_failure()
+            raise
+        if response.status_code in self._UPSTREAM_DOWN_STATUSES:
+            breaker.record_failure()
+        else:
+            breaker.record_success()
+        return response
 
     def _assert_caller(self, request: Request, method: str, url: str) -> str:
         """Sign for the user this request's session belongs to (None when anonymous)."""
@@ -314,6 +362,13 @@ class ApiGateway:
     # would let it dictate the address downstream services attribute it to.
     # Responses that must not carry a body; forwarding one is a protocol error.
     _BODILESS_STATUSES: frozenset[int] = frozenset({204, 205, 304})
+    # Answers that mean "the service is not really there" and count against its breaker.
+    _UPSTREAM_DOWN_STATUSES: frozenset[int] = frozenset({502, 503, 504})
+    _BODY_ARGUMENT: dict[str, str] = {
+        "application/json": "json",
+        "application/x-www-form-urlencoded": "data",
+        "multipart/form-data": "files",
+    }
 
     _STRIPPED_HEADERS: frozenset[str] = frozenset({
         "host",
@@ -380,10 +435,6 @@ class ApiGateway:
         """
         return self._TIMEOUT
 
-    # Circuit breaker is intentionally disabled: the per-service decorator caused
-    # all services to trip when a single downstream service failed.
-    # Re-enable once isolated per-service breakers are implemented.
-    # @circuit(failure_threshold=5, recovery_timeout=30)
     async def forward_request(self, request: Request, service_name: str, override_body: dict[str, Any] | None = None) -> JSONResponse:
         """
         Forward request to microservice using the shared HTTP client.
@@ -425,45 +476,25 @@ class ApiGateway:
         )
 
         try:
-            if prepared_body is None:
-                response = await self.client.request(
+            # One request, whatever the body type; httpx sets its own
+            # Content-Type for json/data/files, so ours is dropped for those.
+            send_kwargs: dict[str, Any] = {}
+            send_headers = headers
+            if prepared_body is not None:
+                body_argument = self._BODY_ARGUMENT.get(content_type or "", "content")
+                send_kwargs[body_argument] = prepared_body
+                if body_argument != "content":
+                    send_headers = {k: v for k, v in headers.items() if k.lower() != "content-type"}
+            response = await self._call_service(
+                service_name,
+                lambda: self.client.request(
                     method=request.method,
                     url=url,
-                    headers=headers,
+                    headers=send_headers,
                     timeout=timeout,
-                )
-            elif content_type == "application/json":
-                response = await self.client.request(
-                    method=request.method,
-                    url=url,
-                    json=prepared_body,
-                    headers={k: v for k, v in headers.items() if k.lower() != "content-type"},
-                    timeout=timeout,
-                )
-            elif content_type == "application/x-www-form-urlencoded":
-                response = await self.client.request(
-                    method=request.method,
-                    url=url,
-                    data=prepared_body,
-                    headers={k: v for k, v in headers.items() if k.lower() != "content-type"},
-                    timeout=timeout,
-                )
-            elif content_type == "multipart/form-data":
-                response = await self.client.request(
-                    method=request.method,
-                    url=url,
-                    files=prepared_body,
-                    headers={k: v for k, v in headers.items() if k.lower() != "content-type"},
-                    timeout=timeout,
-                )
-            else:
-                response = await self.client.request(
-                    method=request.method,
-                    url=url,
-                    content=prepared_body,
-                    headers=headers,
-                    timeout=timeout,
-                )
+                    **send_kwargs,
+                ),
+            )
 
             self.logger.debug(f"Response from {service_name}: status={response.status_code}")
 
@@ -498,7 +529,11 @@ class ApiGateway:
                 f"Request error occurred while forwarding to {service_name} "
                 f"({service_path}): {e!r}"
             )
-            raise HTTPException(status_code=500, detail="Internal Server Error")
+            # The service did not answer: that is a 503/504, not our own 500.
+            status_code = 504 if isinstance(e, TimeoutException) else 503
+            raise HTTPException(status_code=status_code, detail=f"{service_name} is unavailable")
+        except HTTPException:
+            raise  # an open circuit's 503, already shaped for the client
         except Exception as e:
             self.logger.error(f"Unexpected error: {e}")
             raise HTTPException(status_code=500, detail="Internal Server Error")

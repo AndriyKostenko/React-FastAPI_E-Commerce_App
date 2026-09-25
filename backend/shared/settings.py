@@ -199,6 +199,9 @@ class Settings(BaseSettings):
     GATEWAY_ASSERTION_ISSUER: str = "api-gateway"
     GATEWAY_ASSERTION_AUDIENCE: str = "internal-services"
     GATEWAY_ASSERTION_TTL_SECONDS: int = Field(default=60, gt=0, le=300)
+    # Per-service circuit breaker in the gateway.
+    GATEWAY_BREAKER_FAILURE_THRESHOLD: int = Field(default=5, ge=1)
+    GATEWAY_BREAKER_RECOVERY_SECONDS: float = Field(default=30.0, gt=0)
     TOKEN_TYPE: str
     # Unused since services stopped reading bearer tokens (the gateway's caller
     # assertion replaced oauth2_scheme); optional so an existing env file loads.
@@ -386,6 +389,10 @@ class Settings(BaseSettings):
     CJ_DROPSHIPPING_VERIFY_INVENTORY: bool = True
     CJ_DROPSHIPPING_INVENTORY_BUFFER: int = 0
     CJ_DROPSHIPPING_VERIFY_RETRIES: int = 2
+    # Transient-failure handling for every CJ call (retries apply to reads only).
+    CJ_DROPSHIPPING_RETRY_MAX_ATTEMPTS: int = Field(default=3, ge=1, le=6)
+    CJ_DROPSHIPPING_BREAKER_FAILURE_THRESHOLD: int = Field(default=5, ge=1)
+    CJ_DROPSHIPPING_BREAKER_RECOVERY_SECONDS: float = Field(default=60.0, gt=0)
     CJ_DROPSHIPPING_VERIFY_TIMEOUT_SECONDS: float = 10.0
     CJ_DROPSHIPPING_REQUEST_TIMEOUT_SECONDS: float = 30.0
 
