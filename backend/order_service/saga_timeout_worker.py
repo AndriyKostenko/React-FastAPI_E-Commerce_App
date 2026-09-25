@@ -111,17 +111,30 @@ async def main() -> None:
     next_capture_check = 0.0
     async with order_outbox_resources() as resources:
         while not stop.is_set():
-            count = await expire_once(resources)
-            if count:
-                resources.logger.warning("Cancelled %d timed-out order Sagas", count)
-            stalled = await cancel_stalled_supplier_orders(resources)
-            if stalled:
-                resources.logger.warning("Cancelled %d orders CJ never took on", stalled)
+            # Each pass is guarded on its own, like OutboxRelay.run: one failed
+            # query (a migration invalidating asyncpg's cached plans, a DB
+            # restart) used to end the process, leaving abandoned orders
+            # holding stock and card authorizations until someone noticed.
+            try:
+                count = await expire_once(resources)
+                if count:
+                    resources.logger.warning("Cancelled %d timed-out order Sagas", count)
+            except Exception:
+                resources.logger.exception("Saga timeout pass failed")
+            try:
+                stalled = await cancel_stalled_supplier_orders(resources)
+                if stalled:
+                    resources.logger.warning("Cancelled %d orders CJ never took on", stalled)
+            except Exception:
+                resources.logger.exception("Stalled supplier order pass failed")
             # Hourly is plenty against a multi-day window, and keeps the alert
-            # from repeating every loop.
+            # from repeating every loop. A failed check retries next loop.
             if loop.time() >= next_capture_check:
-                await alert_stale_authorizations(resources)
-                next_capture_check = loop.time() + 3600
+                try:
+                    await alert_stale_authorizations(resources)
+                    next_capture_check = loop.time() + 3600
+                except Exception:
+                    resources.logger.exception("Stale authorization check failed")
             try:
                 await asyncio.wait_for(stop.wait(), timeout=30)
             except TimeoutError:
