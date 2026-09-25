@@ -375,3 +375,25 @@ class TestEmailIsEnqueuedOnlyAfterTheNotificationIsSaved:
             await handler.handle(_user_msg("user.registered"))
 
         assert calls == ["save", "enqueue"]
+
+
+class TestDisputeAlerts:
+    def _dispute(self, event_type: str) -> dict[str, Any]:
+        return _payment_msg(event_type) | {
+            "dispute_id": "dp_1", "disputed_amount_cents": 7322, "reason": "fraudulent",
+            "dispute_status": "needs_response", "evidence_due_by": None,
+        }
+
+    @pytest.mark.parametrize("event_type", ["payment.dispute_opened", "payment.dispute_closed"])
+    async def test_a_dispute_alerts_an_admin_not_the_customer(self, event_type: str):
+        handler = _make_handler(PaymentEventHandler)
+        msg = self._dispute(event_type)
+
+        with patch(f"{TASK_MODULE}.send_admin_dispute_alert") as mock_task:
+            mock_task.kiq = AsyncMock()
+            await handler.handle(msg)
+
+        mock_task.kiq.assert_awaited_once_with(msg)
+        saved = handler._save_notification.await_args.kwargs
+        assert saved["user_id"] is None  # recorded as a system notification
+        assert "dp_1" in saved["message"]

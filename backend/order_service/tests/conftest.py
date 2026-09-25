@@ -150,6 +150,7 @@ def mock_order_orm() -> MagicMock:
     order.subtotal_amount = None
     order.shipping_amount = None
     order.tax_amount = None
+    order.dispute_status = None
     order.shipping_logistic_name = None
     order.shipping_cost_usd = None
     order.currency = TEST_CURRENCY

@@ -10,6 +10,7 @@ from schemas.payment_schemas import (
     WebhookAckResponse,
 )
 from dependencies.dependencies import (
+    payment_dispute_service_dependency,
     idempotency_service_dependency,
     payment_service_dependency,
 )
@@ -54,6 +55,7 @@ async def stripe_webhook(
     request: Request,
     payment_service: payment_service_dependency,
     idempotency_service: idempotency_service_dependency,
+    dispute_service: payment_dispute_service_dependency,
 ) -> WebhookAckResponse:
     stripe_event = await payment_service.construct_webhook_event(request=request)
     event_type: str = stripe_event["type"]
@@ -80,6 +82,12 @@ async def stripe_webhook(
                 await payment_service.handle_payment_intent_cancelled(stripe_event_data=event_data)
             case "charge.refund.updated":
                 await payment_service.handle_charge_refund_updated(stripe_event_data=event_data)
+            case "charge.dispute.created":
+                await dispute_service.opened(event_data)
+            case "charge.dispute.updated":
+                await dispute_service.updated(event_data)
+            case "charge.dispute.closed":
+                await dispute_service.closed(event_data)
             case _:
                 pass
 

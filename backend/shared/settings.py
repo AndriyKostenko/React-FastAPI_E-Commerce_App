@@ -242,6 +242,8 @@ class Settings(BaseSettings):
     MAIL_DEBUG: bool
     MAIL_FROM: str
     MAIL_FROM_NAME: str
+    # Where operational alerts (payment disputes) are emailed. Unset: logged only.
+    ADMIN_ALERT_EMAIL: str | None = None
     USE_CREDENTIALS: bool
     TEMPLATES_DIR: DirectoryPath = Path(__file__).parent / "templates"
     VALIDATE_CERTS: bool

@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html>
+  <body style="font-family: Arial, sans-serif; color: #222;">
+    <h2>Payment dispute {{ action }}</h2>
+    <p>A customer's bank reported a dispute on order <strong>{{ order_id }}</strong>.</p>
+    <ul>
+      <li>Dispute: {{ dispute_id }}</li>
+      <li>Status: {{ dispute_status }}</li>
+      <li>Reason: {{ reason }}</li>
+      <li>Amount: {{ amount }}</li>
+      <li>Evidence due by: {{ evidence_due_by }}</li>
+    </ul>
+    <p>Respond in the Stripe dashboard before the evidence deadline, or the dispute is lost.</p>
+    <p>{{ app_name }}</p>
+  </body>
+</html>

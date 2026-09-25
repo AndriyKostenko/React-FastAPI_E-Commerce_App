@@ -6,6 +6,7 @@ from shared.idempotency.idempotency_service import IdempotencyEventService
 from shared.managers.database_session_manager import DatabaseSessionManager
 from taskiq import AsyncTaskiqDecoratedTask
 from shared.contracts.events import (
+    PaymentDisputeEvent,
     CJOrderDeliveredEvent,
     CJOrderShippedEvent,
     ProductionJobCancelledEvent,
@@ -25,6 +26,7 @@ from shared.enums.event_enums import (
 from service_layer.notification_service import NotificationService
 from database_layer.notification_repository import NotificationRepository
 from tasks.email_tasks import (
+    send_admin_dispute_alert,
     send_verification_email,
     send_email_verified_notification,
     send_login_notification,
@@ -186,11 +188,8 @@ class OrderEventHandler(BaseEventHandler):
             await self._save_notification(user_id=user_id,message=notification_message,notification_type=event_type)
 
             # Enqueued only once the notification is committed: a failed save used to
-
             # release the claim after the email was already queued, so the retry sent it twice.
-
             if email_task is not None:
-
                 await email_task.kiq(message)
             await self._mark_processed(event_id=event_id, event_type=event_type, order_id=order_id)
 
@@ -227,8 +226,20 @@ class PaymentEventHandler(BaseEventHandler):
                     event = PaymentFailedEvent(**message)
                     notification_message = f"Payment for order #{order_id} failed: {event.reason}"
                 case PaymentEvents.PAYMENT_REFUNDED:
-                    _ = PaymentRefundedEvent(**message)
-                    notification_message = f"Payment for order #{order_id} was refunded."
+                    refunded = PaymentRefundedEvent(**message)
+                    notification_message = (
+                        f"Part of your payment for order #{order_id} was refunded "
+                        f"({(refunded.refunded_amount_cents or 0) / 100:.2f} {refunded.currency.upper()})."
+                        if refunded.refund_id else f"Payment for order #{order_id} was refunded."
+                    )
+                case PaymentEvents.PAYMENT_DISPUTE_OPENED | PaymentEvents.PAYMENT_DISPUTE_CLOSED:
+                    dispute = PaymentDisputeEvent(**message)
+                    # An operational alert, not a message for the customer.
+                    user_id = None
+                    email_task = send_admin_dispute_alert
+                    notification_message = (
+                        f"Dispute {dispute.dispute_id} on order #{order_id}: {dispute.dispute_status} ({dispute.reason})"
+                    )
                 case PaymentEvents.PAYMENT_CANCELLED:
                     event = PaymentCancelledEvent(**message)
                     notification_message = f"Payment for order #{order_id} was cancelled: {event.reason}"
@@ -240,11 +251,8 @@ class PaymentEventHandler(BaseEventHandler):
             await self._save_notification(user_id=user_id, message=notification_message, notification_type=event_type)
 
             # Enqueued only once the notification is committed: a failed save used to
-
             # release the claim after the email was already queued, so the retry sent it twice.
-
             if email_task is not None:
-
                 await email_task.kiq(message)
             await self._mark_processed(event_id=event_id, event_type=event_type, order_id=order_id)
 
@@ -315,11 +323,8 @@ class CJOrderEventHandler(BaseEventHandler):
             )
 
             # Enqueued only once the notification is committed: a failed save used to
-
             # release the claim after the email was already queued, so the retry sent it twice.
-
             if email_task is not None:
-
                 await email_task.kiq(message)
             await self._mark_processed(event_id=event_id, event_type=event_type, order_id=order_id)
 
@@ -405,11 +410,8 @@ class ProductionEventHandler(BaseEventHandler):
             )
 
             # Enqueued only once the notification is committed: a failed save used to
-
             # release the claim after the email was already queued, so the retry sent it twice.
-
             if email_task is not None:
-
                 await email_task.kiq(message)
             await self._mark_processed(event_id=event_id, event_type=event_type, order_id=order_id)
 

@@ -22,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from main import app
 from database_layer.payment_repository import PaymentRepository
 from dependencies.dependencies import (
+    get_payment_dispute_service,
     get_db_session,
     get_idempotency_service,
     get_outbox_service,
@@ -277,6 +278,9 @@ async def client_for_unit_testing(
     original_lifespan = app.router.lifespan_context
     app.router.lifespan_context = _noop_lifespan
     app.dependency_overrides[get_payment_service] = lambda: mock_route_payment_service
+    app.dependency_overrides[get_payment_dispute_service] = lambda: MagicMock(
+        opened=AsyncMock(), updated=AsyncMock(), closed=AsyncMock()
+    )
     app.dependency_overrides[get_idempotency_service] = lambda: mock_idempotency_service
 
     original_debug_mode = settings.DEBUG_MODE

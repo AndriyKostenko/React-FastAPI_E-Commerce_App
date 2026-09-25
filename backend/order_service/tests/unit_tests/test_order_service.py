@@ -322,6 +322,7 @@ class TestUpdateOrder:
         updated_orm.subtotal_amount = None
         updated_orm.shipping_amount = None
         updated_orm.tax_amount = None
+        updated_orm.dispute_status = None
         updated_orm.shipping_logistic_name = None
         updated_orm.currency = TEST_CURRENCY
         updated_orm.status = OrderStatus.PENDING

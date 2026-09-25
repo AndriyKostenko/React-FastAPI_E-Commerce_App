@@ -204,6 +204,20 @@ class PaymentCancelledEvent(PaymentBaseEvent):
     reason: str
 
 
+class PaymentDisputeEvent(PaymentBaseEvent):
+    """
+    The customer's bank opened or settled a dispute (chargeback) on the charge.
+    Nothing is done automatically: the order is flagged and an admin told.
+    """
+    event_type: str = Field(default_factory=lambda: PaymentEvents.PAYMENT_DISPUTE_OPENED)
+    dispute_id: str
+    disputed_amount_cents: int
+    reason: str
+    # needs_response / under_review / won / lost / warning_closed ...
+    dispute_status: str
+    evidence_due_by: datetime | None = None
+
+
 class PaymentCommandBase(BaseEvent):
     """An order_service instruction about the card held for one order."""
     order_id: UUID

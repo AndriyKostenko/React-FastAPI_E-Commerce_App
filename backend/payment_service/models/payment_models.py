@@ -1,5 +1,6 @@
+from datetime import datetime
 from uuid import UUID, uuid4
-from sqlalchemy import ForeignKey, Index, inspect
+from sqlalchemy import DateTime, ForeignKey, Index, inspect
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 
@@ -89,3 +90,21 @@ class PaymentRefund(Base, TimestampMixin):
     status: Mapped[str] = mapped_column(nullable=False)
     stripe_refund_id: Mapped[str | None] = mapped_column(nullable=True)
     failure_reason: Mapped[str | None] = mapped_column(nullable=True)
+
+
+class PaymentDispute(Base, TimestampMixin):
+    """A chargeback on one payment, as Stripe reports it. Keyed by Stripe's id."""
+
+    __tablename__ = "payment_disputes"
+
+    id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4)
+    stripe_dispute_id: Mapped[str] = mapped_column(unique=True, nullable=False)
+    # Null when Stripe reports a dispute on a charge this service has no record of.
+    payment_id: Mapped[UUID | None] = mapped_column(
+        PostgresUUID(as_uuid=True), ForeignKey("payments.id"), nullable=True, index=True
+    )
+    amount_cents: Mapped[int] = mapped_column(nullable=False)
+    currency: Mapped[str] = mapped_column(nullable=False)
+    reason: Mapped[str] = mapped_column(nullable=False)
+    status: Mapped[str] = mapped_column(nullable=False)
+    evidence_due_by: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

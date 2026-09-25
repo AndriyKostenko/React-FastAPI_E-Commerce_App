@@ -25,6 +25,7 @@ from shared.contracts.events import (
     PaymentCancelledEvent,
     PaymentRefundedEvent,
     PaymentRefundFailedEvent,
+    PaymentDisputeEvent,
     ShipmentCreatedEvent,
     ShipmentShippedEvent,
     ShipmentDeliveredEvent,
@@ -128,8 +129,35 @@ class OrderEventConsumer:
                 await self.handle_payment_cancelled(message)
             case PaymentEvents.PAYMENT_REFUNDED | PaymentEvents.PAYMENT_REFUND_FAILED:
                 await self.handle_refund_result(message)
+            case PaymentEvents.PAYMENT_DISPUTE_OPENED | PaymentEvents.PAYMENT_DISPUTE_CLOSED:
+                await self.handle_dispute(message)
             case _:
                 self.logger.warning(f"Unhandled payment event type in order consumer: {event_type}")
+
+    async def handle_dispute(self, message: dict[str, Any]) -> None:
+        """Flag the order while a chargeback is open, then record its outcome."""
+        event = PaymentDisputeEvent(**message)
+        if not await self.idempotency_service.try_claim_event(event_id=event.event_id, event_type=event.event_type):
+            return
+        try:
+            opened = event.event_type == PaymentEvents.PAYMENT_DISPUTE_OPENED
+            async with self.database.transaction() as session:
+                order = await OrderRepository(session=session).get_by_id(event.order_id)
+                if order is not None:
+                    order.dispute_status = "open" if opened else event.dispute_status[:30]
+                    await OrderRepository(session=session).update(order)
+            self.logger.critical(
+                "Order %s: dispute %s %s (%s, evidence due %s)",
+                event.order_id, event.dispute_id, "OPENED" if opened else f"closed {event.dispute_status}",
+                event.reason, event.evidence_due_by,
+            )
+            await self.idempotency_service.mark_event_as_processed(
+                event_id=event.event_id, event_type=event.event_type, order_id=event.order_id,
+                result="dispute_opened" if opened else f"dispute_{event.dispute_status}",
+            )
+        except Exception:
+            await self.idempotency_service.release_claim(event_id=event.event_id, event_type=event.event_type)
+            raise
 
     async def handle_refund_result(self, message: dict[str, Any]) -> None:
         """payment-service's answer to a partial refund this service requested."""

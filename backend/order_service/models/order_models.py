@@ -1,7 +1,7 @@
 from decimal import Decimal
 from uuid import UUID, uuid4
 
-from sqlalchemy import ForeignKey, Index, Numeric, inspect
+from sqlalchemy import ForeignKey, Index, Numeric, inspect, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 
@@ -28,6 +28,9 @@ class Order(Base, TimestampMixin):
     subtotal_amount: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
     shipping_amount: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
     tax_amount: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
+    # Set when the customer disputes the charge with their bank: "open" until
+    # Stripe reports the outcome (won / lost / ...). Flags the order for review.
+    dispute_status: Mapped[str | None] = mapped_column(String(30), nullable=True)
     # The CJ logistics option the customer paid for, and what CJ quoted for it.
     shipping_logistic_name: Mapped[str | None] = mapped_column(nullable=True)
     shipping_cost_usd: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)

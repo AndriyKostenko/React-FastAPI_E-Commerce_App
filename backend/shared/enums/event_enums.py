@@ -108,6 +108,9 @@ class PaymentEvents(StrEnum):
     PAYMENT_CANCELLED = "payment.cancelled"
     # One word after "payment." so order-service's "payment.*" binding matches it.
     PAYMENT_REFUND_FAILED = "payment.refund_failed"
+    # A customer disputed the charge with their bank (a chargeback).
+    PAYMENT_DISPUTE_OPENED = "payment.dispute_opened"
+    PAYMENT_DISPUTE_CLOSED = "payment.dispute_closed"
 
 
 class PaymentCommands(StrEnum):

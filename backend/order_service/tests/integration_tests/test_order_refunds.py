@@ -6,6 +6,7 @@ order confirmed through the payment path, with one job on the queue.
 
 import asyncio
 from decimal import Decimal
+from unittest.mock import AsyncMock, MagicMock
 from uuid import UUID, uuid4
 
 import pytest
@@ -13,6 +14,7 @@ from httpx import AsyncClient
 from sqlalchemy import select
 
 from database_layer.order_refund_repository import OrderRefundRepository
+from events_consumer.order_event_consumer import OrderEventConsumer
 from database_layer.order_repository import OrderRepository
 from database_layer.order_saga_repository import OrderSagaRepository
 from exceptions.order_exceptions import InvalidOrderRefundError
@@ -21,8 +23,9 @@ from models.outbox_models import OutboxEvent
 from schemas.order_refund_schemas import RefundLineRequest, RefundRequest
 from service_layer.order_refund_service import OrderRefundService, RefundState
 from service_layer.outbox_event_service import OutboxEventService
+from shared.contracts.events import PaymentDisputeEvent
 from shared.database_layer.outbox_repository import OutboxRepository
-from shared.enums.event_enums import PaymentCommands
+from shared.enums.event_enums import PaymentCommands, PaymentEvents
 from shared.enums.status_enums import OrderStatus
 from shared.managers.test_database_session_manager import TestDatabaseSessionManager
 from shared.testing.signing_keys import ANONYMOUS
@@ -187,3 +190,29 @@ async def test_a_job_cancelled_after_printing_is_left_to_a_human(
     assert cancelled.status_code == 200
     assert cancelled.json()["reconciliation_required"] is True
     assert (await integration_client.get(_refunds_url(queued_job["order"]["id"]))).json() == []
+
+
+async def test_a_dispute_flags_the_order_then_records_the_outcome(
+    integration_client: AsyncClient, queued_job: dict, test_database_session_manager  # noqa: F811
+) -> None:
+    idempotency = MagicMock(
+        try_claim_event=AsyncMock(return_value=True), mark_event_as_processed=AsyncMock(), release_claim=AsyncMock()
+    )
+    consumer = OrderEventConsumer(
+        logger=MagicMock(), database=test_database_session_manager,
+        idempotency_service=idempotency, event_publisher=MagicMock(),
+    )
+    order = queued_job["order"]
+
+    def event(event_type: str, status: str) -> dict:
+        return PaymentDisputeEvent(
+            event_type=event_type, order_id=order["id"], user_id=order["user_id"], user_email=order["user_email"],
+            payment_intent_id="pi_x", amount=1.0, currency="cad", dispute_id="dp_1",
+            disputed_amount_cents=100, reason="fraudulent", dispute_status=status,
+        ).model_dump(mode="json")
+
+    await consumer.handle_payment_event(event(PaymentEvents.PAYMENT_DISPUTE_OPENED, "needs_response"))
+    assert (await integration_client.get(f"{TEST_API}/orders/{order['id']}")).json()["dispute_status"] == "open"
+
+    await consumer.handle_payment_event(event(PaymentEvents.PAYMENT_DISPUTE_CLOSED, "lost"))
+    assert (await integration_client.get(f"{TEST_API}/orders/{order['id']}")).json()["dispute_status"] == "lost"

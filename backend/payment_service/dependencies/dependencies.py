@@ -11,6 +11,9 @@ from service_layer.outbox_event_service import OutboxEventService
 from models.outbox_models import OutboxEvent
 from resources import PaymentApiResources, get_payment_api_resources
 from shared.idempotency.idempotency_service import IdempotencyEventService
+from database_layer.payment_repository import PaymentDisputeRepository
+from service_layer.payment_dispute_service import PaymentDisputeService
+from config import logger
 
 
 def get_api_resources(request: Request) -> PaymentApiResources:
@@ -55,4 +58,18 @@ def get_payment_service(session: AsyncSession = Depends(get_db_session, scope="f
 
 
 payment_service_dependency = Annotated[PaymentService, Depends(get_payment_service)]
+
+
+def get_payment_dispute_service(
+    session: AsyncSession = Depends(get_db_session, scope="function"),
+) -> PaymentDisputeService:
+    return PaymentDisputeService(
+        payment_repository=PaymentRepository(session=session),
+        dispute_repository=PaymentDisputeRepository(session=session),
+        outbox_event_service=OutboxEventService(repository=OutboxRepository(session=session, model=OutboxEvent)),
+        logger=logger,
+    )
+
+
+payment_dispute_service_dependency = Annotated[PaymentDisputeService, Depends(get_payment_dispute_service)]
 idempotency_service_dependency = Annotated[IdempotencyEventService, Depends(get_idempotency_service)]

@@ -3,7 +3,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models.payment_models import Payment, PaymentRefund
+from models.payment_models import Payment, PaymentDispute, PaymentRefund
 from shared.database_layer.database_layer import BaseRepository
 
 
@@ -24,3 +24,9 @@ class PaymentRefundRepository(BaseRepository[PaymentRefund]):
     """Partial refunds, keyed by order_service's refund id."""
     def __init__(self, session: AsyncSession):
         super().__init__(session, PaymentRefund)
+
+
+class PaymentDisputeRepository(BaseRepository[PaymentDispute]):
+    """Chargebacks, keyed by Stripe's dispute id."""
+    def __init__(self, session: AsyncSession):
+        super().__init__(session, PaymentDispute)

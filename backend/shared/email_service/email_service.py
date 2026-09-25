@@ -9,6 +9,7 @@ from jinja2 import Environment, FileSystemLoader, TemplateNotFound
 from shared.exceptions.base_exceptions import EmailServiceError
 from shared.settings import Settings
 from shared.contracts.events import (
+    PaymentDisputeEvent,
     EmailVerificationEvent,
     UserRegisteredEvent,
     PasswordResetRequestedEvent,
@@ -271,3 +272,32 @@ class OrderRelatedNotifications(EmailService):
             }
         )
         self.logger.info(f"Sent delivery notification for order: {event.order_id}")
+
+
+class AdminAlerts(EmailService):
+    """Operational alerts for whoever runs the shop (ADMIN_ALERT_EMAIL)."""
+
+    async def send_dispute_alert(self, event: PaymentDisputeEvent) -> None:
+        recipient = self.settings.ADMIN_ALERT_EMAIL
+        if not recipient:
+            self.logger.critical(
+                "Dispute %s on order %s (%s) - set ADMIN_ALERT_EMAIL to be emailed about disputes",
+                event.dispute_id, event.order_id, event.dispute_status,
+            )
+            return
+        opened = event.event_type == "payment.dispute_opened"
+        await self.send_email_async(
+            recipients=[recipient],
+            subject=f"Payment dispute {'OPENED' if opened else 'closed'} - order {event.order_id}",
+            template_name="admin_dispute_alert.html",
+            template_body={
+                "action": "opened" if opened else f"closed ({event.dispute_status})",
+                "order_id": str(event.order_id),
+                "dispute_id": event.dispute_id,
+                "dispute_status": event.dispute_status,
+                "reason": event.reason,
+                "amount": f"{event.disputed_amount_cents / 100:.2f} {event.currency.upper()}",
+                "evidence_due_by": event.evidence_due_by.isoformat() if event.evidence_due_by else "n/a",
+                "app_name": self.settings.MAIL_FROM_NAME,
+            },
+        )
