@@ -140,22 +140,31 @@ class CJOrderPaymentService:
         if not attempt.cj_order_number:
             raise CJPaymentPending(f"Order {order_id} has no CJ order number yet")
 
-        await self._bump_attempts(order_id)
-        snapshot = await self._snapshot(attempt.cj_order_number)
+        await self._claim(order_id)
+        try:
+            return await self._advance_claimed(order_id, attempt, attempt.cj_order_number)
+        finally:
+            await self._release(order_id)
+
+    async def _advance_claimed(
+        self, order_id: UUID, attempt: CJOrderAttempt, cj_order_number: str
+    ) -> CJOrderAttemptStatus | None:
+        """The confirm -> pay walk, run only by the holder of the payment lease."""
+        snapshot = await self._snapshot(cj_order_number)
 
         if snapshot.status == _CANCELLED:
-            return await self._fail(order_id, f"CJ cancelled order {attempt.cj_order_number} before it was paid")
+            return await self._fail(order_id, f"CJ cancelled order {cj_order_number} before it was paid")
         if snapshot.status in _PAID_OR_LATER:
             return await self._record_paid(order_id, snapshot.amount_usd)
         if snapshot.status in _NOT_CONFIRMED:
-            await self._confirm(attempt.cj_order_number)
+            await self._confirm(cj_order_number)
             await self._set_status(order_id, CJOrderAttemptStatus.CONFIRMED)
-            snapshot = await self._snapshot(attempt.cj_order_number)
+            snapshot = await self._snapshot(cj_order_number)
             if snapshot.status in _PAID_OR_LATER:
                 return await self._record_paid(order_id, snapshot.amount_usd)
         if snapshot.status != _UNPAID:
             raise CJPaymentPending(
-                f"CJ order {attempt.cj_order_number} is {snapshot.status or 'unknown'}, not payable yet"
+                f"CJ order {cj_order_number} is {snapshot.status or 'unknown'}, not payable yet"
             )
         await self._set_status(order_id, CJOrderAttemptStatus.CONFIRMED, amount_usd=snapshot.amount_usd)
         return await self._pay(attempt, snapshot)
@@ -278,12 +287,31 @@ class CJOrderPaymentService:
         async with self.database.transaction() as session:
             return await CJOrderAttemptRepository(session).get_by_field("order_id", order_id)
 
-    async def _bump_attempts(self, order_id: UUID) -> None:
+    async def _claim(self, order_id: UUID) -> None:
+        """
+        Take the payment lease, or raise CJPaymentPending if another runner
+        holds it. Checked under the row lock, so exactly one caller wins.
+        """
+        now = datetime.now(timezone.utc)
         async with self.database.transaction() as session:
             repository = CJOrderAttemptRepository(session)
             attempt = await repository.get_for_update(order_id)
-            if attempt:
-                attempt.payment_attempts = (attempt.payment_attempts or 0) + 1
+            if attempt is None:
+                return
+            if attempt.payment_leased_until is not None and attempt.payment_leased_until > now:
+                raise CJPaymentPending(f"CJ payment for order {order_id} is already in progress")
+            attempt.payment_attempts = (attempt.payment_attempts or 0) + 1
+            attempt.payment_leased_until = now + timedelta(
+                minutes=self.settings.CJ_PAYMENT_LEASE_MINUTES
+            )
+            await repository.update(attempt)
+
+    async def _release(self, order_id: UUID) -> None:
+        async with self.database.transaction() as session:
+            repository = CJOrderAttemptRepository(session)
+            attempt = await repository.get_for_update(order_id)
+            if attempt is not None and attempt.payment_leased_until is not None:
+                attempt.payment_leased_until = None
                 await repository.update(attempt)
 
     async def _set_status(

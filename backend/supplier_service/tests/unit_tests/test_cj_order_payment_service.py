@@ -28,6 +28,7 @@ def _settings(**overrides):
         "CJ_PAYMENT_RETRY_INTERVAL_MINUTES": 10,
         "CJ_PAYMENT_MAX_WAIT_HOURS": 24,
         "CJ_PAYMENT_BATCH_SIZE": 50,
+        "CJ_PAYMENT_LEASE_MINUTES": 10,
     }
     values.update(overrides)
     return SimpleNamespace(**values)
@@ -94,6 +95,7 @@ def _attempt(store: _Store, status=CJOrderAttemptStatus.CREATED, **overrides):
         cj_order_amount_usd=None,
         paid_at=None,
         payment_attempts=0,
+        payment_leased_until=None,
         last_error=None,
         date_created=NOW,
         date_updated=NOW,
@@ -217,6 +219,53 @@ class TestAdvance:
 
         assert status == CJOrderAttemptStatus.PAID
         api.get_order_detail.assert_not_awaited()
+
+
+class TestPaymentLease:
+    """
+    The order.confirmed consumer and the payment cron both call advance(); the
+    lease keeps them from both walking an order to pay_balance at once.
+    """
+
+    async def test_a_held_lease_stops_a_second_runner_before_it_touches_cj(self, store) -> None:
+        held_until = datetime.now(timezone.utc) + timedelta(minutes=5)
+        attempt = _attempt(store, payment_leased_until=held_until)
+        api = _api(_detail("CREATED"), _detail("UNPAID"), _detail("UNPAID"))
+
+        with pytest.raises(CJPaymentPending, match="already in progress"):
+            await _service(api).advance(attempt.order_id)
+
+        api.get_order_detail.assert_not_awaited()
+        api.pay_balance.assert_not_awaited()
+        assert attempt.payment_leased_until == held_until  # someone else's lease is left alone
+
+    async def test_the_lease_is_released_after_a_payment(self, store) -> None:
+        attempt = _attempt(store)
+        api = _api(_detail("CREATED"), _detail("UNPAID"), _detail("UNPAID"))
+
+        await _service(api).advance(attempt.order_id)
+
+        assert attempt.payment_leased_until is None
+        assert attempt.payment_attempts == 1
+
+    async def test_the_lease_is_released_when_the_walk_fails(self, store) -> None:
+        attempt = _attempt(store)
+        api = _api(_detail("CREATED"))
+        api.confirm_order = AsyncMock(side_effect=CJDropshippingAPIError("CJ down"))
+        api.get_order_detail = AsyncMock(side_effect=[_detail("CREATED"), _detail("CREATED")])
+
+        with pytest.raises(CJPaymentPending):
+            await _service(api).advance(attempt.order_id)
+
+        assert attempt.payment_leased_until is None  # the next run is not locked out
+
+    async def test_an_expired_lease_from_a_crashed_runner_is_taken_over(self, store) -> None:
+        attempt = _attempt(store, payment_leased_until=datetime.now(timezone.utc) - timedelta(seconds=1))
+        api = _api(_detail("CREATED"), _detail("UNPAID"), _detail("UNPAID"))
+
+        await _service(api).advance(attempt.order_id)
+
+        api.pay_balance.assert_awaited_once()
 
 
 class TestAdvanceDue:

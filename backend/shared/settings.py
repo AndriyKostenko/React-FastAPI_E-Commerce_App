@@ -419,6 +419,8 @@ class Settings(BaseSettings):
     CJ_PAYMENT_RETRY_INTERVAL_MINUTES: int = Field(default=10, gt=0)
     CJ_PAYMENT_MAX_WAIT_HOURS: int = Field(default=24, gt=0)
     CJ_PAYMENT_BATCH_SIZE: int = Field(default=50, gt=0)
+    # Longer than a full confirm -> pay walk with CJ timeouts and retries.
+    CJ_PAYMENT_LEASE_MINUTES: int = Field(default=10, gt=0)
     CJ_DROPSHIPPING_PLATFORM: str = "Api"
     CJ_DROPSHIPPING_ORDER_CREATE_RETRIES: int = 2
     CJ_DROPSHIPPING_ORDER_CREATE_TIMEOUT_SECONDS: float = 15.0
