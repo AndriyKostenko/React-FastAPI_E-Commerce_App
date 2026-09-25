@@ -465,15 +465,15 @@ Backend:
 | 9 | Token purposes? | **Done (2026-09-24).** `purpose`, `iss`, `aud`, `iat`, `jti` are required; only user-service holds the signing key (Ed25519) |
 | 10 | Remove `PUBLIC_ENDPOINTS` completely? | Done (§4b) |
 | 11 | OpenAPI → TypeScript? | Open (tooling) |
-| 12 | Order saga frozen while waiting on CJ stock? | Open — a saga timeout worker exists; review its coverage |
+| 12 | Order saga frozen while waiting on CJ stock? | **Done (2026-09-25).** The timeout worker only covered *pending* sagas; a confirmed order CJ never took on sat until the card hold lapsed. It is now cancelled after `ORDER_SUPPLIER_STALL_HOURS` (24h, hold released). A CJ outage during the stock check is retried, no longer an instant cancel + refund |
 | 13 | Session/transaction held open while awaiting services or queues? | Open — audit |
 | 14 | Value objects (frozen dataclasses)? | Open (refactor) |
 | 15 | Unit of Work? | Open (refactor) |
-| 16 | Circuit breaker / retries for CJ? | Open — the gateway breaker is also disabled (`apigateway.py`) |
+| 16 | Circuit breaker / retries for CJ? | **Done (2026-09-25).** Per-service breakers in the gateway (503 + Retry-After); CJ reads retry with backoff, writes never do; a process-wide CJ breaker; 429/5xx are 'unavailable', not a rejection |
 | 17 | Process isolation: API, task queue, consumers, DB? | Open |
 | 18 | RabbitMQ ack policy + DLX? | **Done (2026-09-24).** Worse than open: every queue dead-lettered to a `dlx` exchange nothing declared, so RabbitMQ dropped every failed message. `shared.messaging.ConsumerTopology` now declares `dlx`, one DLQ per queue and 5s/30s/120s retry queues before consuming; `RetryDispatcher` retries transient failures and dead-letters payload errors at once. All 20 queues in 8 consumers, verified on the live broker |
 | 19 | One Postgres instance, one superuser? | Open — per-service least-privilege roles |
-| 19b | taskiq DLX? | **Done for notifications (2026-09-24).** taskiq acks a failed task (its result is saved), so its DLQ never saw one. `DeadLetteringRetryMiddleware` retries emails with backoff and jitter, then parks them in `taskiq.notifications.dead_letter`. Image generation (refunds quota) and the supplier cron jobs (next run is the retry) deliberately do not retry |
+| 19b | taskiq DLX? | **Done for notifications (2026-09-24).** taskiq acks a failed task (its result is saved), so its DLQ never saw one. `DeadLetteringRetryMiddleware` retries emails with backoff and jitter, then parks them in `taskiq.notifications.dead_letter`. Image generation (refunds quota) and the supplier cron jobs (next run is the retry) deliberately do not retry. Parked messages replay with `./local/dev.sh dlq list` / `dlq replay <queue>` |
 | 20 | `autoflush` / `expire_on_commit`; UoW transaction boundaries? | Open — audit |
 
 Frontend:

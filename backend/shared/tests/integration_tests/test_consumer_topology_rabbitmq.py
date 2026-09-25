@@ -25,6 +25,7 @@ from shared.messaging import (
     ResilientQueue,
     RetrySchedule,
 )
+from shared.messaging.dead_letter_replay import DeadLetterReplayer
 from shared.settings import get_settings
 
 
@@ -192,3 +193,25 @@ async def test_declare_is_idempotent(amqp: aio_pika.abc.AbstractChannel) -> None
         await broker.stop()
         for name in (queue.dead_letter_key, *(q.name for q in queue.retry_queues)):
             await amqp.queue_delete(name)
+
+
+async def test_replay_returns_a_parked_message_to_its_queue_with_a_fresh_budget(
+    amqp: aio_pika.abc.AbstractChannel,
+) -> None:
+    probe = HandlerProbe(failures=99)
+    queue = await _run(probe, b'{"order_id": "o-9"}', expected_deliveries=FAST_RETRIES.max_retries + 1)
+    try:
+        report = await DeadLetterReplayer(BROKER_URL, getLogger("test.dlq-replay")).replay(queue.dead_letter_key)
+
+        # Sent back to the queue whose consumer rejected it — not to a retry queue.
+        assert report.replayed == {queue.name: 1} and report.skipped == 0
+        main = await amqp.declare_queue(queue.name, passive=True)
+        replayed = await main.get(fail=False)
+        assert replayed is not None
+        await replayed.ack()
+        assert replayed.body == b'{"order_id": "o-9"}'
+        headers = replayed.headers or {}
+        assert RETRY_ATTEMPT_HEADER not in headers and "x-death" not in headers
+        assert await _drain(amqp, queue.dead_letter_key, timeout=0.3) == []
+    finally:
+        await _delete_topology(amqp, queue)

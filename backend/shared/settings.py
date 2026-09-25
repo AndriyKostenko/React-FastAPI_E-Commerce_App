@@ -201,6 +201,9 @@ class Settings(BaseSettings):
     GATEWAY_ASSERTION_TTL_SECONDS: int = Field(default=60, gt=0, le=300)
     # Per-service circuit breaker in the gateway.
     GATEWAY_BREAKER_FAILURE_THRESHOLD: int = Field(default=5, ge=1)
+    # A confirmed order whose CJ part has not started by then is cancelled
+    # (card hold released) — well inside the ~7-day authorization window.
+    ORDER_SUPPLIER_STALL_HOURS: int = Field(default=24, ge=1, le=120)
     GATEWAY_BREAKER_RECOVERY_SECONDS: float = Field(default=30.0, gt=0)
     TOKEN_TYPE: str
     # Unused since services stopped reading bearer tokens (the gateway's caller
