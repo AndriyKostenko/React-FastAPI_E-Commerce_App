@@ -273,10 +273,16 @@ class PaymentService:
             )
             return payment
 
+        # Lines refunded before capture are simply not charged.
+        reduction_used = payment.capture_reduction_cents
+        capture_params = (
+            {"amount_to_capture": payment.amount - reduction_used} if reduction_used else None
+        )
         await self._finish_read_phase()
         try:
             await self._stripe.v1.payment_intents.capture_async(
                 payment.stripe_payment_intent_id,
+                capture_params,
                 options={"idempotency_key": self._capture_idempotency_key(order_id)},
             )
         except StripeError as exc:
@@ -298,6 +304,14 @@ class PaymentService:
                 raise PaymentCaptureError(detail=str(exc)) from exc
 
         async with self.repository.session.begin_nested():
+            locked = await self.repository.get_by_order_for_update(order_id)
+            # A reduction recorded between reading the amount and Stripe
+            # capturing was charged anyway: convert it into a refund, reserved
+            # here under the lock and made on Stripe once this commits.
+            late_cents = (locked.capture_reduction_cents - reduction_used) if locked else 0
+            if locked is not None and late_cents > 0:
+                locked.capture_reduction_cents = reduction_used
+                locked.refunded_cents += late_cents
             updated = await self.repository.update_by_id(
                 item_id=payment.id,
                 data={"status": PaymentStatus.SUCCEEDED},
@@ -315,7 +329,23 @@ class PaymentService:
                     currency=payment.currency,
                 ),
             )
+        if late_cents > 0:
+            await self._refund_late_reduction(payment, late_cents)
         return updated
+
+    async def _refund_late_reduction(self, payment: Payment, late_cents: int) -> None:
+        await self._finish_read_phase()  # the reservation is committed first
+        try:
+            await self._stripe.v1.refunds.create_async(
+                {"payment_intent": payment.stripe_payment_intent_id, "amount": late_cents},
+                options={"idempotency_key": f"payment_refund:late_reduction:{payment.order_id}"},
+            )
+        except StripeError as exc:
+            self.logger.critical(
+                "RECONCILIATION REQUIRED for order %s: %s cents reduced before capture "
+                "were charged and could not be refunded: %s",
+                payment.order_id, late_cents, exc,
+            )
 
     async def _record_cancelled(self, payment: Payment, reason: str) -> Payment | None:
         async with self.repository.session.begin_nested():

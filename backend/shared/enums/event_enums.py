@@ -106,6 +106,8 @@ class PaymentEvents(StrEnum):
     PAYMENT_FAILED = "payment.failed"
     PAYMENT_REFUNDED = "payment.refunded"
     PAYMENT_CANCELLED = "payment.cancelled"
+    # One word after "payment." so order-service's "payment.*" binding matches it.
+    PAYMENT_REFUND_FAILED = "payment.refund_failed"
 
 
 class PaymentCommands(StrEnum):
@@ -118,6 +120,8 @@ class PaymentCommands(StrEnum):
 
     CAPTURE_REQUESTED = "payment.capture.requested"
     RELEASE_REQUESTED = "payment.release.requested"
+    # Give back part of a payment (lines, maybe shipping) — admin-driven.
+    REFUND_REQUESTED = "payment.refund.requested"
 
 
 class ShippingEvents(StrEnum):

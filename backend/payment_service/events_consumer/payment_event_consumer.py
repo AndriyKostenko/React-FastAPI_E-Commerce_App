@@ -6,6 +6,7 @@ from shared.idempotency.idempotency_service import IdempotencyEventService
 from shared.managers.database_session_manager import DatabaseSessionManager
 from shared.enums.event_enums import OrderEvents, PaymentCommands
 from shared.contracts.events import (
+    PaymentRefundRequested,
     OrderCancelledEvent,
     PaymentCaptureRequested,
     PaymentReleaseRequested,
@@ -16,6 +17,7 @@ from service_layer.payment_service import PaymentService
 from service_layer.outbox_event_service import OutboxEventService
 from models.outbox_models import OutboxEvent
 from shared.settings import Settings
+from service_layer.payment_refund_service import PaymentRefundService
 
 
 class PaymentEventConsumer:
@@ -65,6 +67,8 @@ class PaymentEventConsumer:
                 await self.handle_capture_requested(message)
             case PaymentCommands.RELEASE_REQUESTED:
                 await self.handle_release_requested(message)
+            case PaymentCommands.REFUND_REQUESTED:
+                await self.handle_refund_requested(message)
             case _:
                 self.logger.warning(f"Unhandled payment consumer event type: {event_type}")
 
@@ -148,6 +152,30 @@ class PaymentEventConsumer:
                 event_id=command.event_id, event_type=command.event_type
             )
             self.logger.error(f"Error capturing payment for order {command.order_id}: {e}")
+            raise
+
+    async def handle_refund_requested(self, message: dict[str, Any]) -> None:
+        """Give back part of an order's payment (lines chosen by an admin)."""
+        command = PaymentRefundRequested(**message)
+        if not await self.idempotency_service.try_claim_event(
+            event_id=command.event_id, event_type=command.event_type
+        ):
+            return
+        try:
+            status = await PaymentRefundService(self.database, self.stripe_client, self.logger).refund(command)
+            await self.idempotency_service.mark_event_as_processed(
+                event_id=command.event_id,
+                event_type=command.event_type,
+                order_id=command.order_id,
+                result=f"refund_{status}",
+            )
+        except Exception as e:
+            # Uncertain Stripe errors land here: the claim is released so the
+            # retried command resumes the pending refund with the same key.
+            await self.idempotency_service.release_claim(
+                event_id=command.event_id, event_type=command.event_type
+            )
+            self.logger.error(f"Error refunding order {command.order_id} (refund {command.refund_id}): {e}")
             raise
 
     async def handle_release_requested(self, message: dict[str, Any]) -> None:

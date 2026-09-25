@@ -543,6 +543,24 @@ class TestCapturePayment:
             == "payment.succeeded"
         )
 
+    async def test_capture_charges_less_after_a_pre_capture_refund(
+        self,
+        payment_service_unit,
+        mock_payment_repository: MagicMock,
+        mock_outbox_event_service,
+        mock_payment_orm: MagicMock,
+        mock_stripe_client: MagicMock,
+    ) -> None:
+        mock_payment_orm.status = PaymentStatus.AUTHORIZED
+        mock_payment_orm.capture_reduction_cents = 2_000
+        mock_payment_repository.get_by_field.return_value = mock_payment_orm
+        mock_outbox_event_service.add_outbox_event = AsyncMock()
+
+        await payment_service_unit.capture_payment(mock_payment_orm.order_id)
+
+        capture = mock_stripe_client.v1.payment_intents.capture_async.await_args
+        assert capture.args[1] == {"amount_to_capture": mock_payment_orm.amount - 2_000}
+
     async def test_already_captured_payment_is_left_alone(
         self,
         payment_service_unit,

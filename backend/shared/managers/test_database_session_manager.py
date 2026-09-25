@@ -23,6 +23,27 @@ class TestDatabaseSessionManager(DatabaseSessionManager):
         self.engine_settings = {"echo": False, "pool_pre_ping": True, "poolclass": NullPool}
         self._initialize_engine()
 
+    # Databases whose schema this test process has already rebuilt.
+    _rebuilt: set[str] = set()
+
+    async def init_db(self, metadata: MetaData) -> None:
+        """
+        On the first call per test process, drop and recreate the schema from
+        the models; afterwards, just ensure the tables exist.
+
+        create_all never alters an existing table, so a test database created
+        before a model change kept the old columns — tests then ran against a
+        schema production does not have (or failed on a missing column).
+        """
+        key = str(self.database_url)
+        if key not in self._rebuilt:
+            if self.async_engine is None:
+                raise RuntimeError("Database engine is not initialized.")
+            async with self.async_engine.begin() as connection:
+                await connection.run_sync(metadata.drop_all)
+            TestDatabaseSessionManager._rebuilt.add(key)
+        await super().init_db(metadata)
+
     async def truncate_all_tables(self, metadata: MetaData) -> None:
         """
         Delete all rows from every mapped table and restart identity sequences.

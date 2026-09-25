@@ -179,8 +179,23 @@ class PaymentFailedEvent(PaymentBaseEvent):
 
 
 class PaymentRefundedEvent(PaymentBaseEvent):
-    """Event published when a payment is refunded after order cancellation"""
+    """
+    Money went back to the customer: the whole payment after a cancellation,
+    or part of it for a refund order_service requested (``refund_id`` set).
+    """
     event_type: str = Field(default_factory=lambda: PaymentEvents.PAYMENT_REFUNDED)
+    refund_id: UUID | None = None
+    refunded_amount_cents: int | None = None
+    # True when the card had not been captured yet: the customer is simply
+    # charged that much less, rather than refunded.
+    applied_before_capture: bool = False
+
+
+class PaymentRefundFailedEvent(PaymentBaseEvent):
+    """A refund order_service requested could not be made."""
+    event_type: str = Field(default_factory=lambda: PaymentEvents.PAYMENT_REFUND_FAILED)
+    refund_id: UUID
+    reason: str
 
 
 class PaymentCancelledEvent(PaymentBaseEvent):
@@ -200,6 +215,14 @@ class PaymentCommandBase(BaseEvent):
 class PaymentCaptureRequested(PaymentCommandBase):
     """Fulfillment is secured: charge the authorized card."""
     event_type: str = Field(default_factory=lambda: PaymentCommands.CAPTURE_REQUESTED)
+
+
+class PaymentRefundRequested(PaymentCommandBase):
+    """Give back part of an order's payment: chosen lines, maybe shipping."""
+    event_type: str = Field(default_factory=lambda: PaymentCommands.REFUND_REQUESTED)
+    refund_id: UUID
+    amount_cents: int = Field(gt=0)
+    reason: str
 
 
 class PaymentReleaseRequested(PaymentCommandBase):

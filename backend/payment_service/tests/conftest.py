@@ -110,6 +110,8 @@ def mock_payment_orm() -> MagicMock:
     payment.currency = TEST_CURRENCY
     payment.status = PaymentStatus.PENDING
     payment.failure_reason = None
+    payment.refunded_cents = 0
+    payment.capture_reduction_cents = 0
     payment.date_created = TEST_DATETIME
     payment.date_updated = None
     return payment
@@ -129,6 +131,7 @@ def mock_payment_repository() -> MagicMock:
     repo.get_by_id = AsyncMock()
     repo.update_by_id = AsyncMock()
     repo.delete_by_id = AsyncMock()
+    repo.get_by_order_for_update = AsyncMock(return_value=None)
     repo.session = MagicMock()
     repo.session.commit = AsyncMock()
     repo.session.begin_nested = MagicMock(return_value=_AsyncContextManagerMock())
