@@ -6,6 +6,7 @@ import pytest
 
 from service_layer.wishlist_service import WishlistService
 from exceptions.wishlist_exceptions import (
+    ProductNotFoundError,
     WishlistNotFoundError,
     WishlistItemNotFoundError,
 )
@@ -207,3 +208,28 @@ class TestDeleteWishlistByUserId:
         svc.repository.delete_wishlist_by_user_id.assert_awaited_once_with(
             test_settings.TEST_USER_ID
         )
+
+
+class TestProductIsCheckedBeforeTheDatabase:
+    """
+    The product check calls product-service over HTTP. It used to run after the
+    wishlist was fetched or created, holding that transaction — possibly an
+    uncommitted INSERT — open for as long as product-service took to answer.
+    """
+
+    async def test_an_unknown_product_never_touches_the_database(
+        self, wishlist_service_unit: WishlistService
+    ) -> None:
+        svc = wishlist_service_unit
+        svc._validate_product_exists = AsyncMock(side_effect=ProductNotFoundError(test_settings.TEST_PRODUCT_ID))
+
+        with pytest.raises(ProductNotFoundError):
+            await svc.add_item_to_wishlist(
+                test_settings.TEST_USER_ID,
+                AddWishlistItem(product_id=test_settings.TEST_PRODUCT_ID),
+                http_session=MagicMock(),
+            )
+
+        svc.repository.get_wishlist_by_user_id.assert_not_called()
+        svc.repository.create.assert_not_called()
+        svc.repository.add_item.assert_not_called()

@@ -7,7 +7,7 @@ with mocks so the tests run without any live services.
 Integration-test fixtures use the real PostgreSQL test database
 (ORDER_SERVICE_TEST_DB) and truncate all tables between tests.
 """
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from decimal import Decimal
 from typing import Any
@@ -448,9 +448,14 @@ class _StubArtworkAssetClient:
 
     def __init__(self) -> None:
         self.requested_keys: list[str] = []
+        # Runs while the "HTTP call" is in flight, to observe what the caller
+        # is holding at that moment (e.g. database connections).
+        self.during_call: Callable[[], Awaitable[None]] | None = None
 
     async def get_download(self, asset) -> ArtworkDownload:
         self.requested_keys.append(asset.key)
+        if self.during_call is not None:
+            await self.during_call()
         return ArtworkDownload(
             download_url=f"/media/{asset.key}",
             filename=asset.key.rsplit("/", 1)[-1],

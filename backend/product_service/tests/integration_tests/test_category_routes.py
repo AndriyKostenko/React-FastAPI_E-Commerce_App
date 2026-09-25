@@ -172,6 +172,36 @@ class TestDeleteCategory:
         response = await integration_client.get(f"{TEST_API}/categories/{category_id}")
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
+    async def test_deleting_a_category_that_still_has_products_is_a_409(
+        self, integration_client: AsyncClient
+    ):
+        """
+        The constraint violation used to surface only at commit, after the
+        route had already answered 204 — so the client saw a bare 500 for a
+        category that was, in fact, never deleted.
+        """
+        category = (await integration_client.post(f"{TEST_API}/categories", json={"name": "in-use"})).json()
+        product = await integration_client.post(
+            f"{TEST_API}/products",
+            json={
+                "name": "keeps the category alive",
+                "description": "A product that still points at its category",
+                "category_id": category["id"],
+                "brand": "brand",
+                "quantity": 1,
+                "price": "9.99",
+                "in_stock": True,
+            },
+        )
+        assert product.status_code == 201, product.text
+
+        response = await integration_client.delete(f"{TEST_API}/categories/{category['id']}")
+
+        assert response.status_code == 409
+        assert "constraint" not in response.text.lower()  # no database internals leak
+        still_there = await integration_client.get(f"{TEST_API}/categories/{category['id']}")
+        assert still_there.status_code == 200
+
     async def test_delete_nonexistent_category_returns_404(
         self, integration_client: AsyncClient
     ):

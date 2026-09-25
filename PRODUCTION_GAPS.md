@@ -466,7 +466,7 @@ Backend:
 | 10 | Remove `PUBLIC_ENDPOINTS` completely? | Done (§4b) |
 | 11 | OpenAPI → TypeScript? | Open (tooling) |
 | 12 | Order saga frozen while waiting on CJ stock? | **Done (2026-09-25).** The timeout worker only covered *pending* sagas; a confirmed order CJ never took on sat until the card hold lapsed. It is now cancelled after `ORDER_SUPPLIER_STALL_HOURS` (24h, hold released). A CJ outage during the stock check is retried, no longer an instant cancel + refund |
-| 13 | Session/transaction held open while awaiting services or queues? | Open — audit |
+| 13 | Session/transaction held open while awaiting services or queues? | **Done (2026-09-25).** Audited every external call. Fixed: production artwork download (read txn held across a 10s HTTP call — proven idle-in-transaction on Postgres), wishlist add (uncommitted INSERT across HTTP), image replace (rows deleted before uploads were written), notification emails enqueued before the row committed (duplicate emails on retry). `BaseRepository.end_read_phase()` for the read → remote → write pattern payment-service already used. Also fixed a lost update on concurrent add-to-cart (row lock) |
 | 14 | Value objects (frozen dataclasses)? | Open (refactor) |
 | 15 | Unit of Work? | Open (refactor) |
 | 16 | Circuit breaker / retries for CJ? | **Done (2026-09-25).** Per-service breakers in the gateway (503 + Retry-After); CJ reads retry with backoff, writes never do; a process-wide CJ breaker; 429/5xx are 'unavailable', not a rejection |
@@ -474,7 +474,7 @@ Backend:
 | 18 | RabbitMQ ack policy + DLX? | **Done (2026-09-24).** Worse than open: every queue dead-lettered to a `dlx` exchange nothing declared, so RabbitMQ dropped every failed message. `shared.messaging.ConsumerTopology` now declares `dlx`, one DLQ per queue and 5s/30s/120s retry queues before consuming; `RetryDispatcher` retries transient failures and dead-letters payload errors at once. All 20 queues in 8 consumers, verified on the live broker |
 | 19 | One Postgres instance, one superuser? | Open — per-service least-privilege roles |
 | 19b | taskiq DLX? | **Done for notifications (2026-09-24).** taskiq acks a failed task (its result is saved), so its DLQ never saw one. `DeadLetteringRetryMiddleware` retries emails with backoff and jitter, then parks them in `taskiq.notifications.dead_letter`. Image generation (refunds quota) and the supplier cron jobs (next run is the retry) deliberately do not retry. Parked messages replay with `./local/dev.sh dlq list` / `dlq replay <queue>` |
-| 20 | `autoflush` / `expire_on_commit`; UoW transaction boundaries? | Open — audit |
+| 20 | `autoflush` / `expire_on_commit`; UoW transaction boundaries? | **Done (2026-09-25).** `expire_on_commit=False` is right for async; with `autoflush=False` the gap was deletes: they never flushed, so later reads saw deleted rows and constraint violations surfaced at commit as bare 500s. Deletes now flush; `IntegrityError` renders as 409. Deleting a category silently deleted all its products (ORM cascade) — now refused with 409 |
 
 Frontend:
 /order/orderid is open for anyone?

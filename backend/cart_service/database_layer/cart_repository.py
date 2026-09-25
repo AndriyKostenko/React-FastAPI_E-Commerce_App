@@ -22,8 +22,12 @@ class CartRepository(BaseRepository[Cart]):
         return await self.get_by_field("user_id", user_id)
 
     async def add_item_to_cart(self, cart_id: UUID, product_id: UUID, quantity: int, price_snapshot: Decimal) -> CartItem:
+        # Locked for the read-modify-write below: two concurrent adds of the same
+        # product both read the old quantity and one increment was lost.
         result = await self.session.execute(
-            select(CartItem).where(CartItem.cart_id == cart_id, CartItem.product_id == product_id)
+            select(CartItem)
+            .where(CartItem.cart_id == cart_id, CartItem.product_id == product_id)
+            .with_for_update()
         )
         item = result.scalar_one_or_none()
 

@@ -186,6 +186,8 @@ class ProductionQueueService:
             raise ProductionArtworkUnavailableError(
                 job_id, "artwork downloads are not configured on this process"
             )
+        # The job is loaded; don't pin a connection while product-service answers.
+        await self.repository.end_read_phase()
         try:
             download = await self.artwork_client.get_download(asset)
         except ArtworkDownloadError as exc:

@@ -39,6 +39,7 @@ from shared.enums.status_enums import (
 )
 from shared.managers.test_database_session_manager import TestDatabaseSessionManager
 from tests.constants import TEST_API, TEST_EMAIL, TEST_PRODUCT_ID, TEST_USER_ID
+from sqlalchemy import text
 
 
 PRODUCTION_API = f"{TEST_API}/admin/production/jobs"
@@ -228,6 +229,34 @@ class TestProductionQueueArtworkAndPaperwork:
         assert body["width_px"] == 4096
         # The manifest order_service stored is what was presented, unchanged.
         assert artwork_client_stub.requested_keys == [queued_job["asset"].key]
+
+    async def test_no_database_connection_is_held_while_product_service_answers(
+        self,
+        integration_client: AsyncClient,
+        queued_job: dict,
+        artwork_client_stub,
+        test_database_session_manager,
+    ) -> None:
+        # The job is read first; the request's transaction must be finished
+        # before the remote call, or a pooled connection sits idle in
+        # transaction for as long as product-service takes (up to 10s).
+        held: list[int] = []
+
+        async def count_idle_in_transaction() -> None:
+            # Asked from a separate connection, so it counts only the others.
+            async with test_database_session_manager.transaction() as session:
+                result = await session.execute(text(
+                    "SELECT count(*) FROM pg_stat_activity "
+                    "WHERE datname = current_database() AND state = 'idle in transaction'"
+                ))
+                held.append(result.scalar_one())
+
+        artwork_client_stub.during_call = count_idle_in_transaction
+
+        response = await integration_client.get(f"{PRODUCTION_API}/{queued_job['job']['id']}/artwork")
+
+        assert response.status_code == 200, response.text
+        assert held == [0]
 
     async def test_packing_slip_carries_the_address_and_print_details(
         self, integration_client: AsyncClient, queued_job: dict

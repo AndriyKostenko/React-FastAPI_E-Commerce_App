@@ -173,10 +173,13 @@ class ProductImageService:
         color_codes: List[str],
     ) -> List[ProductImageSchema]:
         """Replace all images for a product"""
-        await self.delete_all_product_images(product_id)
-        return await self.create_product_images_with_files(
-            product_id=product_id,
+        # Files are saved (and the metadata validated) first, so the old rows
+        # are deleted and the new ones inserted in one short step — not held
+        # deleted and locked while uploads are written to disk.
+        image_metadata = await self._build_image_metadata(
             images=images,
             colors=image_colors,
             color_codes=color_codes,
         )
+        await self.delete_all_product_images(product_id)
+        return await self.create_product_images(product_id=product_id, images=image_metadata)

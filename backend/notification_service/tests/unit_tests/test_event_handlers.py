@@ -337,3 +337,41 @@ class TestPaymentEventHandlerUnknownType:
             await handler.handle(msg)
 
         handler._release_claim.assert_awaited_once()
+
+
+class TestEmailIsEnqueuedOnlyAfterTheNotificationIsSaved:
+    """
+    The email used to be queued before the notification was saved; a failed
+    save then released the claim, the event was retried, and the customer got
+    the same email twice.
+    """
+
+    @pytest.mark.parametrize(
+        ("handler_cls", "message", "task_name"),
+        [
+            (UserEventHandler, _user_msg("user.registered"), "send_verification_email"),
+            (OrderEventHandler, _order_msg("order.confirmed"), "send_order_confirmed_email"),
+        ],
+    )
+    async def test_a_failed_save_sends_nothing(self, handler_cls, message, task_name):
+        handler = _make_handler(handler_cls)
+        handler._save_notification = AsyncMock(side_effect=RuntimeError("database down"))
+
+        with patch(f"{TASK_MODULE}.{task_name}") as mock_task:
+            mock_task.kiq = AsyncMock()
+            with pytest.raises(RuntimeError):
+                await handler.handle(message)
+
+        mock_task.kiq.assert_not_awaited()
+        handler._release_claim.assert_awaited_once()  # so the retry can still send it once
+
+    async def test_the_save_happens_before_the_enqueue(self):
+        handler = _make_handler(UserEventHandler)
+        calls: list[str] = []
+        handler._save_notification = AsyncMock(side_effect=lambda **_: calls.append("save"))
+
+        with patch(f"{TASK_MODULE}.send_verification_email") as mock_task:
+            mock_task.kiq = AsyncMock(side_effect=lambda _: calls.append("enqueue"))
+            await handler.handle(_user_msg("user.registered"))
+
+        assert calls == ["save", "enqueue"]
