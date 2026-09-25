@@ -103,15 +103,14 @@ class TestGetReviews:
             field_name="user_id", value=user_id
         )
 
-    async def test_raises_when_no_reviews_for_user(
+    async def test_returns_empty_list_when_no_reviews_for_user(
         self,
         review_service_unit,
         mock_review_repository: MagicMock,
     ) -> None:
         mock_review_repository.get_many_by_field.return_value = []
 
-        with pytest.raises(ReviewNotFoundError):
-            await review_service_unit.get_reviews_by_user_id(uuid4())
+        assert await review_service_unit.get_reviews_by_user_id(uuid4()) == []
 
     async def test_get_reviews_by_product_id(
         self,
@@ -129,15 +128,14 @@ class TestGetReviews:
             field_name="product_id", value=product_id
         )
 
-    async def test_raises_when_no_reviews_for_product(
+    async def test_returns_empty_list_when_no_reviews_for_product(
         self,
         review_service_unit,
         mock_review_repository: MagicMock,
     ) -> None:
         mock_review_repository.get_many_by_field.return_value = []
 
-        with pytest.raises(ReviewNotFoundError):
-            await review_service_unit.get_reviews_by_product_id(uuid4())
+        assert await review_service_unit.get_reviews_by_product_id(uuid4()) == []
 
 
 # ---------------------------------------------------------------------------
@@ -189,15 +187,14 @@ class TestGetAllReviews:
 
         assert len(result) == 1
 
-    async def test_raises_when_no_reviews(
+    async def test_returns_empty_list_when_no_reviews(
         self,
         review_service_unit,
         mock_review_repository: MagicMock,
     ) -> None:
         mock_review_repository.get_all.return_value = []
 
-        with pytest.raises(ReviewNotFoundError):
-            await review_service_unit.get_all_reviews()
+        assert await review_service_unit.get_all_reviews() == []
 
 
 # ---------------------------------------------------------------------------

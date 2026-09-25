@@ -747,14 +747,10 @@ class OrderService:
 
     async def get_orders(self) -> list[OrderSchema]:
         orders = await self.repository.get_all()
-        if not orders:
-            raise OrdersNotFoundError()
         return [OrderSchema.model_validate(order) for order in orders]
 
     async def get_orders_by_user_id(self, user_id: UUID) -> list[OrderSchema]:
         orders = await self.repository.get_many_by_field("user_id", user_id)
-        if not orders:
-            raise OrdersNotFoundError()
         return [OrderSchema.model_validate(order) for order in orders]
 
     async def update_order(self, order_id: UUID, order_data: UpdateOrder) -> OrderSchema:

@@ -88,8 +88,6 @@ class CategoryService:
 
     async def get_all_categories(self) -> list[CategorySchema]:
         categories = await self.repository.get_all()
-        if not categories or len(categories) == 0:
-            raise CategoryNotFoundError("No categories found.")
         return [CategorySchema.model_validate(category) for category in categories]
 
     async def get_category_by_id(self, category_id: UUID) -> CategorySchema:

@@ -746,15 +746,14 @@ class TestGetPayments:
         assert result[0].stripe_payment_intent_id == mock_payment_orm.stripe_payment_intent_id
         assert result[0] is not mock_payment_orm
 
-    async def test_raises_when_no_payments(
+    async def test_returns_empty_list_when_no_payments(
         self,
         payment_service_unit,
         mock_payment_repository: MagicMock,
     ) -> None:
-        mock_payment_repository.get_all.return_value = None
+        mock_payment_repository.get_all.return_value = []
 
-        with pytest.raises(PaymentsNotFoundError):
-            await payment_service_unit.get_payments()
+        assert await payment_service_unit.get_payments() == []
 
 
 class _FakeSessionManager:

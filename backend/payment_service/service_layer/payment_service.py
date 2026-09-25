@@ -613,6 +613,4 @@ class PaymentService:
 
     async def get_payments(self) -> list[PaymentResponse]:
         payments = await self.repository.get_all()
-        if not payments:
-            raise PaymentsNotFoundError()
         return [PaymentResponse.model_validate(payment) for payment in payments]

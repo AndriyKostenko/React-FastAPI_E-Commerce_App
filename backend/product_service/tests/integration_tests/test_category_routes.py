@@ -101,9 +101,10 @@ class TestGetAllCategories:
         assert isinstance(body, list)
         assert len(body) == 2
 
-    async def test_returns_404_when_no_categories(self, integration_client: AsyncClient):
+    async def test_returns_empty_list_when_no_categories(self, integration_client: AsyncClient):
         response = await integration_client.get(f"{TEST_API}/categories")
-        assert response.status_code == status.HTTP_404_NOT_FOUND
+        assert response.status_code == 200
+        assert response.json() == []
 
 
 # ===========================================================================

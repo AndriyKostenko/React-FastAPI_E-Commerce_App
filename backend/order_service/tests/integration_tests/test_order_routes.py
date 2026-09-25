@@ -173,10 +173,11 @@ class TestGetOrdersIntegration:
         assert isinstance(response.json(), list)
         assert len(response.json()) >= 1
 
-    async def test_get_orders_empty_returns_404(self, integration_client: AsyncClient):
+    async def test_get_orders_empty_returns_empty_list(self, integration_client: AsyncClient):
         # No orders created in this test — table was truncated before this fixture
         response = await integration_client.get(f"{TEST_API}/orders")
-        assert response.status_code == 404
+        assert response.status_code == 200
+        assert response.json() == []
 
 
 class TestGetOrderByIdIntegration:
