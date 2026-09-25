@@ -407,9 +407,6 @@ the services), not only in unit tests.
       `REMBG_MODEL` build arg must match `PRODUCT_IMAGE_BG_REMOVAL_MODEL`.
 
 **Still open from this pass:**
-- **user-service ignores the session cookie.** Its `oauth2_scheme` reads only
-  the `Authorization` header, so cookie-only requests to it get 401. Resolves
-  with items 1/2b/6 below.
 - **admin-js** is not started by `dev.sh`, and its stored access token expires
   with no refresh.
 
@@ -456,16 +453,16 @@ Backend:
 
 | # | Question | Status |
 |---|---|---|
-| 1 | Is the token decoded twice (gateway `AuthMiddleware` and user-service)? | **Yes, open.** user-service re-decodes via `oauth2_scheme` + a DB check; every other service trusts the gateway |
-| 2 | Gateway strips auth and injects identity headers? | **Mostly done.** `X-Authenticated-User-*` are injected and client copies stripped; wishlist/product/order/notification read them, user-service does not. The raw token is still forwarded |
-| 2b | Signing key out of the gateway, like Google login? | Open — gateway signs a short-lived assertion (Ed25519), services verify with the public key only |
+| 1 | Is the token decoded twice (gateway `AuthMiddleware` and user-service)? | **Done (2026-09-24).** Only the gateway decodes it; user-service reads the gateway's signed caller assertion and checks the account row |
+| 2 | Gateway strips auth and injects identity headers? | **Done (2026-09-24).** `Authorization` and `Cookie` stop at the gateway; identity travels only as the signed assertion |
+| 2b | Signing key out of the gateway, like Google login? | **Done (2026-09-24).** User tokens are EdDSA, private key in user-service only; the gateway signs 60s method+path-bound caller assertions (`X-Caller-Assertion`) that services verify with its public key |
 | 3 | `@public` decorator? | Superseded: `PublicRouteRegistry` (§4b). Secure-by-default router-level dependencies would remove the middleware entirely |
-| 4 | `self_or_admin` in the services? | **Partial.** Schema and generation routes check in-service (`AuthenticatedCaller.require_admin`); product CRUD, order admin, etc. still rely on the gateway alone |
-| 5 | Only the gateway may call services (`INTERNAL_HMAC_SECRET`, Vault)? | Open — prefer the asymmetric assertion from 2b over a shared HMAC secret, which lets any compromised service mint identities |
-| 6 | Signed header downstream; drop `oauth2_scheme` + `get_current_user()`? | Open — follows from 2b |
+| 4 | `self_or_admin` in the services? | **Done (2026-09-24).** `shared.auth.route_guards` on every non-public route; also closed payment/shipment reads by any user and an unguarded `GET /payments` |
+| 5 | Only the gateway may call services (`INTERNAL_HMAC_SECRET`, Vault)? | **Mostly done.** Only the gateway can assert an identity, so a direct call is at most anonymous. Open: `/artwork/download-link`, `/products/order-quote` and `/cjdropshipping/freight/quote` are called service-to-service without a caller and rely on network isolation — needs service identity |
+| 6 | Signed header downstream; drop `oauth2_scheme` + `get_current_user()`? | **Done (2026-09-24)** |
 | 7 | Remove service ports from compose? | Local ports already bind to `127.0.0.1`; add a prod override with `expose:` only |
 | 8 | NetworkPolicy? | Only once on Kubernetes; in compose, split `edge` / `internal` networks |
-| 9 | Token purposes? | `purpose` is enforced. Open: `aud`/`iss` claims, and only user-service should hold the signing key (RS256/EdDSA) |
+| 9 | Token purposes? | **Done (2026-09-24).** `purpose`, `iss`, `aud`, `iat`, `jti` are required; only user-service holds the signing key (Ed25519) |
 | 10 | Remove `PUBLIC_ENDPOINTS` completely? | Done (§4b) |
 | 11 | OpenAPI → TypeScript? | Open (tooling) |
 | 12 | Order saga frozen while waiting on CJ stock? | Open — a saga timeout worker exists; review its coverage |
