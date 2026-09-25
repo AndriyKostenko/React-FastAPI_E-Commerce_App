@@ -141,6 +141,7 @@ def mock_repository() -> MagicMock:
     repo.delete_by_id = AsyncMock()
     repo.get_verified_users = AsyncMock()
     repo.get_users_by_role = AsyncMock()
+    repo.commit = AsyncMock()
     return repo
 
 # ---------------------------------------------------------------------------

@@ -578,6 +578,13 @@ class UserService:
                 await self.repository.update_by_id(
                     item_id=reused_by.id, data={"token_version": bumped_version}
                 )
+                # Committed before the 401 below: the request's transaction
+                # rolls back on it, which used to undo this bump while the new
+                # generation stayed published — every later login then minted
+                # a token the gateway refused, locking the victim out for good.
+                # Committing first also keeps the registry from ever running
+                # ahead of the database.
+                await self.repository.commit()
             await self._revoke_all_sessions_for_user(token_data.id, bumped_version)
             raise HTTPException(status_code=401, detail="Refresh token reuse detected or token expired")
 

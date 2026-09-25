@@ -263,3 +263,17 @@ class TestForwardRequest:
 
         call_kwargs = mock_http_client.request.call_args.kwargs
         assert call_kwargs["timeout"] == self.gw._TIMEOUT
+
+
+class TestServiceRegistry:
+    def test_every_known_service_is_routable(self):
+        # cart-service was missing, so every cart route answered 404
+        # "Service not found" while the service itself was healthy.
+        from shared.enums.services_enums import Services
+
+        assert set(Services) <= set(_make_gateway().config.services)
+
+    def test_cart_url_resolves_to_the_cart_service(self):
+        gateway = _make_gateway()
+        url = gateway.url_manager.build_url("cart-service", "/users/abc/cart")
+        assert url.startswith(settings.FULL_CART_SERVICE_URL)

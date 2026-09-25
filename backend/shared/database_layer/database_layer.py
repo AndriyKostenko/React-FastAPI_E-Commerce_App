@@ -22,6 +22,18 @@ class BaseRepository(Generic[ModelType]):
         self.session: AsyncSession = session
         self.model: type[ModelType] = model
 
+    # ---------------- TRANSACTION ----------------
+    async def commit(self) -> None:
+        """
+        Commit what this request has written so far, immediately.
+
+        For a write that must persist even though the request then fails:
+        the request-scoped transaction rolls back on any exception, which
+        would otherwise undo it. Use sparingly — it splits the request's
+        unit of work in two.
+        """
+        await self.session.commit()
+
     # ---------------- CREATE ----------------
     async def create(self, obj: ModelType) -> ModelType:
         """Creating a new record"""

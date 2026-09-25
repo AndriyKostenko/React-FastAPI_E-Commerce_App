@@ -756,6 +756,7 @@ class TestRefreshAccessToken:
         mock_token_manager: MagicMock,
         mock_redis: AsyncMock,
         mock_user_orm: MagicMock,
+        mock_repository: MagicMock,
     ) -> None:
         decoded = DecodedTokenSchema(
             email="test@example.com",
@@ -766,11 +767,18 @@ class TestRefreshAccessToken:
         )
         mock_token_manager.decode_token.return_value = decoded
         mock_redis.getdel.return_value = None  # token absent / expired
+        mock_user_orm.token_version = 1
+        mock_repository.get_by_id.return_value = mock_user_orm
 
         with pytest.raises(HTTPException) as exc_info:
             await user_service.refresh_access_token("revoked_refresh_tok")
 
         assert exc_info.value.status_code == 401
+        # The generation bump is committed before the 401 rolls the request back.
+        mock_repository.update_by_id.assert_awaited_once_with(
+            item_id=mock_user_orm.id, data={"token_version": 2}
+        )
+        mock_repository.commit.assert_awaited_once()
 
 
 # ---------------------------------------------------------------------------
