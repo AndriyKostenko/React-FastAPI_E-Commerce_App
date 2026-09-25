@@ -112,7 +112,7 @@ class OrderService:
                 fields = {
                     "user_id": order_data.user_id,
                     "user_email": order_data.user_email,
-                    "amount": float(quote.total_amount),
+                    "amount": quote.total_amount,
                     "subtotal_amount": quote.subtotal_amount,
                     "shipping_amount": quote.shipping_amount,
                     "tax_amount": quote.tax_amount,
