@@ -183,7 +183,22 @@ class Settings(BaseSettings):
 
     # JWT configuration
     SECRET_KEY: str
-    ALGORITHM: str
+    # Unused since tokens are Ed25519-signed (EdDSA); kept so an existing .env
+    # that still sets it keeps loading.
+    ALGORITHM: str | None = None
+    # Ed25519 keys as PEM. Only user-service needs USER_TOKEN_PRIVATE_KEY and
+    # only the gateway needs GATEWAY_ASSERTION_PRIVATE_KEY; the public halves
+    # are safe anywhere. Optional so a process that never signs can run
+    # without the private key — see the accessor properties below.
+    USER_TOKEN_PRIVATE_KEY: SecretStr | None = None
+    USER_TOKEN_PUBLIC_KEY: str | None = None
+    GATEWAY_ASSERTION_PRIVATE_KEY: SecretStr | None = None
+    GATEWAY_ASSERTION_PUBLIC_KEY: str | None = None
+    USER_TOKEN_ISSUER: str = "user-service"
+    USER_TOKEN_AUDIENCE: str = "ecommerce-api"
+    GATEWAY_ASSERTION_ISSUER: str = "api-gateway"
+    GATEWAY_ASSERTION_AUDIENCE: str = "internal-services"
+    GATEWAY_ASSERTION_TTL_SECONDS: int = Field(default=60, gt=0, le=300)
     TOKEN_TYPE: str
     TOKEN_URL: str
     TOKEN_TIME_DELTA_MINUTES: int
@@ -298,6 +313,22 @@ class Settings(BaseSettings):
     @property
     def STRIPE_WEBHOOK_SIGNING_SECRET(self) -> str:
         return self._reveal(self.STRIPE_WEBHOOK_SECRET, "STRIPE_WEBHOOK_SECRET")
+
+    @property
+    def USER_TOKEN_SIGNING_KEY_PEM(self) -> str:
+        return self._reveal(self.USER_TOKEN_PRIVATE_KEY, "USER_TOKEN_PRIVATE_KEY")
+
+    @property
+    def USER_TOKEN_VERIFYING_KEY_PEM(self) -> str:
+        return self._reveal(self.USER_TOKEN_PUBLIC_KEY, "USER_TOKEN_PUBLIC_KEY")
+
+    @property
+    def GATEWAY_ASSERTION_SIGNING_KEY_PEM(self) -> str:
+        return self._reveal(self.GATEWAY_ASSERTION_PRIVATE_KEY, "GATEWAY_ASSERTION_PRIVATE_KEY")
+
+    @property
+    def GATEWAY_ASSERTION_VERIFYING_KEY_PEM(self) -> str:
+        return self._reveal(self.GATEWAY_ASSERTION_PUBLIC_KEY, "GATEWAY_ASSERTION_PUBLIC_KEY")
 
     @property
     def OPENROUTER_KEY(self) -> str:

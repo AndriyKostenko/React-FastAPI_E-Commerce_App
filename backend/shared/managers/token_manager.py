@@ -1,139 +1,81 @@
-# shared/token_manager.py
-from datetime import timedelta, datetime, timezone
+from collections.abc import Mapping
+from datetime import timedelta
+from typing import Self
 from uuid import UUID
 
-from jose import jwt, JWTError
-from fastapi import HTTPException
 from pydantic import EmailStr
 
-from shared.settings import Settings
+from shared.auth.user_tokens import (
+    ClaimValue,
+    TokenPurpose,
+    UserTokenIssuer,
+    UserTokenVerifier,
+)
 from shared.contracts.auth import TokenClaims
+from shared.settings import Settings
 
 
 class TokenManager:
     """
-    Handles JWT token creation and validation.
+    Issues and verifies user tokens — user-service's view of them.
+
+    A facade over ``UserTokenIssuer`` (private key) and ``UserTokenVerifier``
+    (public key). Only user-service builds one, because only it holds the
+    private key; the gateway builds a bare ``UserTokenVerifier`` instead.
     """
 
-    def __init__(self, settings: Settings):
-        self.settings: Settings = settings
+    def __init__(self, settings: Settings, issuer: UserTokenIssuer, verifier: UserTokenVerifier) -> None:
+        self.settings = settings
+        self._issuer = issuer
+        self._verifier = verifier
 
-    def create_access_token(self,
-                            email: EmailStr,
-                            user_id: UUID,
-                            role: str | None,
-                            expires_delta: timedelta,
-                            purpose: str = "access",
-                            extra_claims: dict | None = None) -> tuple[str, int]:
-        """
-        Create JWT access token.
-
-        Returns:
-            tuple: (token, expire_timestamp)
-        """
-        expire_timestamp = int((datetime.now(timezone.utc) + expires_delta).timestamp())
-        payload = {
-            'sub': email,
-            'id': str(user_id),
-            'role': role,
-            'exp': expire_timestamp,
-            'purpose': purpose
-        }
-        if extra_claims:
-            payload.update(extra_claims)
-
-        token = jwt.encode(
-            payload,
-            self.settings.SECRET_KEY,
-            algorithm=self.settings.ALGORITHM
+    @classmethod
+    def from_settings(cls, settings: Settings) -> Self:
+        return cls(
+            settings=settings,
+            issuer=UserTokenIssuer.from_settings(settings),
+            verifier=UserTokenVerifier.from_settings(settings),
         )
-        return token, expire_timestamp
 
-    def create_refresh_token(self,
-                             email: EmailStr,
-                             user_id: UUID,
-                             role: str | None,
-                             extra_claims: dict | None = None) -> tuple[str, int]:
-        """
-        Create a long-lived JWT refresh token (purpose='refresh').
-         `refresh_token` (7 days, stored in Redis)
+    def create_access_token(
+        self,
+        email: EmailStr,
+        user_id: UUID,
+        role: str | None,
+        expires_delta: timedelta,
+        purpose: TokenPurpose | str = TokenPurpose.ACCESS,
+        extra_claims: Mapping[str, ClaimValue] | None = None,
+    ) -> tuple[str, int]:
+        """Returns ``(token, expire_timestamp)``."""
+        return self._issuer.issue(
+            email=str(email),
+            user_id=user_id,
+            role=role,
+            purpose=TokenPurpose(purpose),
+            expires_delta=expires_delta,
+            extra_claims=extra_claims,
+        )
 
-        Returns:
-            tuple: (token, expire_timestamp)
-        """
+    def create_refresh_token(
+        self,
+        email: EmailStr,
+        user_id: UUID,
+        role: str | None,
+        extra_claims: Mapping[str, ClaimValue] | None = None,
+    ) -> tuple[str, int]:
+        """A long-lived token (``purpose="refresh"``) whose hash is kept in Redis."""
         return self.create_access_token(
             email=email,
             user_id=user_id,
             role=role,
             expires_delta=timedelta(days=self.settings.REFRESH_TOKEN_TIME_DELTA_DAYS),
-            purpose="refresh",
+            purpose=TokenPurpose.REFRESH,
             extra_claims=extra_claims,
         )
 
-    def decode_token(self, token: str, required_purpose: str = "access") -> TokenClaims:
-        """
-        Decode JWT token and validate its purpose.
+    def decode_token(self, token: str, required_purpose: TokenPurpose | str = TokenPurpose.ACCESS) -> TokenClaims:
+        """Raises ``HTTPException(401)`` if the token is invalid or has the wrong purpose."""
+        return self._verifier.decode(token, TokenPurpose(required_purpose))
 
-        Raises:
-            HTTPException: If token is invalid or purpose doesn't match
-        """
-        try:
-            payload = jwt.decode(
-                token,
-                self.settings.SECRET_KEY,
-                algorithms=[self.settings.ALGORITHM]
-            )
-
-            email: EmailStr | None = payload.get("sub")
-            user_id: UUID | None = payload.get("id")
-            role: str | None = payload.get("role")
-            purpose: str | None = payload.get("purpose")
-            token_version: int | None = payload.get("token_version") or payload.get("ver")
-
-            if not email or not user_id:
-                raise HTTPException(
-                    status_code=401,
-                    detail="User's email or id is not provided/verified for token decoding."
-                )
-
-            if purpose != required_purpose:
-                raise HTTPException(
-                    status_code=401,
-                    detail=f"Invalid token purpose. Expected: {required_purpose}, got: {purpose}"
-                )
-
-            return TokenClaims(
-                email=email,
-                id=user_id,
-                role=role,
-                purpose=purpose,
-                token_version=token_version
-            )
-
-
-        except JWTError as jwt_error:
-            raise HTTPException(
-                status_code=401,
-                detail=f"Token error: {str(jwt_error)}"
-            )
-        except HTTPException:
-            raise  # let purpose-mismatch and other explicit HTTP errors pass through unchanged
-        except Exception as e:
-            raise HTTPException(
-                status_code=401,
-                detail=f"Token decoding error: {str(e)}"
-            )
-
-    def validate_token(self, token: str, required_purpose: str = "access") -> bool:
-        """
-        Validate a token without decoding all data.
-
-        Returns:
-            bool: True if valid, False otherwise
-        """
-        try:
-            if self.decode_token(token, required_purpose):
-                return True
-            return False
-        except HTTPException:
-            return False
+    def validate_token(self, token: str, required_purpose: TokenPurpose | str = TokenPurpose.ACCESS) -> bool:
+        return self._verifier.is_valid(token, TokenPurpose(required_purpose))

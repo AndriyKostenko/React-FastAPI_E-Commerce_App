@@ -12,7 +12,7 @@ from fastapi import Query
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.exceptions import HTTPException
 from sqlalchemy.exc import IntegrityError
-from jose import jwt as jose_jwt, jwk, JWTError
+import jwt
 
 from models.user_models import User
 from schemas.user_schemas import CurrentUserInfo
@@ -266,7 +266,7 @@ class UserService:
     async def _verify_google_id_token(self, id_token: str) -> dict:
         """Verify a Google ID token locally against Google's rotating JWKS."""
         try:
-            header = jose_jwt.get_unverified_header(id_token)
+            header = jwt.get_unverified_header(id_token)
             kid = header.get("kid")
             if not kid or header.get("alg") not in {"RS256"}:
                 raise ValueError("unsupported Google token header")
@@ -278,14 +278,16 @@ class UserService:
                 key_data = next((item for item in keys if item.get("kid") == kid), None)
             if not key_data:
                 raise ValueError("unknown Google signing key")
-            return jose_jwt.decode(
+            return jwt.decode(
                 id_token,
-                jwk.construct(key_data, algorithm="RS256"),
+                jwt.PyJWK.from_dict(key_data, algorithm="RS256").key,
                 algorithms=["RS256"],
                 audience=self.settings.GOOGLE_CLIENT_ID,
-                issuer="https://accounts.google.com",
+                # Google signs with either form of its issuer.
+                issuer=["https://accounts.google.com", "accounts.google.com"],
+                options={"require": ["exp", "iat", "iss", "aud", "sub"]},
             )
-        except (JWTError, ValueError, KeyError, TypeError):
+        except (jwt.InvalidTokenError, jwt.PyJWKError, ValueError, KeyError, TypeError):
             raise HTTPException(status_code=401, detail="Invalid Google token")
 
     async def _get_google_jwks(self, force_refresh: bool = False) -> list[dict]:

@@ -22,7 +22,6 @@ dependencies = [
     "fastapi-mail>=1.5.0",
     "python-multipart>=0.0.20",
     "passlib>=1.7.4",
-    "python-jose>=3.5.0",
     "opentelemetry-api>=1.29.0",
     "opentelemetry-sdk>=1.29.0",
     "opentelemetry-exporter-otlp-proto-grpc>=1.29.0",
@@ -30,6 +29,7 @@ dependencies = [
     "opentelemetry-instrumentation-httpx>=0.50b0",
     "opentelemetry-instrumentation-sqlalchemy>=0.50b0",
     "opentelemetry-instrumentation-redis>=0.50b0",
+    "pyjwt[crypto]>=2.10",
 ]
 
 [dependency-groups]

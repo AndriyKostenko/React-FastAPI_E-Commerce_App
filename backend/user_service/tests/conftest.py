@@ -36,6 +36,7 @@ from managers import ResourceManager, UserApiResources, logger, settings
 from shared.settings import get_test_settings
 from shared.managers.test_database_session_manager import TestDatabaseSessionManager
 from shared.managers.token_manager import TokenManager
+from shared.testing.signing_keys import EphemeralSigningKeys
 from shared.managers.password_manager import PasswordManager
 from schemas.user_schemas import CurrentUserInfo, UserInfo
 
@@ -200,7 +201,7 @@ def mock_outbox_event_service() -> MagicMock:
 
 @pytest.fixture
 def token_manager() -> TokenManager:
-    return TokenManager(settings=test_settings)
+    return EphemeralSigningKeys().token_manager(test_settings)
 
 @pytest.fixture
 def password_manager() -> PasswordManager:
@@ -370,7 +371,7 @@ async def integration_client(
 
     # ── 2. Build real managers ───────────────────────────────────────────────
     real_password_manager = PasswordManager(settings)
-    real_token_manager    = TokenManager(settings)
+    real_token_manager    = EphemeralSigningKeys().token_manager(settings)
 
     # ── 3. Fake Redis — dict-backed, so token flows behave like production ───
     #

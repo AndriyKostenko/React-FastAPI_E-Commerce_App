@@ -22,7 +22,6 @@ dependencies = [
     "pydantic>=2.13.4",
     "pydantic-settings>=2.10.1",
     "python-dotenv>=1.1.1",
-    "python-jose>=3.5.0",
     "python-multipart>=0.0.20",
     "python-json-logger>=3.2.0",
     "redis>=6.2.0",
@@ -37,6 +36,7 @@ dependencies = [
     "opentelemetry-instrumentation-httpx>=0.50b0",
     "opentelemetry-instrumentation-sqlalchemy>=0.50b0",
     "opentelemetry-instrumentation-redis>=0.50b0",
+    "pyjwt[crypto]>=2.10",
 ]
 
 [tool.uv.sources]

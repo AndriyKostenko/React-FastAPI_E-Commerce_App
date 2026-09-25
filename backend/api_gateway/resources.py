@@ -16,7 +16,7 @@ from middleware.cache_middleware import GatewayRequestMiddleware
 from shared.managers.cache_manager import CacheManager
 from shared.managers.logger_manager import setup_logger
 from shared.managers.ratelimit_manager import RateLimitManager
-from shared.managers.token_manager import TokenManager
+from shared.auth.user_tokens import UserTokenVerifier
 from shared.managers.session_registry import SessionRegistry
 from shared.settings import Settings, get_settings
 
@@ -65,7 +65,8 @@ def create_api_gateway_resources(
     auth = AuthMiddleware(
         settings=app_settings,
         logger=app_logger,
-        token_manager=TokenManager(settings=app_settings),
+        # Public key only: the gateway can check a session but never mint one.
+        token_verifier=UserTokenVerifier.from_settings(app_settings),
         session_registry=session_registry,
     )
     return ApiGatewayResources(
