@@ -34,3 +34,15 @@ class OrderNotCancellableError(BaseAPIException):
             status_code=409,
             detail=f"Order {order_id} cannot be cancelled — current status: '{current_status}'."
         )
+
+
+class OrderRefundNotAllowedError(BaseAPIException):
+    """The order is not in a state that can be partly refunded."""
+    def __init__(self, order_id, reason: str) -> None:
+        super().__init__(status_code=409, detail=f"Order {order_id} cannot be refunded: {reason}")
+
+
+class InvalidOrderRefundError(BaseAPIException):
+    """The requested lines, quantities or amount are not refundable."""
+    def __init__(self, detail: str) -> None:
+        super().__init__(status_code=422, detail=detail)

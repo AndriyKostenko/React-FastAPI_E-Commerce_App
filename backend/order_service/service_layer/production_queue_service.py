@@ -30,6 +30,10 @@ from shared.contracts.events import (
 from shared.enums.event_enums import ProductionEvents
 from shared.enums.services_enums import Services
 from shared.enums.status_enums import ProductionJobStatus
+from exceptions.order_exceptions import InvalidOrderRefundError, OrderRefundNotAllowedError
+from schemas.order_refund_schemas import RefundLineRequest, RefundRequest
+from service_layer.order_refund_service import OrderRefundService
+from config import logger
 
 
 class ProductionJobStateMachine:
@@ -128,6 +132,7 @@ class ProductionQueueService:
         packing_slip_builder: PackingSlipBuilder,
         artwork_client: ArtworkAssetClient | None = None,
         state_machine: ProductionJobStateMachine | None = None,
+        refund_service: OrderRefundService | None = None,
     ) -> None:
         self.repository = repository
         self.fulfillment_status_service = fulfillment_status_service
@@ -135,6 +140,7 @@ class ProductionQueueService:
         self.packing_slip_builder = packing_slip_builder
         self.artwork_client = artwork_client
         self.state_machine = state_machine or ProductionJobStateMachine()
+        self.refund_service = refund_service
 
     # ---------------- queue reads ----------------
 
@@ -292,7 +298,33 @@ class ProductionQueueService:
         await self._publish(
             job, ProductionEvents.PRODUCTION_JOB_CANCELLED, reason=reason
         )
+        if not needs_review:
+            await self._refund_cancelled_line(job, reason)
         return self._to_schema(job)
+
+    async def _refund_cancelled_line(self, job: CustomProductionJob, reason: str) -> None:
+        """
+        Nothing was printed, so nothing was spent: give the line's money back,
+        in the same transaction as the cancellation. Printed or posted jobs are
+        left to a human (reconciliation_required), as before.
+        """
+        if self.refund_service is None:
+            return
+        try:
+            await self.refund_service.request(
+                job.order_id,
+                RefundRequest(
+                    lines=[RefundLineRequest(order_item_id=job.order_item_id, quantity=job.quantity)],
+                    reason=f"Custom item cancelled before printing: {reason}"[:500],
+                ),
+                requested_by=None,
+            )
+        except (OrderRefundNotAllowedError, InvalidOrderRefundError) as error:
+            # e.g. the whole order is being cancelled (refunded in full), or the
+            # line was already refunded by hand. The cancellation still stands.
+            job.reconciliation_required = True
+            await self.repository.update(job)
+            logger.warning("No automatic refund for production job %s: %s", job.id, error.detail)
 
     # ---------------- internals ----------------
 

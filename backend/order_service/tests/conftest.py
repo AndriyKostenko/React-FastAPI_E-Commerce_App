@@ -81,6 +81,9 @@ from shared.testing.helpers import allow_testserver_host
 from shared.settings import get_settings
 from schemas.order_schemas import OrderSchema
 from shared.testing.signing_keys import EphemeralSigningKeys
+from database_layer.order_refund_repository import OrderRefundRepository
+from service_layer.order_refund_service import OrderRefundService
+from database_layer.order_saga_repository import OrderSagaRepository
 
 # Throwaway gateway keys: the test clients' apps trust assertions signed
 # with these, exactly as a deployed service trusts the gateway's.
@@ -549,6 +552,13 @@ async def integration_client(
             outbox_event_service=outbox_event_service,
             packing_slip_builder=PackingSlipBuilder(settings=settings),
             artwork_client=artwork_client_stub,
+            # As in production: an unprinted cancelled job refunds its line.
+            refund_service=OrderRefundService(
+                order_repository=OrderRepository(session=session),
+                saga_repository=OrderSagaRepository(session),
+                refund_repository=OrderRefundRepository(session),
+                outbox_event_service=outbox_event_service,
+            ),
         )
 
     def _override_get_order_service(

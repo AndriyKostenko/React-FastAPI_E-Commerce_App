@@ -23,6 +23,8 @@ from shared.contracts.events import (
     PaymentSucceededEvent,
     PaymentFailedEvent,
     PaymentCancelledEvent,
+    PaymentRefundedEvent,
+    PaymentRefundFailedEvent,
     ShipmentCreatedEvent,
     ShipmentShippedEvent,
     ShipmentDeliveredEvent,
@@ -36,6 +38,9 @@ from shared.idempotency.idempotency_service import IdempotencyEventService
 from shared.managers.database_session_manager import DatabaseSessionManager
 from shared.enums.event_enums import InventoryEvents, OrderEvents, PaymentEvents, ShippingEvents
 from exceptions.order_exceptions import OrderNotFoundError, OrderNotCancellableError
+from database_layer.order_refund_repository import OrderRefundRepository
+from service_layer.order_refund_service import OrderRefundService
+from database_layer.order_saga_repository import OrderSagaRepository
 
 """
 Order Event Consumer - SAGA Orchestrator
@@ -121,8 +126,40 @@ class OrderEventConsumer:
                 await self.handle_payment_failed(message)
             case PaymentEvents.PAYMENT_CANCELLED:
                 await self.handle_payment_cancelled(message)
+            case PaymentEvents.PAYMENT_REFUNDED | PaymentEvents.PAYMENT_REFUND_FAILED:
+                await self.handle_refund_result(message)
             case _:
                 self.logger.warning(f"Unhandled payment event type in order consumer: {event_type}")
+
+    async def handle_refund_result(self, message: dict[str, Any]) -> None:
+        """payment-service's answer to a partial refund this service requested."""
+        succeeded = message.get("event_type") == PaymentEvents.PAYMENT_REFUNDED
+        event = PaymentRefundedEvent(**message) if succeeded else PaymentRefundFailedEvent(**message)
+        if event.refund_id is None:
+            return  # a whole-payment refund after a cancellation: nothing recorded here
+        if not await self.idempotency_service.try_claim_event(event_id=event.event_id, event_type=event.event_type):
+            return
+        try:
+            async with self.database.transaction() as session:
+                await OrderRefundService(
+                    order_repository=OrderRepository(session=session),
+                    saga_repository=OrderSagaRepository(session),
+                    refund_repository=OrderRefundRepository(session),
+                    outbox_event_service=OutboxEventService(OutboxRepository(session=session, model=OutboxEvent)),
+                ).record_result(
+                    event.refund_id,
+                    succeeded=succeeded,
+                    failure_reason=None if succeeded else event.reason,
+                )
+            if not succeeded:
+                self.logger.error(f"Refund {event.refund_id} for order {event.order_id} failed: {event.reason}")
+            await self.idempotency_service.mark_event_as_processed(
+                event_id=event.event_id, event_type=event.event_type, order_id=event.order_id,
+                result="refund_succeeded" if succeeded else "refund_failed",
+            )
+        except Exception:
+            await self.idempotency_service.release_claim(event_id=event.event_id, event_type=event.event_type)
+            raise
 
     async def handle_cj_order_created(self, message: dict[str, Any]) -> None:
         """Persist the CJ Dropshipping order number on the local order."""
