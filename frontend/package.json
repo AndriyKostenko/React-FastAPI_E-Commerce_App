@@ -6,7 +6,8 @@
     "dev": "next dev --webpack",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "gen:api": "node scripts/generate-api-types.mjs"
   },
   "dependencies": {
     "@mui/x-data-grid": "^7.6.2",
@@ -39,6 +40,7 @@
     "autoprefixer": "^10.0.1",
     "eslint": "^10.8.0",
     "eslint-config-next": "^0.2.4",
+    "openapi-typescript": "^7.13.0",
     "postcss": "^8",
     "tailwindcss": "^3.3.0",
     "typescript": "^5"
