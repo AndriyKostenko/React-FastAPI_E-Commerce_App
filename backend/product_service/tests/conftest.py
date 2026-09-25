@@ -567,3 +567,29 @@ async def integration_client(
 
     # ── 4. Wipe all rows so the next test starts with an empty database ─────
     await test_database_session_manager.truncate_all_tables(Base.metadata)
+
+
+# ---------------------------------------------------------------------------
+# Exit without native teardown
+# ---------------------------------------------------------------------------
+# rembg brings in onnxruntime, OpenCV, numba and scipy. Their C++ static
+# destructors race at process exit on macOS and about one full run in four
+# aborted with "libc++abi: ... recursive_mutex lock failed" (exit 134) —
+# always after every test had passed and the report was printed. faulthandler
+# shows nothing because Python has already finalized by then. Once pytest has
+# reported, leave with its own exit status and skip that teardown.
+_session_exit_status: int = 0
+
+
+def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
+    global _session_exit_status
+    _session_exit_status = int(exitstatus)
+
+
+@pytest.hookimpl(trylast=True)
+def pytest_unconfigure(config: pytest.Config) -> None:
+    import sys
+
+    sys.stdout.flush()
+    sys.stderr.flush()
+    os._exit(_session_exit_status)
