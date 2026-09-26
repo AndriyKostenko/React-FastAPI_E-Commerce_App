@@ -1,7 +1,7 @@
 from decimal import Decimal
 from uuid import UUID, uuid4
 
-from sqlalchemy import ForeignKey, Index, Numeric, inspect
+from sqlalchemy import ForeignKey, Index, Numeric, inspect, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 
@@ -22,11 +22,17 @@ class Order(Base, TimestampMixin):
     id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4)
     user_id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), nullable=False)
     user_email: Mapped[str] = mapped_column(nullable=False)
-    amount: Mapped[float] = mapped_column(nullable=False)
+    # Exact money: refunds sum these. Was a float column (migration 8d2f6a1c3e57).
+    amount: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
     # Breakdown of ``amount``. Null only on orders placed before it existed.
     subtotal_amount: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
     shipping_amount: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
     tax_amount: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
+    # The Stripe Tax calculation behind tax_amount; None when tax was off.
+    tax_calculation_id: Mapped[str | None] = mapped_column(nullable=True)
+    # Set when the customer disputes the charge with their bank: "open" until
+    # Stripe reports the outcome (won / lost / ...). Flags the order for review.
+    dispute_status: Mapped[str | None] = mapped_column(String(30), nullable=True)
     # The CJ logistics option the customer paid for, and what CJ quoted for it.
     shipping_logistic_name: Mapped[str | None] = mapped_column(nullable=True)
     shipping_cost_usd: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)

@@ -257,8 +257,6 @@ class ProductService:
                                                 filters_query: Annotated[ProductsFilterParams, Query()]) -> list[ProductBase]:
         params = self.filter_parser.parse_filter_params(filter_query=filters_query)
         products: list[Product] = await self.repository.get_all(**params)
-        if not products:
-            raise ProductNotFoundError("No products found with the given criteria.")
         return [ProductBase.model_validate(product) for product in products]
 
     async def get_all_products_with_relations(self,
@@ -267,8 +265,6 @@ class ProductService:
         params = self.filter_parser.parse_filter_params(filter_query=filters_query)
         params["load_relations"] = self.product_relations
         products = await self.repository.get_all(**params)
-        if not products:
-            raise ProductNotFoundError("No products found with the given criteria.")
         return [ProductSchema.model_validate(product) for product in products]
 
     async def get_product_by_name(self, name: str) -> ProductBase:

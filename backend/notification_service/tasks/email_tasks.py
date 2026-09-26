@@ -1,8 +1,9 @@
 from typing import Any
 
 from resources import logger, settings
-from shared.email_service.email_service import UserRelatedNotifications, OrderRelatedNotifications
+from shared.email_service.email_service import AdminAlerts, OrderRelatedNotifications, UserRelatedNotifications
 from shared.contracts.events import (
+    PaymentDisputeEvent,
     UserRegisteredEvent,
     EmailVerificationEvent,
     PasswordResetRequestedEvent,
@@ -23,6 +24,7 @@ from .broker import taskiq_broker
 
 user_notification_email_service = UserRelatedNotifications(settings=settings, logger=logger)
 order_notification_email_service = OrderRelatedNotifications(settings=settings, logger=logger)
+admin_alerts = AdminAlerts(settings=settings, logger=logger)
 
 
 @taskiq_broker.task
@@ -97,3 +99,8 @@ async def send_order_delivered_email(payload: dict[str, Any]) -> None:
     event = _parse_delivered_event(payload)
     await order_notification_email_service.send_order_delivered_notification(event)
     logger.info(f"Order delivered email sent to {event.user_email} for order {event.order_id}")
+
+
+@taskiq_broker.task
+async def send_admin_dispute_alert(payload: dict[str, Any]) -> None:
+    await admin_alerts.send_dispute_alert(PaymentDisputeEvent(**payload))

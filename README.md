@@ -422,7 +422,7 @@ Browser → yourdomain.com/api/v1/products
     ▼ api-gateway forwards to the right microservice internally
 ```
 
-The internal microservices (user-service, product-service, etc.) **don't go through Traefik at all** — they talk directly over the `usernet` Docker network. Traefik only handles the **public edge**.
+The internal microservices (user-service, product-service, etc.) **don't go through Traefik at all** — they talk directly over the `backend` Docker network. Traefik only handles the **public edge**: it sits on the separate `edge` network with the gateway (and the admin UIs it serves) and has no route to the databases or brokers. `backend/docker-compose.prod.yml` removes every published host port except Traefik's 80/443.
 
 ---
 

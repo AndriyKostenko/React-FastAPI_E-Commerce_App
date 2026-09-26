@@ -356,7 +356,7 @@ class ProductEventConsumer:
                     category_service=category_service,
                 )
 
-                pricing = SupplierRetailPricing.from_settings(self.settings)
+                pricing = await SupplierRetailPricing.live(self.settings, self.logger)
                 errors: list[str] = []
                 for supplier_product in event.products:
                     pid = supplier_product.supplier_pid or "<missing>"

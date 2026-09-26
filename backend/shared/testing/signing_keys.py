@@ -55,6 +55,7 @@ class EphemeralSigningKeys:
     def __init__(self) -> None:
         self.user_token_private_key = Ed25519PrivateKey.generate()
         self.gateway_assertion_private_key = Ed25519PrivateKey.generate()
+        self.order_service_private_key = Ed25519PrivateKey.generate()
 
     def user_token_issuer(self) -> UserTokenIssuer:
         return UserTokenIssuer(self.user_token_private_key, TEST_TOKEN_ISSUER, TEST_TOKEN_AUDIENCE)
@@ -113,3 +114,22 @@ class EphemeralSigningKeys:
         return GatewayCallerAuth(
             self.assertion_signer(), TokenClaims(email=email, id=user_id, role=role)
         )
+
+    def order_service_auth(self) -> httpx.Auth:
+        """``auth=`` that signs requests as order-service, like its internal clients do."""
+        from shared.auth.service_assertion import SERVICE_ASSERTION_AUDIENCE, ServiceAssertionAuth
+
+        return ServiceAssertionAuth(
+            lambda: CallerAssertionSigner(
+                self.order_service_private_key, "order-service", SERVICE_ASSERTION_AUDIENCE, ttl=timedelta(seconds=60)
+            )
+        )
+
+    def trust_order_service(self, settings: object) -> None:
+        """Make the running settings accept order-service assertions signed by these keys."""
+        from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+
+        pem = self.order_service_private_key.public_key().public_bytes(
+            Encoding.PEM, PublicFormat.SubjectPublicKeyInfo
+        ).decode()
+        setattr(settings, "ORDER_SERVICE_ASSERTION_PUBLIC_KEY", pem)

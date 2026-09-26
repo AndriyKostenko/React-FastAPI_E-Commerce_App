@@ -21,6 +21,11 @@ from schemas.product_schemas import (
     OrderQuoteResponse,
 )
 from shared.auth.route_guards import AdminDep
+from shared.auth.service_assertion import require_service
+
+# Called by order-service directly, never through the gateway: only a request
+# order-service signed with its own key is accepted (bug list 5).
+OrderServiceCaller = Annotated[str, Depends(require_service("order-service"))]
 
 
 product_routes = APIRouter(tags=["products"])
@@ -33,6 +38,7 @@ product_routes = APIRouter(tags=["products"])
     summary="Build a canonical order quote",
 )
 async def quote_order_items(
+    caller_service: OrderServiceCaller,
     quote: OrderQuoteRequest,
     product_service: product_service_dependency,
 ) -> OrderQuoteResponse:

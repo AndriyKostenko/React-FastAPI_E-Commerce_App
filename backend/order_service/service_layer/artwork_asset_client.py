@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from shared.contracts.artwork import GeneratedArtworkAsset
 from shared.exceptions.base_exceptions import BaseAPIException
 from shared.settings import Settings
+from shared.auth.service_assertion import ServiceAssertionAuth
 
 
 class ArtworkDownloadError(BaseAPIException):
@@ -54,7 +55,11 @@ class ArtworkAssetClient:
 
     async def start(self) -> None:
         if self._client is None:
-            self._client = AsyncClient(timeout=10.0)
+            # Signed as order-service: product-service accepts this route from it alone.
+            self._client = AsyncClient(
+                timeout=10.0,
+                auth=ServiceAssertionAuth.for_service(self.settings, "order-service"),
+            )
 
     async def close(self) -> None:
         if self._client is not None and self._owns_client:

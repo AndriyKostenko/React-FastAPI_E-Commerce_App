@@ -130,9 +130,10 @@ class TestGetAllReviews:
         body = response.json()
         assert len(body) == 2
 
-    async def test_returns_404_when_no_reviews(self, integration_client: AsyncClient):
+    async def test_returns_empty_list_when_no_reviews(self, integration_client: AsyncClient):
         response = await integration_client.get(f"{TEST_API}/reviews")
-        assert response.status_code == status.HTTP_404_NOT_FOUND
+        assert response.status_code == 200
+        assert response.json() == []
 
 
 # ===========================================================================
@@ -174,14 +175,15 @@ class TestGetReviewsByProduct:
         assert len(body) == 2
         assert all(r["product_id"] == product["id"] for r in body)
 
-    async def test_returns_404_when_product_has_no_reviews(
+    async def test_returns_empty_list_when_product_has_no_reviews(
         self, integration_client: AsyncClient
     ):
         _, product = await _setup_product(integration_client)
         response = await integration_client.get(
             f"{TEST_API}/products/{product['id']}/reviews"
         )
-        assert response.status_code == status.HTTP_404_NOT_FOUND
+        assert response.status_code == 200
+        assert response.json() == []
 
 
 # ===========================================================================
@@ -200,11 +202,12 @@ class TestGetReviewsByUser:
         assert len(body) == 1
         assert body[0]["user_id"] == user_id
 
-    async def test_returns_404_when_user_has_no_reviews(
+    async def test_returns_empty_list_when_user_has_no_reviews(
         self, integration_client: AsyncClient
     ):
         response = await integration_client.get(f"{TEST_API}/users/{uuid4()}/reviews")
-        assert response.status_code == status.HTTP_404_NOT_FOUND
+        assert response.status_code == 200
+        assert response.json() == []
 
 
 # ===========================================================================

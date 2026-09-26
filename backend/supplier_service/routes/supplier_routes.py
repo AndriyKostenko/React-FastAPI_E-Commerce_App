@@ -14,6 +14,12 @@ from schemas.dropshipping_schemas import (
 )
 from schemas.supplier_schemas import CJProductPreview, SupplierSyncRunSummary
 from shared.auth.route_guards import AdminDep
+from shared.auth.service_assertion import require_service
+from fastapi import Depends
+
+# Called by order-service directly, never through the gateway: only a request
+# order-service signed with its own key is accepted (bug list 5).
+OrderServiceCaller = Annotated[str, Depends(require_service("order-service"))]
 
 
 supplier_routes = APIRouter(tags=["suppliers"])
@@ -146,6 +152,7 @@ async def sync_supplier_products(
     summary="Quote CJ shipping for a cart at checkout",
 )
 async def quote_cjdropshipping_freight(
+    caller_service: OrderServiceCaller,
     quote_request: CJFreightQuoteRequest,
     freight_service: freight_quote_dependency,
 ) -> CJFreightQuoteResponse:

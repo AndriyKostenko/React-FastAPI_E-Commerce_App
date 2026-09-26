@@ -217,3 +217,31 @@ async def advance_production_job(
         service_name="order-service",
         request=request,
     )
+
+
+# ==================== REFUNDS (admin) ====================
+
+@order_proxy.post("/admin/orders/{order_id}/refunds", summary="Refund part of an order (admin only)")
+async def request_order_refund(
+    request: Request,
+    order_id: UUID,
+    current_user: CurrentUserInfo = Depends(require_admin),
+):
+    """Chosen lines (and quantities), optionally shipping; order-service validates
+    against what is still refundable and payment-service makes the refund."""
+    return await api_gateway_manager.forward_request(
+        service_name="order-service",
+        request=request,
+    )
+
+
+@order_proxy.get("/admin/orders/{order_id}/refunds", summary="List an order's refunds (admin only)")
+async def list_order_refunds(
+    request: Request,
+    order_id: UUID,
+    current_user: CurrentUserInfo = Depends(require_admin),
+):
+    return await api_gateway_manager.forward_request(
+        service_name="order-service",
+        request=request,
+    )

@@ -22,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from main import app
 from database_layer.payment_repository import PaymentRepository
 from dependencies.dependencies import (
+    get_payment_dispute_service,
     get_db_session,
     get_idempotency_service,
     get_outbox_service,
@@ -59,6 +60,8 @@ from shared.testing.signing_keys import EphemeralSigningKeys
 # Throwaway gateway keys: the test clients' apps trust assertions signed
 # with these, exactly as a deployed service trusts the gateway's.
 SIGNING_KEYS = EphemeralSigningKeys()
+# /payments/tax/calculate accepts order-service's signature alone.
+SIGNING_KEYS.trust_order_service(get_settings())
 # Test clients call as a signed-in admin by default, so tests about business
 # logic are not tripped by authorisation. Authorisation has its own tests,
 # which pass an explicit per-request `auth=` (anonymous, owner, stranger).
@@ -110,6 +113,10 @@ def mock_payment_orm() -> MagicMock:
     payment.currency = TEST_CURRENCY
     payment.status = PaymentStatus.PENDING
     payment.failure_reason = None
+    payment.refunded_cents = 0
+    payment.capture_reduction_cents = 0
+    payment.tax_calculation_id = None
+    payment.tax_transaction_id = None
     payment.date_created = TEST_DATETIME
     payment.date_updated = None
     return payment
@@ -129,6 +136,7 @@ def mock_payment_repository() -> MagicMock:
     repo.get_by_id = AsyncMock()
     repo.update_by_id = AsyncMock()
     repo.delete_by_id = AsyncMock()
+    repo.get_by_order_for_update = AsyncMock(return_value=None)
     repo.session = MagicMock()
     repo.session.commit = AsyncMock()
     repo.session.begin_nested = MagicMock(return_value=_AsyncContextManagerMock())
@@ -164,7 +172,7 @@ def mock_settings() -> MagicMock:
     s = MagicMock()
     s.FULL_STRIPE_WEBHOOK_ENDPOINT = "https://example.com/api/v1/payments/webhook"
     s.STRIPE_WEBHOOK_SECRET = "whsec_test_secret"
-    s.STRIPE_TEST_SECRET_KEY = "sk_test_fake_key"
+    s.STRIPE_SECRET_KEY = "sk_test_fake_key"
     return s
 
 
@@ -274,6 +282,9 @@ async def client_for_unit_testing(
     original_lifespan = app.router.lifespan_context
     app.router.lifespan_context = _noop_lifespan
     app.dependency_overrides[get_payment_service] = lambda: mock_route_payment_service
+    app.dependency_overrides[get_payment_dispute_service] = lambda: MagicMock(
+        opened=AsyncMock(), updated=AsyncMock(), closed=AsyncMock()
+    )
     app.dependency_overrides[get_idempotency_service] = lambda: mock_idempotency_service
 
     original_debug_mode = settings.DEBUG_MODE

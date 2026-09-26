@@ -6,7 +6,7 @@ from uuid import UUID, uuid4
 from datetime import datetime
 
 from sqlalchemy.engine import URL
-from pydantic import HttpUrl, SecretStr, DirectoryPath, Field
+from pydantic import AliasChoices, HttpUrl, SecretStr, DirectoryPath, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from shared.enums.status_enums import OrderStatus, OrderDeliveryStatus
@@ -194,6 +194,11 @@ class Settings(BaseSettings):
     USER_TOKEN_PUBLIC_KEY: str | None = None
     GATEWAY_ASSERTION_PRIVATE_KEY: SecretStr | None = None
     GATEWAY_ASSERTION_PUBLIC_KEY: str | None = None
+    # order-service's own identity for its direct calls to product-service and
+    # supplier-service (see shared.auth.service_assertion). Private key: only
+    # order-service. Public key: the services it calls.
+    ORDER_SERVICE_ASSERTION_PRIVATE_KEY: SecretStr | None = None
+    ORDER_SERVICE_ASSERTION_PUBLIC_KEY: str | None = None
     USER_TOKEN_ISSUER: str = "user-service"
     USER_TOKEN_AUDIENCE: str = "ecommerce-api"
     GATEWAY_ASSERTION_ISSUER: str = "api-gateway"
@@ -217,10 +222,22 @@ class Settings(BaseSettings):
 
     # Stripe. Optional so a service that never charges a card can run
     # without holding the key at all — see MISSING_SECRET_HINT below.
-    STRIPE_TEST_SECRET_KEY: SecretStr | None = None
+    # Named for what it is, test or live. The old STRIPE_TEST_SECRET_KEY name
+    # is still read, so an existing env file keeps working.
+    STRIPE_SECRET_KEY: SecretStr | None = Field(
+        default=None,
+        validation_alias=AliasChoices("STRIPE_SECRET_KEY", "STRIPE_TEST_SECRET_KEY"),
+    )
     STRIPE_WEBHOOK_SECRET: SecretStr | None = None
     STRIPE_REQUEST_TIMEOUT_SECONDS: float = Field(default=30.0, gt=0, le=120)
     STRIPE_MAX_NETWORK_RETRIES: int = Field(default=2, ge=0, le=5)
+    # Stripe Tax. Off until the tax registrations exist in the Stripe
+    # dashboard: Stripe only taxes where you are registered, and every
+    # calculation is billed. While off the tax line is a fixed zero.
+    STRIPE_TAX_ENABLED: bool = False
+    # Tax code for the goods sold; None uses the account's preset code.
+    # T-shirts are clothing: txcd_30011000.
+    STRIPE_TAX_PRODUCT_TAX_CODE: str | None = None
 
     # Email
     MAIL_USERNAME: str
@@ -232,6 +249,8 @@ class Settings(BaseSettings):
     MAIL_DEBUG: bool
     MAIL_FROM: str
     MAIL_FROM_NAME: str
+    # Where operational alerts (payment disputes) are emailed. Unset: logged only.
+    ADMIN_ALERT_EMAIL: str | None = None
     USE_CREDENTIALS: bool
     TEMPLATES_DIR: DirectoryPath = Path(__file__).parent / "templates"
     VALIDATE_CERTS: bool
@@ -316,7 +335,7 @@ class Settings(BaseSettings):
 
     @property
     def STRIPE_API_KEY(self) -> str:
-        return self._reveal(self.STRIPE_TEST_SECRET_KEY, "STRIPE_TEST_SECRET_KEY")
+        return self._reveal(self.STRIPE_SECRET_KEY, "STRIPE_SECRET_KEY")
 
     @property
     def STRIPE_WEBHOOK_SIGNING_SECRET(self) -> str:
@@ -382,6 +401,9 @@ class Settings(BaseSettings):
     # Storefront pricing of supplier goods. CJ prices in USD while the store
     # sells in CAD; keep the rate current, since it also converts freight.
     CJ_USD_TO_CAD_RATE: Decimal = Field(default=Decimal("1.38"), gt=0)
+    # Where the USD->CAD rate comes from: the Bank of Canada's daily rate
+    # (cached; CJ_USD_TO_CAD_RATE is then only the fallback), or "fixed".
+    CJ_FX_SOURCE: Literal["bank_of_canada", "fixed"] = "bank_of_canada"
     # Retail never drops below CJ's cost times this multiplier.
     CJ_PRICE_MARKUP_MULTIPLIER: Decimal = Field(default=Decimal("2.00"), ge=1)
     # Padding on CJ freight charged to the customer. It absorbs FX drift and CJ

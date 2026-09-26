@@ -271,12 +271,11 @@ class TestGetOrders:
         assert len(result) == 1
         assert isinstance(result[0], OrderSchema)
 
-    async def test_get_orders_empty_raises(self, order_service_unit: OrderService):
+    async def test_get_orders_empty_returns_empty_list(self, order_service_unit: OrderService):
         svc = order_service_unit
-        svc.repository.get_all = AsyncMock(return_value=None)
+        svc.repository.get_all = AsyncMock(return_value=[])
 
-        with pytest.raises(OrdersNotFoundError):
-            await svc.get_orders()
+        assert await svc.get_orders() == []
 
 
 # ---------------------------------------------------------------------------
@@ -295,14 +294,13 @@ class TestGetOrdersByUserId:
         assert len(result) == 1
         assert result[0].user_id == TEST_USER_ID
 
-    async def test_get_orders_by_user_id_not_found_raises(
+    async def test_get_orders_by_user_id_none_returns_empty_list(
         self, order_service_unit: OrderService
     ):
         svc = order_service_unit
-        svc.repository.get_many_by_field = AsyncMock(return_value=None)
+        svc.repository.get_many_by_field = AsyncMock(return_value=[])
 
-        with pytest.raises(OrdersNotFoundError):
-            await svc.get_orders_by_user_id(TEST_USER_ID)
+        assert await svc.get_orders_by_user_id(TEST_USER_ID) == []
 
 
 # ---------------------------------------------------------------------------
@@ -324,6 +322,8 @@ class TestUpdateOrder:
         updated_orm.subtotal_amount = None
         updated_orm.shipping_amount = None
         updated_orm.tax_amount = None
+        updated_orm.dispute_status = None
+        updated_orm.tax_calculation_id = None
         updated_orm.shipping_logistic_name = None
         updated_orm.currency = TEST_CURRENCY
         updated_orm.status = OrderStatus.PENDING

@@ -277,7 +277,7 @@ class TestGetAllProducts:
         assert len(result) == 1
         assert result[0].id == mock_product_orm.id
 
-    async def test_raises_when_no_products_found(
+    async def test_returns_empty_list_when_no_products_found(
         self,
         product_service_unit,
         mock_product_repository: MagicMock,
@@ -285,8 +285,7 @@ class TestGetAllProducts:
         mock_product_repository.get_all.return_value = []
 
         from schemas.product_schemas import ProductsFilterParams
-        with pytest.raises(ProductNotFoundError):
-            await product_service_unit.get_all_products_without_relations(ProductsFilterParams())
+        assert await product_service_unit.get_all_products_without_relations(ProductsFilterParams()) == []
 
 
 # ---------------------------------------------------------------------------

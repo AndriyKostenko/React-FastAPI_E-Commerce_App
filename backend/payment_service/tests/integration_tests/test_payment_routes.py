@@ -147,6 +147,7 @@ class TestGetAllPayments:
         response = await integration_client.get(f"{TEST_API}/payments")
         assert response.status_code == 200
 
-    async def test_returns_404_when_no_payments(self, integration_client) -> None:
+    async def test_returns_empty_list_when_no_payments(self, integration_client) -> None:
         response = await integration_client.get(f"{TEST_API}/payments")
-        assert response.status_code == 404
+        assert response.status_code == 200
+        assert response.json() == []

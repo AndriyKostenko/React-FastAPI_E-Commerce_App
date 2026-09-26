@@ -7,7 +7,10 @@ this one rule, or a customer is charged a number they were never shown.
 """
 
 from decimal import ROUND_CEILING, ROUND_HALF_UP, Decimal
+from logging import Logger
 from typing import Protocol, Self
+
+from shared.utils.exchange_rates import usd_cad_rate
 
 
 CENT = Decimal("0.01")
@@ -16,6 +19,7 @@ CENT = Decimal("0.01")
 class _PricingSettings(Protocol):
     CJ_USD_TO_CAD_RATE: Decimal
     CJ_PRICE_MARKUP_MULTIPLIER: Decimal
+    CJ_FX_SOURCE: str
 
 
 class SupplierRetailPricing:
@@ -30,11 +34,21 @@ class SupplierRetailPricing:
         self.markup_multiplier: Decimal = Decimal(markup_multiplier)
 
     @classmethod
-    def from_settings(cls, settings: _PricingSettings) -> Self:
+    def from_settings(cls, settings: _PricingSettings, usd_to_cad_rate: Decimal | None = None) -> Self:
+        """``usd_to_cad_rate`` is the live rate; without one, the configured rate."""
         return cls(
-            usd_to_cad_rate=settings.CJ_USD_TO_CAD_RATE,
+            usd_to_cad_rate=usd_to_cad_rate if usd_to_cad_rate is not None else settings.CJ_USD_TO_CAD_RATE,
             markup_multiplier=settings.CJ_PRICE_MARKUP_MULTIPLIER,
         )
+
+    @classmethod
+    async def live(cls, settings: _PricingSettings, logger: Logger) -> Self:
+        """Pricing at today's USD/CAD rate (see ``shared.utils.exchange_rates``)."""
+        rate = await usd_cad_rate(logger).current(
+            fallback=settings.CJ_USD_TO_CAD_RATE,
+            source=settings.CJ_FX_SOURCE,  # type: ignore[arg-type]
+        )
+        return cls.from_settings(settings, rate)
 
     def usd_to_cad(self, amount_usd: Decimal) -> Decimal:
         """Convert a USD amount to CAD, rounded to the cent."""

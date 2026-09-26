@@ -8,6 +8,10 @@ Integration-test fixtures use the real PostgreSQL test database
 (PRODUCT_SERVICE_TEST_DB) and truncate every table between tests.
 """
 import os
+
+# Tests never call the Bank of Canada: prices use the configured rate.
+os.environ.setdefault("CJ_FX_SOURCE", "fixed")
+import os
 import tempfile
 
 # Ensure the media mount point exists before importing main.py,
@@ -80,6 +84,8 @@ from shared.testing.signing_keys import EphemeralSigningKeys
 # Throwaway gateway keys: the test clients' apps trust assertions signed
 # with these, exactly as a deployed service trusts the gateway's.
 SIGNING_KEYS = EphemeralSigningKeys()
+# The internal routes accept order-service's signature; trust the test key.
+SIGNING_KEYS.trust_order_service(get_settings())
 # Test clients call as a signed-in admin by default, so tests about business
 # logic are not tripped by authorisation. Authorisation has its own tests,
 # which pass an explicit per-request `auth=` (anonymous, owner, stranger).
@@ -567,3 +573,29 @@ async def integration_client(
 
     # ── 4. Wipe all rows so the next test starts with an empty database ─────
     await test_database_session_manager.truncate_all_tables(Base.metadata)
+
+
+# ---------------------------------------------------------------------------
+# Exit without native teardown
+# ---------------------------------------------------------------------------
+# rembg brings in onnxruntime, OpenCV, numba and scipy. Their C++ static
+# destructors race at process exit on macOS and about one full run in four
+# aborted with "libc++abi: ... recursive_mutex lock failed" (exit 134) —
+# always after every test had passed and the report was printed. faulthandler
+# shows nothing because Python has already finalized by then. Once pytest has
+# reported, leave with its own exit status and skip that teardown.
+_session_exit_status: int = 0
+
+
+def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
+    global _session_exit_status
+    _session_exit_status = int(exitstatus)
+
+
+@pytest.hookimpl(trylast=True)
+def pytest_unconfigure(config: pytest.Config) -> None:
+    import sys
+
+    sys.stdout.flush()
+    sys.stderr.flush()
+    os._exit(_session_exit_status)

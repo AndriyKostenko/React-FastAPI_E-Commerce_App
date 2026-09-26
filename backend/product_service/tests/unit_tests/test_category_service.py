@@ -80,15 +80,14 @@ class TestGetAllCategories:
         assert len(result) == 1
         assert result[0].id == mock_category_orm.id
 
-    async def test_raises_when_no_categories(
+    async def test_returns_empty_list_when_no_categories(
         self,
         category_service_unit,
         mock_category_repository: MagicMock,
     ) -> None:
         mock_category_repository.get_all.return_value = []
 
-        with pytest.raises(CategoryNotFoundError):
-            await category_service_unit.get_all_categories()
+        assert await category_service_unit.get_all_categories() == []
 
 
 # ---------------------------------------------------------------------------

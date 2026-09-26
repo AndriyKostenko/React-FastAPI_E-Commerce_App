@@ -1,7 +1,8 @@
+from decimal import Decimal
 from typing import List
 from uuid import UUID, uuid4
 
-from sqlalchemy import ForeignKey, Index, inspect
+from sqlalchemy import ForeignKey, Index, inspect, Numeric
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 
@@ -23,7 +24,7 @@ class OrderItem(Base, TimestampMixin):
     product_id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), nullable=False)
     variant_id: Mapped[UUID | None] = mapped_column(PostgresUUID(as_uuid=True), nullable=True)
     quantity: Mapped[int] = mapped_column(nullable=False)
-    price: Mapped[float] = mapped_column(nullable=False)
+    price: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
 
     order: Mapped['Order'] = relationship('Order', back_populates='items')
     fulfillment: Mapped['OrderLineFulfillment | None'] = relationship(

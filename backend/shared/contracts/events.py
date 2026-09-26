@@ -179,14 +179,43 @@ class PaymentFailedEvent(PaymentBaseEvent):
 
 
 class PaymentRefundedEvent(PaymentBaseEvent):
-    """Event published when a payment is refunded after order cancellation"""
+    """
+    Money went back to the customer: the whole payment after a cancellation,
+    or part of it for a refund order_service requested (``refund_id`` set).
+    """
     event_type: str = Field(default_factory=lambda: PaymentEvents.PAYMENT_REFUNDED)
+    refund_id: UUID | None = None
+    refunded_amount_cents: int | None = None
+    # True when the card had not been captured yet: the customer is simply
+    # charged that much less, rather than refunded.
+    applied_before_capture: bool = False
+
+
+class PaymentRefundFailedEvent(PaymentBaseEvent):
+    """A refund order_service requested could not be made."""
+    event_type: str = Field(default_factory=lambda: PaymentEvents.PAYMENT_REFUND_FAILED)
+    refund_id: UUID
+    reason: str
 
 
 class PaymentCancelledEvent(PaymentBaseEvent):
     """Event published when a Stripe payment intent is cancelled"""
     event_type: str = Field(default_factory=lambda: PaymentEvents.PAYMENT_CANCELLED)
     reason: str
+
+
+class PaymentDisputeEvent(PaymentBaseEvent):
+    """
+    The customer's bank opened or settled a dispute (chargeback) on the charge.
+    Nothing is done automatically: the order is flagged and an admin told.
+    """
+    event_type: str = Field(default_factory=lambda: PaymentEvents.PAYMENT_DISPUTE_OPENED)
+    dispute_id: str
+    disputed_amount_cents: int
+    reason: str
+    # needs_response / under_review / won / lost / warning_closed ...
+    dispute_status: str
+    evidence_due_by: datetime | None = None
 
 
 class PaymentCommandBase(BaseEvent):
@@ -200,6 +229,14 @@ class PaymentCommandBase(BaseEvent):
 class PaymentCaptureRequested(PaymentCommandBase):
     """Fulfillment is secured: charge the authorized card."""
     event_type: str = Field(default_factory=lambda: PaymentCommands.CAPTURE_REQUESTED)
+
+
+class PaymentRefundRequested(PaymentCommandBase):
+    """Give back part of an order's payment: chosen lines, maybe shipping."""
+    event_type: str = Field(default_factory=lambda: PaymentCommands.REFUND_REQUESTED)
+    refund_id: UUID
+    amount_cents: int = Field(gt=0)
+    reason: str
 
 
 class PaymentReleaseRequested(PaymentCommandBase):

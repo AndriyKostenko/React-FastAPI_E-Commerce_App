@@ -25,6 +25,9 @@ from database_layer.order_repository import OrderRepository
 from config import settings
 from resources import OrderApiResources, get_order_api_resources
 from shared.utils.authenticated_caller import AuthenticatedCaller
+from database_layer.order_refund_repository import OrderRefundRepository
+from service_layer.order_refund_service import OrderRefundService
+from database_layer.order_saga_repository import OrderSagaRepository
 
 
 def get_api_resources(request: Request) -> OrderApiResources:
@@ -87,6 +90,7 @@ def get_order_service(resources: OrderApiResources = Depends(get_api_resources),
                             settings=resources.settings,
                             catalog_client=resources.catalog_client,
                             freight_client=resources.freight_client,
+                            tax_client=resources.tax_client,
                         ))
 
 def get_fulfillment_status_service(
@@ -120,6 +124,12 @@ def get_production_queue_service(
         outbox_event_service=outbox_event_service,
         packing_slip_builder=PackingSlipBuilder(settings=resources.settings),
         artwork_client=resources.artwork_client,
+        refund_service=OrderRefundService(
+            order_repository=OrderRepository(session=session),
+            saga_repository=OrderSagaRepository(session),
+            refund_repository=OrderRefundRepository(session),
+            outbox_event_service=outbox_event_service,
+        ),
     )
 
 
@@ -130,7 +140,20 @@ def get_admin_caller(request: Request) -> AuthenticatedCaller:
 
 order_address_dependency = Annotated[OrderAddressService, Depends(get_order_address_service)]
 order_item_dependency = Annotated[OrderItemService, Depends(get_order_item_service)]
+def get_order_refund_service(
+    session: AsyncSession = Depends(get_db_session, scope="function"),
+    outbox_event_service: OutboxEventService = Depends(get_outbox_service),
+) -> OrderRefundService:
+    return OrderRefundService(
+        order_repository=OrderRepository(session=session),
+        saga_repository=OrderSagaRepository(session),
+        refund_repository=OrderRefundRepository(session),
+        outbox_event_service=outbox_event_service,
+    )
+
+
 order_service_dependency = Annotated[OrderService, Depends(get_order_service)]
+order_refund_service_dependency = Annotated[OrderRefundService, Depends(get_order_refund_service)]
 production_queue_service_dependency = Annotated[ProductionQueueService, Depends(get_production_queue_service)]
 fulfillment_status_dependency = Annotated[OrderFulfillmentStatusService, Depends(get_fulfillment_status_service)]
 admin_caller_dependency = Annotated[AuthenticatedCaller, Depends(get_admin_caller)]

@@ -23,7 +23,9 @@ def create_stripe_client(
     """Create one process-owned async Stripe transport with bounded I/O."""
     http_client = HTTPXClient(timeout=app_settings.STRIPE_REQUEST_TIMEOUT_SECONDS)
     client = StripeClient(
-        api_key=app_settings.STRIPE_TEST_SECRET_KEY,
+        # The revealed key: Stripe stores a SecretStr as-is and sends its masked
+        # repr ("**********") as the credential, so every call failed to authenticate.
+        api_key=app_settings.STRIPE_API_KEY,
         max_network_retries=app_settings.STRIPE_MAX_NETWORK_RETRIES,
         http_client=http_client,
     )

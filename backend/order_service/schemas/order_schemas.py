@@ -28,6 +28,8 @@ class OrderSchema(BaseModel):
     subtotal_amount: Decimal | None = None
     shipping_amount: Decimal | None = None
     tax_amount: Decimal | None = None
+    tax_calculation_id: str | None = None
+    dispute_status: str | None = None
     shipping_logistic_name: str | None = None
     currency: str
     status: str

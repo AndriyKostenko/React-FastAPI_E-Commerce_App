@@ -111,10 +111,10 @@ class BaseRepository(Generic[ModelType]):
         )
         return result.scalar_one_or_none()
 
-    async def get_many_by_field(self, field_name: str, value: str | UUID | bool, limit: int = 50) -> list[ModelType] | None:
-        """Get multiple records by field value"""
+    async def get_many_by_field(self, field_name: str, value: str | UUID | bool, limit: int = 50) -> list[ModelType]:
+        """Get multiple records by field value — an empty list when none match."""
         if not hasattr(self.model, field_name):
-            return None
+            raise NoFieldInTheModelError(field_name=field_name, model_name=self.model.__name__)
         result = await self.session.execute(
             select(self.model).where(getattr(self.model, field_name) == value).limit(limit)
         )
@@ -189,7 +189,7 @@ class BaseRepository(Generic[ModelType]):
 
     async def delete_many_by_field(self, field_name: str, value: str | UUID) -> int:
         """Delete multiple records by field value; returns how many were deleted."""
-        objects_to_delete = await self.get_many_by_field(field_name, value) or []
+        objects_to_delete = await self.get_many_by_field(field_name, value)
         await self.delete_many(objects_to_delete)
         return len(objects_to_delete)
 

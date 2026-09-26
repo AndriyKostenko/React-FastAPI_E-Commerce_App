@@ -7,6 +7,7 @@ import pytest
 
 from schemas.order_schemas import AddressType, CreateOrder, OrderProductItem
 from service_layer.order_pricing_service import OrderPricingService, OrderQuoteError
+from shared.contracts.tax import TaxCalculationResult
 from shared.contracts.artwork import GeneratedArtworkAsset, sign_artwork_asset
 from shared.contracts.order import CustomTshirtSpecification
 
@@ -14,16 +15,19 @@ from shared.contracts.order import CustomTshirtSpecification
 _SECRET = "test-artwork-signing-secret"
 
 
-def _settings():
-    return SimpleNamespace(
+def _settings(**overrides):
+    values = dict(
+        STRIPE_TAX_ENABLED=False,
         CUSTOM_TSHIRT_BASE_PRICE=Decimal("19.00"),
         ARTWORK_SIGNING_KEY=_SECRET,
         PRINT_IMAGE_MIN_EFFECTIVE_DPI=150,
         DOMESTIC_FLAT_SHIPPING_CAD=Decimal("9.99"),
         CJ_USD_TO_CAD_RATE=Decimal("1.40"),
+        CJ_FX_SOURCE="fixed",
         CJ_PRICE_MARKUP_MULTIPLIER=Decimal("2.00"),
         CJ_FREIGHT_PRICE_BUFFER=Decimal("0.10"),
     )
+    return SimpleNamespace(**{**values, **overrides})
 
 
 def _freight_client():
@@ -289,3 +293,74 @@ async def test_cj_quote_requires_fulfillment_address_before_calling_cj():
             )
         )
     freight_client.quote.assert_not_awaited()
+
+
+# ---------------------------------------------------------------- sales tax
+
+
+def _custom_line(quantity: int = 2) -> OrderProductItem:
+    return OrderProductItem(
+        id=uuid4(), quantity=quantity, fulfillment_type="custom", customization=_custom_spec()
+    )
+
+
+def _tax_client(tax_cents: int, total_cents: int, calculation_id: str = "taxcalc_123"):
+    return SimpleNamespace(
+        calculate=AsyncMock(
+            return_value=TaxCalculationResult(
+                calculation_id=calculation_id, tax_cents=tax_cents, total_cents=total_cents
+            )
+        )
+    )
+
+
+async def test_tax_is_zero_and_never_calculated_while_disabled():
+    tax_client = _tax_client(293, 6148)
+    service = OrderPricingService(
+        settings=_settings(STRIPE_TAX_ENABLED=False),
+        catalog_client=SimpleNamespace(quote=AsyncMock()),
+        tax_client=tax_client,
+    )
+
+    quote = await service.build_quote(_order([_custom_line()]))
+
+    assert quote.tax_amount == Decimal("0.00")
+    assert quote.tax_calculation_id is None
+    assert quote.total_amount == Decimal("58.55")
+    tax_client.calculate.assert_not_awaited()
+
+
+async def test_enabled_tax_is_added_to_the_total_and_its_calculation_kept():
+    tax_client = _tax_client(293, 6148)
+    service = OrderPricingService(
+        settings=_settings(STRIPE_TAX_ENABLED=True),
+        catalog_client=SimpleNamespace(quote=AsyncMock()),
+        tax_client=tax_client,
+    )
+
+    quote = await service.build_quote(_order([_custom_line()]))
+
+    assert quote.tax_amount == Decimal("2.93")
+    assert quote.total_amount == Decimal("61.48")  # 48.56 + 9.99 shipping + 2.93 tax
+    assert quote.amount_cents == 6148
+    assert quote.tax_calculation_id == "taxcalc_123"
+
+    request = tax_client.calculate.await_args.args[0]
+    # Lines go in tax-exclusive, in cents, with shipping on its own.
+    assert [(line.amount_cents, line.quantity) for line in request.lines] == [(4856, 2)]
+    assert request.shipping_cents == 999
+    assert request.currency == "CAD"
+    assert request.address.country == "CA"
+    assert request.address.state == "AB"
+    assert request.address.postal_code == "T1T 1T1"
+
+
+async def test_enabled_tax_needs_a_country_code():
+    service = OrderPricingService(
+        settings=_settings(STRIPE_TAX_ENABLED=True),
+        catalog_client=SimpleNamespace(quote=AsyncMock()),
+        tax_client=_tax_client(0, 0),
+    )
+
+    with pytest.raises(OrderQuoteError, match="country_code"):
+        await service.build_quote(_order([_custom_line()], country_code=None))

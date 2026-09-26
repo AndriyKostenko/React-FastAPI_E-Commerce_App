@@ -112,10 +112,11 @@ class OrderService:
                 fields = {
                     "user_id": order_data.user_id,
                     "user_email": order_data.user_email,
-                    "amount": float(quote.total_amount),
+                    "amount": quote.total_amount,
                     "subtotal_amount": quote.subtotal_amount,
                     "shipping_amount": quote.shipping_amount,
                     "tax_amount": quote.tax_amount,
+                    "tax_calculation_id": quote.tax_calculation_id,
                     "shipping_logistic_name": quote.shipping_logistic_name,
                     "shipping_cost_usd": next(
                         (
@@ -747,14 +748,10 @@ class OrderService:
 
     async def get_orders(self) -> list[OrderSchema]:
         orders = await self.repository.get_all()
-        if not orders:
-            raise OrdersNotFoundError()
         return [OrderSchema.model_validate(order) for order in orders]
 
     async def get_orders_by_user_id(self, user_id: UUID) -> list[OrderSchema]:
         orders = await self.repository.get_many_by_field("user_id", user_id)
-        if not orders:
-            raise OrdersNotFoundError()
         return [OrderSchema.model_validate(order) for order in orders]
 
     async def update_order(self, order_id: UUID, order_data: UpdateOrder) -> OrderSchema:

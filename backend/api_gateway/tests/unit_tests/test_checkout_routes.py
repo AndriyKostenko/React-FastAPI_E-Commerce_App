@@ -20,6 +20,7 @@ ORDER = {
     "subtotal_amount": "55.53",
     "shipping_amount": "17.69",
     "tax_amount": "0.00",
+    "tax_calculation_id": "taxcalc_order",
     "shipping_logistic_name": "CJPacket Ordinary",
 }
 INTENT = {
@@ -91,7 +92,12 @@ class TestStartCheckout:
     ):
         response = await client.post(
             f"{TEST_API}/checkout",
-            json={**CHECKOUT_BODY, "amount": 1, "user_id": str(uuid4())},
+            json={
+                **CHECKOUT_BODY,
+                "amount": 1,
+                "user_id": str(uuid4()),
+                "tax_calculation_id": "taxcalc_from_client",
+            },
         )
 
         assert response.status_code == 201
@@ -111,6 +117,8 @@ class TestStartCheckout:
             "user_email": TEST_USER_EMAIL,
             "amount": 7322,
             "currency": "cad",
+            # The order's own calculation; the one the client sent is ignored.
+            "tax_calculation_id": "taxcalc_order",
         }
 
     async def test_resume_reuses_the_callers_pending_order(

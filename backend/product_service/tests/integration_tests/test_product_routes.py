@@ -128,9 +128,10 @@ class TestGetAllProducts:
         assert isinstance(body, list)
         assert len(body) == 2
 
-    async def test_returns_404_when_no_products(self, integration_client: AsyncClient):
+    async def test_returns_empty_list_when_no_products(self, integration_client: AsyncClient):
         response = await integration_client.get(f"{TEST_API}/products")
-        assert response.status_code == status.HTTP_404_NOT_FOUND
+        assert response.status_code == 200
+        assert response.json() == []
 
     async def test_filter_by_in_stock(self, integration_client: AsyncClient):
         category = await _create_category(integration_client)

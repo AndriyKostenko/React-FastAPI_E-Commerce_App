@@ -7,6 +7,10 @@ with mocks so the tests run without any live services.
 Integration-test fixtures use the real PostgreSQL test database
 (ORDER_SERVICE_TEST_DB) and truncate all tables between tests.
 """
+import os
+
+# Tests never call the Bank of Canada: prices use the configured rate.
+os.environ.setdefault("CJ_FX_SOURCE", "fixed")
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from decimal import Decimal
@@ -77,6 +81,9 @@ from shared.testing.helpers import allow_testserver_host
 from shared.settings import get_settings
 from schemas.order_schemas import OrderSchema
 from shared.testing.signing_keys import EphemeralSigningKeys
+from database_layer.order_refund_repository import OrderRefundRepository
+from service_layer.order_refund_service import OrderRefundService
+from database_layer.order_saga_repository import OrderSagaRepository
 
 # Throwaway gateway keys: the test clients' apps trust assertions signed
 # with these, exactly as a deployed service trusts the gateway's.
@@ -143,6 +150,8 @@ def mock_order_orm() -> MagicMock:
     order.subtotal_amount = None
     order.shipping_amount = None
     order.tax_amount = None
+    order.dispute_status = None
+    order.tax_calculation_id = None
     order.shipping_logistic_name = None
     order.shipping_cost_usd = None
     order.currency = TEST_CURRENCY
@@ -545,6 +554,13 @@ async def integration_client(
             outbox_event_service=outbox_event_service,
             packing_slip_builder=PackingSlipBuilder(settings=settings),
             artwork_client=artwork_client_stub,
+            # As in production: an unprinted cancelled job refunds its line.
+            refund_service=OrderRefundService(
+                order_repository=OrderRepository(session=session),
+                saga_repository=OrderSagaRepository(session),
+                refund_repository=OrderRefundRepository(session),
+                outbox_event_service=outbox_event_service,
+            ),
         )
 
     def _override_get_order_service(

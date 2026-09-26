@@ -35,14 +35,10 @@ class ReviewService:
 
     async def get_reviews_by_user_id(self, user_id: UUID) -> List[ReviewSchema]:
         db_reviews = await self.repository.get_many_by_field(field_name="user_id", value=user_id)
-        if not db_reviews:
-            raise ReviewNotFoundError(f"No reviews found for user with ID: {user_id}")
         return [ReviewSchema.model_validate(review) for review in db_reviews]
 
     async def get_reviews_by_product_id(self, product_id: UUID) -> List[ReviewSchema]:
         db_reviews = await self.repository.get_many_by_field(field_name="product_id", value=product_id)
-        if not db_reviews:
-            raise ReviewNotFoundError(f"No reviews found for product with ID: {product_id}")
         return [ReviewSchema.model_validate(review) for review in db_reviews]
 
     async def get_review_by_product_id_and_user_id(self, product_id: UUID, user_id: UUID) -> ReviewSchema:
@@ -58,8 +54,6 @@ class ReviewService:
     async def get_all_reviews(self) -> List[ReviewSchema]:
         """Get all reviews in the system"""
         db_reviews = await self.repository.get_all()
-        if not db_reviews:
-            raise ReviewNotFoundError("No reviews found in the system.")
         return [ReviewSchema.model_validate(review) for review in db_reviews]
 
     async def update_product_review(self, product_id: UUID, user_id: UUID, update_data: UpdateReview) -> ReviewSchema:

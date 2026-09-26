@@ -7,8 +7,10 @@ from .order_models import Order
 from .outbox_models import OutboxEvent
 from .order_fulfillment_models import OrderLineFulfillment, CustomProductionJob
 from .order_saga_models import OrderSagaState
+from .order_refund_models import OrderRefund
 
 __all__ = [
+    "OrderRefund",
     "Base",
     "Order",
     "OrderAddress",

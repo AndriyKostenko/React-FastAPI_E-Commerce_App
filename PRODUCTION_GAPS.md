@@ -148,9 +148,9 @@ database, plus the cancellation guards). Verified live on a clean stack: a
 custom order confirmed by a real `payment.succeeded` event, printed and posted
 from the queue, moved the order to `dispatched`.
 
-**Still open here:** a partial refund for a single cancelled custom line in a
-multi-line order. Cancelling one job records the loss and flags it for
-reconciliation, but refunding part of an order is §5 work.
+**Done (2026-09-25):** cancelling a custom job that was never printed now
+refunds that line on its own (a partial refund through §5). A job cancelled
+after printing is still flagged for reconciliation and left to a human.
 
 ### 3. CJ dropshipping order lifecycle completeness — DONE (2026-09-08)
 - [x] Checkout-time shipping quote from CJ (`freightCalculate`)
@@ -222,8 +222,9 @@ Migrations: product `7c3e9a51d2f4`, order `3d8b6f0e2a91`, supplier `e5b21c7d9f60
 deliberately, prefund the CJ wallet, subscribe the Stripe webhook to
 `payment_intent.amount_capturable_updated`, and run the end-to-end checks
 against Stripe test mode + CJ sandbox (not yet done).
-**Still open:** Stripe Tax (the `tax_amount` slot is always 0), disputes,
-partial refunds, a live FX feed, `STRIPE_TEST_SECRET_KEY` naming for live keys.
+Stripe Tax is wired in behind `STRIPE_TAX_ENABLED` (off by default, so the
+`tax_amount` slot stays 0 until it is switched on — see §5). (Done 2026-09-25:
+admin partial refunds, dispute recording and alerts; `STRIPE_SECRET_KEY` rename — old name still loads; live USD/CAD from the Bank of Canada, cached, with `CJ_USD_TO_CAD_RATE` as fallback and `CJ_FX_SOURCE=fixed` to opt out.)
 
 ### 4. Security & config hardening (2026-09-09)
 
@@ -411,10 +412,31 @@ the services), not only in unit tests.
   with no refresh.
 
 ### 5. Payments & tax/legal
-- Partial refunds, dispute handling (`charge.dispute.created`). Full refunds,
-  voids and webhook signature verification exist (see §3b).
-- Sales tax / VAT / customs — selling physical goods worldwide (esp. via CJ) is a real
-  obligation; consider Stripe Tax
+- [x] Partial refunds (2026-09-25). `POST /admin/orders/{id}/refunds` refunds
+  chosen lines and optionally shipping, never above what was captured. Before
+  capture the card is simply charged less (`amount_to_capture`); after capture
+  a Stripe refund is keyed on the refund id, so a redelivery never refunds twice.
+- [x] Disputes (2026-09-25). `charge.dispute.created/updated/closed` are stored in
+  `payment_disputes`, the order gets a `dispute_status`, and `ADMIN_ALERT_EMAIL`
+  is emailed. Nothing is decided automatically: evidence goes in through the
+  Stripe dashboard.
+- [x] Stripe Tax (2026-09-26), behind `STRIPE_TAX_ENABLED` (default off).
+  order-service prices the lines + shipping, then asks payment-service
+  (`POST /payments/tax/calculate`, order-service's signature only) for a Tax
+  Calculation; the tax is added on top (prices are tax-exclusive) and the
+  calculation id is stored on the order and the payment. At capture
+  payment-service records the sale transaction, reversing whatever was taken off
+  before capture; every refund after capture records a flat-amount reversal. A
+  partial refund gives back the refunded part's share of the tax, and the last
+  refund takes whatever tax is left, so rounding never strands a cent. Recording
+  failures never undo money movement: they are logged `TAX RECORD REQUIRED`.
+  Migrations: order `d4a9c6e1f305`, payment `c5e2a8d4b716`.
+  **Before switching it on:** add the tax registrations in the Stripe dashboard
+  (Stripe only taxes where you are registered; every calculation is billed) and
+  set `STRIPE_TAX_PRODUCT_TAX_CODE` (t-shirts: `txcd_30011000`). The shipping
+  address needs `country_code` whenever tax is on.
+  **Not covered:** a lost dispute records no tax reversal (record it in the
+  dashboard); VAT / customs on non-Canadian destinations.
 - Terms / privacy / returns policy pages
 - GDPR data export + delete, audit logging, data retention (checklist §13 fully unchecked)
 - AI-print content moderation — you physically print user designs, so IP / trademark / NSFW
@@ -458,16 +480,16 @@ Backend:
 | 2b | Signing key out of the gateway, like Google login? | **Done (2026-09-24).** User tokens are EdDSA, private key in user-service only; the gateway signs 60s method+path-bound caller assertions (`X-Caller-Assertion`) that services verify with its public key |
 | 3 | `@public` decorator? | Superseded: `PublicRouteRegistry` (§4b). Secure-by-default router-level dependencies would remove the middleware entirely |
 | 4 | `self_or_admin` in the services? | **Done (2026-09-24).** `shared.auth.route_guards` on every non-public route; also closed payment/shipment reads by any user and an unguarded `GET /payments` |
-| 5 | Only the gateway may call services (`INTERNAL_HMAC_SECRET`, Vault)? | **Mostly done.** Only the gateway can assert an identity, so a direct call is at most anonymous. Open: `/artwork/download-link`, `/products/order-quote` and `/cjdropshipping/freight/quote` are called service-to-service without a caller and rely on network isolation — needs service identity |
+| 5 | Only the gateway may call services (`INTERNAL_HMAC_SECRET`, Vault)? | **Done (2026-09-25).** Only the gateway can assert a user; the three routes order-service calls directly (`/artwork/download-link`, `/products/order-quote`, `/cjdropshipping/freight/quote`) now accept only a request order-service signed with its own Ed25519 key (`X-Service-Assertion`, method+path bound, 60s). Anonymous, forged and user callers get 401 |
 | 6 | Signed header downstream; drop `oauth2_scheme` + `get_current_user()`? | **Done (2026-09-24)** |
-| 7 | Remove service ports from compose? | Local ports already bind to `127.0.0.1`; add a prod override with `expose:` only |
-| 8 | NetworkPolicy? | Only once on Kubernetes; in compose, split `edge` / `internal` networks |
+| 7 | Remove service ports from compose? | **Done (2026-09-25).** Worse than listed: Postgres, Redis, RabbitMQ, pgAdmin and the observability stack published on 0.0.0.0. The base file now binds every host port to 127.0.0.1 (`INTERNAL_BIND_HOST`) except Traefik's 80/443; `docker-compose.prod.yml` publishes nothing but Traefik |
+| 8 | NetworkPolicy? | **Done for compose (2026-09-25).** `usernet` split into `edge` (Traefik, socket-proxy + gateway/admin-js/Grafana/Prometheus) and `backend` (everything else); Traefik routes over `edge` and has no route to the databases. NetworkPolicy once on Kubernetes |
 | 9 | Token purposes? | **Done (2026-09-24).** `purpose`, `iss`, `aud`, `iat`, `jti` are required; only user-service holds the signing key (Ed25519) |
 | 10 | Remove `PUBLIC_ENDPOINTS` completely? | Done (§4b) |
-| 11 | OpenAPI → TypeScript? | Open (tooling) |
+| 11 | OpenAPI → TypeScript? | **Done (2026-09-25).** `npm run gen:api` (frontend) writes `types/api/<service>.ts` from each running service's `/openapi.json` via openapi-typescript. Regenerate after a backend schema change; migrating the hand-written frontend types onto them is frontend work |
 | 12 | Order saga frozen while waiting on CJ stock? | **Done (2026-09-25).** The timeout worker only covered *pending* sagas; a confirmed order CJ never took on sat until the card hold lapsed. It is now cancelled after `ORDER_SUPPLIER_STALL_HOURS` (24h, hold released). A CJ outage during the stock check is retried, no longer an instant cancel + refund |
 | 13 | Session/transaction held open while awaiting services or queues? | **Done (2026-09-25).** Audited every external call. Fixed: production artwork download (read txn held across a 10s HTTP call — proven idle-in-transaction on Postgres), wishlist add (uncommitted INSERT across HTTP), image replace (rows deleted before uploads were written), notification emails enqueued before the row committed (duplicate emails on retry). `BaseRepository.end_read_phase()` for the read → remote → write pattern payment-service already used. Also fixed a lost update on concurrent add-to-cart (row lock) |
-| 14 | Value objects (frozen dataclasses)? | **Assessed, not adopted (2026-09-25).** Money is already exact where it is computed (Decimal, integer cents to Stripe, `to_cents` via `str`). The one gap: `orders.amount` and `order_items.price` are float columns — no arithmetic touches them today, so migrate them to `Numeric(10,2)` together with partial refunds (§5), when they start being summed |
+| 14 | Value objects (frozen dataclasses)? | **Assessed, not adopted (2026-09-25).** Money is already exact where it is computed (Decimal, integer cents to Stripe, `to_cents` via `str`). `orders.amount` and `order_items.price` moved from float to `Numeric(10,2)` together with partial refunds (2026-09-25) |
 | 15 | Unit of Work? | **Assessed, not needed (2026-09-25).** The session is the unit of work and `database.transaction()` is its boundary: one per request, one per consumed event, outbox rows in the same transaction. A wrapper class would add a layer without adding safety. What *was* unsafe is fixed: the request's commit ran after the response was sent (a failed commit lost a write the client was told succeeded) — now `scope="function"` everywhere, with a guard test. Deliberate splits (payment read -> Stripe -> write, sync checkpoints) use named repository methods |
 | 16 | Circuit breaker / retries for CJ? | **Done (2026-09-25).** Per-service breakers in the gateway (503 + Retry-After); CJ reads retry with backoff, writes never do; a process-wide CJ breaker; 429/5xx are 'unavailable', not a rejection |
 | 17 | Process isolation: API, task queue, consumers, DB? | **Already in place.** Every service runs API, consumer, outbox worker, taskiq worker and scheduler as separate processes (dev.sh) / containers (compose), each with its own database. The single Postgres instance is #19 |

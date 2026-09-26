@@ -30,7 +30,7 @@ class OrderItemService:
                 product_id=item.product_id,
                 variant_id=item.variant_id,
                 quantity=item.quantity,
-                price=float(item.unit_price),
+                price=item.unit_price,
             )
             for item in quote.items
         ]

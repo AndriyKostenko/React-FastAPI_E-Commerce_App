@@ -1,7 +1,7 @@
-from typing import Any
+from typing import Annotated, Any
 from uuid import UUID
 
-from fastapi import APIRouter, Request, status
+from fastapi import APIRouter, Depends, Request, status
 
 from schemas.payment_schemas import (
     PaymentSchema,
@@ -10,10 +10,18 @@ from schemas.payment_schemas import (
     WebhookAckResponse,
 )
 from dependencies.dependencies import (
+    payment_dispute_service_dependency,
     idempotency_service_dependency,
     payment_service_dependency,
+    tax_calculation_service_dependency,
 )
 from shared.auth.route_guards import AdminDep, CallerDep, ensure_owner_or_admin
+from shared.auth.service_assertion import require_service
+from shared.contracts.tax import TaxCalculationRequest, TaxCalculationResult
+
+# Called by order-service directly while it prices an order; only a request
+# order-service signed with its own key is accepted.
+OrderServiceCaller = Annotated[str, Depends(require_service("order-service"))]
 
 
 payment_routes = APIRouter(tags=["payments"])
@@ -39,8 +47,23 @@ async def create_payment_intent(
         user_email=payment_data.user_email,
         amount=payment_data.amount,
         currency=payment_data.currency,
+        tax_calculation_id=payment_data.tax_calculation_id,
     )
     return PaymentIntentResponse.model_validate(result)
+
+
+@payment_routes.post(
+    "/payments/tax/calculate",
+    summary="Calculate the sales tax on a priced order (order-service only)",
+    response_model=TaxCalculationResult,
+    status_code=status.HTTP_200_OK,
+)
+async def calculate_tax(
+    caller_service: OrderServiceCaller,
+    tax_request: TaxCalculationRequest,
+    tax_service: tax_calculation_service_dependency,
+) -> TaxCalculationResult:
+    return await tax_service.calculate(tax_request)
 
 
 @payment_routes.post(
@@ -54,6 +77,7 @@ async def stripe_webhook(
     request: Request,
     payment_service: payment_service_dependency,
     idempotency_service: idempotency_service_dependency,
+    dispute_service: payment_dispute_service_dependency,
 ) -> WebhookAckResponse:
     stripe_event = await payment_service.construct_webhook_event(request=request)
     event_type: str = stripe_event["type"]
@@ -80,6 +104,12 @@ async def stripe_webhook(
                 await payment_service.handle_payment_intent_cancelled(stripe_event_data=event_data)
             case "charge.refund.updated":
                 await payment_service.handle_charge_refund_updated(stripe_event_data=event_data)
+            case "charge.dispute.created":
+                await dispute_service.opened(event_data)
+            case "charge.dispute.updated":
+                await dispute_service.updated(event_data)
+            case "charge.dispute.closed":
+                await dispute_service.closed(event_data)
             case _:
                 pass
 
