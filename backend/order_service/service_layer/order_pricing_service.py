@@ -12,9 +12,15 @@ from pydantic import BaseModel
 from schemas.order_schemas import CreateOrder, ShippingOption
 from shared.contracts.order import CustomTshirtSpecification, FulfillmentType
 from shared.contracts.artwork import verify_artwork_asset
+from shared.contracts.tax import (
+    TaxAddress,
+    TaxCalculationRequest,
+    TaxCalculationResult,
+    TaxLine,
+)
 from shared.settings import Settings
 from shared.exceptions.base_exceptions import BaseAPIException
-from shared.utils.money import CENT, to_cents
+from shared.utils.money import CENT, from_cents, to_cents
 from shared.utils.supplier_pricing import SupplierRetailPricing
 
 _logger = getLogger("order-service.pricing")
@@ -23,6 +29,11 @@ _logger = getLogger("order-service.pricing")
 class OrderQuoteError(BaseAPIException):
     def __init__(self, detail: str):
         super().__init__(status_code=422, detail=detail)
+
+
+class _QuotedTax(BaseModel):
+    amount: Decimal
+    calculation_id: str
 
 
 class QuotedOrderLine(BaseModel):
@@ -41,8 +52,9 @@ class CanonicalOrderQuote(BaseModel):
     """The server's price for a cart delivered to one address.
 
     ``total_amount`` is what the customer pays: the item subtotal plus the
-    selected shipping plus tax. Tax is a fixed zero until tax collection is
-    enabled, but it is carried now so the total never needs a new meaning.
+    selected shipping plus tax. Tax is a fixed zero while STRIPE_TAX_ENABLED
+    is off; when on, ``tax_calculation_id`` names the Stripe Tax calculation
+    it came from, which payment-service records once the card is captured.
     """
 
     currency: str = "CAD"
@@ -53,6 +65,7 @@ class CanonicalOrderQuote(BaseModel):
     total_amount: Decimal
     shipping_options: list[ShippingOption] = []
     shipping_logistic_name: str | None = None
+    tax_calculation_id: str | None = None
 
     @property
     def amount_cents(self) -> int:
@@ -169,6 +182,60 @@ class FreightQuoteClient:
         return response.json().get("options") or []
 
 
+class TaxQuoteClient:
+    """Internal payment-service client: Stripe Tax lives behind payment-service."""
+
+    def __init__(self, settings: Settings, http_client: AsyncClient | None = None):
+        self.settings = settings
+        self._client = http_client
+        self._owns_client = http_client is None
+
+    async def __aenter__(self) -> Self:
+        await self.start()
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
+        await self.close()
+
+    async def start(self) -> None:
+        if self._client is None:
+            # payment-service accepts this route from order-service alone.
+            self._client = AsyncClient(
+                timeout=self.settings.STRIPE_REQUEST_TIMEOUT_SECONDS + 5,
+                auth=ServiceAssertionAuth.for_service(self.settings, "order-service"),
+            )
+
+    async def close(self) -> None:
+        if self._client is not None and self._owns_client:
+            await self._client.aclose()
+            self._client = None
+
+    async def calculate(self, request: TaxCalculationRequest) -> TaxCalculationResult:
+        await self.start()
+        assert self._client is not None
+        try:
+            response = await self._client.post(
+                f"{self.settings.FULL_PAYMENT_SERVICE_URL}/payments/tax/calculate",
+                json=request.model_dump(mode="json"),
+            )
+        except RequestError as exc:
+            raise OrderQuoteError(f"Unable to calculate tax: {exc}") from exc
+        if response.status_code == 422:
+            # An address Stripe cannot tax: the customer can fix it.
+            detail = response.json().get("detail") or "Tax cannot be calculated for this address"
+            raise OrderQuoteError(str(detail))
+        try:
+            response.raise_for_status()
+        except HTTPStatusError as exc:
+            raise OrderQuoteError(f"Unable to calculate tax: {exc}") from exc
+        return TaxCalculationResult.model_validate(response.json())
+
+
 class OrderPricingService:
     SIZE_MULTIPLIERS = {
         "S": Decimal("1.00"),
@@ -207,10 +274,12 @@ class OrderPricingService:
         settings: Settings,
         catalog_client: CatalogQuoteClient,
         freight_client: FreightQuoteClient | None = None,
+        tax_client: TaxQuoteClient | None = None,
     ):
         self.settings = settings
         self.catalog_client = catalog_client
         self.freight_client = freight_client
+        self.tax_client = tax_client
 
     async def build_quote(self, order_data: CreateOrder) -> CanonicalOrderQuote:
         catalog_requests: list[dict[str, Any]] = []
@@ -262,16 +331,62 @@ class OrderPricingService:
         shipping = self._domestic_shipping(quoted_items)
         if selected is not None:
             shipping += selected.amount
-        tax = Decimal("0.00")
+        currency = "CAD"
+        tax = await self._calculate_tax(order_data, quoted_items, shipping, currency)
+        tax_amount = tax.amount if tax else Decimal("0.00")
         return CanonicalOrderQuote(
-            currency="CAD",
+            currency=currency,
             items=quoted_items,
             subtotal_amount=subtotal,
             shipping_amount=shipping,
-            tax_amount=tax,
-            total_amount=subtotal + shipping + tax,
+            tax_amount=tax_amount,
+            total_amount=subtotal + shipping + tax_amount,
             shipping_options=shipping_options,
             shipping_logistic_name=selected.logistic_name if selected else None,
+            tax_calculation_id=tax.calculation_id if tax else None,
+        )
+
+    async def _calculate_tax(
+        self,
+        order_data: CreateOrder,
+        lines: list[QuotedOrderLine],
+        shipping: Decimal,
+        currency: str,
+    ) -> _QuotedTax | None:
+        """Sales tax on the priced lines and shipping, or None while tax is off."""
+        if not self.settings.STRIPE_TAX_ENABLED:
+            return None
+        if self.tax_client is None:
+            raise RuntimeError("TaxQuoteClient is required while STRIPE_TAX_ENABLED is on")
+        address = order_data.address
+        country_code = (address.country_code or "").strip().upper()
+        if len(country_code) != 2 or not country_code.isalpha():
+            raise OrderQuoteError("country_code (2-letter ISO) is required to calculate tax")
+        result = await self.tax_client.calculate(
+            TaxCalculationRequest(
+                currency=currency,
+                lines=[
+                    TaxLine(
+                        # Line position: unique within the order, stable for its lifetime.
+                        reference=f"L{index}-{line.product_id}",
+                        amount_cents=to_cents(line.unit_price * line.quantity),
+                        quantity=line.quantity,
+                    )
+                    for index, line in enumerate(lines)
+                ],
+                shipping_cents=to_cents(shipping),
+                address=TaxAddress(
+                    country=country_code,
+                    postal_code=address.postal_code or None,
+                    state=address.province or None,
+                    city=address.city or None,
+                    line1=address.street or None,
+                ),
+            )
+        )
+        return _QuotedTax(
+            amount=from_cents(result.tax_cents),
+            calculation_id=result.calculation_id,
         )
 
     def _domestic_shipping(self, lines: list[QuotedOrderLine]) -> Decimal:

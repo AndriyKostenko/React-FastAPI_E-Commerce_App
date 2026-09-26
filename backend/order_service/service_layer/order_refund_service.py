@@ -2,7 +2,7 @@
 
 from collections import Counter
 from datetime import UTC, datetime
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from enum import StrEnum
 from uuid import UUID
 
@@ -18,7 +18,7 @@ from shared.contracts.events import PaymentRefundRequested
 from shared.enums.event_enums import PaymentCommands
 from shared.enums.services_enums import Services
 from shared.enums.status_enums import OrderStatus
-from shared.utils.money import to_cents
+from shared.utils.money import CENT, to_cents
 
 
 class RefundState(StrEnum):
@@ -37,6 +37,7 @@ class OrderRefundService:
     - a line is refunded at most as many times as it was bought, counting
       every refund not already failed;
     - shipping is refunded at most once;
+    - a taxed order gives back the refunded part's share of its tax;
     - the running total never exceeds what the order cost.
     """
 
@@ -64,7 +65,9 @@ class OrderRefundService:
         active = [r for r in await self._refunds.list_for_order(order_id) if r.status != RefundState.FAILED]
         lines = self._price_lines(order, request.lines, active)
         shipping = self._shipping(order, request.include_shipping, active)
-        amount = sum((line["amount_value"] for line in lines), start=Decimal("0")) + shipping
+        pre_tax = sum((line["amount_value"] for line in lines), start=Decimal("0")) + shipping
+        tax = self._tax_share(order, pre_tax, active)
+        amount = pre_tax + tax
         if amount <= 0:
             raise InvalidOrderRefundError("nothing to refund: the amount is zero")
         already = sum((r.amount for r in active), start=Decimal("0"))
@@ -77,6 +80,7 @@ class OrderRefundService:
             OrderRefund(
                 order_id=order.id,
                 amount=amount,
+                tax_amount=tax,
                 includes_shipping=shipping > 0,
                 lines=[{k: v for k, v in line.items() if k != "amount_value"} for line in lines],
                 reason=request.reason,
@@ -139,6 +143,31 @@ class OrderRefundService:
                 "amount": str(value), "amount_value": value,
             })
         return priced
+
+    @staticmethod
+    def _tax_share(order: Order, pre_tax: Decimal, active: list[OrderRefund]) -> Decimal:
+        """
+        The tax on ``pre_tax``: the order's tax in proportion to its taxed base
+        (lines + shipping), the same flat split Stripe applies when the refund
+        is reversed in the tax records.
+
+        Rounding each refund on its own can drift by a cent, so the refund that
+        gives back the last of the base takes whatever tax is left, and no
+        refund ever takes more tax than remains.
+        """
+        order_tax = Decimal(order.tax_amount or 0)
+        if order_tax <= 0 or pre_tax <= 0:
+            return Decimal("0.00")
+        base = Decimal(order.subtotal_amount or 0) + Decimal(order.shipping_amount or 0)
+        if base <= 0:
+            return Decimal("0.00")
+        tax_refunded = sum((Decimal(r.tax_amount or 0) for r in active), start=Decimal("0"))
+        base_refunded = sum((Decimal(r.amount) - Decimal(r.tax_amount or 0) for r in active), start=Decimal("0"))
+        tax_left = order_tax - tax_refunded
+        if base_refunded + pre_tax >= base:
+            return max(tax_left, Decimal("0.00"))
+        share = (order_tax * pre_tax / base).quantize(CENT, rounding=ROUND_HALF_UP)
+        return min(share, max(tax_left, Decimal("0.00")))
 
     @staticmethod
     def _shipping(order: Order, include: bool, active: list[OrderRefund]) -> Decimal:

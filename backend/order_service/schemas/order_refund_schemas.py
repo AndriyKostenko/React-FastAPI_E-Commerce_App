@@ -36,6 +36,7 @@ class OrderRefundSchema(BaseModel):
     id: UUID
     order_id: UUID
     amount: Decimal
+    tax_amount: Decimal = Decimal("0")
     includes_shipping: bool
     lines: list[RefundLine]
     reason: str

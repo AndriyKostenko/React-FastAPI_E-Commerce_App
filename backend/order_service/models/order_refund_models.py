@@ -25,6 +25,11 @@ class OrderRefund(Base, TimestampMixin):
     id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4)
     order_id: Mapped[UUID] = mapped_column(ForeignKey("orders.id"), nullable=False, index=True)
     amount: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
+    # The part of ``amount`` that is tax: the refunded lines' and shipping's
+    # share of the order's tax. Zero for an untaxed order.
+    tax_amount: Mapped[Decimal] = mapped_column(
+        Numeric(10, 2), nullable=False, default=Decimal("0"), server_default="0"
+    )
     includes_shipping: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     # [{"order_item_id": str, "quantity": int, "amount": str}]
     lines: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)

@@ -13,6 +13,7 @@ from resources import PaymentApiResources, get_payment_api_resources
 from shared.idempotency.idempotency_service import IdempotencyEventService
 from database_layer.payment_repository import PaymentDisputeRepository
 from service_layer.payment_dispute_service import PaymentDisputeService
+from service_layer.tax_service import TaxCalculationService
 from config import logger
 
 
@@ -73,3 +74,12 @@ def get_payment_dispute_service(
 
 payment_dispute_service_dependency = Annotated[PaymentDisputeService, Depends(get_payment_dispute_service)]
 idempotency_service_dependency = Annotated[IdempotencyEventService, Depends(get_idempotency_service)]
+
+
+def get_tax_calculation_service(
+    resources: PaymentApiResources = Depends(get_api_resources),
+) -> TaxCalculationService:
+    return TaxCalculationService(stripe_client=resources.stripe_client, settings=resources.settings)
+
+
+tax_calculation_service_dependency = Annotated[TaxCalculationService, Depends(get_tax_calculation_service)]

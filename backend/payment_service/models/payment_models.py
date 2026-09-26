@@ -31,6 +31,10 @@ class Payment(Base, TimestampMixin):
     # simply charged less. Both are bounded by ``amount``.
     refunded_cents: Mapped[int] = mapped_column(nullable=False, default=0, server_default="0")
     capture_reduction_cents: Mapped[int] = mapped_column(nullable=False, default=0, server_default="0")
+    # Stripe Tax: the calculation the order was priced with, and the sale
+    # transaction recorded from it once the card was captured.
+    tax_calculation_id: Mapped[str | None] = mapped_column(nullable=True)
+    tax_transaction_id: Mapped[str | None] = mapped_column(nullable=True)
 
     @property
     def refundable_cents(self) -> int:

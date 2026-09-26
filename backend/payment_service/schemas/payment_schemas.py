@@ -10,6 +10,8 @@ class PaymentSchema(BaseModel):
     user_email: EmailStr
     amount: int  # in cents
     currency: str
+    # The Stripe Tax calculation the order was priced with; None when untaxed.
+    tax_calculation_id: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
 

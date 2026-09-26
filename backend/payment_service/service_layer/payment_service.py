@@ -9,6 +9,7 @@ from sqlalchemy.exc import IntegrityError
 from database_layer.payment_repository import PaymentRepository
 from models.payment_models import Payment
 from service_layer.outbox_event_service import OutboxEventService
+from service_layer.tax_service import PaymentTaxLedger
 from exceptions.payment_exceptions import (
     PaymentNotFoundError,
     PaymentsNotFoundError,
@@ -42,7 +43,8 @@ class PaymentService:
                 outbox_event_service: OutboxEventService,
                 settings: Settings,
                 logger: Logger,
-                stripe_client: StripeClient | None = None) -> None:
+                stripe_client: StripeClient | None = None,
+                tax_ledger: PaymentTaxLedger | None = None) -> None:
         self.logger: Logger = logger
         self.settings: Settings = settings
         self.repository: PaymentRepository = repository
@@ -54,6 +56,7 @@ class PaymentService:
             api_key=self._stripe_api_key,
             max_network_retries=self.settings.STRIPE_MAX_NETWORK_RETRIES,
         )
+        self._tax: PaymentTaxLedger = tax_ledger or PaymentTaxLedger(self._stripe, logger)
 
     def _create_intent_idempotency_key(self, order_id: UUID) -> str:
         return f"payment_intent:create:{order_id}"
@@ -77,16 +80,21 @@ class PaymentService:
         user_id: UUID,
         user_email: str,
         amount: int,
-        currency: str) -> Any:
+        currency: str,
+        tax_calculation_id: str | None = None) -> Any:
+        metadata = {
+            "order_id": str(order_id),
+            "user_id": str(user_id),
+            "user_email": user_email,
+        }
+        if tax_calculation_id:
+            # Lets the dashboard trace a charge back to the tax it included.
+            metadata["tax_calculation"] = tax_calculation_id
         return await self._stripe.v1.payment_intents.create_async(
             {
                 "amount": amount,
                 "currency": currency,
-                "metadata": {
-                    "order_id": str(order_id),
-                    "user_id": str(user_id),
-                    "user_email": user_email,
-                },
+                "metadata": metadata,
                 "automatic_payment_methods": {"enabled": True},
                 # Authorize only. The card is charged once the order's goods
                 # are secured, so a failed fulfillment voids a hold instead of
@@ -95,6 +103,43 @@ class PaymentService:
             },
             options={"idempotency_key": self._create_intent_idempotency_key(order_id)},
         )
+
+    async def _book_tax_sale(self, payment: Payment) -> str | None:
+        """
+        Record the tax a capture collected, once; returns the tax transaction id.
+
+        Tax was calculated on the authorized amount, so whatever was taken off
+        before capture (``capture_reduction_cents``) was never collected and
+        is reversed straight away.
+        """
+        if payment.tax_calculation_id is None:
+            return None
+        if payment.tax_transaction_id is not None:
+            return payment.tax_transaction_id
+        await self._finish_read_phase()  # no transaction held over Stripe calls
+        transaction_id = await self._tax.record_sale(payment)
+        if transaction_id is None:
+            return None
+        await self._tax.record_reversal(
+            payment,
+            transaction_id,
+            reference=f"order_{payment.order_id}-not_captured",
+            amount_cents=payment.capture_reduction_cents,
+        )
+        async with self.repository.session.begin_nested():
+            await self.repository.update_by_id(
+                item_id=payment.id, data={"tax_transaction_id": transaction_id}
+            )
+        payment.tax_transaction_id = transaction_id
+        return transaction_id
+
+    async def _book_tax_refund(self, payment: Payment, *, reference: str, amount_cents: int) -> None:
+        """Reverse the tax on ``amount_cents`` given back after capture."""
+        transaction_id = await self._book_tax_sale(payment)
+        if transaction_id is not None:
+            await self._tax.record_reversal(
+                payment, transaction_id, reference=reference, amount_cents=amount_cents
+            )
 
     async def _finish_read_phase(self) -> None:
         """Release the connection before waiting on Stripe.
@@ -112,7 +157,8 @@ class PaymentService:
                                     user_id: UUID,
                                     user_email: str,
                                     amount: int,
-                                    currency: str) -> dict[str, Any]:
+                                    currency: str,
+                                    tax_calculation_id: str | None = None) -> dict[str, Any]:
         """
         Create a Stripe PaymentIntent and persist a pending Payment record.
 
@@ -150,6 +196,7 @@ class PaymentService:
                 user_email=user_email,
                 amount=amount,
                 currency=currency,
+                tax_calculation_id=tax_calculation_id,
             )
         except StripeError as exc:
             raise StripePaymentIntentCreationError(detail=str(exc))
@@ -166,6 +213,7 @@ class PaymentService:
                             "status": PaymentStatus.PENDING,
                             "failure_reason": None,
                             "user_email": user_email,
+                            "tax_calculation_id": tax_calculation_id,
                         },
                     )
             else:
@@ -179,6 +227,7 @@ class PaymentService:
                             amount=amount,
                             currency=currency,
                             status=PaymentStatus.PENDING,
+                            tax_calculation_id=tax_calculation_id,
                         )
                     )
         except IntegrityError:
@@ -265,6 +314,8 @@ class PaymentService:
         if not payment:
             raise PaymentNotFoundError(payment_id=order_id)
         if payment.status == PaymentStatus.SUCCEEDED:
+            # A repeat still records the tax sale if the first attempt could not.
+            await self._book_tax_sale(payment)
             return payment
         if payment.status != PaymentStatus.AUTHORIZED:
             self.logger.warning(
@@ -329,6 +380,7 @@ class PaymentService:
                     currency=payment.currency,
                 ),
             )
+        await self._book_tax_sale(payment)
         if late_cents > 0:
             await self._refund_late_reduction(payment, late_cents)
         return updated
@@ -346,6 +398,10 @@ class PaymentService:
                 "were charged and could not be refunded: %s",
                 payment.order_id, late_cents, exc,
             )
+            return
+        await self._book_tax_refund(
+            payment, reference=f"order_{payment.order_id}-late_reduction", amount_cents=late_cents
+        )
 
     async def _record_cancelled(self, payment: Payment, reason: str) -> Payment | None:
         async with self.repository.session.begin_nested():
@@ -406,6 +462,7 @@ class PaymentService:
                     currency=payment.currency,
                 ),
             )
+        await self._book_tax_sale(payment)
 
     async def handle_payment_intent_failed(self, stripe_event_data: dict[str, Any]) -> None:
         """
@@ -473,7 +530,13 @@ class PaymentService:
                     elif intent.status != "succeeded":
                         raise PaymentRefundError(detail=str(exc))
                     else:
+                        refunded_cents = payment.refundable_cents
                         await self._create_refund(payment)
+                        await self._book_tax_refund(
+                            payment,
+                            reference=f"order_{payment.order_id}-refund",
+                            amount_cents=refunded_cents,
+                        )
                         new_status = PaymentStatus.REFUNDED
                 except StripeError as reconcile_exc:
                     raise PaymentRefundError(detail=str(reconcile_exc)) from reconcile_exc
@@ -521,10 +584,15 @@ class PaymentService:
             return payment
 
         await self._finish_read_phase()
+        # Whatever partial refunds left: that is what the full refund returns.
+        refunded_cents = payment.refundable_cents
         try:
             _ = await self._create_refund(payment)
         except StripeError as exc:
             raise PaymentRefundError(detail=str(exc))
+        await self._book_tax_refund(
+            payment, reference=f"order_{payment.order_id}-refund", amount_cents=refunded_cents
+        )
 
         async with self.repository.session.begin_nested():
             updated_payment = await self.repository.update_by_id(

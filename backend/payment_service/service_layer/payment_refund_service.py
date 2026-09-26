@@ -11,6 +11,7 @@ from database_layer.payment_repository import PaymentRefundRepository, PaymentRe
 from models.outbox_models import OutboxEvent
 from models.payment_models import Payment, PaymentRefund
 from service_layer.outbox_event_service import OutboxEventService
+from service_layer.tax_service import PaymentTaxLedger
 from shared.contracts.events import (
     PaymentRefundedEvent,
     PaymentRefundFailedEvent,
@@ -51,12 +52,21 @@ class PaymentRefundService:
     - An uncertain Stripe error (network, outage) is raised, so the command is
       retried; the row stays pending and the retry resumes it with the same
       idempotency key, so Stripe never refunds twice.
+    - A refund of a taxed order records a tax reversal for the amount given
+      back. A reduction before capture needs none: capture reverses it.
     """
 
-    def __init__(self, database: DatabaseSessionManager, stripe_client: StripeClient, logger: Logger) -> None:
+    def __init__(
+        self,
+        database: DatabaseSessionManager,
+        stripe_client: StripeClient,
+        logger: Logger,
+        tax_ledger: PaymentTaxLedger | None = None,
+    ) -> None:
         self._database = database
         self._stripe = stripe_client
         self._logger = logger
+        self._tax = tax_ledger or PaymentTaxLedger(stripe_client, logger)
 
     async def refund(self, command: PaymentRefundRequested) -> RefundStatus:
         reserved = await self._reserve(command)
@@ -73,6 +83,7 @@ class PaymentRefundService:
             await self._fail_reserved(command, f"Stripe refused the refund: {error.user_message or error}")
             return RefundStatus.FAILED
         await self._settle(command, stripe_refund.id)
+        await self._reverse_tax(command)
         return RefundStatus.SUCCEEDED
 
     # ------------------------------------------------------------------ phases
@@ -136,6 +147,29 @@ class PaymentRefundService:
             await session.flush()
             await self._emit_refunded(session, payment, command, applied_before_capture=False)
         self._logger.info("Refunded %s cents for order %s (refund %s)", command.amount_cents, command.order_id, command.refund_id)
+
+    async def _reverse_tax(self, command: PaymentRefundRequested) -> None:
+        async with self._database.transaction() as session:
+            payment = await PaymentRepository(session).get_by_field(
+                field_name="order_id", value=command.order_id
+            )
+        if payment is None or payment.tax_calculation_id is None:
+            return
+        if payment.tax_transaction_id is None:
+            # Capture could not record the sale (already logged as critical),
+            # so there is nothing to reverse against until it is recorded.
+            self._logger.critical(
+                "TAX RECORD REQUIRED for order %s: refund %s of %s cents has no "
+                "tax sale to reverse against",
+                command.order_id, command.refund_id, command.amount_cents,
+            )
+            return
+        await self._tax.record_reversal(
+            payment,
+            payment.tax_transaction_id,
+            reference=f"refund_{command.refund_id}",
+            amount_cents=command.amount_cents,
+        )
 
     async def _fail_reserved(self, command: PaymentRefundRequested, reason: str) -> None:
         async with self._database.transaction() as session:

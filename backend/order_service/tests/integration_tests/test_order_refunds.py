@@ -216,3 +216,60 @@ async def test_a_dispute_flags_the_order_then_records_the_outcome(
 
     await consumer.handle_payment_event(event(PaymentEvents.PAYMENT_DISPUTE_CLOSED, "lost"))
     assert (await integration_client.get(f"{TEST_API}/orders/{order['id']}")).json()["dispute_status"] == "lost"
+
+
+# ---------------------------------------------------------------- sales tax
+
+
+async def _tax_the_order(db: TestDatabaseSessionManager, order_id: str, tax: Decimal) -> Order:
+    """Give the confirmed order a tax line, as if Stripe Tax had priced it."""
+    async with db.transaction() as session:
+        order = await session.get(Order, UUID(order_id))
+        order.tax_amount = tax
+        order.amount = Decimal(order.subtotal_amount) + Decimal(order.shipping_amount or 0) + tax
+        order.tax_calculation_id = "taxcalc_test"
+        return order
+
+
+async def test_a_refund_of_a_taxed_order_gives_back_its_share_of_the_tax(
+    integration_client: AsyncClient, queued_job: dict, test_database_session_manager  # noqa: F811
+) -> None:
+    order_id = queued_job["order"]["id"]
+    order = await _tax_the_order(test_database_session_manager, order_id, Decimal("5.00"))
+    item_id, _, price = await _line(test_database_session_manager, order_id)
+    base = Decimal(order.subtotal_amount) + Decimal(order.shipping_amount or 0)
+    expected_tax = (Decimal("5.00") * price / base).quantize(Decimal("0.01"))
+
+    response = await integration_client.post(
+        _refunds_url(order_id), json={"lines": [{"order_item_id": item_id, "quantity": 1}], "reason": "print faded"}
+    )
+
+    assert response.status_code == 201, response.text
+    body = response.json()
+    assert Decimal(body["tax_amount"]) == expected_tax
+    assert Decimal(body["amount"]) == price + expected_tax
+    assert (await _refund_commands(test_database_session_manager))[0]["amount_cents"] == int((price + expected_tax) * 100)
+
+
+async def test_refunding_everything_returns_exactly_the_tax_charged(
+    integration_client: AsyncClient, queued_job: dict, test_database_session_manager  # noqa: F811
+) -> None:
+    """Per-refund rounding must not leave a cent of tax behind, or take one too many."""
+    order_id = queued_job["order"]["id"]
+    order = await _tax_the_order(test_database_session_manager, order_id, Decimal("3.33"))
+    item_id, quantity, _ = await _line(test_database_session_manager, order_id)
+    url = _refunds_url(order_id)
+
+    refunds = [
+        await integration_client.post(url, json={"lines": [{"order_item_id": item_id, "quantity": 1}], "reason": "one"})
+    ]
+    if quantity > 1:
+        refunds.append(await integration_client.post(
+            url, json={"lines": [{"order_item_id": item_id, "quantity": quantity - 1}], "reason": "rest"}
+        ))
+    if Decimal(order.shipping_amount or 0) > 0:
+        refunds.append(await integration_client.post(url, json={"include_shipping": True, "reason": "shipping"}))
+
+    assert all(r.status_code == 201 for r in refunds), [r.text for r in refunds]
+    assert sum(Decimal(r.json()["tax_amount"]) for r in refunds) == Decimal("3.33")
+    assert sum(Decimal(r.json()["amount"]) for r in refunds) == Decimal(order.amount)

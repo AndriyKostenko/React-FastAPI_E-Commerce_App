@@ -125,6 +125,8 @@ async def start_checkout(
             "user_email": current_user.email,
             "amount": order["amount_cents"],
             "currency": order["currency"],
+            # Read from the order, never from the client, like the amount.
+            "tax_calculation_id": order.get("tax_calculation_id"),
         },
     )
     if not intent_response.is_success:

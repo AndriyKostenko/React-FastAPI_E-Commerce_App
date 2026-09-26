@@ -1,7 +1,7 @@
-from typing import Any
+from typing import Annotated, Any
 from uuid import UUID
 
-from fastapi import APIRouter, Request, status
+from fastapi import APIRouter, Depends, Request, status
 
 from schemas.payment_schemas import (
     PaymentSchema,
@@ -13,8 +13,15 @@ from dependencies.dependencies import (
     payment_dispute_service_dependency,
     idempotency_service_dependency,
     payment_service_dependency,
+    tax_calculation_service_dependency,
 )
 from shared.auth.route_guards import AdminDep, CallerDep, ensure_owner_or_admin
+from shared.auth.service_assertion import require_service
+from shared.contracts.tax import TaxCalculationRequest, TaxCalculationResult
+
+# Called by order-service directly while it prices an order; only a request
+# order-service signed with its own key is accepted.
+OrderServiceCaller = Annotated[str, Depends(require_service("order-service"))]
 
 
 payment_routes = APIRouter(tags=["payments"])
@@ -40,8 +47,23 @@ async def create_payment_intent(
         user_email=payment_data.user_email,
         amount=payment_data.amount,
         currency=payment_data.currency,
+        tax_calculation_id=payment_data.tax_calculation_id,
     )
     return PaymentIntentResponse.model_validate(result)
+
+
+@payment_routes.post(
+    "/payments/tax/calculate",
+    summary="Calculate the sales tax on a priced order (order-service only)",
+    response_model=TaxCalculationResult,
+    status_code=status.HTTP_200_OK,
+)
+async def calculate_tax(
+    caller_service: OrderServiceCaller,
+    tax_request: TaxCalculationRequest,
+    tax_service: tax_calculation_service_dependency,
+) -> TaxCalculationResult:
+    return await tax_service.calculate(tax_request)
 
 
 @payment_routes.post(

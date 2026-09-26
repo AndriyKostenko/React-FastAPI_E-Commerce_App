@@ -28,6 +28,8 @@ class Order(Base, TimestampMixin):
     subtotal_amount: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
     shipping_amount: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
     tax_amount: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
+    # The Stripe Tax calculation behind tax_amount; None when tax was off.
+    tax_calculation_id: Mapped[str | None] = mapped_column(nullable=True)
     # Set when the customer disputes the charge with their bank: "open" until
     # Stripe reports the outcome (won / lost / ...). Flags the order for review.
     dispute_status: Mapped[str | None] = mapped_column(String(30), nullable=True)

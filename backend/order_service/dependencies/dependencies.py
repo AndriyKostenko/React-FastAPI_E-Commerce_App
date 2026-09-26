@@ -90,6 +90,7 @@ def get_order_service(resources: OrderApiResources = Depends(get_api_resources),
                             settings=resources.settings,
                             catalog_client=resources.catalog_client,
                             freight_client=resources.freight_client,
+                            tax_client=resources.tax_client,
                         ))
 
 def get_fulfillment_status_service(

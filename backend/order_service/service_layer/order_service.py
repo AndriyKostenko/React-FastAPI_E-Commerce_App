@@ -116,6 +116,7 @@ class OrderService:
                     "subtotal_amount": quote.subtotal_amount,
                     "shipping_amount": quote.shipping_amount,
                     "tax_amount": quote.tax_amount,
+                    "tax_calculation_id": quote.tax_calculation_id,
                     "shipping_logistic_name": quote.shipping_logistic_name,
                     "shipping_cost_usd": next(
                         (

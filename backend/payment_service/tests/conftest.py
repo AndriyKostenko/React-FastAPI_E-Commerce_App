@@ -60,6 +60,8 @@ from shared.testing.signing_keys import EphemeralSigningKeys
 # Throwaway gateway keys: the test clients' apps trust assertions signed
 # with these, exactly as a deployed service trusts the gateway's.
 SIGNING_KEYS = EphemeralSigningKeys()
+# /payments/tax/calculate accepts order-service's signature alone.
+SIGNING_KEYS.trust_order_service(get_settings())
 # Test clients call as a signed-in admin by default, so tests about business
 # logic are not tripped by authorisation. Authorisation has its own tests,
 # which pass an explicit per-request `auth=` (anonymous, owner, stranger).
@@ -113,6 +115,8 @@ def mock_payment_orm() -> MagicMock:
     payment.failure_reason = None
     payment.refunded_cents = 0
     payment.capture_reduction_cents = 0
+    payment.tax_calculation_id = None
+    payment.tax_transaction_id = None
     payment.date_created = TEST_DATETIME
     payment.date_updated = None
     return payment

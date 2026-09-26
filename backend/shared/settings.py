@@ -231,6 +231,13 @@ class Settings(BaseSettings):
     STRIPE_WEBHOOK_SECRET: SecretStr | None = None
     STRIPE_REQUEST_TIMEOUT_SECONDS: float = Field(default=30.0, gt=0, le=120)
     STRIPE_MAX_NETWORK_RETRIES: int = Field(default=2, ge=0, le=5)
+    # Stripe Tax. Off until the tax registrations exist in the Stripe
+    # dashboard: Stripe only taxes where you are registered, and every
+    # calculation is billed. While off the tax line is a fixed zero.
+    STRIPE_TAX_ENABLED: bool = False
+    # Tax code for the goods sold; None uses the account's preset code.
+    # T-shirts are clothing: txcd_30011000.
+    STRIPE_TAX_PRODUCT_TAX_CODE: str | None = None
 
     # Email
     MAIL_USERNAME: str

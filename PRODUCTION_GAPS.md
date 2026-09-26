@@ -222,7 +222,8 @@ Migrations: product `7c3e9a51d2f4`, order `3d8b6f0e2a91`, supplier `e5b21c7d9f60
 deliberately, prefund the CJ wallet, subscribe the Stripe webhook to
 `payment_intent.amount_capturable_updated`, and run the end-to-end checks
 against Stripe test mode + CJ sandbox (not yet done).
-**Still open:** Stripe Tax (the `tax_amount` slot is always 0). (Done 2026-09-25:
+Stripe Tax is wired in behind `STRIPE_TAX_ENABLED` (off by default, so the
+`tax_amount` slot stays 0 until it is switched on — see §5). (Done 2026-09-25:
 admin partial refunds, dispute recording and alerts; `STRIPE_SECRET_KEY` rename — old name still loads; live USD/CAD from the Bank of Canada, cached, with `CJ_USD_TO_CAD_RATE` as fallback and `CJ_FX_SOURCE=fixed` to opt out.)
 
 ### 4. Security & config hardening (2026-09-09)
@@ -419,8 +420,23 @@ the services), not only in unit tests.
   `payment_disputes`, the order gets a `dispute_status`, and `ADMIN_ALERT_EMAIL`
   is emailed. Nothing is decided automatically: evidence goes in through the
   Stripe dashboard.
-- Sales tax / VAT / customs — selling physical goods worldwide (esp. via CJ) is a real
-  obligation; consider Stripe Tax
+- [x] Stripe Tax (2026-09-26), behind `STRIPE_TAX_ENABLED` (default off).
+  order-service prices the lines + shipping, then asks payment-service
+  (`POST /payments/tax/calculate`, order-service's signature only) for a Tax
+  Calculation; the tax is added on top (prices are tax-exclusive) and the
+  calculation id is stored on the order and the payment. At capture
+  payment-service records the sale transaction, reversing whatever was taken off
+  before capture; every refund after capture records a flat-amount reversal. A
+  partial refund gives back the refunded part's share of the tax, and the last
+  refund takes whatever tax is left, so rounding never strands a cent. Recording
+  failures never undo money movement: they are logged `TAX RECORD REQUIRED`.
+  Migrations: order `d4a9c6e1f305`, payment `c5e2a8d4b716`.
+  **Before switching it on:** add the tax registrations in the Stripe dashboard
+  (Stripe only taxes where you are registered; every calculation is billed) and
+  set `STRIPE_TAX_PRODUCT_TAX_CODE` (t-shirts: `txcd_30011000`). The shipping
+  address needs `country_code` whenever tax is on.
+  **Not covered:** a lost dispute records no tax reversal (record it in the
+  dashboard); VAT / customs on non-Canadian destinations.
 - Terms / privacy / returns policy pages
 - GDPR data export + delete, audit logging, data retention (checklist §13 fully unchecked)
 - AI-print content moderation — you physically print user designs, so IP / trademark / NSFW
