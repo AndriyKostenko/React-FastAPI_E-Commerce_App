@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from pydantic import BaseModel, EmailStr, PositiveFloat, PositiveInt, Field, model_validator
 
 from shared.contracts.order import ConfirmedOrderAddress, ConfirmedOrderItem, OrderItem
+from shared.contracts.returns import ReturnFault, ReturnLineSummary, ReturnReason
 from shared.contracts.supplier import GenericSupplierProduct
 from shared.enums.services_enums import Services
 from shared.enums.event_enums import (
@@ -216,6 +217,29 @@ class PaymentDisputeEvent(PaymentBaseEvent):
     # needs_response / under_review / won / lost / warning_closed ...
     dispute_status: str
     evidence_due_by: datetime | None = None
+
+
+class OrderReturnEvent(OrderBaseEvent):
+    """
+    A customer return was requested, approved or rejected.
+
+    One shape for all three: the admin is alerted about a request, the
+    customer is told the decision. ``return_address`` is only set on an
+    approval where goods have to come back.
+    """
+    event_type: str = Field(default_factory=lambda: OrderEvents.RETURN_REQUESTED)
+    return_id: UUID
+    reason: ReturnReason
+    fault: ReturnFault
+    description: str
+    lines: list[ReturnLineSummary]
+    photo_count: int = 0
+    admin_note: str | None = None
+    return_address: str | None = None
+
+    @property
+    def ships_back(self) -> bool:
+        return any(line.ships_back for line in self.lines)
 
 
 class PaymentCommandBase(BaseEvent):

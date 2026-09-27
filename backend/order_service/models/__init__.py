@@ -8,9 +8,11 @@ from .outbox_models import OutboxEvent
 from .order_fulfillment_models import OrderLineFulfillment, CustomProductionJob
 from .order_saga_models import OrderSagaState
 from .order_refund_models import OrderRefund
+from .order_return_models import ReturnRequest
 
 __all__ = [
     "OrderRefund",
+    "ReturnRequest",
     "Base",
     "Order",
     "OrderAddress",

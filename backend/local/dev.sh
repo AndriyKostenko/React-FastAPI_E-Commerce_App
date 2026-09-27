@@ -302,6 +302,8 @@ service_env() {
   # Set here rather than in .env.local: that file is tracked, and a relative
   # path would resolve against each service's own cwd.
   export MEDIA_ROOT="$DATA_DIR/media"
+  # Return photos are private: kept apart from the publicly served media.
+  export RETURN_EVIDENCE_ROOT="$DATA_DIR/private-media"
 }
 
 cmd_migrate() {

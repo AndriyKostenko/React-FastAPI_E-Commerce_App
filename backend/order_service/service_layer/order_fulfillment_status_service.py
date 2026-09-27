@@ -1,5 +1,6 @@
 """Keeps ``Order.delivery_status`` in step with its per-line fulfillment states."""
 
+from datetime import UTC, datetime
 from uuid import UUID
 
 from database_layer.order_fulfillment_repository import OrderLineFulfillmentRepository
@@ -56,6 +57,9 @@ class OrderFulfillmentStatusService:
             if LineFulfillmentStatus(line.status) in LineFulfillmentStatus.terminal():
                 continue
             line.status = status
+            if status == LineFulfillmentStatus.DELIVERED:
+                # The customer's return window runs from this moment.
+                line.delivered_at = datetime.now(UTC)
             await self.fulfillment_repository.update(line)
 
         return await self.refresh_delivery_status(order, lines)

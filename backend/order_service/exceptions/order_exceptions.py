@@ -46,3 +46,20 @@ class InvalidOrderRefundError(BaseAPIException):
     """The requested lines, quantities or amount are not refundable."""
     def __init__(self, detail: str) -> None:
         super().__init__(status_code=422, detail=detail)
+
+
+class ReturnNotFoundError(BaseAPIException):
+    def __init__(self, return_id: UUID) -> None:
+        super().__init__(status_code=404, detail=f"Return {return_id} is not found.")
+
+
+class ReturnNotAllowedError(BaseAPIException):
+    """The order or the return is not in a state that allows this step."""
+    def __init__(self, detail: str) -> None:
+        super().__init__(status_code=409, detail=detail)
+
+
+class InvalidReturnError(BaseAPIException):
+    """The requested lines, quantities, reason or photos cannot be returned."""
+    def __init__(self, detail: str) -> None:
+        super().__init__(status_code=422, detail=detail)

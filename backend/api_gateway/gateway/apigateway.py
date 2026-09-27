@@ -19,6 +19,44 @@ from shared.settings import Settings
 from shared.utils.authenticated_caller import LEGACY_IDENTITY_HEADERS
 from shared.utils.client_ip import ClientIPResolver
 from schemas.gateway_schemas import GatewayConfig, ServiceConfig
+from starlette.datastructures import FormData, UploadFile
+
+
+# A file part as httpx takes it: (field name, (filename, content, content type)).
+type FilePart = tuple[str, tuple[str, bytes, str]]
+
+
+class MultipartBody:
+    """
+    A multipart form re-built for httpx: text fields as ``data``, every file
+    as its own ``files`` entry.
+
+    Handing httpx the parsed form itself kept only the last file of a field
+    sent several times (a return's photos) and turned text fields into file
+    parts the service could not read as form fields.
+    """
+
+    def __init__(self, data: dict[str, list[str]], files: list[FilePart]) -> None:
+        self.data = data
+        self.files = files
+
+    @classmethod
+    async def from_form(cls, form: FormData) -> "MultipartBody":
+        data: dict[str, list[str]] = {}
+        files: list[FilePart] = []
+        for name, value in form.multi_items():
+            if isinstance(value, UploadFile):
+                files.append((
+                    name,
+                    (value.filename or name, await value.read(), value.content_type or "application/octet-stream"),
+                ))
+            else:
+                data.setdefault(name, []).append(value)
+        return cls(data, files)
+
+    def __repr__(self) -> str:
+        # Never the file bytes in a log line.
+        return f"MultipartBody(fields={sorted(self.data)}, files={[(n, f[0], len(f[1])) for n, f in self.files]})"
 
 
 class UrlManager:
@@ -339,9 +377,7 @@ class ApiGateway:
 
         elif "multipart/form-data" in content_type:
             try:
-                form_data = await request.form()
-                # For multipart, we need to handle files differently
-                return form_data, "multipart/form-data"
+                return await MultipartBody.from_form(await request.form()), "multipart/form-data"
             except Exception as e:
                 self.logger.warning(f"Failed to parse multipart/form-data body for {path}: {e}")
                 return None, None
@@ -367,7 +403,6 @@ class ApiGateway:
     _BODY_ARGUMENT: dict[str, str] = {
         "application/json": "json",
         "application/x-www-form-urlencoded": "data",
-        "multipart/form-data": "files",
     }
 
     _STRIPPED_HEADERS: frozenset[str] = frozenset({
@@ -480,7 +515,11 @@ class ApiGateway:
             # Content-Type for json/data/files, so ours is dropped for those.
             send_kwargs: dict[str, Any] = {}
             send_headers = headers
-            if prepared_body is not None:
+            if isinstance(prepared_body, MultipartBody):
+                send_kwargs["data"] = prepared_body.data
+                send_kwargs["files"] = prepared_body.files
+                send_headers = {k: v for k, v in headers.items() if k.lower() != "content-type"}
+            elif prepared_body is not None:
                 body_argument = self._BODY_ARGUMENT.get(content_type or "", "content")
                 send_kwargs[body_argument] = prepared_body
                 if body_argument != "content":

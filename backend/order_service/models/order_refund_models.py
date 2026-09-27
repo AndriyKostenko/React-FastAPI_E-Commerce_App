@@ -37,5 +37,9 @@ class OrderRefund(Base, TimestampMixin):
     status: Mapped[str] = mapped_column(String(20), nullable=False)
     # The admin who asked; None when the system refunded a cancelled line.
     requested_by: Mapped[UUID | None] = mapped_column(PostgresUUID(as_uuid=True), nullable=True)
+    # The customer return this refund pays out, when it came from one.
+    return_request_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("return_requests.id"), nullable=True, index=True
+    )
     failure_reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
     settled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

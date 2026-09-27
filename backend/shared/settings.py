@@ -249,8 +249,19 @@ class Settings(BaseSettings):
     MAIL_DEBUG: bool
     MAIL_FROM: str
     MAIL_FROM_NAME: str
-    # Where operational alerts (payment disputes) are emailed. Unset: logged only.
+    # Where operational alerts (payment disputes, return requests) are emailed. Unset: logged only.
     ADMIN_ALERT_EMAIL: str | None = None
+
+    # Customer returns. The window runs from the line's delivery.
+    RETURN_WINDOW_DAYS: int = Field(default=30, ge=1, le=365)
+    RETURN_PHOTO_MAX_COUNT: int = Field(default=5, ge=1, le=10)
+    RETURN_PHOTO_MAX_BYTES: int = Field(default=5 * 1024 * 1024, ge=1024)
+    # Evidence photos are private: never under MEDIA_ROOT, which product-service
+    # serves publicly. Unset: ./private-media in the service's working directory.
+    RETURN_EVIDENCE_ROOT: str | None = None
+    # Where customers post goods back, printed in the "approved" email. Unset:
+    # the email tells them support will send the address.
+    RETURN_ADDRESS: str | None = None
     USE_CREDENTIALS: bool
     TEMPLATES_DIR: DirectoryPath = Path(__file__).parent / "templates"
     VALIDATE_CERTS: bool

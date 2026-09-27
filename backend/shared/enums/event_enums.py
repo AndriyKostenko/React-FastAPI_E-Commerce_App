@@ -96,6 +96,12 @@ class OrderEvents(StrEnum):
     CJ_ORDER_PAID = "cj.order.paid"
     CJ_ORDER_SHIPPED = "cj.order.shipped"
     CJ_ORDER_DELIVERED = "cj.order.delivered"
+    # Customer returns. Three segments on purpose: notification-service's
+    # "order.#" binding matches them, the "order.*" bindings of shipping- and
+    # cart-service do not.
+    RETURN_REQUESTED = "order.return.requested"
+    RETURN_APPROVED = "order.return.approved"
+    RETURN_REJECTED = "order.return.rejected"
 
 
 class PaymentEvents(StrEnum):

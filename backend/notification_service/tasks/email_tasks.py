@@ -4,6 +4,7 @@ from resources import logger, settings
 from shared.email_service.email_service import AdminAlerts, OrderRelatedNotifications, UserRelatedNotifications
 from shared.contracts.events import (
     PaymentDisputeEvent,
+    OrderReturnEvent,
     UserRegisteredEvent,
     EmailVerificationEvent,
     PasswordResetRequestedEvent,
@@ -104,3 +105,15 @@ async def send_order_delivered_email(payload: dict[str, Any]) -> None:
 @taskiq_broker.task
 async def send_admin_dispute_alert(payload: dict[str, Any]) -> None:
     await admin_alerts.send_dispute_alert(PaymentDisputeEvent(**payload))
+
+
+@taskiq_broker.task
+async def send_admin_return_alert(payload: dict[str, Any]) -> None:
+    await admin_alerts.send_return_alert(OrderReturnEvent(**payload))
+
+
+@taskiq_broker.task
+async def send_return_decision_email(payload: dict[str, Any]) -> None:
+    event = OrderReturnEvent(**payload)
+    await order_notification_email_service.send_return_decision(event)
+    logger.info(f"Return decision email sent to {event.user_email} for order {event.order_id}")

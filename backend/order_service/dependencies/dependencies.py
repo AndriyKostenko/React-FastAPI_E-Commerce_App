@@ -28,6 +28,9 @@ from shared.utils.authenticated_caller import AuthenticatedCaller
 from database_layer.order_refund_repository import OrderRefundRepository
 from service_layer.order_refund_service import OrderRefundService
 from database_layer.order_saga_repository import OrderSagaRepository
+from database_layer.order_return_repository import ReturnRequestRepository
+from service_layer.order_return_service import OrderReturnService
+from service_layer.return_evidence_storage import LocalReturnEvidenceStorage, ReturnEvidenceStorage
 
 
 def get_api_resources(request: Request) -> OrderApiResources:
@@ -157,3 +160,35 @@ order_refund_service_dependency = Annotated[OrderRefundService, Depends(get_orde
 production_queue_service_dependency = Annotated[ProductionQueueService, Depends(get_production_queue_service)]
 fulfillment_status_dependency = Annotated[OrderFulfillmentStatusService, Depends(get_fulfillment_status_service)]
 admin_caller_dependency = Annotated[AuthenticatedCaller, Depends(get_admin_caller)]
+
+
+def get_return_evidence_storage() -> ReturnEvidenceStorage:
+    return LocalReturnEvidenceStorage(settings)
+
+
+def get_order_return_service(
+    session: AsyncSession = Depends(get_db_session, scope="function"),
+    outbox_event_service: OutboxEventService = Depends(get_outbox_service),
+    storage: ReturnEvidenceStorage = Depends(get_return_evidence_storage),
+) -> OrderReturnService:
+    order_repository = OrderRepository(session=session)
+    saga_repository = OrderSagaRepository(session)
+    refund_repository = OrderRefundRepository(session)
+    return OrderReturnService(
+        order_repository=order_repository,
+        saga_repository=saga_repository,
+        return_repository=ReturnRequestRepository(session),
+        refund_repository=refund_repository,
+        refund_service=OrderRefundService(
+            order_repository=order_repository,
+            saga_repository=saga_repository,
+            refund_repository=refund_repository,
+            outbox_event_service=outbox_event_service,
+        ),
+        outbox_event_service=outbox_event_service,
+        storage=storage,
+        settings=settings,
+    )
+
+
+order_return_service_dependency = Annotated[OrderReturnService, Depends(get_order_return_service)]

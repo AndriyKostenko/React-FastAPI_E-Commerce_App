@@ -7,6 +7,7 @@ from shared.managers.database_session_manager import DatabaseSessionManager
 from taskiq import AsyncTaskiqDecoratedTask
 from shared.contracts.events import (
     PaymentDisputeEvent,
+    OrderReturnEvent,
     CJOrderDeliveredEvent,
     CJOrderShippedEvent,
     ProductionJobCancelledEvent,
@@ -27,6 +28,8 @@ from service_layer.notification_service import NotificationService
 from database_layer.notification_repository import NotificationRepository
 from tasks.email_tasks import (
     send_admin_dispute_alert,
+    send_admin_return_alert,
+    send_return_decision_email,
     send_verification_email,
     send_email_verified_notification,
     send_login_notification,
@@ -180,6 +183,19 @@ class OrderEventHandler(BaseEventHandler):
                 case OrderEvents.ORDER_CANCELLED:
                     email_task = send_order_cancelled_email
                     notification_message = f"Your order #{order_id} has been cancelled."
+                case OrderEvents.RETURN_REQUESTED:
+                    _ = OrderReturnEvent(**message)
+                    # The customer sees the request in-app; the admin is emailed to decide it.
+                    email_task = send_admin_return_alert
+                    notification_message = f"We received your return request for order #{order_id}."
+                case OrderEvents.RETURN_APPROVED:
+                    _ = OrderReturnEvent(**message)
+                    email_task = send_return_decision_email
+                    notification_message = f"Your return for order #{order_id} was approved."
+                case OrderEvents.RETURN_REJECTED:
+                    _ = OrderReturnEvent(**message)
+                    email_task = send_return_decision_email
+                    notification_message = f"Your return for order #{order_id} was not accepted."
                 case _:
                     self._logger.warning(f"Unhandled order event type: {event_type}")
                     await self._mark_processed(event_id=event_id, event_type=event_type, order_id=order_id, result="skipped")

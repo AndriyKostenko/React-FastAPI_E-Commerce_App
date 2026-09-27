@@ -131,7 +131,7 @@ async def shutdown():
 
 # Queue definitions — bound to their respective TOPIC exchanges via routing key patterns.
 # user.# matches: user.registered, user.logged.in, user.email.verified, etc.
-# order.# matches: order.created, order.confirmed, order.cancelled
+# order.# matches: order.created, order.confirmed, order.cancelled, order.return.*
 user_events_queue = topology.queue(
     name=UserEventsQueue.USER_EVENTS_QUEUE,
     routing_key="user.#", # matches all user-related events, but we only handle user.registered, user.logged.in, and user.email.verified for notifications. password.reset.* events are ignored.
@@ -140,7 +140,7 @@ user_events_queue = topology.queue(
 
 order_events_queue = topology.queue(
     name=OrderEventsQueue.ORDER_EVENTS_QUEUE,
-    routing_key="order.#", # matches all order-related events, but we only handle order.confirmed and order.cancelled for notifications. order.created is ignored.
+    routing_key="order.#", # matches all order-related events; order.confirmed, order.cancelled and order.return.* notify, order.created is ignored.
     dead_letter_key=OrderEventsQueue.ORDER_EVENTS_DEAD_LETTER_QUEUE,
 )
 

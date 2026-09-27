@@ -61,9 +61,9 @@ RUN apt-get update \
     && mkdir -p /app/logs \
     && mkdir -p /media/images \
     && mkdir -p /media/icons \
-    && mkdir -p /tmp/prometheus_multiproc/order-service \
+    && mkdir -p /tmp/prometheus_multiproc/order-service /return-evidence \
     && chown -R orderuser:ordergroup /app \
-    && chown -R orderuser:ordergroup /media /tmp/prometheus_multiproc
+    && chown -R orderuser:ordergroup /media /tmp/prometheus_multiproc /return-evidence
 
 # Copy dependencies from builder
 COPY --from=builder /app/.venv /app/.venv
@@ -114,8 +114,8 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/* \
     && addgroup --system --gid 1008 ordergroup \
     && adduser --system --uid 1008 --ingroup ordergroup orderuser \
-    && mkdir -p /app/logs /tmp/prometheus_multiproc/order-service \
-    && chown -R orderuser:ordergroup /app /tmp/prometheus_multiproc
+    && mkdir -p /app/logs /tmp/prometheus_multiproc/order-service /return-evidence \
+    && chown -R orderuser:ordergroup /app /tmp/prometheus_multiproc /return-evidence
 
 # Copy venv with dev deps (pytest, httpx, etc.) from test-builder
 COPY --from=test-builder /app/.venv /app/.venv

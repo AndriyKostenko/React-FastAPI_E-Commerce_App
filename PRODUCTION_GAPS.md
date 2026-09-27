@@ -437,6 +437,34 @@ the services), not only in unit tests.
   address needs `country_code` whenever tax is on.
   **Not covered:** a lost dispute records no tax reversal (record it in the
   dashboard); VAT / customs on non-Canadian destinations.
+- [x] Partial refunds reach payment-service (2026-09-26). order-service had no
+  outbox route for `payment.refund.requested`, so every partial refund since
+  2026-09-25 sat in the outbox, retried and never sent. Routed now; a guard test
+  checks every event type written to the outbox has a route.
+- [x] Customer returns (2026-09-26, backend only). A customer asks for delivered
+  units back (`POST /orders/{id}/returns`, multipart: a JSON `request` field plus
+  up to 5 photos, JPEG/PNG/WebP checked from their bytes); an admin approves,
+  receives or rejects (`/admin/returns`). Rules, under the order's saga lock:
+  owner only, confirmed order, delivered line, within `RETURN_WINDOW_DAYS` (30)
+  of that line's `delivered_at`, and each unit at most once (refunded units and
+  units in an open return are taken). The reason decides the fault: the seller's
+  (defective / damaged / wrong item / misprint) needs a photo and refunds the
+  order's shipping once; a change of mind (changed mind / does not fit) does not.
+  Per fulfilment type: custom prints only for the seller's fault and never sent
+  back; CJ defects not sent back (claim from CJ by hand), CJ change of mind sent
+  back to the local address; catalog items always sent back. Returnless lines
+  are refunded on approval, the rest on receipt, always through
+  `OrderRefundService`, so its caps hold. The admin is emailed about each request
+  (`ADMIN_ALERT_EMAIL`); the customer is emailed the decision with
+  `RETURN_ADDRESS` when goods must come back. Photos are private
+  (`RETURN_EVIDENCE_ROOT`, never under `MEDIA_ROOT`), admin-only to view.
+  Email templates are now autoescaped. Migration: order `e7b3c1f9a482`.
+  **Before going live:** set `RETURN_ADDRESS` and `ADMIN_ALERT_EMAIL`; publish the
+  returns policy page (below) with the same rules.
+  **Not covered:** the frontend (return form, admin queue, regenerated types);
+  prepaid return labels; store credit; restocking a received catalog item
+  (adjust stock by hand); S3 for the photos (local disk / the `return_evidence`
+  volume only); photos of a request that fails to commit stay on disk.
 - Terms / privacy / returns policy pages
 - GDPR data export + delete, audit logging, data retention (checklist §13 fully unchecked)
 - AI-print content moderation — you physically print user designs, so IP / trademark / NSFW

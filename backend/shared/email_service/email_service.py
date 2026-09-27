@@ -4,7 +4,7 @@ from typing import Any
 from fastapi_mail import FastMail, MessageSchema, ConnectionConfig, MessageType
 from fastapi_mail.errors import ConnectionErrors
 from pydantic import ValidationError
-from jinja2 import Environment, FileSystemLoader, TemplateNotFound
+from jinja2 import Environment, FileSystemLoader, TemplateNotFound, select_autoescape
 
 from shared.exceptions.base_exceptions import EmailServiceError
 from shared.settings import Settings
@@ -20,7 +20,9 @@ from shared.contracts.events import (
     OrderCancelledEvent,
     OrderShippedBaseEvent,
     OrderDeliveredBaseEvent,
+    OrderReturnEvent,
 )
+from shared.enums.event_enums import OrderEvents
 
 class EmailService:
     """Service for sending emails using FastAPI Mail and Jinja2 templates."""
@@ -41,7 +43,12 @@ class EmailService:
             TEMPLATE_FOLDER=self.settings.TEMPLATES_DIR,
             VALIDATE_CERTS=self.settings.VALIDATE_CERTS
         )
-        self.jinja_env: Environment = Environment(loader=FileSystemLoader(self.settings.TEMPLATES_DIR))
+        # Autoescaped: templates carry text customers wrote (a return's
+        # description), which must never become markup in anyone's inbox.
+        self.jinja_env: Environment = Environment(
+            loader=FileSystemLoader(self.settings.TEMPLATES_DIR),
+            autoescape=select_autoescape(["html"]),
+        )
         self.fast_mail: FastMail = FastMail(self.config)
 
     def render_template(self, template_name: str, template_body: dict[str, str]) -> str:
@@ -274,6 +281,28 @@ class OrderRelatedNotifications(EmailService):
         self.logger.info(f"Sent delivery notification for order: {event.order_id}")
 
 
+    async def send_return_decision(self, event: OrderReturnEvent) -> None:
+        """Tell the customer whether their return was approved, and what to do next."""
+        approved = event.event_type == OrderEvents.RETURN_APPROVED
+        await self.send_email_async(
+            recipients=[event.user_email],
+            subject=f"Your return for order {event.order_id} is {'approved' if approved else 'not accepted'}",
+            template_name="return_approved.html" if approved else "return_rejected.html",
+            template_body={
+                "order_id": str(event.order_id),
+                "lines": [line.model_dump() for line in event.lines],
+                # Approved: what stays with the customer vs. what goes back.
+                "kept_lines": [line.model_dump() for line in event.lines if not line.ships_back],
+                "returned_lines": [line.model_dump() for line in event.lines if line.ships_back],
+                "return_address": event.return_address,
+                "fault": event.fault,
+                "admin_note": event.admin_note,
+                "app_name": self.settings.MAIL_FROM_NAME,
+            },
+        )
+        self.logger.info(f"Sent return decision for return {event.return_id} of order {event.order_id}")
+
+
 class AdminAlerts(EmailService):
     """Operational alerts for whoever runs the shop (ADMIN_ALERT_EMAIL)."""
 
@@ -298,6 +327,32 @@ class AdminAlerts(EmailService):
                 "reason": event.reason,
                 "amount": f"{event.disputed_amount_cents / 100:.2f} {event.currency.upper()}",
                 "evidence_due_by": event.evidence_due_by.isoformat() if event.evidence_due_by else "n/a",
+                "app_name": self.settings.MAIL_FROM_NAME,
+            },
+        )
+
+    async def send_return_alert(self, event: OrderReturnEvent) -> None:
+        """A customer asked for a return: someone has to decide it."""
+        recipient = self.settings.ADMIN_ALERT_EMAIL
+        if not recipient:
+            self.logger.warning(
+                "Return %s requested on order %s - set ADMIN_ALERT_EMAIL to be emailed about returns",
+                event.return_id, event.order_id,
+            )
+            return
+        await self.send_email_async(
+            recipients=[recipient],
+            subject=f"Return requested - order {event.order_id}",
+            template_name="admin_return_alert.html",
+            template_body={
+                "order_id": str(event.order_id),
+                "return_id": str(event.return_id),
+                "customer_email": event.user_email,
+                "lines": [line.model_dump() for line in event.lines],
+                "reason": event.reason,
+                "fault": event.fault,
+                "description": event.description,
+                "photo_count": event.photo_count,
                 "app_name": self.settings.MAIL_FROM_NAME,
             },
         )
