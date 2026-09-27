@@ -33,6 +33,7 @@ async def route_order_event(
         ArtworkEvents.ARTWORK_RELEASED: publisher.publish_artwork_released,
         PaymentCommands.CAPTURE_REQUESTED: publisher.publish_payment_capture_requested,
         PaymentCommands.RELEASE_REQUESTED: publisher.publish_payment_release_requested,
+        PaymentCommands.REFUND_REQUESTED: publisher.publish_payment_refund_requested,
     }
     publish = routes.get(event_type)
     if not publish:
