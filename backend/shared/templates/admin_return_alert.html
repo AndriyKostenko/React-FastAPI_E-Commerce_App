@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+  <body style="font-family: Arial, sans-serif; color: #222;">
+    <h2>Return requested - order {{ order_id }}</h2>
+    <p>{{ customer_email }} asked to return:</p>
+    <ul>
+      {% for line in lines %}
+      <li>{{ line.quantity }} x {{ line.product_name }}{% if not line.ships_back %} (no need to send back){% endif %}</li>
+      {% endfor %}
+    </ul>
+    <ul>
+      <li>Reason: {{ reason }} ({{ fault }})</li>
+      <li>Photos attached: {{ photo_count }}</li>
+      <li>Return: {{ return_id }}</li>
+    </ul>
+    <p>Customer's description:</p>
+    <blockquote>{{ description }}</blockquote>
+    <p>Approve or reject it in the returns queue (/admin/returns).</p>
+    <p>{{ app_name }}</p>
+  </body>
+</html>

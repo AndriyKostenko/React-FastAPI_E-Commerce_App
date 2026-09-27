@@ -16,9 +16,10 @@ import pytest
 
 from events_publisher.order_event_publisher import OrderEventPublisher
 from service_layer.outbox_poller_service import route_order_event
-from shared.contracts.events import PaymentRefundRequested
+from shared.contracts.events import OrderReturnEvent, PaymentRefundRequested
+from shared.contracts.returns import ReturnFault, ReturnLineSummary, ReturnReason
 from shared.enums import event_enums
-from shared.enums.event_enums import PaymentCommands, ProductionEvents
+from shared.enums.event_enums import OrderEvents, PaymentCommands, ProductionEvents
 
 SERVICE_ROOT = Path(__file__).resolve().parents[2]
 WRITTEN = re.compile(r"add_outbox_event\(\s*event_type=(\w+)\.(\w+)")
@@ -26,6 +27,9 @@ WRITTEN = re.compile(r"add_outbox_event\(\s*event_type=(\w+)\.(\w+)")
 # Written through a variable rather than a literal, so listed by hand.
 WRITTEN_DYNAMICALLY = [
     *ProductionEvents,  # production_queue_service publishes each job transition
+    OrderEvents.RETURN_REQUESTED,
+    OrderEvents.RETURN_APPROVED,
+    OrderEvents.RETURN_REJECTED,
 ]
 
 
@@ -73,3 +77,23 @@ async def test_a_refund_command_goes_to_payment_service() -> None:
     assert sent["routing_key"] == "payment.refund.requested"
     assert sent["exchange"] is publisher.order_exchange
     assert sent["event"].refund_id == command.refund_id and sent["event"].amount_cents == 1999
+
+
+@pytest.mark.parametrize("event_type", [OrderEvents.RETURN_APPROVED, OrderEvents.RETURN_REJECTED])
+async def test_a_return_decision_is_published_under_its_own_key(event_type: str) -> None:
+    publisher = OrderEventPublisher.__new__(OrderEventPublisher)
+    publisher.logger = MagicMock()
+    publisher.order_exchange = MagicMock(name="order_exchange")
+    publisher.publish_an_event = AsyncMock()
+    event = OrderReturnEvent(
+        event_type=event_type, order_id=uuid4(), user_id=uuid4(), user_email="buyer@example.com",
+        return_id=uuid4(), reason=ReturnReason.DEFECTIVE, fault=ReturnFault.SELLER, description="torn seam",
+        lines=[ReturnLineSummary(product_name="Tee", quantity=1, ships_back=False)],
+    )
+
+    await route_order_event(event_type, event.model_dump(mode="json"), publisher)
+
+    # Three segments: notification-service's "order.#" matches, the
+    # "order.*" bindings of shipping- and cart-service do not.
+    assert publisher.publish_an_event.await_args.kwargs["routing_key"] == event_type
+    assert event_type.count(".") == 2

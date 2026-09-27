@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+  <body style="font-family: Arial, sans-serif; color: #222; line-height: 1.6;">
+    <h2>Your return is approved</h2>
+    <p>We have approved your return for order <strong>{{ order_id }}</strong>:</p>
+    <ul>
+      {% for line in lines %}
+      <li>{{ line.quantity }} x {{ line.product_name }}</li>
+      {% endfor %}
+    </ul>
+    {% if kept_lines %}
+    <p>You don't need to send back:
+      {% for line in kept_lines %}{{ line.product_name }}{% if not loop.last %}, {% endif %}{% endfor %}.
+      Its refund is on its way to your original payment method.</p>
+    {% endif %}
+    {% if returned_lines %}
+    <p>Please post back:
+      {% for line in returned_lines %}{{ line.quantity }} x {{ line.product_name }}{% if not loop.last %}, {% endif %}{% endfor %}.
+      We refund it as soon as the parcel arrives and has been checked.</p>
+    {% if return_address %}
+    <p>Send it to:<br><strong>{{ return_address }}</strong></p>
+    {% else %}
+    <p>Our support team will email you the return address.</p>
+    {% endif %}
+    <p>Please include your order number in the parcel.
+      {% if fault == "customer" %}Return postage is at your cost.{% else %}Keep the postage receipt: we refund it.{% endif %}</p>
+    {% endif %}
+    {% if admin_note %}<p>Note from our team: {{ admin_note }}</p>{% endif %}
+    <p>{{ app_name }}</p>
+  </body>
+</html>

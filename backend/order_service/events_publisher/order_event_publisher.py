@@ -12,6 +12,7 @@ from shared.contracts.events import (
     OrderCreatedEvent,
     OrderCancelledEvent,
     OrderConfirmedEvent,
+    OrderReturnEvent,
     InventoryReserveRequested,
     PaymentCaptureRequested,
     PaymentRefundRequested,
@@ -133,3 +134,9 @@ class OrderEventPublisher(BaseEventPublisher):
         self.logger.info(
             f"Published PaymentRefundRequested {event.refund_id} for order {event.order_id} ({event.amount_cents} cents)"
         )
+
+    async def publish_order_return_event(self, event_data: dict[str, Any]):
+        """A customer return was requested, approved or rejected (notification-service)"""
+        event = OrderReturnEvent(**event_data)
+        await self.publish_an_event(event=event, exchange=self.order_exchange, routing_key=event.event_type)
+        self.logger.info(f"Published {event.event_type} for return {event.return_id} (order {event.order_id})")

@@ -35,6 +35,10 @@ class OrderLineFulfillment(Base, TimestampMixin):
     status: Mapped[str] = mapped_column(
         String(30), nullable=False, default=LineFulfillmentStatus.PENDING
     )
+    # When the line reached DELIVERED: the customer's return window runs from here.
+    delivered_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     order_item: Mapped["OrderItem"] = relationship(
         "OrderItem", back_populates="fulfillment"

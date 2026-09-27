@@ -53,7 +53,14 @@ class OrderRefundService:
         self._refunds = refund_repository
         self._outbox = outbox_event_service
 
-    async def request(self, order_id: UUID, request: RefundRequest, requested_by: UUID | None) -> OrderRefundSchema:
+    async def request(
+        self,
+        order_id: UUID,
+        request: RefundRequest,
+        requested_by: UUID | None,
+        *,
+        return_request_id: UUID | None = None,
+    ) -> OrderRefundSchema:
         if await self._sagas.get_for_update(order_id) is None:
             raise OrderNotFoundError(order_id)
         order = await self._orders.get_with_fulfillment(order_id)
@@ -86,6 +93,7 @@ class OrderRefundService:
                 reason=request.reason,
                 status=RefundState.REQUESTED,
                 requested_by=requested_by,
+                return_request_id=return_request_id,
             )
         )
         await self._outbox.add_outbox_event(

@@ -20,6 +20,7 @@ from models.order_fulfillment_models import (  # noqa: F401
 )
 from models.order_saga_models import OrderSagaState  # noqa: F401
 from models.order_refund_models import OrderRefund  # noqa: F401
+from models.order_return_models import ReturnRequest  # noqa: F401
 from models.outbox_models import OutboxEvent  # noqa: F401
 from shared.settings import get_settings
 

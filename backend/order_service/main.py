@@ -13,6 +13,7 @@ from config import logger, settings
 from routes.orders_routes import order_routes
 from routes.production_routes import production_routes
 from routes.refund_routes import refund_routes
+from routes.return_routes import admin_return_routes, return_routes
 from shared.app import DatabaseEngineProbe, ServiceAppBuilder
 
 app = (
@@ -22,6 +23,8 @@ app = (
     .with_router(order_routes, prefix=DESCRIPTOR.api_prefix)
     .with_router(production_routes, prefix=DESCRIPTOR.api_prefix)
     .with_router(refund_routes, prefix=DESCRIPTOR.api_prefix)
+    .with_router(return_routes, prefix=DESCRIPTOR.api_prefix)
+    .with_router(admin_return_routes, prefix=DESCRIPTOR.api_prefix)
     .build()
 )
 

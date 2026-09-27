@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html>
+  <body style="font-family: Arial, sans-serif; color: #222; line-height: 1.6;">
+    <h2>About your return</h2>
+    <p>We could not accept your return for order <strong>{{ order_id }}</strong>:</p>
+    <ul>
+      {% for line in lines %}
+      <li>{{ line.quantity }} x {{ line.product_name }}</li>
+      {% endfor %}
+    </ul>
+    <p>Reason: {{ admin_note }}</p>
+    <p>If you think this is a mistake, reply to this email and we will take another look.</p>
+    <p>{{ app_name }}</p>
+  </body>
+</html>
