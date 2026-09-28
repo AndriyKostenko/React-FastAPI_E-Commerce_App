@@ -65,7 +65,14 @@ A single process by name — `frontend` included:
 ./local/dev.sh up frontend
 ./local/dev.sh down frontend
 FRONTEND_PORT=3000 ./local/dev.sh up frontend   # default is 30000
+./local/dev.sh up admin-js                      # AdminJS on :3001 (ADMIN_JS_PORT)
 ```
+
+admin-js (`backend/admin-js-service`) runs `npm run start:local`: it compiles and
+reads `backend/.env` then `.env.local` through node's own `--env-file`, with the
+host-specific values (Redis host, gateway URL, port) pinned by `dev.sh`. It needs
+`COOKIE_SECRET`, `ADMINJS_SERVICE_REDIS_DB` and `ADMINJS_SERVICE_REDIS_PREFIX` in
+`backend/.env` and refuses to start, naming the missing ones, without them.
 
 Logs land in `backend/local/logs/<name>.log`, pids in `backend/local/run/`.
 
@@ -95,6 +102,7 @@ without re-testing repeated reloads; `next build` is unaffected.
 | wishlist-service | `http://127.0.0.1:8009` |
 | supplier-service | `http://127.0.0.1:8010` |
 | cj-mcp (CJ Dropshipping MCP) | `http://127.0.0.1:3009/mcp` — health at `/health` |
+| admin-js (AdminJS) | `http://localhost:3001/admin` — log in with an admin account |
 
 Every FastAPI app serves Swagger at `/docs` and its routes under `/api/v1`.
 The gateway exposes `/health`; the services expose `/health/live` and `/health/ready`.
@@ -115,7 +123,7 @@ config (`~/.claude.json`), never in this repo.
 Only reachable when the Docker stack is up, i.e. **not** in the local setup:
 PgAdmin `http://localhost:5050`, Traefik dashboard `http://localhost:8090/dashboard`,
 Prometheus Alertmanager `http://localhost:9093`, Grafana / Tempo / Loki /
-otel-collector, admin-js `http://localhost:3001`.
+otel-collector.
 
 
 # Running the tests locally

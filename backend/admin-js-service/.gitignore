@@ -31,3 +31,5 @@ logs/
 # Test reports
 junit.xml
 mocha.json
+# AdminJS dev-mode bundle (admin.watch())
+.adminjs/

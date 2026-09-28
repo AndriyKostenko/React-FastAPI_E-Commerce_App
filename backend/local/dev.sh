@@ -26,6 +26,7 @@
 #
 # RELOAD=1           ./local/dev.sh up   HTTP services start with --reload.
 # FRONTEND_PORT=3000 ./local/dev.sh up   override the Next.js port.
+# ADMIN_JS_PORT=3002 ./local/dev.sh up   override the AdminJS port.
 # CJ_MCP_PORT=3009   ./local/dev.sh up   override the CJ MCP server port.
 
 set -euo pipefail
@@ -92,16 +93,19 @@ FRONTEND_PORT="${FRONTEND_PORT:-30000}"
 CJ_MCP_PORT="${CJ_MCP_PORT:-3009}"
 CJ_MCP_DIR="${CJ_MCP_DIR:-../../api-mcp}"
 
+# AdminJS listens on 3000 inside compose and is published on 3001; locally it
+# listens on 3001 directly so the URL is the same either way.
+ADMIN_JS_PORT="${ADMIN_JS_PORT:-3001}"
+
 # --------------------------------------------------------------------------
 # The process table: name | service dir | command (relative to that dir)
 #
-# Mirrors docker-compose.yml minus the observability stack, traefik, pgadmin
-# and admin-js.  gunicorn is replaced by plain uvicorn: one process is enough
+# Mirrors docker-compose.yml minus the observability stack, traefik and
+# pgadmin.  gunicorn is replaced by plain uvicorn: one process is enough
 # locally, and it keeps PROMETHEUS_MULTIPROC_DIR out of the picture.
 #
-# The frontend is the one non-Python row: its dir is relative to backend/ like
-# every other, and it is appended after the heredoc because the quoted heredoc
-# cannot interpolate $FRONTEND_PORT.
+# The Node rows (frontend, admin-js, cj-mcp) are appended after the heredoc
+# because the quoted heredoc cannot interpolate their ports.
 # --------------------------------------------------------------------------
 processes() {
   cat <<'EOF'
@@ -138,6 +142,12 @@ EOF
   # No --hostname: next's default binding answers on both localhost and
   # 127.0.0.1, and next.config.js already allows the 127.0.0.1 dev origin.
   printf 'frontend|../frontend|npm run dev -- --port %s\n' "$FRONTEND_PORT"
+  # admin-js reads the same backend/.env (+ .env.local) compose hands it, via
+  # node's own --env-file (see its start:local script).  The values that differ
+  # outside compose are pinned here: variables already in the environment win
+  # over --env-file, so the container host names in .env never apply.
+  printf 'admin-js|admin-js-service|env NODE_ENV=development ADMIN_JS_PORT=%s REDIS_HOST=127.0.0.1 REDIS_PORT=%s API_GATEWAY_SERVICE_URL=http://127.0.0.1:8000 npm run start:local\n' \
+    "$ADMIN_JS_PORT" "$REDIS_PORT"
   # Prefixed with env(1) rather than CJ_TRANSPORT=...: start_one execs the
   # command word for word, so a bare VAR=value would be taken as the program.
   # The row disappears when the sibling checkout is absent, so a machine
@@ -333,7 +343,7 @@ start_one() {
   case "$cmd" in
     .venv/bin/*)
       [ -x "$BACKEND_DIR/$dir/.venv/bin/python" ] || die "$dir has no .venv -- run 'uv sync' in it first" ;;
-    npm*)
+    npm*|env*npm\ run*)
       require_bin npm
       [ -d "$BACKEND_DIR/$dir/node_modules" ] || die "$dir has no node_modules -- run 'npm install' in it first" ;;
     env*node*|node*)
@@ -404,6 +414,7 @@ cmd_up() {
   echo
   say "frontend on http://localhost:$FRONTEND_PORT  |  gateway on http://127.0.0.1:8000"
   say "gateway docs http://127.0.0.1:8000/docs  |  rabbitmq UI http://127.0.0.1:15672"
+  say "admin-js on http://localhost:$ADMIN_JS_PORT/admin"
   [ -d "$BACKEND_DIR/$CJ_MCP_DIR" ] && \
     say "cj mcp on http://127.0.0.1:$CJ_MCP_PORT/mcp  |  health http://127.0.0.1:$CJ_MCP_PORT/health"
   say "logs: ./local/dev.sh logs <name>   status: ./local/dev.sh status"
