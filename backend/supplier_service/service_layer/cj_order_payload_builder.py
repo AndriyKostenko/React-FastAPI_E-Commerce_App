@@ -24,6 +24,7 @@ from service_layer.product_service_client import (
     ProductServiceError,
 )
 from shared.contracts.events import OrderConfirmedEvent
+from shared.contracts.shipping_region import CJ_WAREHOUSE_COUNTRY_CODE
 from shared.settings import Settings
 
 
@@ -65,10 +66,6 @@ class CJOrderPayloadBuilder:
             self.settings.CJ_DROPSHIPPING_DEFAULT_LOGISTIC_NAME,
             "CJ_DROPSHIPPING_DEFAULT_LOGISTIC_NAME",
         )
-        from_country_code = self._require_setting(
-            self.settings.CJ_DROPSHIPPING_DEFAULT_FROM_COUNTRY_CODE,
-            "CJ_DROPSHIPPING_DEFAULT_FROM_COUNTRY_CODE",
-        )
 
         products, requested_by_vid = await self.resolve_products(event)
         if self.settings.CJ_DROPSHIPPING_VERIFY_INVENTORY:
@@ -81,7 +78,8 @@ class CJOrderPayloadBuilder:
             "payType": self.settings.CJ_DROPSHIPPING_PAY_TYPE,
             "platform": self.settings.CJ_DROPSHIPPING_PLATFORM,
             "logisticName": logistic_name,
-            "fromCountryCode": from_country_code,
+            # Ship from CJ's US warehouse: the one stock was verified in.
+            "fromCountryCode": CJ_WAREHOUSE_COUNTRY_CODE,
             "products": products,
         }
 

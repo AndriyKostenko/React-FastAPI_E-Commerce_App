@@ -8,6 +8,7 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
 
+from models.order_address_models import OrderAddress
 from models.order_fulfillment_models import OrderLineFulfillment
 from models.order_item_models import OrderItem
 from models.order_models import Order
@@ -43,7 +44,7 @@ def _order_payload(**overrides) -> dict:
         "address": {
             "street": "123 Integration Ave",
             "city": "Test City",
-            "province": "TC",
+            "province": "AB",
             "postal_code": "T2T 2T2",
         },
     }
@@ -138,8 +139,18 @@ class TestCreateOrderIntegration:
         assert fulfillment.customization["print_height_in"] == 18.0
         assert fulfillment.customization["effective_dpi"] == 227.56
 
-    async def test_cj_order_requires_complete_fulfillment_address(
-        self, integration_client: AsyncClient, catalog_quote_stub
+    @pytest.mark.parametrize(
+        ("address", "why"),
+        [
+            ({"country_code": "US"}, "only ship within Canada"),
+            ({"country": "United States"}, "only ship within Canada"),
+            ({"province": "WA"}, "is not a Canadian province"),
+            ({"postal_code": "98101"}, "is not a Canadian postal code"),
+        ],
+        ids=["us-code", "us-name", "us-state", "zip-code"],
+    )
+    async def test_an_order_outside_canada_is_refused_before_it_is_priced(
+        self, integration_client: AsyncClient, catalog_quote_stub, address: dict, why: str
     ):
         # The catalog — not the client — decides a line is CJ-fulfilled.
         catalog_quote_stub.cj_product_ids.add(str(TEST_PRODUCT_ID))
@@ -154,11 +165,31 @@ class TestCreateOrderIntegration:
                 }
             ]
         )
+        payload["address"] = {**payload["address"], **address}
 
         response = await integration_client.post(f"{TEST_API}/orders", json=payload)
 
         assert response.status_code == 422
-        assert "country" in response.json()["detail"]
+        # Refused while the request body is validated: before the handler
+        # runs, so nothing is priced, quoted or stored.
+        assert why in response.text
+
+    async def test_a_canadian_address_is_stored_in_canonical_form(
+        self, integration_client: AsyncClient, test_database_session_manager: TestDatabaseSessionManager
+    ):
+        payload = _order_payload()
+        payload["address"] = {
+            **payload["address"], "province": "alberta", "postal_code": "t2t2t2",
+        }
+
+        response = await integration_client.post(f"{TEST_API}/orders", json=payload)
+
+        assert response.status_code == 201, response.text
+        async with test_database_session_manager.transaction() as session:
+            address = await session.get(OrderAddress, UUID(response.json()["address_id"]))
+        # One form for everything downstream: Stripe Tax and CJ both want the code.
+        assert (address.province, address.postal_code) == ("AB", "T2T 2T2")
+        assert (address.country, address.country_code) == ("Canada", "CA")
 
 
 class TestGetOrdersIntegration:

@@ -25,7 +25,6 @@ def _address(**overrides) -> ConfirmedOrderAddress:
 @pytest.fixture
 def validator() -> CJShippingAddressValidator:
     settings = get_settings().model_copy()
-    settings.CJ_DROPSHIPPING_SUPPORTED_COUNTRY_CODES = []
     settings.CJ_DROPSHIPPING_REJECT_PO_BOX_ADDRESSES = True
     return CJShippingAddressValidator(settings)
 
@@ -52,23 +51,9 @@ class TestValidAddresses:
 
         assert validated.country == "CA"
 
-    @pytest.mark.parametrize(
-        ("country_code", "postal_code"),
-        [
-            ("US", "10001"),
-            ("US", "10001-1234"),
-            ("GB", "SW1A 1AA"),
-            ("DE", "10115"),
-            ("NL", "1012 AB"),
-            ("JP", "100-0001"),
-            # Unlisted countries fall back to the permissive pattern.
-            ("BR", "01310-100"),
-        ],
-    )
-    def test_accepts_known_postal_formats(self, validator, country_code, postal_code) -> None:
-        validated = validator.validate(
-            _address(country_code=country_code, postal_code=postal_code)
-        )
+    @pytest.mark.parametrize("postal_code", ["M5V 2T6", "T2T2T2", "H2X 1Y4", "V6B 1A1"])
+    def test_accepts_canadian_postal_codes(self, validator, postal_code) -> None:
+        validated = validator.validate(_address(postal_code=postal_code))
 
         assert validated.postal_code == postal_code
 
@@ -90,7 +75,7 @@ class TestRejectedAddresses:
 
     def test_wrong_postal_code_for_country_is_rejected(self, validator) -> None:
         with pytest.raises(CJAddressValidationError, match="postal code"):
-            validator.validate(_address(country_code="US", postal_code="M5V 2T6"))
+            validator.validate(_address(postal_code="10001"))
 
     def test_street_without_house_number_is_rejected(self, validator) -> None:
         with pytest.raises(CJAddressValidationError, match="house or building number"):
@@ -111,11 +96,12 @@ class TestRejectedAddresses:
         with pytest.raises(CJAddressValidationError, match="2-letter ISO code"):
             validator.validate(_address(country_code="CAN"))
 
-    def test_unsupported_country_is_rejected(self, validator) -> None:
-        validator.settings.CJ_DROPSHIPPING_SUPPORTED_COUNTRY_CODES = ["us", "gb"]
-
-        with pytest.raises(CJAddressValidationError, match="not served"):
-            validator.validate(_address())
+    @pytest.mark.parametrize(
+        ("country_code", "postal_code"), [("US", "10001"), ("GB", "SW1A 1AA"), ("DE", "10115")]
+    )
+    def test_a_country_other_than_canada_is_never_sent_to_cj(self, validator, country_code, postal_code) -> None:
+        with pytest.raises(CJAddressValidationError, match="Canada only"):
+            validator.validate(_address(country="Elsewhere", country_code=country_code, postal_code=postal_code))
 
     def test_oversized_field_is_rejected(self, validator) -> None:
         with pytest.raises(CJAddressValidationError, match="250-character limit"):

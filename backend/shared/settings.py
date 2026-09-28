@@ -437,7 +437,10 @@ class Settings(BaseSettings):
     CJ_DROPSHIPPING_ORDER_DETAIL_URL: str = "https://developers.cjdropshipping.com/api2.0/v1/shopping/order/getOrderDetail"
     CJ_DROPSHIPPING_DELETE_ORDER_URL: str = "https://developers.cjdropshipping.com/api2.0/v1/shopping/order/deleteOrder"
     CJ_DROPSHIPPING_DEFAULT_LOGISTIC_NAME: str = "CJPacket"
-    CJ_DROPSHIPPING_DEFAULT_FROM_COUNTRY_CODE: str = "CN"
+    # Where CJ goods ship from (US warehouses only) and where the store sells
+    # (Canada only) are fixed in shared.contracts.shipping_region, not here:
+    # the old CJ_DROPSHIPPING_DEFAULT_FROM_COUNTRY_CODE and
+    # CJ_DROPSHIPPING_SUPPORTED_COUNTRY_CODES are no longer read.
     # 3 = create only. Confirmation and balance payment then run as separate,
     # individually recorded steps (see CJOrderPaymentService).
     CJ_DROPSHIPPING_PAY_TYPE: int = 3  # 1=page payment, 2=balance, 3=create only
@@ -475,8 +478,6 @@ class Settings(BaseSettings):
     CJ_DROPSHIPPING_TRACKING_URL_TEMPLATE: str = "https://cjpacket.com/track?trackNumber={tracking_number}"
 
     # CJ Dropshipping shipping-address validation
-    # Empty list means "accept every country CJ accepts".
-    CJ_DROPSHIPPING_SUPPORTED_COUNTRY_CODES: list[str] = Field(default_factory=list)
     CJ_DROPSHIPPING_REJECT_PO_BOX_ADDRESSES: bool = True
 
 

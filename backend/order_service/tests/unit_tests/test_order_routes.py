@@ -38,7 +38,7 @@ def _order_payload(**overrides) -> dict:
         "address": {
             "street": "123 Test St",
             "city": "Testville",
-            "province": "TS",
+            "province": "AB",
             "postal_code": "T1T 1T1",
         },
     }

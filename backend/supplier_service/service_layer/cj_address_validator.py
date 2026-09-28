@@ -12,6 +12,7 @@ from logging import Logger
 
 from exceptions.cj_order_exceptions import CJAddressValidationError
 from shared.contracts.order import ConfirmedOrderAddress
+from shared.contracts.shipping_region import SHIPPING_COUNTRY_CODE
 from shared.settings import Settings
 
 
@@ -169,13 +170,10 @@ class CJShippingAddressValidator:
             errors.append(f"country code '{country_code}' is not a 2-letter ISO code")
             return country_code
 
-        supported = {
-            code.strip().upper()
-            for code in self.settings.CJ_DROPSHIPPING_SUPPORTED_COUNTRY_CODES
-            if code and code.strip()
-        }
-        if supported and country_code not in supported:
-            errors.append(f"country '{country_code}' is not served by this store")
+        # Checked again here, not only in order-service: a CJ order to any
+        # other country must never be placed, whatever reached this far.
+        if country_code != SHIPPING_COUNTRY_CODE:
+            errors.append(f"country '{country_code}' is not served by this store (Canada only)")
         return country_code
 
     def _validate_lengths(self, values: dict[str, str], errors: list[str]) -> None:

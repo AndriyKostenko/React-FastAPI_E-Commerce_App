@@ -4,8 +4,9 @@ from typing import Any
 from service_layer.cj_api_client import CJDropshippingAPIClient
 from service_layer.cj_inventory_verifier import CJDropshippingInventoryVerifier, StockVerificationResult
 from service_layer.cj_to_supplier_mapper import CJToSupplierMapper
-from service_layer.supplier_provider import SupplierProvider
+from service_layer.supplier_provider import SupplierProvider, WarehouseStock
 from schemas.dropshipping_schemas import CJProductsFilterParams
+from shared.contracts.shipping_region import CJ_WAREHOUSE_COUNTRY_CODE
 from shared.contracts.supplier import GenericSupplierProduct
 from schemas.supplier_schemas import SupplierProductsPage
 from shared.settings import Settings
@@ -39,8 +40,15 @@ class CJDropshippingProductProvider(SupplierProvider):
         return "cjdropshipping"
     
     async def search_products(self, filters_query: CJProductsFilterParams) -> SupplierProductsPage:
-        """Search products using the V2 product list endpoint."""
+        """
+        Search products using the V2 product list endpoint.
+
+        Always limited to products with stock in CJ's US warehouses, whatever
+        the caller asked for: this is the one door every listing, preview and
+        sync goes through.
+        """
         access_token = await self.api_client.ensure_access_token()
+        filters_query = filters_query.model_copy(update={"countryCode": CJ_WAREHOUSE_COUNTRY_CODE})
         params = filters_query.model_dump(exclude_none=True)
         url = self.api_client.build_url(self.settings.CJ_DROPSHIPPING_PRODUCT_LIST_URL, params)
         data = await self.api_client.request("GET", url, access_token=access_token)
@@ -62,6 +70,10 @@ class CJDropshippingProductProvider(SupplierProvider):
         access_token = await self.api_client.ensure_access_token()
         url = self.api_client.build_url(self.settings.CJ_DROPSHIPPING_INVENTORY_URL, {"pid": supplier_pid})
         return await self.api_client.request("GET", url, access_token=access_token)
+
+    async def get_warehouse_stock(self, supplier_pid: str) -> WarehouseStock:
+        """Stock in CJ's US warehouses, in total and per variant."""
+        return await self.inventory_verifier.fetch_warehouse_stock(supplier_pid)
 
     async def verify_stock(self, supplier_pid: str, requested_quantity: int) -> StockVerificationResult:
         """Verify that sufficient stock exists for ``requested_quantity`` units."""

@@ -6,6 +6,7 @@ from typing import Any, Optional
 from pydantic import BaseModel, PositiveFloat, PositiveInt, ConfigDict, EmailStr, Field, computed_field, model_validator
 
 from shared.contracts.order import CustomTshirtSpecification, FulfillmentType
+from shared.contracts.shipping_region import CanadianAddress, NotShippableError
 from shared.utils.money import to_cents
 
 
@@ -60,6 +61,34 @@ class AddressType(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+
+class ShippingAddress(AddressType):
+    """
+    A shipping address the customer submits: Canadian, or refused with a 422.
+
+    Checked here, before anything is priced, charged or sent to CJ, so an order
+    the store cannot fulfil is never paid for. Stored addresses are read back
+    through ``AddressType`` unchanged.
+    """
+
+    @model_validator(mode="after")
+    def _canadian(self) -> "ShippingAddress":
+        try:
+            canadian = CanadianAddress.normalise(
+                country=self.country,
+                country_code=self.country_code,
+                province=self.province,
+                postal_code=self.postal_code,
+            )
+        except NotShippableError as exc:
+            raise ValueError(str(exc)) from exc
+        self.country = canadian.country
+        self.country_code = canadian.country_code
+        self.province = canadian.province_code
+        self.postal_code = canadian.postal_code
+        return self
+
+
 class OrderAddressBase(AddressType):
     id: UUID
     user_id: UUID
@@ -93,13 +122,13 @@ class CreateOrder(BaseModel):
     currency: str = "cad"
     payment_intent_id: str | None = None
     products: list[OrderProductItem] = Field(min_length=1, max_length=50)
-    address: AddressType
+    address: ShippingAddress
     shipping_logistic_name: str | None = Field(default=None, max_length=200)
 
 
 class QuoteOrderRequest(BaseModel):
     products: list[OrderProductItem] = Field(min_length=1, max_length=50)
-    address: AddressType
+    address: ShippingAddress
     shipping_logistic_name: str | None = Field(default=None, max_length=200)
 
 
