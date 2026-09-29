@@ -114,6 +114,24 @@ async def handle_supplier_events(body: dict[str, Any], message: RabbitMessage) -
     )
 
 
+# supplier.stock.updated - the hourly CJ stock refresh. Its own queue, so a
+# long import batch never delays it and each stays independently retryable.
+product_supplier_stock_queue = topology.queue(
+    name=ProductSupplierEventsQueue.PRODUCT_SUPPLIER_STOCK_QUEUE,
+    routing_key=SupplierEvents.SUPPLIER_STOCK_UPDATED,
+    dead_letter_key=ProductSupplierEventsQueue.PRODUCT_SUPPLIER_STOCK_DLQ,
+)
+
+
+@rabbitmq_broker.subscriber(queue=product_supplier_stock_queue.queue, exchange=supplier_exchange)
+async def handle_supplier_stock(body: dict[str, Any], message: RabbitMessage) -> None:
+    await topology.dispatch(
+        product_supplier_stock_queue,
+        message,
+        lambda: get_consumer().handle_supplier_stock_updated(body),
+    )
+
+
 # Artwork retention markers travel on the order exchange under "artwork.*",
 # which neither the "order.#" nor the "cj.order.*" binding matches, so they
 # get their own queue and stay independently retryable.

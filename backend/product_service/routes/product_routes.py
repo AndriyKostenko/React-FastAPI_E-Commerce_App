@@ -6,6 +6,7 @@ from fastapi import APIRouter, File, Form, Query, Request, UploadFile, status, D
 from dependencies.dependencies import (
     admin_caller_dependency,
     product_service_dependency,
+    supplier_stock_service_dependency,
 )
 from models.product_models import Product
 from resources import settings
@@ -22,10 +23,14 @@ from schemas.product_schemas import (
 )
 from shared.auth.route_guards import AdminDep
 from shared.auth.service_assertion import require_service
+from shared.contracts.supplier import SupplierStockKey
 
 # Called by order-service directly, never through the gateway: only a request
 # order-service signed with its own key is accepted (bug list 5).
 OrderServiceCaller = Annotated[str, Depends(require_service("order-service"))]
+# The hourly CJ stock refresh asks which supplier products we sell: only a
+# request supplier-service signed with its own key is accepted.
+SupplierServiceCaller = Annotated[str, Depends(require_service("supplier-service"))]
 
 
 product_routes = APIRouter(tags=["products"])
@@ -43,6 +48,19 @@ async def quote_order_items(
     product_service: product_service_dependency,
 ) -> OrderQuoteResponse:
     return await product_service.quote_order_items(quote.items)
+
+
+@product_routes.get(
+    "/products/stock-keys/{supplier_id}",
+    response_model=list[SupplierStockKey],
+    summary="Every product of a supplier we sell, with its variant ids (supplier-service only)",
+)
+async def get_supplier_stock_keys(
+    supplier_id: str,
+    caller_service: SupplierServiceCaller,
+    stock_service: supplier_stock_service_dependency,
+) -> list[SupplierStockKey]:
+    return await stock_service.stock_keys(supplier_id)
 
 
 @product_routes.get("/customization/pricing",

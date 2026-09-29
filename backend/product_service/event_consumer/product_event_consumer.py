@@ -14,6 +14,7 @@ from models.outbox_models import OutboxEvent
 from models.supplier_import_models import SupplierImportBatch
 from service_layer.artwork_asset_service import ArtworkAssetService
 from service_layer.product_service import ProductService
+from service_layer.supplier_stock_service import SupplierStockService
 from service_layer.product_image_service import ProductImageService
 from service_layer.category_service import CategoryService
 from shared.database_layer.outbox_repository import OutboxRepository
@@ -26,6 +27,7 @@ from shared.contracts.events import (
     InventoryReserveFailed,
     SupplierProductsFetchedEvent,
     SupplierProductImportCompletedEvent,
+    SupplierStockUpdatedEvent,
 )
 from shared.managers.cache_manager import CacheManager
 from shared.managers.database_session_manager import DatabaseSessionManager
@@ -304,6 +306,27 @@ class ProductEventConsumer:
             # logging and releasing the claim is sufficient to allow retry.
             await self.idempotency_service.release_claim(event.event_id, event.event_type)
             raise
+
+    async def handle_supplier_stock_updated(self, message: dict[str, Any]) -> None:
+        """
+        Apply the hourly supplier stock refresh to the catalogue.
+
+        No idempotency ledger is needed: levels are absolute, and one measured
+        no later than what a product already carries is skipped, so a
+        redelivered or retried message changes nothing.
+        """
+        event = SupplierStockUpdatedEvent(**message)
+        async with self.database.transaction() as session:
+            report = await SupplierStockService(ProductRepository(session)).apply(event)
+        if report.updated:
+            try:
+                await self.cache_manager.invalidate_namespace(namespace="products")
+            except Exception:
+                self.logger.exception("Stock refresh committed but product cache invalidation failed")
+        self.logger.info(
+            "Supplier stock from %s measured %s: %s updated, %s stale, %s unknown",
+            event.supplier_id, event.measured_at.isoformat(), report.updated, report.stale, report.unknown,
+        )
 
     async def handle_supplier_products_fetched(self, message: dict[str, Any]):
         """Handle supplier product import events from supplier_service.

@@ -332,8 +332,7 @@ class SupplierSyncOrchestrator:
         errors = [result for result in results if isinstance(result, str)]
         return detailed_products, errors
 
-    @staticmethod
-    async def _apply_warehouse_stock(provider: SupplierProvider, product: GenericSupplierProduct) -> str | None:
+    async def _apply_warehouse_stock(self, provider: SupplierProvider, product: GenericSupplierProduct) -> str | None:
         """
         Replace the product's stock with its US-warehouse stock, overall and per variant.
 
@@ -343,11 +342,17 @@ class SupplierSyncOrchestrator:
         stock = await provider.get_warehouse_stock(product.supplier_pid)
         if stock.total <= 0:
             return f"Skipped {product.supplier_pid}: no stock in CJ's {CJ_WAREHOUSE_COUNTRY_CODE} warehouse"
-        product.quantity = stock.total
-        product.in_stock = True
+        # Same sellable figures the hourly stock refresh writes: US stock less
+        # the safety buffer, so an import and a refresh never disagree.
+        sellable = stock.sellable(
+            [variant.vid for variant in product.variants],
+            getattr(self.settings, "CJ_DROPSHIPPING_INVENTORY_BUFFER", 0),
+        )
         for variant in product.variants:
             # A size/colour with no US stock stays listed but cannot be bought.
-            variant.inventory_num = stock.by_vid.get(variant.vid, 0)
+            variant.inventory_num = sellable[variant.vid]
+        product.quantity = sum(sellable.values()) if product.variants else stock.total
+        product.in_stock = product.quantity > 0
         return None
 
     def _get_allowed_category_ids(self, config: SupplierConfig) -> set[str]:

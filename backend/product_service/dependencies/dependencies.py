@@ -22,6 +22,7 @@ from service_layer.image_storage_service import ImageStorageService
 from service_layer.openrouter_client import OpenRouterClient
 from service_layer.product_image_service import ProductImageService
 from service_layer.product_service import ProductService
+from service_layer.supplier_stock_service import SupplierStockService
 from service_layer.review_service import ReviewService
 from resources import ProductApiResources, get_product_api_resources
 
@@ -184,3 +185,12 @@ image_generation_service_dependency = Annotated[ImageGenerationService, Depends(
 authenticated_caller_dependency = Annotated[AuthenticatedCaller, Depends(get_authenticated_caller)]
 admin_caller_dependency = Annotated[AuthenticatedCaller, Depends(get_admin_caller)]
 artwork_asset_service_dependency = Annotated[ArtworkAssetService, Depends(get_artwork_asset_service)]
+
+
+def get_supplier_stock_service(
+    session: AsyncSession = Depends(get_db_session, scope="function"),
+) -> SupplierStockService:
+    return SupplierStockService(ProductRepository(session))
+
+
+supplier_stock_service_dependency = Annotated[SupplierStockService, Depends(get_supplier_stock_service)]

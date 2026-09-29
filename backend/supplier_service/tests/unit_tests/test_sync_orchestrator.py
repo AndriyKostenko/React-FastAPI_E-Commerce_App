@@ -286,3 +286,20 @@ async def test_sync_commits_each_batch_before_fetching_next_supplier_page() -> N
     await orchestrator.run_sync("cjdropshipping")
 
     assert requested_pages == [1, 2]
+
+
+@pytest.mark.asyncio
+async def test_an_import_holds_back_the_same_buffer_as_the_hourly_refresh() -> None:
+    details = _product("one")
+    details.variants = [_variant("V-S"), _variant("V-M")]
+    provider = FakeCJProvider(
+        {"one": details}, us_stock={"one": WarehouseStock(total=11, by_vid={"V-S": 10, "V-M": 1})}
+    )
+    orchestrator, _, _, outbox = _orchestrator(provider)
+    orchestrator.settings = SimpleNamespace(CJ_DROPSHIPPING_INVENTORY_BUFFER=2)
+
+    await orchestrator.run_sync("cjdropshipping")
+
+    emitted = outbox.add_outbox_event.await_args.kwargs["payload"].products[0]
+    assert {v.vid: v.inventory_num for v in emitted.variants} == {"V-S": 8, "V-M": 0}
+    assert (emitted.quantity, emitted.in_stock) == (8, True)

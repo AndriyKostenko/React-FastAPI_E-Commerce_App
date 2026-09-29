@@ -199,6 +199,10 @@ class Settings(BaseSettings):
     # order-service. Public key: the services it calls.
     ORDER_SERVICE_ASSERTION_PRIVATE_KEY: SecretStr | None = None
     ORDER_SERVICE_ASSERTION_PUBLIC_KEY: str | None = None
+    # supplier-service signs its direct calls to product-service (the hourly
+    # CJ stock refresh reads which CJ products we sell). Same scheme as above.
+    SUPPLIER_SERVICE_ASSERTION_PRIVATE_KEY: SecretStr | None = None
+    SUPPLIER_SERVICE_ASSERTION_PUBLIC_KEY: str | None = None
     USER_TOKEN_ISSUER: str = "user-service"
     USER_TOKEN_AUDIENCE: str = "ecommerce-api"
     GATEWAY_ASSERTION_ISSUER: str = "api-gateway"
@@ -423,7 +427,11 @@ class Settings(BaseSettings):
 
     # Live inventory verification before order confirmation
     CJ_DROPSHIPPING_VERIFY_INVENTORY: bool = True
+    # Units held back from what CJ reports, per variant: covers units sold here
+    # but not yet ordered from CJ when the stock is refreshed.
     CJ_DROPSHIPPING_INVENTORY_BUFFER: int = 0
+    # Hourly stock refresh: products per stock-update event sent to product-service.
+    CJ_STOCK_REFRESH_BATCH_SIZE: int = Field(default=100, ge=1, le=1000)
     CJ_DROPSHIPPING_VERIFY_RETRIES: int = 2
     # Transient-failure handling for every CJ call (retries apply to reads only).
     CJ_DROPSHIPPING_RETRY_MAX_ATTEMPTS: int = Field(default=3, ge=1, le=6)

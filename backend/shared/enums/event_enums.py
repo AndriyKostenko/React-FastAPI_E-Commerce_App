@@ -64,6 +64,9 @@ class ProductSupplierEventsQueue(StrEnum):
     # from competing on the same physical RabbitMQ queue (shared-queue collision).
     SUPPLIER_FEEDBACK_EVENTS_QUEUE = "supplier.feedback.events"
     SUPPLIER_FEEDBACK_EVENTS_DLQ = "supplier.feedback.events.dlq"
+    # Stock refreshes get their own queue: a long import batch never delays one.
+    PRODUCT_SUPPLIER_STOCK_QUEUE = "product.supplier.stock"
+    PRODUCT_SUPPLIER_STOCK_DLQ = "product.supplier.stock.dlq"
 
 
 class UserEvents(StrEnum):
@@ -149,6 +152,8 @@ class SupplierEvents(StrEnum):
     SUPPLIER_PRODUCTS_FETCHED = "supplier.products.fetched"
     SUPPLIER_PRODUCT_IMPORT_COMPLETED = "supplier.product.import.completed"
     SUPPLIER_PRODUCT_IMPORT_FAILED = "supplier.product.import.failed"
+    # The hourly refresh of CJ's US-warehouse stock for the products we sell.
+    SUPPLIER_STOCK_UPDATED = "supplier.stock.updated"
 
 
 class ProductionEvents(StrEnum):

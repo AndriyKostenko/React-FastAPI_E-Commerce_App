@@ -4,6 +4,7 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.product_models import Product
+from models.product_variant_models import ProductVariant
 from shared.database_layer.database_layer import BaseRepository
 from shared.database_layer.repository_mixins import AdvancedQueryMixin
 
@@ -40,6 +41,21 @@ class ProductRepository(AdvancedQueryMixin[Product], BaseRepository[Product]):
                     query = query.options(selectinload(getattr(Product, relation)))
         result = await self.session.execute(query)
         return result.scalar_one_or_none()
+
+    async def list_supplier_stock_keys(self, supplier_id: str) -> list[tuple[str, list[str]]]:
+        """(pid, [vid, ...]) for every product of ``supplier_id``, in a stable order."""
+        result = await self.session.execute(
+            select(Product.pid, ProductVariant.vid)
+            .outerjoin(ProductVariant, ProductVariant.product_id == Product.id)
+            .where(Product.supplier_id == supplier_id, Product.pid.is_not(None))
+            .order_by(Product.pid, ProductVariant.vid)
+        )
+        keys: dict[str, list[str]] = {}
+        for pid, vid in result.all():
+            vids = keys.setdefault(pid, [])
+            if vid is not None:
+                vids.append(vid)
+        return list(keys.items())
 
     async def atomic_decrement_quantity(self, item_id: UUID, requested: int) -> Product | None:
         """Atomically decrement `quantity` by *requested* only if sufficient stock exists.

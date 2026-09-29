@@ -3,7 +3,9 @@ from uuid import UUID
 
 from httpx import AsyncClient, HTTPStatusError, RequestError
 
+from shared.auth.service_assertion import ServiceAssertionAuth
 from shared.contracts.product import ProductWithVariants
+from shared.contracts.supplier import SupplierStockKey
 from shared.settings import Settings
 
 
@@ -92,3 +94,28 @@ class ProductServiceClient:
             raise ProductNotFoundError(variant_id)
 
         return product.pid, variant.vid
+
+    async def list_stock_keys(self, supplier_id: str) -> list[SupplierStockKey]:
+        """Every product of ``supplier_id`` the catalogue sells, with its variant ids.
+
+        An internal product-service route: the request is signed with
+        supplier-service's own key, and product-service accepts nothing else.
+        """
+        url = f"{self.settings.FULL_PRODUCT_SERVICE_URL.rstrip('/')}/products/stock-keys/{supplier_id}"
+        try:
+            await self.start()
+            assert self._http_client is not None
+            response = await self._http_client.get(
+                url, auth=ServiceAssertionAuth.for_service(self.settings, "supplier-service")
+            )
+            response.raise_for_status()
+        except RequestError as exc:
+            raise ProductServiceError(f"Network error calling product_service: {exc}") from exc
+        except HTTPStatusError as exc:
+            raise ProductServiceError(
+                f"product_service returned {exc.response.status_code}: {exc.response.text}"
+            ) from exc
+        try:
+            return [SupplierStockKey.model_validate(row) for row in response.json()]
+        except Exception as exc:
+            raise ProductServiceError(f"Invalid product_service response: {exc}") from exc

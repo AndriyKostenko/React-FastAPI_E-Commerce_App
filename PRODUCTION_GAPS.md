@@ -203,10 +203,21 @@ been bootstrapped by `create_all`).
   CJ orders ship from `US`.
 - `CJ_DROPSHIPPING_DEFAULT_FROM_COUNTRY_CODE` (was `CN`) and
   `CJ_DROPSHIPPING_SUPPORTED_COUNTRY_CODES` are gone; the rules live in code.
-- **Still open:** a product that sells out in the US drops out of the US-filtered
-  listing, so a later sync never zeroes its catalogue stock. The order-time US
-  check still refuses it (no charge), but the storefront shows stale stock until a
-  "retire products missing from a full sync" step exists.
+- **Stock refresh (2026-09-29):** a product that sells out in the US drops out of
+  the US-filtered listing, so the sync alone never zeroed it. An hourly
+  supplier-service task (`tasks.stock_tasks.refresh_cj_stock`) now asks CJ about
+  every CJ product *we sell* (product-service's `GET /products/stock-keys/{supplier}`,
+  supplier-service's signature only) and sends back the sellable US stock per
+  variant (CJ's US stock less `CJ_DROPSHIPPING_INVENTORY_BUFFER`) in
+  `supplier.stock.updated` batches. product-service sets each variant, the total
+  and `in_stock`; `products.stock_checked_at` makes an older measurement a no-op.
+  A product CJ could not be asked about keeps its stock. A Postgres advisory lock
+  keeps two runs from overlapping. Migration: product `9b4d2e7f1a63`.
+  **Trade-off chosen:** the refresh overwrites, so units sold here but not yet
+  ordered from CJ are covered only by the buffer; the order-time US check remains
+  the final gate. **Later:** CJ's STOCK webhook (needs public HTTPS and
+  per-product subscription) for near-real-time changes, with this as the backstop;
+  a live stock check at the checkout quote.
 
 ### 3c. CJ sandbox for end-to-end tests — DONE (2026-09-28)
 `CJ_DROPSHIPPING_SANDBOX=true` creates CJ orders with `isSandbox=1` and pays

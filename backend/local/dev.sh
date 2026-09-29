@@ -138,9 +138,9 @@ cart-consumer|cart_service|.venv/bin/faststream run events_consumer.app:app
 wishlist-consumer|wishlist_service|.venv/bin/faststream run events_consumer.app:app
 shipping-consumer|shipping_service|.venv/bin/faststream run events_consumer.app:app
 product-taskiq-worker|product_service|.venv/bin/taskiq worker tasks.broker:taskiq_broker tasks.image_tasks --workers 1
-supplier-taskiq-worker|supplier_service|.venv/bin/taskiq worker tasks.broker:taskiq_broker tasks.sync_tasks tasks.tracking_tasks tasks.cj_payment_tasks --workers 1
+supplier-taskiq-worker|supplier_service|.venv/bin/taskiq worker tasks.broker:taskiq_broker tasks.sync_tasks tasks.tracking_tasks tasks.cj_payment_tasks tasks.stock_tasks --workers 1
 notification-taskiq-worker|notification_service|.venv/bin/taskiq worker tasks.broker:taskiq_broker tasks.email_tasks --workers 1
-supplier-taskiq-scheduler|supplier_service|.venv/bin/taskiq scheduler tasks.scheduler:supplier_task_scheduler tasks.sync_tasks tasks.tracking_tasks tasks.cj_payment_tasks
+supplier-taskiq-scheduler|supplier_service|.venv/bin/taskiq scheduler tasks.scheduler:supplier_task_scheduler tasks.sync_tasks tasks.tracking_tasks tasks.cj_payment_tasks tasks.stock_tasks
 EOF
   # No --hostname: next's default binding answers on both localhost and
   # 127.0.0.1, and next.config.js already allows the 127.0.0.1 dev origin.
