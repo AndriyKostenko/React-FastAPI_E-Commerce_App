@@ -57,7 +57,18 @@ RELOAD=1 ./local/dev.sh up      # same, with uvicorn --reload
 ./local/dev.sh down             # stop services + infra
 ./local/dev.sh migrate          # alembic upgrade head for every service
 ./local/dev.sh reset            # down + delete local data (destructive)
+./local/dev.sh cj-sandbox status|ship|deliver|poll <order_id>   # see below
 ```
+
+**CJ sandbox.** With `CJ_DROPSHIPPING_SANDBOX=true`, new CJ orders are created
+with `isSandbox=1`: CJ simulates the payment (`simulatePay`, no wallet money) and
+never ships. The rest of the flow is real: confirm, cost ceiling, card capture,
+tracking, emails. A sandbox order never ships by itself, so
+`./local/dev.sh cj-sandbox ship <order_id>` gives it a tracking number and moves it
+to shipped, `deliver` to completed; both then run one tracking poll so the events
+follow at once. Whether an order is a sandbox one is recorded when it is sent
+(`cj_order_attempts.is_sandbox`), so toggling the setting never changes how an
+existing order is paid. Never enable it where real sales happen.
 
 A single process by name — `frontend` included:
 

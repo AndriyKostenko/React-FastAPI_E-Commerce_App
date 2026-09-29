@@ -208,6 +208,16 @@ been bootstrapped by `create_all`).
   check still refuses it (no charge), but the storefront shows stale stock until a
   "retire products missing from a full sync" step exists.
 
+### 3c. CJ sandbox for end-to-end tests — DONE (2026-09-28)
+`CJ_DROPSHIPPING_SANDBOX=true` creates CJ orders with `isSandbox=1` and pays
+them with CJ's `simulatePay` (no wallet balance read or spent); everything
+else runs as for a real order. `./local/dev.sh cj-sandbox ship|deliver
+<order_id>` plays CJ's shipping and runs a tracking poll. The choice is stored
+per order (`cj_order_attempts.is_sandbox`, supplier migration `f3c8a2d6b519`).
+**Not verified against CJ yet:** whether `confirmOrder` accepts a sandbox order
+before `simulatePay`, and which `orderStatus` strings getOrderDetail reports
+for sandbox statuses 300-600; the first end-to-end run answers both.
+
 ### 3b. Checkout → Stripe → CJ money flow — DONE (2026-09-10)
 Branch `feature/checkout-payment-cj-flow`; diagram in `FLOWS.md` →
 "Checkout, Payment & CJ Fulfillment Flow".

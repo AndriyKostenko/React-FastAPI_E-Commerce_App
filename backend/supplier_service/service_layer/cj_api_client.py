@@ -346,6 +346,35 @@ class CJDropshippingAPIClient:
             json={"orderId": cj_order_id},
         )
 
+    # --------------------------------------------------------------- sandbox
+    #
+    # Only valid for orders created with isSandbox=1; CJ rejects them for any
+    # other order, so they can never move a real one.
+
+    async def sandbox_simulate_pay(self, cj_order_id: str) -> dict[str, Any]:
+        """Move an unpaid sandbox order to paid (CJ status 300); no money moves."""
+        return await self.request(
+            "POST",
+            self.settings.CJ_DROPSHIPPING_SANDBOX_SIMULATE_PAY_URL,
+            json={"orderId": cj_order_id},
+        )
+
+    async def sandbox_update_status(self, cj_order_id: str, target_status: int) -> dict[str, Any]:
+        """Advance a sandbox order one step: 400 unshipped, 500 shipped, 600 completed, 700 closed."""
+        return await self.request(
+            "POST",
+            self.settings.CJ_DROPSHIPPING_SANDBOX_UPDATE_STATUS_URL,
+            json={"orderId": cj_order_id, "targetStatus": target_status},
+        )
+
+    async def sandbox_update_track_number(self, cj_order_id: str, track_number: str) -> dict[str, Any]:
+        """Give a paid sandbox order a (fake) tracking number."""
+        return await self.request(
+            "POST",
+            self.settings.CJ_DROPSHIPPING_SANDBOX_UPDATE_TRACK_NUMBER_URL,
+            json={"orderId": cj_order_id, "trackNumber": track_number},
+        )
+
     async def delete_order(self, order_id: str) -> dict[str, Any]:
         """Delete a CJ order while it is still in CREATED/IN_CART state."""
         return await self.request(

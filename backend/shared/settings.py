@@ -458,6 +458,15 @@ class Settings(BaseSettings):
     # Longer than a full confirm -> pay walk with CJ timeouts and retries.
     CJ_PAYMENT_LEASE_MINUTES: int = Field(default=10, gt=0)
     CJ_DROPSHIPPING_PLATFORM: str = "Api"
+    # CJ's sandbox: new CJ orders are created with isSandbox=1, which CJ fills
+    # with a simulated payment and no real shipment. Payment then goes through
+    # CJ's simulatePay instead of the wallet (decided per order, when it is
+    # created), and `./local/dev.sh cj-sandbox` moves an order to shipped /
+    # delivered. Never on in production: nothing sold would ever ship.
+    CJ_DROPSHIPPING_SANDBOX: bool = False
+    CJ_DROPSHIPPING_SANDBOX_SIMULATE_PAY_URL: str = "https://developers.cjdropshipping.com/api2.0/v1/shopping/sandbox/simulatePay"
+    CJ_DROPSHIPPING_SANDBOX_UPDATE_STATUS_URL: str = "https://developers.cjdropshipping.com/api2.0/v1/shopping/sandbox/updateStatus"
+    CJ_DROPSHIPPING_SANDBOX_UPDATE_TRACK_NUMBER_URL: str = "https://developers.cjdropshipping.com/api2.0/v1/shopping/sandbox/updateTrackNumber"
     CJ_DROPSHIPPING_ORDER_CREATE_RETRIES: int = 2
     CJ_DROPSHIPPING_ORDER_CREATE_TIMEOUT_SECONDS: float = 15.0
 

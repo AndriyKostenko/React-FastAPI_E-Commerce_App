@@ -28,8 +28,8 @@ def _event(**address: str) -> OrderConfirmedEvent:
     )
 
 
-def _builder() -> tuple[CJOrderPayloadBuilder, SimpleNamespace, SimpleNamespace]:
-    settings = get_settings().model_copy()
+def _builder(sandbox: bool = False) -> tuple[CJOrderPayloadBuilder, SimpleNamespace, SimpleNamespace]:
+    settings = get_settings().model_copy(update={"CJ_DROPSHIPPING_SANDBOX": sandbox})
     products = SimpleNamespace(resolve_cj_ids=AsyncMock(return_value=("PID-1", "VID-1")))
     verifier = SimpleNamespace(verify_variant_stock=AsyncMock(return_value=StockVerificationResult(
         requested=2, available=10, sufficient=True, buffered_available=10, warehouses_checked=1,
@@ -64,3 +64,19 @@ async def test_an_order_to_another_country_never_reaches_cj(country_code: str, p
 
     products.resolve_cj_ids.assert_not_awaited()
     verifier.verify_variant_stock.assert_not_awaited()
+
+
+async def test_a_real_order_carries_no_sandbox_flag() -> None:
+    builder, _, _ = _builder(sandbox=False)
+
+    assert "isSandbox" not in await builder.build(_event())
+
+
+async def test_with_the_sandbox_on_the_order_is_created_as_a_sandbox_order() -> None:
+    builder, _, _ = _builder(sandbox=True)
+
+    body = await builder.build(_event())
+
+    assert body["isSandbox"] == 1
+    # Everything else is the real order: same origin, destination and lines.
+    assert (body["fromCountryCode"], body["shippingCountryCode"]) == ("US", "CA")

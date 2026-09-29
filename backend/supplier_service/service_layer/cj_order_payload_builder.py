@@ -71,7 +71,7 @@ class CJOrderPayloadBuilder:
         if self.settings.CJ_DROPSHIPPING_VERIFY_INVENTORY:
             await self.verify_stock(requested_by_vid)
 
-        return {
+        body: dict[str, Any] = {
             "orderNumber": str(event.order_id),
             **address.as_cj_fields(),
             "email": event.user_email,
@@ -82,6 +82,10 @@ class CJOrderPayloadBuilder:
             "fromCountryCode": CJ_WAREHOUSE_COUNTRY_CODE,
             "products": products,
         }
+        if self.settings.CJ_DROPSHIPPING_SANDBOX:
+            # A CJ sandbox order: simulated payment, no real shipment.
+            body["isSandbox"] = 1
+        return body
 
     async def resolve_products(
         self, event: OrderConfirmedEvent

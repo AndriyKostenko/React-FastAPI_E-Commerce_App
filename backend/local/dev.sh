@@ -23,6 +23,9 @@
 #   ./local/dev.sh dlq replay <q>   # send parked messages back to their queue
 #                  [--to <queue>]   #   target for taskiq's parked tasks
 #                  [--limit N]      #   replay at most N
+#   ./local/dev.sh cj-sandbox status|ship|deliver|poll <order_id>
+#                                   # play CJ's part for a sandbox order
+#                                   # (CJ_DROPSHIPPING_SANDBOX=true only)
 #
 # RELOAD=1           ./local/dev.sh up   HTTP services start with --reload.
 # FRONTEND_PORT=3000 ./local/dev.sh up   override the Next.js port.
@@ -467,6 +470,14 @@ cmd_dlq() {
   esac
 }
 
+# CJ sandbox orders never ship for real: this moves one to shipped/delivered
+# through CJ's sandbox API and runs a tracking poll, so the saga, the customer
+# emails and returns can be tested end to end.  Refuses real orders.
+cmd_cj_sandbox() {
+  service_env
+  (cd "$BACKEND_DIR/supplier_service" && .venv/bin/python -m tools.cj_sandbox "$@")
+}
+
 case "${1:-}" in
   install)  shift; cmd_install "$@" ;;
   init)     shift; cmd_init "$@" ;;
@@ -480,5 +491,6 @@ case "${1:-}" in
   logs)     shift; cmd_logs "$@" ;;
   reset)    shift; cmd_reset "$@" ;;
   dlq)      shift; cmd_dlq "$@" ;;
-  *) sed -n '2,25p' "${BASH_SOURCE[0]}" | sed -E 's/^#[[:space:]]?//'; exit 1 ;;
+  cj-sandbox) shift; cmd_cj_sandbox "$@" ;;
+  *) sed -n '2,28p' "${BASH_SOURCE[0]}" | sed -E 's/^#[[:space:]]?//'; exit 1 ;;
 esac

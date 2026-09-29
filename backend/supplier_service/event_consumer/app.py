@@ -30,6 +30,12 @@ consumer_resources: SupplierConsumerResources | None = None
 @app.on_startup
 async def startup() -> None:
     global consumer_resources, supplier_event_consumer
+    if settings.CJ_DROPSHIPPING_SANDBOX:
+        # This process places the CJ orders: say loudly that none will ship.
+        logger.warning(
+            "CJ SANDBOX MODE: new CJ orders are sandbox orders (simulated payment, "
+            "nothing ships). Turn CJ_DROPSHIPPING_SANDBOX off before real sales."
+        )
     # Before the broker starts consuming, so no failure can dead-letter into
     # an exchange that does not exist yet.
     await topology.declare()
