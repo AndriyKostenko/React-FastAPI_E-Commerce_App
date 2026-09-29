@@ -1,9 +1,10 @@
+from datetime import datetime
 from decimal import Decimal
 from typing import Any
 from uuid import UUID, uuid4
 
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import ForeignKey, Index, inspect, UniqueConstraint
+from sqlalchemy import DateTime, ForeignKey, Index, inspect, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 
 from models.base import Base
@@ -53,6 +54,9 @@ class Product(Base, TimestampMixin):
     in_stock: Mapped[bool] = mapped_column(nullable=False)
     sku: Mapped[str | None] = mapped_column(nullable=True)
     image_url: Mapped[str | None] = mapped_column(nullable=True)
+    # When the supplier's stock behind ``quantity`` was measured (the hourly
+    # CJ refresh). An older measurement arriving later is ignored.
+    stock_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     reviews: Mapped[list['ProductReview']] = relationship('ProductReview', back_populates='product', cascade='all, delete-orphan') # pyright: ignore[reportUndefinedVariable]
     images: Mapped[list['ProductImage']] = relationship('ProductImage', back_populates='product', cascade='all, delete-orphan') # pyright: ignore[reportUndefinedVariable]

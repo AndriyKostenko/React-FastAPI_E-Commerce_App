@@ -39,8 +39,14 @@ _logger = getLogger("shared.service-assertion")
 class _ServiceKeys:
     """Which settings hold each calling service's keypair. One caller today."""
 
-    PRIVATE = {"order-service": "ORDER_SERVICE_ASSERTION_PRIVATE_KEY"}
-    PUBLIC = {"order-service": "ORDER_SERVICE_ASSERTION_PUBLIC_KEY"}
+    PRIVATE = {
+        "order-service": "ORDER_SERVICE_ASSERTION_PRIVATE_KEY",
+        "supplier-service": "SUPPLIER_SERVICE_ASSERTION_PRIVATE_KEY",
+    }
+    PUBLIC = {
+        "order-service": "ORDER_SERVICE_ASSERTION_PUBLIC_KEY",
+        "supplier-service": "SUPPLIER_SERVICE_ASSERTION_PUBLIC_KEY",
+    }
 
     @classmethod
     def private_pem(cls, settings: Settings, service: str) -> str:

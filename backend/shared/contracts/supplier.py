@@ -43,3 +43,29 @@ class GenericSupplierProduct(BaseModel):
     @classmethod
     def to_lowercase(cls, value: str | None) -> str | None:
         return value.lower() if isinstance(value, str) else value
+
+
+class SupplierStockKey(BaseModel):
+    """A supplier product we sell and its variant ids: what a stock refresh asks the supplier about."""
+
+    supplier_pid: str
+    vids: list[str]
+
+
+class SupplierStockLevel(BaseModel):
+    """
+    Sellable stock of one supplier product, per variant id.
+
+    Absolute numbers ("7 left"), already reduced by the safety buffer, so
+    applying the same level twice is harmless.
+    """
+
+    supplier_pid: str
+    variants: dict[str, int] = Field(default_factory=dict)
+
+    @field_validator("variants")
+    @classmethod
+    def _non_negative(cls, value: dict[str, int]) -> dict[str, int]:
+        if any(quantity < 0 for quantity in value.values()):
+            raise ValueError("stock cannot be negative")
+        return value

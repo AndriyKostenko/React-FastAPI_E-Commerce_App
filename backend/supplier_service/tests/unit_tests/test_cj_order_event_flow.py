@@ -126,6 +126,29 @@ class TestOutboxRoundTrip:
         assert kwargs["exchange"] is publisher.exchange
         assert kwargs["routing_key"] == SupplierEvents.SUPPLIER_PRODUCTS_FETCHED
 
+    async def test_stock_levels_round_trip_to_product_service(self) -> None:
+        """The hourly refresh's batch rebuilds from its stored row and ships on the supplier exchange."""
+        from datetime import datetime, timezone
+
+        from shared.contracts.events import SupplierStockUpdatedEvent
+        from shared.contracts.supplier import SupplierStockLevel
+
+        publisher = _make_publisher()
+        event = SupplierStockUpdatedEvent(
+            supplier_id="cjdropshipping",
+            measured_at=datetime(2026, 9, 29, 12, 0, tzinfo=timezone.utc),
+            levels=[SupplierStockLevel(supplier_pid="P1", variants={"V-S": 0, "V-M": 7})],
+        )
+
+        await _make_router(publisher)(SupplierEvents.SUPPLIER_STOCK_UPDATED, event.model_dump(mode="json"))
+
+        kwargs = publisher.publish_an_event.await_args.kwargs
+        assert kwargs["exchange"] is publisher.exchange
+        # product-service binds its stock queue to exactly this key.
+        assert kwargs["routing_key"] == "supplier.stock.updated"
+        assert kwargs["event"].levels[0].variants == {"V-S": 0, "V-M": 7}
+        assert kwargs["event"].measured_at == event.measured_at
+
     async def test_unroutable_event_type_fails_loudly(self) -> None:
         """An unrouted type must raise so the relay retries instead of dropping."""
         with pytest.raises(ValueError, match="Unsupported supplier outbox event type"):

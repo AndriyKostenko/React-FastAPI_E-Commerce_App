@@ -6,7 +6,7 @@ from pydantic import BaseModel, EmailStr, PositiveFloat, PositiveInt, Field, mod
 
 from shared.contracts.order import ConfirmedOrderAddress, ConfirmedOrderItem, OrderItem
 from shared.contracts.returns import ReturnFault, ReturnLineSummary, ReturnReason
-from shared.contracts.supplier import GenericSupplierProduct
+from shared.contracts.supplier import GenericSupplierProduct, SupplierStockLevel
 from shared.enums.services_enums import Services
 from shared.enums.event_enums import (
     ArtworkEvents,
@@ -443,6 +443,19 @@ class SupplierBaseEvent(BaseEvent):
     """Base class for supplier-related events."""
     service: str = Field(default_factory=lambda: Services.SUPPLIER_SERVICE)
     supplier_id: str
+
+
+class SupplierStockUpdatedEvent(SupplierBaseEvent):
+    """
+    Current sellable stock for a batch of the supplier products we sell.
+
+    ``measured_at`` is when the supplier was asked: a level older than the one
+    a product already carries (a redelivered or retried message) is ignored,
+    so stock never moves backwards in time.
+    """
+    event_type: str = Field(default_factory=lambda: SupplierEvents.SUPPLIER_STOCK_UPDATED)
+    measured_at: datetime
+    levels: list[SupplierStockLevel]
 
 
 class SupplierProductsFetchedEvent(SupplierBaseEvent):

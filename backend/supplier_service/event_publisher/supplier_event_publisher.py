@@ -14,6 +14,7 @@ from shared.contracts.events import (
     InventoryReleaseRequested,
     OrderCancelledEvent,
     SupplierProductsFetchedEvent,
+    SupplierStockUpdatedEvent,
 )
 from shared.enums.event_enums import InventoryEvents, OrderEvents, SupplierEvents
 
@@ -44,6 +45,19 @@ class SupplierEventPublisher(BaseEventPublisher):
             routing_key=SupplierEvents.SUPPLIER_PRODUCTS_FETCHED,
         )
         self.logger.info(f"Published supplier products fetched event for supplier: {event.supplier_id}, fetch_id: {event.fetch_id}")
+
+    async def publish_supplier_stock_updated(self, event_data: dict[str, Any]) -> None:
+        """Publish a batch of refreshed CJ stock levels for product-service."""
+        event = SupplierStockUpdatedEvent(**event_data)
+        await self.publish_an_event(
+            event=event,
+            exchange=self.exchange,
+            routing_key=SupplierEvents.SUPPLIER_STOCK_UPDATED,
+        )
+        self.logger.info(
+            f"Published stock levels for {len(event.levels)} {event.supplier_id} products "
+            f"(measured {event.measured_at.isoformat()})"
+        )
 
     async def publish_cj_order_created(self, event_data: dict[str, Any]) -> None:
         """Publish a CJOrderCreatedEvent to the order events exchange."""

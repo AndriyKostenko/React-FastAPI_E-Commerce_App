@@ -12,6 +12,7 @@ def build_outbox_relay(resources: SupplierOutboxResources) -> OutboxRelay:
     async def route_supplier_event(event_type: str, payload: dict[str, Any]) -> None:
         routes = {
             SupplierEvents.SUPPLIER_PRODUCTS_FETCHED: publisher.publish_supplier_products_fetched,
+            SupplierEvents.SUPPLIER_STOCK_UPDATED: publisher.publish_supplier_stock_updated,
             OrderEvents.CJ_ORDER_CREATED: publisher.publish_cj_order_created,
             OrderEvents.CJ_ORDER_FAILED: publisher.publish_cj_order_failed,
             OrderEvents.CJ_ORDER_PAID: publisher.publish_cj_order_paid,

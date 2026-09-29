@@ -13,6 +13,17 @@ class WarehouseStock:
     total: int
     by_vid: dict[str, int]
 
+    def sellable(self, vids: list[str], buffer: int) -> dict[str, int]:
+        """
+        What may be sold of each variant: its stock less the safety buffer.
+
+        The buffer covers units sold here but not yet ordered from the
+        supplier when this was measured. A variant the supplier did not
+        report has nothing sellable.
+        """
+        held = max(0, buffer)
+        return {vid: max(0, self.by_vid.get(vid, 0) - held) for vid in vids}
+
 
 class SupplierProvider(ABC):
     """Abstract interface for product supplier integrations.
