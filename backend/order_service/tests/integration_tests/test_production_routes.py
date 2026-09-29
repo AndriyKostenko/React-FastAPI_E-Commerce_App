@@ -85,7 +85,7 @@ def _custom_order_payload(asset: GeneratedArtworkAsset, **overrides) -> dict:
         "address": {
             "street": "12 Workshop Lane",
             "city": "Test City",
-            "province": "TC",
+            "province": "AB",
             "postal_code": "T2T 2T2",
             "name": "Test Buyer",
             "phone": "+15551234567",

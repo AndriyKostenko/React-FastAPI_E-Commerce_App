@@ -56,8 +56,8 @@ def _make_service(
 
 def _request(**overrides) -> CJFreightQuoteRequest:
     fields = {
-        "country_code": "us",
-        "postal_code": "10001",
+        "country_code": "ca",
+        "postal_code": "T2T 2T2",
         "items": [
             {
                 "product_id": TEST_PRODUCT_ID,
@@ -76,7 +76,7 @@ class TestQuote:
 
         response = await service.quote(_request())
 
-        assert response.country_code == "US"
+        assert response.country_code == "CA"
         assert [option.logistic_name for option in response.options] == [
             "CJPacket Ordinary",
             "CJPacket Sensitive",
@@ -91,10 +91,11 @@ class TestQuote:
         await service.quote(_request())
 
         payload = service.api_client.calculate_freight.await_args.args[0]
-        assert payload["endCountryCode"] == "US"
-        assert payload["zip"] == "10001"
+        assert payload["endCountryCode"] == "CA"
+        assert payload["zip"] == "T2T 2T2"
         assert payload["products"] == [{"vid": TEST_VID, "quantity": 2}]
-        assert payload["startCountryCode"]
+        # Shipped from CJ's US warehouse, never from China.
+        assert payload["startCountryCode"] == "US"
 
     async def test_collapses_duplicate_variants_into_one_line(self) -> None:
         service = _make_service()
@@ -136,12 +137,21 @@ class TestQuote:
         service = _make_service()
 
         await service.quote(_request())
-        await service.quote(_request(country_code="CA", postal_code="M5V2T6"))
+        await service.quote(_request(postal_code="M5V 2T6"))
 
         assert service.api_client.calculate_freight.await_count == 2
 
 
 class TestQuoteFailures:
+    @pytest.mark.parametrize("country_code", ["us", "GB"])
+    async def test_a_destination_outside_canada_is_never_quoted(self, country_code: str) -> None:
+        service = _make_service()
+
+        with pytest.raises(CJFreightQuoteError, match="only ship within Canada"):
+            await service.quote(_request(country_code=country_code, postal_code="10001"))
+
+        service.api_client.calculate_freight.assert_not_awaited()
+
     async def test_no_shippable_option_is_rejected(self) -> None:
         service = _make_service(cj_response={"result": True, "code": 200, "data": []})
 

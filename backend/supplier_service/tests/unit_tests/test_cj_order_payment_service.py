@@ -96,6 +96,7 @@ def _attempt(store: _Store, status=CJOrderAttemptStatus.CREATED, **overrides):
         paid_at=None,
         payment_attempts=0,
         payment_leased_until=None,
+        is_sandbox=False,
         last_error=None,
         date_created=NOW,
         date_updated=NOW,
@@ -132,6 +133,7 @@ def _api(*details: dict, balance: str = "100.00") -> MagicMock:
     api.confirm_order = AsyncMock(return_value={"code": 200, "result": True})
     api.get_balance = AsyncMock(return_value={"code": 200, "result": True, "data": {"amount": balance}})
     api.pay_balance = AsyncMock(return_value={"code": 200, "result": True})
+    api.sandbox_simulate_pay = AsyncMock(return_value={"code": 200, "result": True, "data": True})
     return api
 
 
@@ -323,3 +325,51 @@ class TestExpectedMaximum:
         event = OrderConfirmedEvent(order_id=uuid4(), user_id=uuid4(), user_email="buyer@example.com")
 
         assert CJOrderPaymentService.expected_max_amount_usd(event, _settings()) is None
+
+
+class TestSandboxOrders:
+    """A CJ sandbox order walks the same path but never touches the wallet."""
+
+    async def test_a_sandbox_order_is_confirmed_then_paid_by_simulation(self, store):
+        attempt = _attempt(store, is_sandbox=True)
+        api = _api(_detail("CREATED"), _detail("UNPAID"), balance="0.00")
+
+        status = await _service(api).advance(attempt.order_id)
+
+        assert status == CJOrderAttemptStatus.PAID
+        api.confirm_order.assert_awaited_once_with(CJ_ORDER)
+        api.sandbox_simulate_pay.assert_awaited_once_with(CJ_ORDER)
+        # No balance read, no wallet payment: an empty wallet does not matter.
+        api.get_balance.assert_not_awaited()
+        api.pay_balance.assert_not_awaited()
+        # Downstream sees an ordinary paid order, so the card is captured.
+        assert [event for event, _ in store.outbox] == [OrderEvents.CJ_ORDER_PAID]
+
+    async def test_the_cost_ceiling_still_guards_a_sandbox_order(self, store):
+        attempt = _attempt(store, status=CJOrderAttemptStatus.CONFIRMED, is_sandbox=True)
+        api = _api(_detail("UNPAID", amount="99.00"))
+
+        status = await _service(api).advance(attempt.order_id)
+
+        assert status == CJOrderAttemptStatus.RECONCILIATION_REQUIRED
+        api.sandbox_simulate_pay.assert_not_awaited()
+
+    async def test_a_lost_simulated_payment_response_is_reconciled_from_cj(self, store):
+        attempt = _attempt(store, status=CJOrderAttemptStatus.CONFIRMED, is_sandbox=True)
+        api = _api(_detail("UNPAID"), _detail("UNSHIPPED"))
+        api.sandbox_simulate_pay.side_effect = CJDropshippingAPIError("timeout")
+
+        status = await _service(api).advance(attempt.order_id)
+
+        assert status == CJOrderAttemptStatus.PAID
+
+    async def test_a_real_order_is_paid_from_the_wallet_even_while_sandbox_is_on(self, store):
+        """The order decides, not today's setting: a real order is never 'simulated'."""
+        attempt = _attempt(store, status=CJOrderAttemptStatus.CONFIRMED, is_sandbox=False)
+        api = _api(_detail("UNPAID"))
+
+        status = await _service(api, CJ_DROPSHIPPING_SANDBOX=True).advance(attempt.order_id)
+
+        assert status == CJOrderAttemptStatus.PAID
+        api.pay_balance.assert_awaited_once_with(CJ_ORDER)
+        api.sandbox_simulate_pay.assert_not_awaited()

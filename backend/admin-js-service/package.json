@@ -6,6 +6,7 @@
     "build": "tsc",
     "lint": "eslint \"src\"",
     "start": "dotenv -c '.env' -- node dist/app",
+    "start:local": "tsc && node --env-file-if-exists=../.env --env-file-if-exists=../.env.local dist/app.js",
     "typeorm": "dotenv -c '.env' -- typeorm -d \"./dist/db/datasource.js\"",
     "migration:generate": "yarn typeorm migration:generate",
     "migration:run": "yarn typeorm migration:run",

@@ -1,9 +1,17 @@
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from typing import Any
 
 from schemas.dropshipping_schemas import CJProductsFilterParams
 from shared.contracts.supplier import GenericSupplierProduct
 from schemas.supplier_schemas import SupplierProductsPage
+
+
+@dataclass(frozen=True)
+class WarehouseStock:
+    """A product's stock in the warehouses orders ship from: in total and per variant id."""
+    total: int
+    by_vid: dict[str, int]
 
 
 class SupplierProvider(ABC):
@@ -37,4 +45,9 @@ class SupplierProvider(ABC):
     @abstractmethod
     async def get_inventory(self, supplier_pid: str) -> dict[str, Any]:
         """Fetch inventory information for a product."""
+        ...
+
+    @abstractmethod
+    async def get_warehouse_stock(self, supplier_pid: str) -> WarehouseStock:
+        """The product's stock in the warehouses orders ship from, per variant."""
         ...

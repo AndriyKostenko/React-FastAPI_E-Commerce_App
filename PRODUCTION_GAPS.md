@@ -188,6 +188,36 @@ Schema: `supplier_service` migration `c4a7f1d2e9b8` adds the tracking columns
 (it also creates `cj_order_attempts` when absent, since that table had only ever
 been bootstrapped by `create_all`).
 
+### 3a. Canada only; CJ goods from US warehouses only — DONE (2026-09-28)
+- **Selling:** `shared.contracts.shipping_region.CanadianAddress` checks every
+  shipping address order-service accepts (order and checkout quote) before it is
+  priced: country Canada (a missing one is taken as Canada), a real province or
+  territory (stored as its code: Stripe Tax and CJ want `AB`, not `Alberta`) and a
+  Canadian postal code (stored as `A1A 1A1`). Anything else is a 422 before any
+  money moves. supplier-service refuses a non-Canadian freight quote and CJ order
+  again, whatever reaches it.
+- **Sourcing:** CJ goods come from CJ's US warehouses only. Every product search
+  sends `countryCode=US`; the catalogue sync replaces CJ's list stock (summed over
+  every warehouse) with the US stock per product and per size/colour, and skips a
+  product with none; order-time stock checks count only US rows; freight quotes and
+  CJ orders ship from `US`.
+- `CJ_DROPSHIPPING_DEFAULT_FROM_COUNTRY_CODE` (was `CN`) and
+  `CJ_DROPSHIPPING_SUPPORTED_COUNTRY_CODES` are gone; the rules live in code.
+- **Still open:** a product that sells out in the US drops out of the US-filtered
+  listing, so a later sync never zeroes its catalogue stock. The order-time US
+  check still refuses it (no charge), but the storefront shows stale stock until a
+  "retire products missing from a full sync" step exists.
+
+### 3c. CJ sandbox for end-to-end tests — DONE (2026-09-28)
+`CJ_DROPSHIPPING_SANDBOX=true` creates CJ orders with `isSandbox=1` and pays
+them with CJ's `simulatePay` (no wallet balance read or spent); everything
+else runs as for a real order. `./local/dev.sh cj-sandbox ship|deliver
+<order_id>` plays CJ's shipping and runs a tracking poll. The choice is stored
+per order (`cj_order_attempts.is_sandbox`, supplier migration `f3c8a2d6b519`).
+**Not verified against CJ yet:** whether `confirmOrder` accepts a sandbox order
+before `simulatePay`, and which `orderStatus` strings getOrderDetail reports
+for sandbox statuses 300-600; the first end-to-end run answers both.
+
 ### 3b. Checkout → Stripe → CJ money flow — DONE (2026-09-10)
 Branch `feature/checkout-payment-cj-flow`; diagram in `FLOWS.md` →
 "Checkout, Payment & CJ Fulfillment Flow".
@@ -408,8 +438,11 @@ the services), not only in unit tests.
       `REMBG_MODEL` build arg must match `PRODUCT_IMAGE_BG_REMOVAL_MODEL`.
 
 **Still open from this pass:**
-- **admin-js** is not started by `dev.sh`, and its stored access token expires
-  with no refresh.
+- **admin-js** runs under `dev.sh` now (2026-09-28, `./local/dev.sh up admin-js`,
+  :3001). It checks its configuration at startup: `backend/.env` was missing
+  `COOKIE_SECRET`, `ADMINJS_SERVICE_REDIS_DB` and `ADMINJS_SERVICE_REDIS_PREFIX`,
+  so it could not have worked under compose either. Still open: its stored access
+  token expires with no refresh.
 
 ### 5. Payments & tax/legal
 - [x] Partial refunds (2026-09-25). `POST /admin/orders/{id}/refunds` refunds

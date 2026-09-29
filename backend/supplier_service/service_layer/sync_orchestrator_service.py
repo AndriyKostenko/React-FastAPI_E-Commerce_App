@@ -10,6 +10,7 @@ from models.supplier_sync_state_models import SupplierSyncState
 from service_layer.outbox_event_service import OutboxEventService
 from service_layer.supplier_provider import SupplierProvider
 from schemas.dropshipping_schemas import CJProductsFilterParams
+from shared.contracts.shipping_region import CJ_WAREHOUSE_COUNTRY_CODE
 from shared.contracts.events import SupplierProductsFetchedEvent
 from shared.contracts.supplier import GenericSupplierProduct
 from shared.settings import Settings
@@ -254,6 +255,9 @@ class SupplierSyncOrchestrator:
                     f"Product {supplier_pid} category '{product.supplier_category_id}' "
                     "is not an allowed T-shirt category"
                 )
+            skipped = await self._apply_warehouse_stock(provider, product)
+            if skipped:
+                raise SupplierSyncConfigurationError(skipped)
 
             if config.default_category_name:
                 product.category_name = config.default_category_name
@@ -303,13 +307,14 @@ class SupplierSyncOrchestrator:
                         f"Skipped {product.supplier_pid}: category "
                         f"'{detailed.supplier_category_id}' is not an allowed T-shirt category"
                     )
-                # CJ's product-detail endpoint omits inventory fields.  The
-                # product-list response is fetched immediately before this
-                # call and is the authoritative inventory snapshot for the
-                # catalog import, so retain it while enriching the product
-                # with details, images, and variants.
-                detailed.quantity = product.quantity
-                detailed.in_stock = product.in_stock
+                # Neither the detail nor the list response says where the stock
+                # is: the list's figure sums every warehouse. Only CJ's US
+                # warehouses ship our orders, so the catalogue carries exactly
+                # that stock (a different endpoint, so CJ's per-endpoint limit
+                # still allows the call right after the detail fetch).
+                skipped = await self._apply_warehouse_stock(provider, detailed)
+                if skipped:
+                    return skipped
                 if default_category_name:
                     detailed.category_name = default_category_name
                 return detailed
@@ -326,6 +331,24 @@ class SupplierSyncOrchestrator:
         detailed_products = [result for result in results if isinstance(result, GenericSupplierProduct)]
         errors = [result for result in results if isinstance(result, str)]
         return detailed_products, errors
+
+    @staticmethod
+    async def _apply_warehouse_stock(provider: SupplierProvider, product: GenericSupplierProduct) -> str | None:
+        """
+        Replace the product's stock with its US-warehouse stock, overall and per variant.
+
+        Returns why the product is skipped when none of it is in a US
+        warehouse, since it could never be shipped from there.
+        """
+        stock = await provider.get_warehouse_stock(product.supplier_pid)
+        if stock.total <= 0:
+            return f"Skipped {product.supplier_pid}: no stock in CJ's {CJ_WAREHOUSE_COUNTRY_CODE} warehouse"
+        product.quantity = stock.total
+        product.in_stock = True
+        for variant in product.variants:
+            # A size/colour with no US stock stays listed but cannot be bought.
+            variant.inventory_num = stock.by_vid.get(variant.vid, 0)
+        return None
 
     def _get_allowed_category_ids(self, config: SupplierConfig) -> set[str]:
         configured = (config.config or {}).get("allowed_category_ids") or []

@@ -9,6 +9,9 @@ next remote call:
                                   |
                                   +--(balance too low)--> AWAITING_FUNDS (retried)
 
+A CJ sandbox order (``is_sandbox``) takes the same path, but is paid with
+CJ's simulatePay: no balance is read or spent.
+
 Every step starts by reading CJ's own order status, so re-running a step after
 a lost response, a crash, or a concurrent retry never pays an order twice.
 Payment is withheld when CJ bills more than the order was expected to cost,
@@ -236,6 +239,9 @@ class CJOrderPaymentService:
             )
             return CJOrderAttemptStatus.RECONCILIATION_REQUIRED
 
+        if attempt.is_sandbox:
+            return await self._simulate_pay(attempt, amount)
+
         balance = await self._balance()
         if balance < amount:
             reason = f"CJ balance {balance} USD cannot cover {amount} USD for order {cj_order_number}"
@@ -250,6 +256,24 @@ class CJOrderPaymentService:
             after = await self._snapshot(cj_order_number)
             if after.status not in _PAID_OR_LATER:
                 raise CJPaymentPending(f"CJ balance payment failed: {exc}") from exc
+        return await self._record_paid(order_id, amount)
+
+    async def _simulate_pay(self, attempt: CJOrderAttempt, amount: Decimal) -> CJOrderAttemptStatus:
+        """
+        Pay a CJ sandbox order with CJ's simulated payment.
+
+        No wallet balance is read or spent. Everything around it (confirm,
+        the cost ceiling, the paid event, the card capture it triggers) runs
+        exactly as for a real order, which is what the sandbox is for.
+        """
+        order_id, cj_order_number = attempt.order_id, attempt.cj_order_number
+        self.logger.warning("CJ SANDBOX: simulating payment of %s USD for order %s", amount, order_id)
+        try:
+            await self.api_client.sandbox_simulate_pay(cj_order_number)
+        except CJDropshippingAPIError as exc:
+            after = await self._snapshot(cj_order_number)
+            if after.status not in _PAID_OR_LATER:
+                raise CJPaymentPending(f"CJ sandbox payment failed: {exc}") from exc
         return await self._record_paid(order_id, amount)
 
     async def _confirm(self, cj_order_number: str) -> None:

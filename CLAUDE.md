@@ -57,7 +57,18 @@ RELOAD=1 ./local/dev.sh up      # same, with uvicorn --reload
 ./local/dev.sh down             # stop services + infra
 ./local/dev.sh migrate          # alembic upgrade head for every service
 ./local/dev.sh reset            # down + delete local data (destructive)
+./local/dev.sh cj-sandbox status|ship|deliver|poll <order_id>   # see below
 ```
+
+**CJ sandbox.** With `CJ_DROPSHIPPING_SANDBOX=true`, new CJ orders are created
+with `isSandbox=1`: CJ simulates the payment (`simulatePay`, no wallet money) and
+never ships. The rest of the flow is real: confirm, cost ceiling, card capture,
+tracking, emails. A sandbox order never ships by itself, so
+`./local/dev.sh cj-sandbox ship <order_id>` gives it a tracking number and moves it
+to shipped, `deliver` to completed; both then run one tracking poll so the events
+follow at once. Whether an order is a sandbox one is recorded when it is sent
+(`cj_order_attempts.is_sandbox`), so toggling the setting never changes how an
+existing order is paid. Never enable it where real sales happen.
 
 A single process by name — `frontend` included:
 
@@ -65,7 +76,14 @@ A single process by name — `frontend` included:
 ./local/dev.sh up frontend
 ./local/dev.sh down frontend
 FRONTEND_PORT=3000 ./local/dev.sh up frontend   # default is 30000
+./local/dev.sh up admin-js                      # AdminJS on :3001 (ADMIN_JS_PORT)
 ```
+
+admin-js (`backend/admin-js-service`) runs `npm run start:local`: it compiles and
+reads `backend/.env` then `.env.local` through node's own `--env-file`, with the
+host-specific values (Redis host, gateway URL, port) pinned by `dev.sh`. It needs
+`COOKIE_SECRET`, `ADMINJS_SERVICE_REDIS_DB` and `ADMINJS_SERVICE_REDIS_PREFIX` in
+`backend/.env` and refuses to start, naming the missing ones, without them.
 
 Logs land in `backend/local/logs/<name>.log`, pids in `backend/local/run/`.
 
@@ -95,6 +113,7 @@ without re-testing repeated reloads; `next build` is unaffected.
 | wishlist-service | `http://127.0.0.1:8009` |
 | supplier-service | `http://127.0.0.1:8010` |
 | cj-mcp (CJ Dropshipping MCP) | `http://127.0.0.1:3009/mcp` — health at `/health` |
+| admin-js (AdminJS) | `http://localhost:3001/admin` — log in with an admin account |
 
 Every FastAPI app serves Swagger at `/docs` and its routes under `/api/v1`.
 The gateway exposes `/health`; the services expose `/health/live` and `/health/ready`.
@@ -115,7 +134,7 @@ config (`~/.claude.json`), never in this repo.
 Only reachable when the Docker stack is up, i.e. **not** in the local setup:
 PgAdmin `http://localhost:5050`, Traefik dashboard `http://localhost:8090/dashboard`,
 Prometheus Alertmanager `http://localhost:9093`, Grafana / Tempo / Loki /
-otel-collector, admin-js `http://localhost:3001`.
+otel-collector.
 
 
 # Running the tests locally

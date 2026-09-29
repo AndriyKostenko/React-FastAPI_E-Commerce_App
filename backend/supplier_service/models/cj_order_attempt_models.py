@@ -3,7 +3,7 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import JSON, DateTime, Index, Integer, Numeric, String
+from sqlalchemy import JSON, Boolean, DateTime, Index, Integer, Numeric, String
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -67,4 +67,10 @@ class CJOrderAttempt(Base, TimestampMixin):
     # pay_balance. A crashed holder's lease simply expires.
     payment_leased_until: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
+    )
+    # Created as a CJ sandbox order (isSandbox=1): paid with simulatePay, never
+    # from the wallet. Fixed when the order is sent, so turning the sandbox
+    # setting off or on later cannot pay a sandbox order for real, or the reverse.
+    is_sandbox: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
     )

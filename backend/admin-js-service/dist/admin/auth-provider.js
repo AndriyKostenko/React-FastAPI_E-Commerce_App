@@ -1,5 +1,6 @@
 import { DefaultAuthProvider } from 'adminjs';
 import componentLoader from './component-loader.js';
+import { schemaRegistry } from './schema-registry.js';
 const provider = new DefaultAuthProvider({
     componentLoader,
     authenticate: async ({ email, password }) => {
@@ -20,6 +21,8 @@ const provider = new DefaultAuthProvider({
                 console.log('Unauthorized role:', data.user_role);
                 return null;
             }
+            console.log('Authentication successful for user:', data.user_email);
+            await schemaRegistry.loadAll(data.access_token);
             return {
                 email: data.user_email,
                 id: data.user_id,

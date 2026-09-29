@@ -418,6 +418,8 @@ class SupplierEventConsumer:
                         status=CJOrderAttemptStatus.CREATING,
                         request_payload=payload,
                         expected_max_amount_usd=expected_max,
+                        # What was actually sent decides how it is paid.
+                        is_sandbox=payload.get("isSandbox") == 1,
                     )
                 )
             elif attempt.status != CJOrderAttemptStatus.CREATED:
@@ -425,6 +427,7 @@ class SupplierEventConsumer:
                 attempt.user_email = event.user_email
                 attempt.request_payload = payload
                 attempt.expected_max_amount_usd = expected_max
+                attempt.is_sandbox = payload.get("isSandbox") == 1
                 attempt.last_error = None
                 await repository.update(attempt)
 
@@ -442,6 +445,9 @@ class SupplierEventConsumer:
                         user_email=event.user_email,
                         status=CJOrderAttemptStatus.CREATED,
                         cj_order_number=cj_order_number,
+                        # No "creating" row was recorded first, so the payload
+                        # is unknown: it was built under the current setting.
+                        is_sandbox=self.settings.CJ_DROPSHIPPING_SANDBOX,
                         expected_max_amount_usd=CJOrderPaymentService.expected_max_amount_usd(
                             event,
                             self.settings,

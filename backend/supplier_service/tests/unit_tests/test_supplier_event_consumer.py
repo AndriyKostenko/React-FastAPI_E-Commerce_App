@@ -517,3 +517,56 @@ class TestHandleImportFeedback:
         assert state.products_failed == 1
         assert state.status == "completed_with_errors"
         assert state.acknowledged_batch_ids == [str(event.batch_id)]
+
+
+class TestSandboxOrdersAreRecorded:
+    """How a CJ order is paid is fixed by what was sent, when it was sent."""
+
+    @staticmethod
+    def _consumer_with_store(monkeypatch, settings) -> tuple[SupplierEventConsumer, dict]:
+        import event_consumer.supplier_event_consumer as consumer_module
+
+        stored: dict = {}
+
+        class _Repo:
+            def __init__(self, _session) -> None: ...
+
+            async def get_for_update(self, order_id):
+                return stored.get(order_id)
+
+            async def create(self, attempt):
+                stored[attempt.order_id] = attempt
+                return attempt
+
+            async def update(self, attempt):
+                stored[attempt.order_id] = attempt
+
+        @asynccontextmanager
+        async def transaction():
+            yield MagicMock()
+
+        monkeypatch.setattr(consumer_module, "CJOrderAttemptRepository", _Repo)
+        monkeypatch.setattr(
+            consumer_module.SupplierRetailPricing,
+            "live",
+            AsyncMock(return_value=SimpleNamespace(usd_to_cad_rate=1)),
+        )
+        consumer = SupplierEventConsumer(
+            logger=MagicMock(), settings=settings, database=SimpleNamespace(transaction=transaction),
+            idempotency_service=MagicMock(), cj_api_client=MagicMock(),
+            product_service_client=MagicMock(), publisher=MagicMock(),
+        )
+        return consumer, stored
+
+    @pytest.mark.parametrize(("payload", "expected"), [({"isSandbox": 1}, True), ({}, False)])
+    async def test_the_sent_payload_decides(self, monkeypatch, payload: dict, expected: bool) -> None:
+        from shared.contracts.events import OrderConfirmedEvent
+
+        # The setting says the opposite: only the payload counts.
+        settings = get_settings().model_copy(update={"CJ_DROPSHIPPING_SANDBOX": not expected})
+        consumer, stored = self._consumer_with_store(monkeypatch, settings)
+        event = OrderConfirmedEvent(**_make_order_confirmed_message())
+
+        await consumer._record_creating(event, {"orderNumber": str(event.order_id), **payload})
+
+        assert stored[event.order_id].is_sandbox is expected

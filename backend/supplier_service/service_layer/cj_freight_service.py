@@ -23,6 +23,11 @@ from service_layer.product_service_client import (
     ProductServiceClient,
     ProductServiceError,
 )
+from shared.contracts.shipping_region import (
+    CJ_WAREHOUSE_COUNTRY_CODE,
+    SHIPPING_COUNTRY_CODE,
+    SHIPPING_COUNTRY_NAME,
+)
 from shared.settings import Settings
 
 
@@ -105,6 +110,12 @@ class CJFreightQuoteService:
             CJFreightQuoteError: A line cannot be mapped to CJ, CJ is
                 unreachable, or CJ offers no option for the destination.
         """
+        if request.country_code != SHIPPING_COUNTRY_CODE:
+            # order-service refuses such an address first; this keeps a CJ
+            # quote (and CJ's rate limit) from ever being spent on one.
+            raise CJFreightQuoteError(
+                f"We only ship within {SHIPPING_COUNTRY_NAME} (got '{request.country_code}')"
+            )
         quantity_by_vid = await self._resolve_vids(request.items)
         key = self._cache_key(request, quantity_by_vid)
 
@@ -147,7 +158,8 @@ class CJFreightQuoteService:
         self, request: CJFreightQuoteRequest, quantity_by_vid: dict[str, int]
     ) -> list[CJFreightOption]:
         payload: dict[str, Any] = {
-            "startCountryCode": self.settings.CJ_DROPSHIPPING_DEFAULT_FROM_COUNTRY_CODE,
+            # Every CJ product ships from CJ's US warehouses, never from China.
+            "startCountryCode": CJ_WAREHOUSE_COUNTRY_CODE,
             "endCountryCode": request.country_code,
             "products": [
                 {"vid": vid, "quantity": quantity}

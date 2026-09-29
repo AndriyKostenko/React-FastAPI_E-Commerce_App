@@ -355,12 +355,16 @@ async def test_enabled_tax_is_added_to_the_total_and_its_calculation_kept():
     assert request.address.postal_code == "T1T 1T1"
 
 
-async def test_enabled_tax_needs_a_country_code():
+async def test_an_address_without_a_country_is_taxed_as_canadian():
+    """The store sells in Canada only, so a missing country means Canada, never "untaxable"."""
+    tax_client = _tax_client(293, 6148)
     service = OrderPricingService(
         settings=_settings(STRIPE_TAX_ENABLED=True),
         catalog_client=SimpleNamespace(quote=AsyncMock()),
-        tax_client=_tax_client(0, 0),
+        tax_client=tax_client,
     )
 
-    with pytest.raises(OrderQuoteError, match="country_code"):
-        await service.build_quote(_order([_custom_line()], country_code=None))
+    await service.build_quote(_order([_custom_line()], country_code=None, country=None, province="Alberta"))
+
+    address = tax_client.calculate.await_args.args[0].address
+    assert (address.country, address.state) == ("CA", "AB")

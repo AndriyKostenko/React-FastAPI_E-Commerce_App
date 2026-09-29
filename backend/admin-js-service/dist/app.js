@@ -1,51 +1,60 @@
 import express from 'express';
 import session from 'express-session';
 import { Redis } from 'ioredis';
-import RedisStore from 'connect-redis';
+import connectRedis from 'connect-redis';
 import AdminJS from 'adminjs';
 import { buildAuthenticatedRouter } from '@adminjs/express';
 import provider from './admin/auth-provider.js';
 import options from './admin/options.js';
-import initializeDb from './db/index.js';
+import { AdminConfigError, loadConfig } from './config.js';
 const start = async () => {
+    const config = loadConfig();
     const app = express();
     const redisClient = new Redis({
-        host: process.env.REDIS_HOST,
-        port: Number(process.env.REDIS_PORT),
-        password: process.env.REDIS_PASSWORD,
-        db: Number(process.env.ADMINJS_SERVICE_REDIS_DB),
+        host: config.redis.host,
+        port: config.redis.port,
+        password: config.redis.password,
+        db: config.redis.db,
     });
+    const RedisStore = connectRedis(session);
     const redisStore = new RedisStore({
         client: redisClient,
-        prefix: process.env.ADMINJS_SERVICE_REDIS_PREFIX,
+        prefix: config.redis.prefix,
     });
     app.use(session({
         store: redisStore,
-        secret: process.env.COOKIE_SECRET,
+        secret: config.cookieSecret,
         resave: false,
         saveUninitialized: false,
         cookie: {
             httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
+            secure: config.production,
             maxAge: 1000 * 60 * 60,
         },
     }));
-    await initializeDb();
     const admin = new AdminJS(options);
-    if (process.env.NODE_ENV === 'production') {
+    if (config.production) {
         await admin.initialize();
     }
     else {
         admin.watch();
     }
     const router = buildAuthenticatedRouter(admin, {
-        cookiePassword: process.env.COOKIE_SECRET,
+        cookiePassword: config.cookieSecret,
         cookieName: 'adminjs',
         provider,
-    }, app);
+    }, null, {
+        store: redisStore,
+        secret: config.cookieSecret,
+        resave: false,
+        saveUninitialized: false,
+    });
     app.use(admin.options.rootPath, router);
-    app.listen(process.env.ADMIN_JS_PORT, () => {
-        console.log(`AdminJS available at http://localhost:${process.env.ADMIN_JS_PORT}${admin.options.rootPath}`);
+    app.listen(config.port, () => {
+        console.log(`AdminJS available at http://localhost:${config.port}${admin.options.rootPath}`);
     });
 };
-start();
+start().catch((error) => {
+    console.error(error instanceof AdminConfigError ? error.message : error);
+    process.exit(1);
+});

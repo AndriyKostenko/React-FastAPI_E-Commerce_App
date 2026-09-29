@@ -8,9 +8,10 @@ from exceptions.cj_order_exceptions import (
     SupplierSyncConfigurationError,
     SyncAlreadyInProgressError,
 )
+from service_layer.supplier_provider import WarehouseStock
 from service_layer.sync_orchestrator_service import SupplierSyncOrchestrator
 from schemas.dropshipping_schemas import CJProductsFilterParams
-from shared.contracts.supplier import GenericSupplierProduct
+from shared.contracts.supplier import GenericSupplierProduct, SupplierProductVariant
 from schemas.supplier_schemas import SupplierProductsPage
 
 
@@ -31,10 +32,13 @@ class FakeCJProvider:
         self,
         details: dict[str, GenericSupplierProduct | Exception],
         list_products: list[GenericSupplierProduct] | None = None,
+        us_stock: dict[str, WarehouseStock] | None = None,
     ) -> None:
         self.details = details
         self.list_products = list_products or [_product(pid) for pid in details]
         self.search_filters: list[CJProductsFilterParams] = []
+        # US-warehouse stock per pid; a product not listed has 5 units there.
+        self.us_stock = us_stock or {}
 
     async def search_products(self, filters_query: CJProductsFilterParams) -> SupplierProductsPage:
         self.search_filters.append(filters_query)
@@ -49,6 +53,9 @@ class FakeCJProvider:
         if isinstance(result, Exception):
             raise result
         return result
+
+    async def get_warehouse_stock(self, supplier_pid: str) -> WarehouseStock:
+        return self.us_stock.get(supplier_pid, WarehouseStock(total=5, by_vid={}))
 
 
 def _orchestrator(provider: FakeCJProvider):
@@ -103,23 +110,59 @@ async def test_sync_persists_event_and_marks_complete() -> None:
     assert provider.search_filters[0].lv3categoryList == ["tshirt-cat"]
 
 
-@pytest.mark.asyncio
-async def test_sync_preserves_inventory_from_product_list_when_details_omit_it() -> None:
-    preview = _product("one")
-    preview.quantity = 160000
-    preview.in_stock = True
+def _variant(vid: str) -> SupplierProductVariant:
+    return SupplierProductVariant(vid=vid, inventory_num=9999)
 
+
+@pytest.mark.asyncio
+async def test_catalogue_stock_is_the_us_warehouse_stock_not_the_list_total() -> None:
+    """CJ's list sums every warehouse; only the US units can ever be shipped."""
+    preview = _product("one")
+    preview.quantity = 160000  # mostly in China
     details = _product("one")
-    details.quantity = 0
-    details.in_stock = False
-    provider = FakeCJProvider({"one": details}, list_products=[preview])
+    details.variants = [_variant("V-S"), _variant("V-M"), _variant("V-L")]
+    provider = FakeCJProvider(
+        {"one": details},
+        list_products=[preview],
+        us_stock={"one": WarehouseStock(total=12, by_vid={"V-S": 7, "V-M": 5})},
+    )
     orchestrator, _, _, outbox = _orchestrator(provider)
 
     await orchestrator.run_sync("cjdropshipping")
 
-    emitted_product = outbox.add_outbox_event.await_args.kwargs["payload"].products[0]
-    assert emitted_product.quantity == 160000
-    assert emitted_product.in_stock is True
+    emitted = outbox.add_outbox_event.await_args.kwargs["payload"].products[0]
+    assert (emitted.quantity, emitted.in_stock) == (12, True)
+    # A size with nothing in the US stays listed but cannot be reserved.
+    assert {v.vid: v.inventory_num for v in emitted.variants} == {"V-S": 7, "V-M": 5, "V-L": 0}
+
+
+@pytest.mark.asyncio
+async def test_a_product_with_no_us_stock_is_not_imported() -> None:
+    provider = FakeCJProvider(
+        {"us": _product("us"), "china": _product("china")},
+        us_stock={"china": WarehouseStock(total=0, by_vid={})},
+    )
+    orchestrator, _, _, outbox = _orchestrator(provider)
+
+    state = await orchestrator.run_sync("cjdropshipping")
+
+    emitted = outbox.add_outbox_event.await_args.kwargs["payload"].products
+    assert [product.supplier_pid for product in emitted] == ["us"]
+    assert "no stock in CJ's US warehouse" in state.error_message
+
+
+@pytest.mark.asyncio
+async def test_a_single_product_without_us_stock_is_refused() -> None:
+    provider = FakeCJProvider(
+        {"china": _product("china")}, us_stock={"china": WarehouseStock(total=0, by_vid={})}
+    )
+    orchestrator, _, sync_state_repository, outbox = _orchestrator(provider)
+
+    with pytest.raises(SupplierSyncConfigurationError, match="no stock in CJ's US warehouse"):
+        await orchestrator.run_product_sync("cjdropshipping", "china")
+
+    outbox.add_outbox_event.assert_not_awaited()
+    assert sync_state_repository.update.await_args.args[0].status == "failed"
 
 
 @pytest.mark.asyncio
