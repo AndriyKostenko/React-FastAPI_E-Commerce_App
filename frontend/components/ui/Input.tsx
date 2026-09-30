@@ -13,6 +13,13 @@ const Input: React.FC<InputProps> = ({
     validationRules,
     glass,
 }) => {
+    // Only a message set via setError / a validation rule shows; a bare
+    // `required` failure has an empty message and keeps just the red outline.
+    const errorMessage = errors[id]?.message;
+    const errorText = typeof errorMessage === "string" && errorMessage
+        ? <p className="mt-1.5 px-1 text-xs text-rose-500">{errorMessage}</p>
+        : null;
+
     if (glass) {
         return (
             <div className="w-full relative">
@@ -60,6 +67,7 @@ const Input: React.FC<InputProps> = ({
                 >
                     {label}
                 </label>
+                {errorText}
             </div>
         );
     }
@@ -108,6 +116,7 @@ const Input: React.FC<InputProps> = ({
             >
                 {label}
             </label>
+            {errorText}
         </div>
     );
 };

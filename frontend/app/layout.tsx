@@ -39,8 +39,10 @@ export default async function RootLayout({children}: {children: React.ReactNode}
             <body className={`${hankenGrotesk.variable} ${inter.variable} font-body-md text-on-surface overflow-x-hidden gradient-bg p-4 md:p-8`}>
                 <Toaster toastOptions={{
                             style: {
-                                background: 'rgb(51 65 85)', 
-                                color: '#fff'
+                                background: 'rgb(51 65 85)',
+                                color: '#fff',
+                                // ApiError joins several backend messages with "\n".
+                                whiteSpace: 'pre-line',
                             }
                         }}>
                 </Toaster>

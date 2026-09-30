@@ -170,6 +170,21 @@ die()  { printf '\033[1;31m!!\033[0m %s\n' "$*" >&2; exit 1; }
 
 port_busy() { lsof -nP -iTCP:"$1" -sTCP:LISTEN >/dev/null 2>&1; }
 
+# "pid command" of whatever listens on a port, for the message naming it.
+port_owner() {
+  local pid; pid="$(lsof -nP -tiTCP:"$1" -sTCP:LISTEN 2>/dev/null | head -n 1)"
+  [ -n "$pid" ] && printf '%s %s' "$pid" "$(ps -o command= -p "$pid" 2>/dev/null)"
+}
+
+# The port a processes() row listens on, read from its own command line:
+# uvicorn/next take --port, admin-js and cj-mcp get it through env(1).
+# Workers and consumers listen on nothing and print an empty string.
+cmd_port() {
+  local re='(--port |ADMIN_JS_PORT=|CJ_HTTP_PORT=)([0-9]+)'
+  [[ "$1" =~ $re ]] && printf '%s' "${BASH_REMATCH[2]}"
+  return 0
+}
+
 # --------------------------------------------------------------------------
 # Infra
 # --------------------------------------------------------------------------
@@ -342,6 +357,17 @@ start_one() {
   # forked children along with the parent.
   local name="$1" dir="$2" cmd="$3"
   if proc_running "$name"; then echo "  $name already running"; return; fi
+  # Something outside dev.sh (another project, a stale process) holding the port
+  # would make the new process die on bind while the old one keeps answering
+  # its requests -- the frontend would then talk to the wrong app.  Refuse,
+  # name the holder, and let cmd_services report it once the rest is up.
+  local port; port="$(cmd_port "$cmd")"
+  if [ -n "$port" ] && port_busy "$port"; then
+    printf '\033[1;31m  !! %s not started: port %s is held by pid %s\033[0m\n' \
+      "$name" "$port" "$(port_owner "$port")" >&2
+    PORT_CONFLICTS="${PORT_CONFLICTS:-} $name:$port"
+    return
+  fi
   # Each runtime has its own "are the deps installed?" marker.
   case "$cmd" in
     .venv/bin/*)
@@ -382,11 +408,15 @@ cmd_services() {
       service_env
       set -m
       say "starting ${2:-all} services"
+      PORT_CONFLICTS=""
       while IFS='|' read -r name dir cmd; do
         [ -n "$name" ] || continue
         [ -n "${2:-}" ] && [ "$2" != "$name" ] && continue
         start_one "$name" "$dir" "$cmd"
       done < <(processes)
+      # Everything that could start has; now fail so `up` never looks healthy.
+      [ -z "$PORT_CONFLICTS" ] || \
+        die "not started, port already in use:$PORT_CONFLICTS -- stop the holder (see above) and re-run"
       ;;
     down)
       say "stopping services"
@@ -437,9 +467,11 @@ cmd_restart() {
   service_env
   set -m
   stop_one "$1"
+  PORT_CONFLICTS=""
   while IFS='|' read -r name dir cmd; do
     [ "$name" = "$1" ] && start_one "$name" "$dir" "$cmd"
   done < <(processes)
+  [ -z "$PORT_CONFLICTS" ] || die "$1 not started, port already in use -- stop the holder (see above) and re-run"
 }
 
 cmd_reset() {

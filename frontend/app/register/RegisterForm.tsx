@@ -8,14 +8,18 @@ import Link from "next/link";
 import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
 import { settings } from "@/lib/config";
+import { ApiError } from "@/lib/api-error";
 import { MdAutoAwesome, MdVisibility, MdVisibilityOff } from "react-icons/md";
+
+// Backend field names that have an input of the same id on this form.
+const FORM_FIELDS: ReadonlySet<string> = new Set(["name", "email", "password"]);
 
 const RegisterForm:React.FC<LoginFormProps> = ({currentUser}) => {
     const [isLoading, setIsLoading] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
     const [showRepeatedPassword, setShowRepeatedPassword] = useState(false);
 
-    const {register, handleSubmit, formState: {errors}} = useForm<FieldValues>({
+    const {register, handleSubmit, setError, formState: {errors}} = useForm<FieldValues>({
         defaultValues: {
             name: "",
             email: "",
@@ -45,16 +49,20 @@ const RegisterForm:React.FC<LoginFormProps> = ({currentUser}) => {
                 body: JSON.stringify(data)
             });
 
-            if (response.ok) {
-                toast.success('Registration successful! Please check your email to verify your account before logging in.');
-                router.push('/login');
-            } else {
-                toast.error('Email already registered!');
-                console.log('registration has failed!');
-            }
+            if (!response.ok) throw await ApiError.fromResponse(response, 'Registration failed. Please try again.');
+
+            toast.success('Registration successful! Please check your email to verify your account before logging in.');
+            router.push('/login');
         } catch (error) {
-            toast.error(`Error: ${error}`);
-            console.log(`Error: ${error}`);
+            const apiError = ApiError.from(error, 'Registration failed. Please try again.');
+            // Validation messages go under the input they belong to; anything
+            // without a matching input (or not field-level at all) is toasted.
+            const inline = apiError.fieldErrors.filter(e => FORM_FIELDS.has(e.field));
+            inline.forEach(e => setError(e.field, { type: 'server', message: e.message }));
+            if (inline.length === 0 || inline.length < apiError.fieldErrors.length) {
+                toast.error(apiError.message);
+            }
+            console.error('registration failed', apiError.status, apiError.message);
         } finally {
             setIsLoading(false);
         }
@@ -121,7 +129,7 @@ const RegisterForm:React.FC<LoginFormProps> = ({currentUser}) => {
                 <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-secondary hover:text-primary transition-colors"
+                    className="absolute right-4 top-[33px] -translate-y-1/2 text-secondary hover:text-primary transition-colors"
                     tabIndex={-1}
                 >
                     {showPassword ? <MdVisibilityOff size={20} /> : <MdVisibility size={20} />}
@@ -143,7 +151,7 @@ const RegisterForm:React.FC<LoginFormProps> = ({currentUser}) => {
                 <button
                     type="button"
                     onClick={() => setShowRepeatedPassword(!showRepeatedPassword)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-secondary hover:text-primary transition-colors"
+                    className="absolute right-4 top-[33px] -translate-y-1/2 text-secondary hover:text-primary transition-colors"
                     tabIndex={-1}
                 >
                     {showRepeatedPassword ? <MdVisibilityOff size={20} /> : <MdVisibility size={20} />}

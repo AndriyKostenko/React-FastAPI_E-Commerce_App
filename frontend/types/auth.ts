@@ -6,7 +6,11 @@ export type CurrentUserShape = {
 
 export interface LoginFormProps {
     currentUser?: CurrentUserShape | null;
+    /** A failed sign-in redirected here with this message (login page only). */
+    authError?: string;
 }
+
+export type SearchParams = Record<string, string | string[] | undefined>;
 
 export interface ReviewAuthorProps {
     id: string;

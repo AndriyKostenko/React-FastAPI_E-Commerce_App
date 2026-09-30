@@ -1,4 +1,6 @@
 """Unit tests for ApiGateway: _prepare_headers and forward_request."""
+import gzip
+import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -178,6 +180,29 @@ class TestForwardRequest:
             result = await self.gw.forward_request(request=req, service_name="product-service")
 
         assert result.status_code == 200
+
+    async def test_forward_does_not_relabel_a_decoded_body_as_compressed(self):
+        # Upstream gzips; httpx decodes it; the gateway re-serialises plain JSON.
+        # Copying `content-encoding: gzip` onto that made browsers fail to read
+        # every compressed response (the register form's 422 among them).
+        req = self._make_mock_request("POST", "/api/v1/register")
+        body = {"detail": "Validation request error", "errors": [{"field": "email", "message": "bad"}]}
+        upstream = HttpxResponse(
+            422,
+            headers={"content-type": "application/json", "content-encoding": "gzip", "x-request-id": "abc"},
+            content=gzip.compress(json.dumps(body).encode()),
+        )
+        mock_http_client = AsyncMock()
+        mock_http_client.request = AsyncMock(return_value=upstream)
+
+        with patch.object(self.gw, "_http_client", mock_http_client):
+            result = await self.gw.forward_request(request=req, service_name="user-service")
+
+        assert result.status_code == 422
+        assert "content-encoding" not in result.headers
+        assert json.loads(bytes(result.body)) == body
+        assert int(result.headers["content-length"]) == len(result.body)
+        assert result.headers["x-request-id"] == "abc"
 
     async def test_forward_unknown_service_raises_404(self):
         from fastapi import HTTPException
