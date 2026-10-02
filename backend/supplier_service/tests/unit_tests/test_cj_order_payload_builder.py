@@ -1,4 +1,4 @@
-"""The createOrderV2 body: shipped from CJ's US warehouse, to Canada only."""
+"""The createOrderV2 body: shipped from CJ's China warehouse, to Canada only."""
 
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -48,7 +48,7 @@ async def test_the_order_ships_from_the_us_warehouse_to_canada() -> None:
 
     body = await builder.build(_event())
 
-    assert body["fromCountryCode"] == "US"
+    assert body["fromCountryCode"] == "CN"
     assert body["shippingCountryCode"] == "CA"
     assert body["products"] == [{"vid": "VID-1", "quantity": 2}]
 
@@ -79,4 +79,4 @@ async def test_with_the_sandbox_on_the_order_is_created_as_a_sandbox_order() -> 
 
     assert body["isSandbox"] == 1
     # Everything else is the real order: same origin, destination and lines.
-    assert (body["fromCountryCode"], body["shippingCountryCode"]) == ("US", "CA")
+    assert (body["fromCountryCode"], body["shippingCountryCode"]) == ("CN", "CA")

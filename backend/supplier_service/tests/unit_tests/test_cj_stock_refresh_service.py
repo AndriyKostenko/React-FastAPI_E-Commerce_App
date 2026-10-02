@@ -104,7 +104,7 @@ def _levels(sent: list[tuple[str, object]]) -> dict[str, dict[str, int]]:
 
 
 async def test_a_product_sold_out_in_the_us_is_sent_as_zero(sent) -> None:
-    """The case the catalogue sync can never see: CJ no longer lists it in the US."""
+    """The case the catalogue sync can never see: CJ no longer lists it in China."""
     service, _, _ = _service(
         [SupplierStockKey(supplier_pid="SOLD-OUT", vids=["V-S", "V-M"])],
         {"SOLD-OUT": WarehouseStock(total=0, by_vid={})},

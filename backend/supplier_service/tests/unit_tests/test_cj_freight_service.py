@@ -94,8 +94,8 @@ class TestQuote:
         assert payload["endCountryCode"] == "CA"
         assert payload["zip"] == "T2T 2T2"
         assert payload["products"] == [{"vid": TEST_VID, "quantity": 2}]
-        # Shipped from CJ's US warehouse, never from China.
-        assert payload["startCountryCode"] == "US"
+        # Shipped from CJ's China warehouse: CJ has no US->Canada carrier.
+        assert payload["startCountryCode"] == "CN"
 
     async def test_collapses_duplicate_variants_into_one_line(self) -> None:
         service = _make_service()

@@ -36,7 +36,7 @@ class CJDropshippingInventoryVerifier:
     """
     Verifies exact variant inventory against the live CJ Dropshipping API.
 
-    Only CJ's US warehouses count: orders ship from there (fromCountryCode),
+    Only CJ's China warehouses count: orders ship from there (fromCountryCode),
     so stock sitting in China would pass the check and then fail to ship.
     """
 
