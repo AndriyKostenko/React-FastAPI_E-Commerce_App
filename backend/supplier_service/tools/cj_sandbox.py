@@ -33,6 +33,9 @@ from service_layer.cj_api_client import CJDropshippingAPIClient, CJDropshippingA
 from service_layer.cj_order_tracking_service import CJOrderTrackingService
 from shared.managers.database_session_manager import DatabaseSessionManager
 
+# CJ allows one request per second per account; back-to-back calls get a 429.
+CJ_CALL_INTERVAL_SECONDS = 1.1
+
 # CJ's sandbox status codes. They only move forward, one step at a time.
 UNSHIPPED, SHIPPED, COMPLETED = 400, 500, 600
 
@@ -84,6 +87,7 @@ class CJSandboxDriver:
     async def ship(self, order: SandboxOrder, tracking_number: str) -> None:
         """Tracking number first, then shipped: the poller needs both to announce it."""
         await self._cj.sandbox_update_track_number(order.cj_order_number, tracking_number)
+        await asyncio.sleep(CJ_CALL_INTERVAL_SECONDS)
         await self._advance_to(order, SHIPPED)
 
     async def deliver(self, order: SandboxOrder) -> None:
@@ -91,6 +95,7 @@ class CJSandboxDriver:
 
     async def poll(self, order: SandboxOrder) -> dict[str, int]:
         """Make the order due now and run one tracking pass."""
+        await asyncio.sleep(CJ_CALL_INTERVAL_SECONDS)  # usually right after a status change
         async with self._database.transaction() as session:
             await session.execute(
                 update(CJOrderAttempt)
@@ -110,9 +115,11 @@ class CJSandboxDriver:
         read the sandbox's numeric status back, so an earlier step that fails
         is reported and skipped; only a failed final step is an error.
         """
-        for step in (UNSHIPPED, SHIPPED, COMPLETED):
+        for index, step in enumerate((UNSHIPPED, SHIPPED, COMPLETED)):
             if step > target:
                 break
+            if index:
+                await asyncio.sleep(CJ_CALL_INTERVAL_SECONDS)
             try:
                 await self._cj.sandbox_update_status(order.cj_order_number, step)
                 print(f"  CJ status -> {step}")
