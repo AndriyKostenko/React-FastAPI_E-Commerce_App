@@ -137,6 +137,12 @@ const LoginForm:React.FC<LoginFormProps> = ({currentUser, authError}) => {
                 </button>
             </div>
 
+            <div className="w-full -mt-3 text-right">
+                <Link href="/forgot-password" className="font-body-md text-sm text-secondary underline underline-offset-2 hover:text-primary transition-colors">
+                    Forgot password?
+                </Link>
+            </div>
+
             {/* CTA */}
             <button
                 onClick={handleSubmit(onSubmit)}

@@ -37,37 +37,6 @@ export const authOptions: AuthOptions = {
         clientId: process.env.GOOGLE_CLIENT_ID!,
         clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
     }),
-    // Used after email activation — the backend already verified identity, so we just validate
-    // the returned token via /me before creating a session (prevents forgery).
-    CredentialsProvider({
-        id: "activation-token",
-        name: "ActivationToken",
-        credentials: {
-            access_token: {},
-            user_role: {},
-            token_expiry: {},
-            user_id: {},
-            email: {},
-        },
-        async authorize(credentials) {
-            if (!credentials?.access_token) return null;
-            try {
-                const res = await fetch(settings.api.endpoints.me, {
-                    headers: { Authorization: `Bearer ${credentials.access_token}` },
-                });
-                if (!res.ok) return null;
-                return {
-                    id: credentials.user_id,
-                    email: credentials.email,
-                    jwt: credentials.access_token,
-                    role: credentials.user_role,
-                    token_expiry: Number(credentials.token_expiry),
-                } as CustomUser;
-            } catch {
-                return null;
-            }
-        },
-    }),
     CredentialsProvider({
         name: "Credentials",
         credentials: {

@@ -61,6 +61,8 @@ class AppSettings {
             authRegister: string;
             googleLogin: string;
             activate: string;
+            forgotPassword: string;
+            passwordReset: string;
             me: string;
             categories: string;
             customizationPricing: string;
@@ -115,6 +117,8 @@ class AppSettings {
             authRegister:         AppSettings.joinUrl(baseUrl, "register"),
             googleLogin:          AppSettings.joinUrl(baseUrl, "google-login"),
             activate:             AppSettings.joinUrl(baseUrl, "activate"),
+            forgotPassword:       AppSettings.joinUrl(baseUrl, "forgot-password"),
+            passwordReset:        AppSettings.joinUrl(baseUrl, "password-reset"),
             me:                   AppSettings.joinUrl(baseUrl, "me"),
             categories:           AppSettings.joinUrl(baseUrl, "categories"),
             customizationPricing: AppSettings.joinUrl(baseUrl, "customization/pricing"),

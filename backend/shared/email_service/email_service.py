@@ -6,6 +6,7 @@ from fastapi_mail.errors import ConnectionErrors
 from pydantic import ValidationError
 from jinja2 import Environment, FileSystemLoader, TemplateNotFound, select_autoescape
 
+from shared.email_service.email_links import EmailLinks
 from shared.exceptions.base_exceptions import EmailServiceError
 from shared.settings import Settings
 from shared.contracts.events import (
@@ -50,6 +51,7 @@ class EmailService:
             autoescape=select_autoescape(["html"]),
         )
         self.fast_mail: FastMail = FastMail(self.config)
+        self.links: EmailLinks = EmailLinks(self.settings.FRONTEND_URL)
 
     def render_template(self, template_name: str, template_body: dict[str, str]) -> str:
         """Render a template with the given context."""
@@ -112,7 +114,7 @@ class UserRelatedNotifications(EmailService):
             template_body={
                 "app_name": self.settings.MAIL_FROM_NAME,
                 "email": event.user_email,
-                "activate_url": f"{self.settings.FRONTEND_URL}/activate#token={event.token}"
+                "activate_url": self.links.activation(event.token)
             },
             recipients=[event.user_email],
             template_name="email_verification.html"
@@ -128,7 +130,7 @@ class UserRelatedNotifications(EmailService):
             template_body={
                 "app_name": self.settings.MAIL_FROM_NAME,
                 "email": event.user_email,
-                "login_url": f"http://{self.settings.APP_HOST}:{self.settings.API_GATEWAY_SERVICE_APP_PORT}{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/login"
+                "login_url": self.links.login()
             }
         )
 
@@ -140,7 +142,7 @@ class UserRelatedNotifications(EmailService):
             template_body={
                 "app_name": self.settings.MAIL_FROM_NAME,
                 "email": event.user_email,
-                "reset_url": f"{self.settings.FRONTEND_URL}/password-reset#token={event.reset_token}",
+                "reset_url": self.links.password_reset(event.reset_token),
                 "expiry_minutes": self.settings.RESET_TOKEN_EXPIRY_MINUTES
             },
             recipients=[event.user_email],
@@ -155,7 +157,7 @@ class UserRelatedNotifications(EmailService):
             template_body={
                 "app_name": self.settings.MAIL_FROM_NAME,
                 "email": event.user_email,
-                "login_url": f"http://{self.settings.APP_HOST}:{self.settings.API_GATEWAY_SERVICE_APP_PORT}{self.settings.API_GATEWAY_SERVICE_URL_API_VERSION}/login"
+                "login_url": self.links.login()
             },
             recipients=[event.user_email],
             template_name="password_reset_confirmation.html"
@@ -196,7 +198,7 @@ class OrderRelatedNotifications(EmailService):
                 "total_amount": float(event.total_amount),
                 "items_count": len(event.items),
                 "app_name": self.settings.MAIL_FROM_NAME,
-                "order_url": f"http://{self.settings.APP_HOST}/orders/{event.order_id}"
+                "order_url": self.links.order(event.order_id)
             }
         )
         self.logger.info(f"Sent order created notification for order: {event.order_id}")
@@ -213,8 +215,7 @@ class OrderRelatedNotifications(EmailService):
             template_body={
                 "order_id": str(event.order_id),
                 "app_name": self.settings.MAIL_FROM_NAME,
-                "order_url": f"http://{self.settings.APP_HOST}/orders/{event.order_id}",
-                "tracking_url": f"http://{self.settings.APP_HOST}/orders/{event.order_id}/tracking"
+                "order_url": self.links.order(event.order_id),
             }
         )
         self.logger.info(f"Sent order confirmation for order: {event.order_id}")
@@ -232,7 +233,6 @@ class OrderRelatedNotifications(EmailService):
                 "order_id": str(event.order_id),
                 "reason": event.reason,
                 "app_name": self.settings.MAIL_FROM_NAME,
-                "support_url": f"http://{self.settings.APP_HOST}/support",
                 "contact_email": self.settings.MAIL_FROM
             }
         )
@@ -258,7 +258,7 @@ class OrderRelatedNotifications(EmailService):
                 "carrier_tracking_url": event.tracking_url,
                 "shipped_at": event.shipped_at.strftime("%d %b %Y"),
                 "app_name": self.settings.MAIL_FROM_NAME,
-                "order_url": f"http://{self.settings.APP_HOST}/orders/{event.order_id}",
+                "order_url": self.links.order(event.order_id),
             }
         )
         self.logger.info(f"Sent shipment notification for order: {event.order_id}")
@@ -274,8 +274,8 @@ class OrderRelatedNotifications(EmailService):
                 "tracking_number": event.tracking_number,
                 "delivered_at": event.delivered_at.strftime("%d %b %Y"),
                 "app_name": self.settings.MAIL_FROM_NAME,
-                "order_url": f"http://{self.settings.APP_HOST}/orders/{event.order_id}",
-                "support_url": f"http://{self.settings.APP_HOST}/support",
+                "order_url": self.links.order(event.order_id),
+                "support_url": self.links.support(self.settings.MAIL_FROM),
             }
         )
         self.logger.info(f"Sent delivery notification for order: {event.order_id}")
