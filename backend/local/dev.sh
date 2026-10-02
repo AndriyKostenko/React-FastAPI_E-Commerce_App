@@ -61,7 +61,7 @@ mkdir -p "$RUN_DIR" "$LOG_DIR" "$DATA_DIR/media/generated" "$DATA_DIR/media/imag
 # --------------------------------------------------------------------------
 env_get() {
   local key="$1" value=""
-  for file in "$BACKEND_DIR/.env" "$BACKEND_DIR/.env.local"; do
+  for file in "$BACKEND_DIR/.env"; do
     [ -f "$file" ] || continue
     local found
     found="$(sed -n -E "s/^[[:space:]]*${key}[[:space:]]*=[[:space:]]*(.*)\$/\1/p" "$file" | tail -n 1)"
@@ -145,7 +145,7 @@ EOF
   # No --hostname: next's default binding answers on both localhost and
   # 127.0.0.1, and next.config.js already allows the 127.0.0.1 dev origin.
   printf 'frontend|../frontend|npm run dev -- --port %s\n' "$FRONTEND_PORT"
-  # admin-js reads the same backend/.env (+ .env.local) compose hands it, via
+  # admin-js reads the same backend/.env compose hands it, via
   # node's own --env-file (see its start:local script).  The values that differ
   # outside compose are pinned here: variables already in the environment win
   # over --env-file, so the container host names in .env never apply.
@@ -327,8 +327,8 @@ service_env() {
   unset PROMETHEUS_MULTIPROC_DIR || true
   export PYTHONPATH="$BACKEND_DIR${PYTHONPATH:+:$PYTHONPATH}"
   export PYTHONUNBUFFERED=1
-  # Set here rather than in .env.local: that file is tracked, and a relative
-  # path would resolve against each service's own cwd.
+  # Set here rather than in .env: a relative path would resolve against each
+  # service's own cwd.
   export MEDIA_ROOT="$DATA_DIR/media"
   # Return photos are private: kept apart from the publicly served media.
   export RETURN_EVIDENCE_ROOT="$DATA_DIR/private-media"
