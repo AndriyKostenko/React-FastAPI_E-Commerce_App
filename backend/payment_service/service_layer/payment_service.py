@@ -257,8 +257,10 @@ class PaymentService:
             return self._stripe.construct_event(payload=payload,
                                                 sig_header=stripe_signature,
                                                 secret=self._webhook_secret)
-        except (SignatureVerificationError, ValueError):
-            raise
+        except (SignatureVerificationError, ValueError) as exc:
+            # A 400, not a 500: the request itself is bad (forged, or altered
+            # on the way), and Stripe should not keep retrying it as a fault.
+            raise InvalidStripeWebhookSignature() from exc
 
     async def handle_payment_intent_amount_capturable_updated(
         self, stripe_event_data: dict[str, Any]

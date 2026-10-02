@@ -10,6 +10,7 @@ from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 import pytest
+import stripe
 
 from schemas.payment_schemas import PaymentResponse
 from tests.constants import TEST_PAYMENT_ID, TEST_ORDER_ID, TEST_USER_ID, TEST_EMAIL
@@ -22,6 +23,15 @@ from exceptions.payment_exceptions import (
     InvalidStripeWebhookSignature,
     PaymentDataIsNotProvided,
 )
+
+
+def _stripe_event(payload: dict) -> stripe.Event:
+    """What construct_webhook_event really returns: a stripe.Event, which is not a dict.
+
+    These tests used to hand the route a plain dict, which hid that every
+    handler's .get() failed on the real object.
+    """
+    return stripe.Event.construct_from(payload, "sk_test_unused")
 
 
 # ---------------------------------------------------------------------------
@@ -110,11 +120,11 @@ class TestWebhookEndpoint:
         self, client_for_unit_testing, mock_route_payment_service: MagicMock
     ) -> None:
         raw = self._webhook_payload("payment_intent.succeeded")
-        mock_route_payment_service.construct_webhook_event.return_value = {
+        mock_route_payment_service.construct_webhook_event.return_value = _stripe_event({
             "type": "payment_intent.succeeded",
             "id": "evt_test_succeeded",
             "data": {"object": {"id": TEST_STRIPE_INTENT_ID, "metadata": {}}},
-        }
+        })
         response = await client_for_unit_testing.post(
             f"{TEST_API}/payments/webhook",
             content=raw,
@@ -127,11 +137,11 @@ class TestWebhookEndpoint:
         self, client_for_unit_testing, mock_route_payment_service: MagicMock
     ) -> None:
         event_data = {"object": {"id": TEST_STRIPE_INTENT_ID, "amount_capturable": 999}}
-        mock_route_payment_service.construct_webhook_event.return_value = {
+        mock_route_payment_service.construct_webhook_event.return_value = _stripe_event({
             "type": "payment_intent.amount_capturable_updated",
             "id": "evt_test_authorized",
             "data": event_data,
-        }
+        })
         mock_route_payment_service.handle_payment_intent_amount_capturable_updated = AsyncMock()
 
         response = await client_for_unit_testing.post(
@@ -148,11 +158,11 @@ class TestWebhookEndpoint:
     async def test_webhook_failed_returns_200(
         self, client_for_unit_testing, mock_route_payment_service: MagicMock
     ) -> None:
-        mock_route_payment_service.construct_webhook_event.return_value = {
+        mock_route_payment_service.construct_webhook_event.return_value = _stripe_event({
             "type": "payment_intent.payment_failed",
             "id": "evt_test_failed",
             "data": {"object": {"id": TEST_STRIPE_INTENT_ID, "metadata": {}, "last_payment_error": {}}},
-        }
+        })
         response = await client_for_unit_testing.post(
             f"{TEST_API}/payments/webhook",
             content=b"{}",
@@ -163,11 +173,11 @@ class TestWebhookEndpoint:
     async def test_webhook_cancelled_returns_200(
         self, client_for_unit_testing, mock_route_payment_service: MagicMock
     ) -> None:
-        mock_route_payment_service.construct_webhook_event.return_value = {
+        mock_route_payment_service.construct_webhook_event.return_value = _stripe_event({
             "type": "payment_intent.canceled",
             "id": "evt_test_cancelled",
             "data": {"object": {"id": TEST_STRIPE_INTENT_ID, "metadata": {}}},
-        }
+        })
         response = await client_for_unit_testing.post(
             f"{TEST_API}/payments/webhook",
             content=b"{}",
@@ -182,11 +192,11 @@ class TestWebhookEndpoint:
         mock_idempotency_service: MagicMock,
     ) -> None:
         """Duplicate events (idempotency service returns False) are acknowledged silently."""
-        mock_route_payment_service.construct_webhook_event.return_value = {
+        mock_route_payment_service.construct_webhook_event.return_value = _stripe_event({
             "type": "payment_intent.succeeded",
             "id": "evt_duplicate",
             "data": {"object": {"id": TEST_STRIPE_INTENT_ID, "metadata": {}}},
-        }
+        })
         mock_idempotency_service.try_claim_event.return_value = False
 
         response = await client_for_unit_testing.post(
@@ -200,11 +210,11 @@ class TestWebhookEndpoint:
     async def test_webhook_unknown_event_type_returns_200(
         self, client_for_unit_testing, mock_route_payment_service: MagicMock
     ) -> None:
-        mock_route_payment_service.construct_webhook_event.return_value = {
+        mock_route_payment_service.construct_webhook_event.return_value = _stripe_event({
             "type": "some.unknown.event",
             "id": "evt_unknown",
             "data": {"object": {}},
-        }
+        })
         response = await client_for_unit_testing.post(
             f"{TEST_API}/payments/webhook",
             content=b"{}",

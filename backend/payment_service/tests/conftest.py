@@ -15,6 +15,7 @@ from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 import pytest
+import stripe
 from fastapi import Depends
 from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -242,7 +243,13 @@ def mock_route_payment_service() -> MagicMock:
     """Full mock of PaymentService for app.dependency_overrides in route tests."""
     svc = MagicMock()
     svc.create_payment_intent = AsyncMock(return_value=MOCK_PAYMENT_INTENT_RESULT)
-    svc.construct_webhook_event = AsyncMock()
+    # A real stripe.Event (not a dict), like the real method returns; tests
+    # that care about the event override it.
+    svc.construct_webhook_event = AsyncMock(
+        return_value=stripe.Event.construct_from(
+            {"id": "evt_default", "type": "test.unhandled", "data": {"object": {}}}, "sk_test_unused"
+        )
+    )
     svc.handle_payment_intent_succeeded = AsyncMock(return_value=None)
     svc.handle_payment_intent_failed = AsyncMock(return_value=None)
     svc.handle_payment_intent_cancelled = AsyncMock(return_value=None)

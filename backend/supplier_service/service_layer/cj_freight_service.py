@@ -158,7 +158,7 @@ class CJFreightQuoteService:
         self, request: CJFreightQuoteRequest, quantity_by_vid: dict[str, int]
     ) -> list[CJFreightOption]:
         payload: dict[str, Any] = {
-            # Every CJ product ships from CJ's US warehouses, never from China.
+            # Every CJ product ships from CJ's China warehouses (no US->CA carrier exists).
             "startCountryCode": CJ_WAREHOUSE_COUNTRY_CODE,
             "endCountryCode": request.country_code,
             "products": [

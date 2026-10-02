@@ -22,14 +22,14 @@ def _verifier(response):
     return CJDropshippingInventoryVerifier(client, settings), client
 
 
-async def test_variant_stock_sums_us_warehouses_and_applies_buffer():
+async def test_variant_stock_sums_china_warehouses_and_applies_buffer():
     verifier, client = _verifier(
         {
             "code": 200,
             "result": True,
             "data": [
-                {"vid": "VID-1", "countryCode": "US", "totalInventoryNum": 3},
-                {"vid": "VID-1", "countryCode": "US", "totalInventoryNum": 4},
+                {"vid": "VID-1", "countryCode": "CN", "totalInventoryNum": 3},
+                {"vid": "VID-1", "countryCode": "CN", "totalInventoryNum": 4},
             ],
         }
     )

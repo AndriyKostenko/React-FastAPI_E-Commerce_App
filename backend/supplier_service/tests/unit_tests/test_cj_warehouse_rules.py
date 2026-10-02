@@ -1,5 +1,5 @@
 """
-US warehouses only: what reaches CJ when products are listed, and which stock counts.
+China warehouses only: what reaches CJ when products are listed, and which stock counts.
 
 Only the HTTP call to CJ is replaced; the request parameters and the parsing
 of CJ's documented inventory responses are the real code.
@@ -42,15 +42,15 @@ def _client(response: dict[str, object]) -> MagicMock:
 # ---------------------------------------------------------------- listing
 
 
-@pytest.mark.parametrize("asked_for", [None, "CN", "GB"])
-async def test_every_product_search_asks_cj_for_us_warehouse_stock(asked_for: str | None) -> None:
+@pytest.mark.parametrize("asked_for", [None, "US", "GB"])
+async def test_every_product_search_asks_cj_for_china_warehouse_stock(asked_for: str | None) -> None:
     client = _client({"code": 200, "result": True, "data": {"content": []}})
     provider = CJDropshippingProductProvider(_SETTINGS, api_client=client)
 
     await provider.search_products(CJProductsFilterParams(countryCode=asked_for))
 
     url = client.request.await_args.args[1]
-    assert parse_qs(urlparse(url).query)["countryCode"] == ["US"]
+    assert parse_qs(urlparse(url).query)["countryCode"] == ["CN"]
 
 
 # ------------------------------------------------------------ order stock
@@ -68,30 +68,31 @@ def _vid_stock(*rows: tuple[str, int]) -> dict[str, object]:
     }
 
 
-async def test_china_stock_never_covers_an_order() -> None:
-    verifier = CJDropshippingInventoryVerifier(_client(_vid_stock(("CN", 10000), ("US", 2))), _SETTINGS)
+async def test_us_stock_never_covers_an_order() -> None:
+    # CJ cannot ship from the US to Canada, so stock there is no use.
+    verifier = CJDropshippingInventoryVerifier(_client(_vid_stock(("US", 10000), ("CN", 2))), _SETTINGS)
 
     result = await verifier.verify_variant_stock("VID-1", 3)
 
     assert (result.available, result.sufficient, result.warehouses_checked) == (2, False, 1)
 
 
-async def test_us_stock_covers_an_order() -> None:
-    verifier = CJDropshippingInventoryVerifier(_client(_vid_stock(("CN", 0), ("US", 4), ("us", 1))), _SETTINGS)
+async def test_china_stock_covers_an_order() -> None:
+    verifier = CJDropshippingInventoryVerifier(_client(_vid_stock(("US", 0), ("CN", 4), ("cn", 1))), _SETTINGS)
 
     result = await verifier.verify_variant_stock("VID-1", 5)
 
     assert (result.available, result.sufficient) == (5, True)
 
 
-async def test_product_stock_counts_only_the_us_warehouse() -> None:
+async def test_product_stock_counts_only_the_china_warehouse() -> None:
     verifier = CJDropshippingInventoryVerifier(
         _client({
             "code": 200,
             "result": True,
             "data": {"inventories": [
-                {"countryCode": "CN", "totalInventoryNum": 900},
-                {"countryCode": "US", "totalInventoryNum": 30},
+                {"countryCode": "US", "totalInventoryNum": 900},
+                {"countryCode": "CN", "totalInventoryNum": 30},
             ]},
         }),
         _SETTINGS,
@@ -105,23 +106,23 @@ async def test_product_stock_counts_only_the_us_warehouse() -> None:
 # -------------------------------------------------------- catalogue stock
 
 
-async def test_catalogue_stock_reads_us_rows_per_product_and_per_variant() -> None:
+async def test_catalogue_stock_reads_china_rows_per_product_and_per_variant() -> None:
     """CJ's documented getInventoryByPid shape: variant rows under "inventory"."""
     client = _client({
         "code": 200,
         "result": True,
         "data": {
             "inventories": [
-                {"countryCode": "CN", "totalInventoryNum": 10044},
-                {"countryCode": "US", "areaEn": "US Warehouse", "totalInventoryNum": 264},
+                {"countryCode": "US", "totalInventoryNum": 10044},
+                {"countryCode": "CN", "areaEn": "China Warehouse", "totalInventoryNum": 264},
             ],
             "variantInventories": [
                 {"vid": "V-S", "inventory": [
-                    {"countryCode": "CN", "totalInventory": 5000},
-                    {"countryCode": "US", "totalInventory": 200},
+                    {"countryCode": "US", "totalInventory": 5000},
+                    {"countryCode": "CN", "totalInventory": 200},
                 ]},
-                {"vid": "V-M", "inventory": [{"countryCode": "US", "totalInventory": 64}]},
-                {"vid": "V-XL", "inventory": [{"countryCode": "CN", "totalInventory": 5044}]},
+                {"vid": "V-M", "inventory": [{"countryCode": "CN", "totalInventory": 64}]},
+                {"vid": "V-XL", "inventory": [{"countryCode": "US", "totalInventory": 5044}]},
             ],
         },
     })
