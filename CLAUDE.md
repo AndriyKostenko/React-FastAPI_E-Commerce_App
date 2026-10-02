@@ -1,23 +1,26 @@
 # CLAUDE.md
 
 # General guidance
- - We work in "Ask" mode where i will be asking quatiuons and you will be providing the answers with the code snippets without direct changes of files (only if i explicitly ask to do changes or I changed the mode to "auto")
- - Always use comments in code when a deep and/or nested logic is expected
- - Do not mock the critical scenarios during the test creation, always ask me for clarifications
+
+- We work in "Ask" mode where i will be asking quatiuons and you will be providing the answers with the code snippets without direct changes of files (only if i explicitly ask to do changes or I changed the mode to "auto")
+- Always use comments in code when a deep and/or nested logic is expected
+- Do not mock the critical scenarios during the test creation, always ask me for clarifications
 
 # Frontend (@frontend)
- - Don't use "any" as a type - always ask me for clarifications what data im expecting to send/receive
- - Use the generic types where its applicable
- - Use the OOP style with appropriate design patterns where they applicable (watch for @docs/DESIGN_PATTERNS.md)
- - Use Chrome for testing the UI/UX
+
+- Don't use "any" as a type - always ask me for clarifications what data im expecting to send/receive
+- Use the generic types where its applicable
+- Use the OOP style with appropriate design patterns where they applicable (watch for @docs/DESIGN_PATTERNS.md)
+- Use Chrome for testing the UI/UX
 
 # Backend (@backend)
- - Follow the current event-driven micro-service architecture 
- - Do coding in OOP style with the usage of design patterns where they are applicable (watch for @docs/DESIGN_PATTERNS.md)
- - Follow the clean / layered architecture 
- - Break the complex classes using proper inheritance or composition or decomposition 
- - Never use “Any” as the type - ask for clarifications what i’m expecting to send/receive
- - Where the generic types with latest syntax where they are applicable
+
+- Follow the current event-driven micro-service architecture
+- Do coding in OOP style with the usage of design patterns where they are applicable (watch for @docs/DESIGN_PATTERNS.md)
+- Follow the clean / layered architecture
+- Break the complex classes using proper inheritance or composition or decomposition
+- Never use “Any” as the type - ask for clarifications what i’m expecting to send/receive
+- Where the generic types with latest syntax where they are applicable
 
 # Running the project locally (no Docker)
 
@@ -26,10 +29,12 @@ is driven by `backend/local/dev.sh`, which runs Postgres, Redis and RabbitMQ as
 Homebrew processes (data under `backend/local/data`) and every service straight out
 of its own `.venv`. The Next.js frontend is started by the same script.
 
-`backend/.env.local` holds the no-Docker overrides (`POSTGRES_HOST=127.0.0.1`,
-`*_SERVICE_URL=http://127.0.0.1:80xx`, …) and is layered on top of `backend/.env`.
+`backend/.env` is the single source of configuration and holds the local values
+(`POSTGRES_HOST=127.0.0.1`, `*_SERVICE_URL=http://127.0.0.1:80xx`, …). There is no
+`.env.local` any more.
 
 ## First-time setup
+
 ```bash
 cd backend
 ./local/dev.sh install          # brew: postgresql@16, redis, rabbitmq
@@ -80,7 +85,7 @@ FRONTEND_PORT=3000 ./local/dev.sh up frontend   # default is 30000
 ```
 
 admin-js (`backend/admin-js-service`) runs `npm run start:local`: it compiles and
-reads `backend/.env` then `.env.local` through node's own `--env-file`, with the
+reads `backend/.env` through node's own `--env-file`, with the
 host-specific values (Redis host, gateway URL, port) pinned by `dev.sh`. It needs
 `COOKIE_SECRET`, `ADMINJS_SERVICE_REDIS_DB` and `ADMINJS_SERVICE_REDIS_PREFIX` in
 `backend/.env` and refuses to start, naming the missing ones, without them.
@@ -96,24 +101,23 @@ Manifest`), which 500s roughly 40% of renders. Those 500s surface as an unstyled
 page, because the `/_error` fallback ships no stylesheet. Do not drop the flag
 without re-testing repeated reloads; `next build` is unaffected.
 
-
 # Local service URLs
 
-| Process | URL |
-| --- | --- |
-| Frontend (Next.js) | `http://localhost:30000` |
-| API Gateway | `http://127.0.0.1:8000` — the only entry point the frontend calls |
-| user-service | `http://127.0.0.1:8001` |
-| product-service | `http://127.0.0.1:8002` |
-| notification-service | `http://127.0.0.1:8003` |
-| order-service | `http://127.0.0.1:8005` |
-| payment-service | `http://127.0.0.1:8006` |
-| cart-service | `http://127.0.0.1:8007` |
-| shipping-service | `http://127.0.0.1:8008` |
-| wishlist-service | `http://127.0.0.1:8009` |
-| supplier-service | `http://127.0.0.1:8010` |
-| cj-mcp (CJ Dropshipping MCP) | `http://127.0.0.1:3009/mcp` — health at `/health` |
-| admin-js (AdminJS) | `http://localhost:3001/admin` — log in with an admin account |
+| Process                      | URL                                                               |
+| ---------------------------- | ----------------------------------------------------------------- |
+| Frontend (Next.js)           | `http://localhost:30000`                                          |
+| API Gateway                  | `http://127.0.0.1:8000` — the only entry point the frontend calls |
+| user-service                 | `http://127.0.0.1:8001`                                           |
+| product-service              | `http://127.0.0.1:8002`                                           |
+| notification-service         | `http://127.0.0.1:8003`                                           |
+| order-service                | `http://127.0.0.1:8005`                                           |
+| payment-service              | `http://127.0.0.1:8006`                                           |
+| cart-service                 | `http://127.0.0.1:8007`                                           |
+| shipping-service             | `http://127.0.0.1:8008`                                           |
+| wishlist-service             | `http://127.0.0.1:8009`                                           |
+| supplier-service             | `http://127.0.0.1:8010`                                           |
+| cj-mcp (CJ Dropshipping MCP) | `http://127.0.0.1:3009/mcp` — health at `/health`                 |
+| admin-js (AdminJS)           | `http://localhost:3001/admin` — log in with an admin account      |
 
 Every FastAPI app serves Swagger at `/docs` and its routes under `/api/v1`.
 The gateway exposes `/health`; the services expose `/health/live` and `/health/ready`.
@@ -135,7 +139,6 @@ Only reachable when the Docker stack is up, i.e. **not** in the local setup:
 PgAdmin `http://localhost:5050`, Traefik dashboard `http://localhost:8090/dashboard`,
 Prometheus Alertmanager `http://localhost:9093`, Grafana / Tempo / Loki /
 otel-collector.
-
 
 # Running the tests locally
 

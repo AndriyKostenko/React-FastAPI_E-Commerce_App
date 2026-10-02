@@ -442,3 +442,23 @@ export const products = [
     reviews: [{ rating: 2.3 }],
   },
 ];
+
+// ── Auth errors shown on /login ──────────────────────────────────────────────
+
+/** Query param lib/auth.ts uses to hand a backend message to the login page. */
+export const AUTH_ERROR_PARAM = "authError";
+export const AUTH_ERROR_MAX_LENGTH = 200;
+
+/**
+ * NextAuth's own `?error=` codes: they come from failures before our callbacks
+ * run (OAuth handshake, provider config), so there is no backend message.
+ */
+export const NEXTAUTH_ERROR_MESSAGES: Readonly<Record<string, string>> = {
+    OAuthSignin: "Could not start Google sign-in. Please try again.",
+    OAuthCallback: "Google sign-in was interrupted. Please try again.",
+    OAuthAccountNotLinked: "This email is already linked to another sign-in method.",
+    AccessDenied: "Sign-in was denied.",
+    CredentialsSignin: "Incorrect email or password.",
+    Callback: "Sign-in failed. Please try again.",
+    Default: "Sign-in failed. Please try again.",
+};

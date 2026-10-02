@@ -429,13 +429,21 @@ class ApiGateway:
         *(header.lower() for header in LEGACY_IDENTITY_HEADERS),
     })
 
-    @staticmethod
-    def _passthrough_headers(headers) -> dict[str, str]:
-        """Copy upstream headers minus the ones that describe a body we drop."""
+    # Headers describing the upstream body's bytes. httpx has already decoded
+    # that body and the gateway re-serialises (or drops) it, so none of them
+    # hold for what is actually sent: a copied `content-encoding: gzip` on
+    # plain JSON makes browsers fail to decode the response entirely.
+    _BODY_FRAMING_HEADERS: frozenset[str] = frozenset({
+        "content-length", "content-type", "content-encoding", "transfer-encoding",
+    })
+
+    @classmethod
+    def _passthrough_headers(cls, headers) -> dict[str, str]:
+        """Copy upstream headers minus the ones that describe the upstream body's bytes."""
         return {
             key: value
             for key, value in headers.items()
-            if key.lower() not in {"content-length", "content-type", "transfer-encoding"}
+            if key.lower() not in cls._BODY_FRAMING_HEADERS
         }
 
     def _prepare_headers(self, request: Request, new_content_type=None):
@@ -557,7 +565,7 @@ class ApiGateway:
             return JSONResponse(
                 content=content,
                 status_code=response.status_code,
-                headers=dict(response.headers)
+                headers=self._passthrough_headers(response.headers),
             )
 
         except HTTPStatusError as e:

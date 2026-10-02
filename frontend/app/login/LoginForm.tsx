@@ -1,7 +1,7 @@
 'use client';
 
 import { LoginFormProps } from "@/types/auth";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Input from "@/components/ui/Input";
 import { FieldValues, SubmitHandler, useForm } from "react-hook-form";
 import Link from "next/link";
@@ -10,8 +10,9 @@ import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { MdAutoAwesome, MdVisibility, MdVisibilityOff } from "react-icons/md";
 import { FcGoogle } from "react-icons/fc";
+import { NEXTAUTH_ERROR_MESSAGES } from "@/utils/constants";
 
-const LoginForm:React.FC<LoginFormProps> = ({currentUser}) => {
+const LoginForm:React.FC<LoginFormProps> = ({currentUser, authError}) => {
     const [isLoading, setIsLoading] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
     const {register, handleSubmit, formState: {errors}} = useForm<FieldValues>({
@@ -30,6 +31,17 @@ const LoginForm:React.FC<LoginFormProps> = ({currentUser}) => {
         }
     });
 
+    // Show a redirected sign-in failure (e.g. Google) once, then drop it from
+    // the URL so a reload doesn't repeat it.  The ref guards StrictMode's
+    // double-run of effects in development.
+    const shownAuthError = useRef(false);
+    useEffect(() => {
+        if (!authError || shownAuthError.current) return;
+        shownAuthError.current = true;
+        toast.error(authError);
+        router.replace('/login');
+    }, [authError, router]);
+
     const onSubmit:SubmitHandler<FieldValues> = async (data) => {
         setIsLoading(true);
 
@@ -45,8 +57,10 @@ const LoginForm:React.FC<LoginFormProps> = ({currentUser}) => {
                 toast.success('You are Logged in!');
             }
 
+            // authorize() throws the backend's message; a bare NextAuth code
+            // (no backend reached) is translated instead of shown raw.
             if (callback?.error) {
-                toast.error(callback.error);
+                toast.error(NEXTAUTH_ERROR_MESSAGES[callback.error] ?? callback.error);
             }
         });
     };

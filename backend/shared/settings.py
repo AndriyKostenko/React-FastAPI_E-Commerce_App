@@ -1,28 +1,26 @@
+from datetime import datetime
 from decimal import Decimal
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, ClassVar, Literal
+from typing import ClassVar, Literal
 from uuid import UUID, uuid4
-from datetime import datetime
 
-from sqlalchemy.engine import URL
-from pydantic import AliasChoices, HttpUrl, SecretStr, DirectoryPath, Field
+from pydantic import AliasChoices, DirectoryPath, Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from shared.enums.status_enums import OrderDeliveryStatus, OrderStatus
+from sqlalchemy.engine import URL
 
-from shared.enums.status_enums import OrderStatus, OrderDeliveryStatus
-
-# Resolve the single shared .env that lives one level above this file (backend/.env)
+# Resolve the single shared .env that lives one level above this file (backend/.env).
+# It is the one source of configuration; real environment variables (compose's
+# env_file:) still take precedence over it.
 _ROOT_ENV = Path(__file__).resolve().parents[1] / ".env"
-
-_LOCAL_ENV = Path(__file__).resolve().parents[1] / ".env.local"
-
 
 
 class Settings(BaseSettings):
     model_config: SettingsConfigDict = SettingsConfigDict(
-        env_file=(_ROOT_ENV, _LOCAL_ENV),
+        env_file=_ROOT_ENV,
         env_file_encoding="utf-8",
-        extra="ignore",   # ignore vars in .env that aren't declared on this model
+        extra="ignore",  # ignore vars in .env that aren't declared on this model
     )
 
     # Application configuration
@@ -44,12 +42,14 @@ class Settings(BaseSettings):
     SUPPLIER_SERVICE_APP_PORT: int
 
     DEBUG_MODE: bool
-    SECURE_COOKIES: bool # Set True in production (requires HTTPS)
+    SECURE_COOKIES: bool  # Set True in production (requires HTTPS)
 
     # PostgreSQL connection pool tuning — used by PoolSettingsCalculator
-    PG_MAX_CONNECTIONS: int = 100       # must match postgresql.conf max_connections
-    PG_RESERVED_CONNECTIONS: int = 5    # reserved for superuser / admin / monitoring
-    PG_DB_SERVICES_COUNT: int = 9       # number of microservices sharing the same Postgres instance
+    PG_MAX_CONNECTIONS: int = 100  # must match postgresql.conf max_connections
+    PG_RESERVED_CONNECTIONS: int = 5  # reserved for superuser / admin / monitoring
+    PG_DB_SERVICES_COUNT: int = (
+        9  # number of microservices sharing the same Postgres instance
+    )
     ALLOWED_HOSTS: list[str]
     # Hostnames a service answers to from inside the mesh. Service-to-service
     # calls address each other by their container DNS name, so that name is a
@@ -279,7 +279,7 @@ class Settings(BaseSettings):
     # Google OAuth
     GOOGLE_CLIENT_ID: str
 
-    #AdminJs
+    # AdminJs
     ADMINJS_SERVICE_TOKEN: SecretStr | None = None
 
     # OpenRouter image generation
@@ -366,11 +366,15 @@ class Settings(BaseSettings):
 
     @property
     def GATEWAY_ASSERTION_SIGNING_KEY_PEM(self) -> str:
-        return self._reveal(self.GATEWAY_ASSERTION_PRIVATE_KEY, "GATEWAY_ASSERTION_PRIVATE_KEY")
+        return self._reveal(
+            self.GATEWAY_ASSERTION_PRIVATE_KEY, "GATEWAY_ASSERTION_PRIVATE_KEY"
+        )
 
     @property
     def GATEWAY_ASSERTION_VERIFYING_KEY_PEM(self) -> str:
-        return self._reveal(self.GATEWAY_ASSERTION_PUBLIC_KEY, "GATEWAY_ASSERTION_PUBLIC_KEY")
+        return self._reveal(
+            self.GATEWAY_ASSERTION_PUBLIC_KEY, "GATEWAY_ASSERTION_PUBLIC_KEY"
+        )
 
     @property
     def OPENROUTER_KEY(self) -> str:
@@ -390,7 +394,7 @@ class Settings(BaseSettings):
 
     # Other
     SECRET_ROLE: str
-    POLLING_INTERVAL_FROM_DB: int | float
+    POLLING_INTERVAL_FROM_DB: int | float = 5
     CUSTOM_TSHIRT_BASE_PRICE: float
     # Flat CAD rate charged once per order for lines shipped from here:
     # in-house custom prints and local-warehouse catalog goods.
@@ -402,12 +406,22 @@ class Settings(BaseSettings):
 
     # CJDropshipping
     CJ_DROPSHIPPING_API_KEY: SecretStr | None = None
-    CJ_DROPSHIPPING_ACCESS_TOKEN_URL: str = "https://developers.cjdropshipping.com/api2.0/v1/authentication/getAccessToken"
-    CJ_DROPSHIPPING_PRODUCT_LIST_URL: str = "https://developers.cjdropshipping.com/api2.0/v1/product/listV2"
-    CJ_DROPSHIPPING_CATEGORY_LIST_URL: str = "https://developers.cjdropshipping.com/api2.0/v1/product/getCategory"
-    CJ_DROPSHIPPING_PRODUCT_INFO_URL: str = "https://developers.cjdropshipping.com/api2.0/v1/product/query"
+    CJ_DROPSHIPPING_ACCESS_TOKEN_URL: str = (
+        "https://developers.cjdropshipping.com/api2.0/v1/authentication/getAccessToken"
+    )
+    CJ_DROPSHIPPING_PRODUCT_LIST_URL: str = (
+        "https://developers.cjdropshipping.com/api2.0/v1/product/listV2"
+    )
+    CJ_DROPSHIPPING_CATEGORY_LIST_URL: str = (
+        "https://developers.cjdropshipping.com/api2.0/v1/product/getCategory"
+    )
+    CJ_DROPSHIPPING_PRODUCT_INFO_URL: str = (
+        "https://developers.cjdropshipping.com/api2.0/v1/product/query"
+    )
     CJ_DROPSHIPPING_INVENTORY_URL: str = "https://developers.cjdropshipping.com/api2.0/v1/product/stock/getInventoryByPid"
-    CJ_DROPSHIPPING_VARIANT_INVENTORY_URL: str = "https://developers.cjdropshipping.com/api2.0/v1/product/stock/queryByVid"
+    CJ_DROPSHIPPING_VARIANT_INVENTORY_URL: str = (
+        "https://developers.cjdropshipping.com/api2.0/v1/product/stock/queryByVid"
+    )
     CJ_DROPSHIPPING_BASE_URL: str = "https://developers.cjdropshipping.com/api2.0/v1"
     CJ_DROPSHIPPING_USE_DEFAULT_CATEGORY: bool = False
     CJ_DROPSHIPPING_DEFAULT_CATEGORY_NAME: str = "t-shirts"
@@ -441,9 +455,15 @@ class Settings(BaseSettings):
     CJ_DROPSHIPPING_REQUEST_TIMEOUT_SECONDS: float = 30.0
 
     # CJ Dropshipping order creation
-    CJ_DROPSHIPPING_CREATE_ORDER_URL: str = "https://developers.cjdropshipping.com/api2.0/v1/shopping/order/createOrderV2"
-    CJ_DROPSHIPPING_ORDER_DETAIL_URL: str = "https://developers.cjdropshipping.com/api2.0/v1/shopping/order/getOrderDetail"
-    CJ_DROPSHIPPING_DELETE_ORDER_URL: str = "https://developers.cjdropshipping.com/api2.0/v1/shopping/order/deleteOrder"
+    CJ_DROPSHIPPING_CREATE_ORDER_URL: str = (
+        "https://developers.cjdropshipping.com/api2.0/v1/shopping/order/createOrderV2"
+    )
+    CJ_DROPSHIPPING_ORDER_DETAIL_URL: str = (
+        "https://developers.cjdropshipping.com/api2.0/v1/shopping/order/getOrderDetail"
+    )
+    CJ_DROPSHIPPING_DELETE_ORDER_URL: str = (
+        "https://developers.cjdropshipping.com/api2.0/v1/shopping/order/deleteOrder"
+    )
     CJ_DROPSHIPPING_DEFAULT_LOGISTIC_NAME: str = "CJPacket"
     # Where CJ goods ship from (US warehouses only) and where the store sells
     # (Canada only) are fixed in shared.contracts.shipping_region, not here:
@@ -452,9 +472,15 @@ class Settings(BaseSettings):
     # 3 = create only. Confirmation and balance payment then run as separate,
     # individually recorded steps (see CJOrderPaymentService).
     CJ_DROPSHIPPING_PAY_TYPE: int = 3  # 1=page payment, 2=balance, 3=create only
-    CJ_DROPSHIPPING_CONFIRM_ORDER_URL: str = "https://developers.cjdropshipping.com/api2.0/v1/shopping/order/confirmOrder"
-    CJ_DROPSHIPPING_BALANCE_URL: str = "https://developers.cjdropshipping.com/api2.0/v1/shopping/pay/getBalance"
-    CJ_DROPSHIPPING_PAY_BALANCE_URL: str = "https://developers.cjdropshipping.com/api2.0/v1/shopping/pay/payBalance"
+    CJ_DROPSHIPPING_CONFIRM_ORDER_URL: str = (
+        "https://developers.cjdropshipping.com/api2.0/v1/shopping/order/confirmOrder"
+    )
+    CJ_DROPSHIPPING_BALANCE_URL: str = (
+        "https://developers.cjdropshipping.com/api2.0/v1/shopping/pay/getBalance"
+    )
+    CJ_DROPSHIPPING_PAY_BALANCE_URL: str = (
+        "https://developers.cjdropshipping.com/api2.0/v1/shopping/pay/payBalance"
+    )
     # CJ's bill may exceed the expected product cost plus quoted freight by this
     # fraction before payment is held for review instead of sent.
     CJ_ORDER_COST_TOLERANCE: Decimal = Field(default=Decimal("0.15"), ge=0, le=1)
@@ -472,14 +498,20 @@ class Settings(BaseSettings):
     # created), and `./local/dev.sh cj-sandbox` moves an order to shipped /
     # delivered. Never on in production: nothing sold would ever ship.
     CJ_DROPSHIPPING_SANDBOX: bool = False
-    CJ_DROPSHIPPING_SANDBOX_SIMULATE_PAY_URL: str = "https://developers.cjdropshipping.com/api2.0/v1/shopping/sandbox/simulatePay"
-    CJ_DROPSHIPPING_SANDBOX_UPDATE_STATUS_URL: str = "https://developers.cjdropshipping.com/api2.0/v1/shopping/sandbox/updateStatus"
+    CJ_DROPSHIPPING_SANDBOX_SIMULATE_PAY_URL: str = (
+        "https://developers.cjdropshipping.com/api2.0/v1/shopping/sandbox/simulatePay"
+    )
+    CJ_DROPSHIPPING_SANDBOX_UPDATE_STATUS_URL: str = (
+        "https://developers.cjdropshipping.com/api2.0/v1/shopping/sandbox/updateStatus"
+    )
     CJ_DROPSHIPPING_SANDBOX_UPDATE_TRACK_NUMBER_URL: str = "https://developers.cjdropshipping.com/api2.0/v1/shopping/sandbox/updateTrackNumber"
     CJ_DROPSHIPPING_ORDER_CREATE_RETRIES: int = 2
     CJ_DROPSHIPPING_ORDER_CREATE_TIMEOUT_SECONDS: float = 15.0
 
     # CJ Dropshipping checkout-time freight quotes
-    CJ_DROPSHIPPING_FREIGHT_CALCULATE_URL: str = "https://developers.cjdropshipping.com/api2.0/v1/logistic/freightCalculate"
+    CJ_DROPSHIPPING_FREIGHT_CALCULATE_URL: str = (
+        "https://developers.cjdropshipping.com/api2.0/v1/logistic/freightCalculate"
+    )
     CJ_DROPSHIPPING_FREIGHT_TIMEOUT_SECONDS: float = 15.0
     # Quotes are stable for minutes, not seconds; caching keeps checkout snappy
     # and stays well inside CJ's per-endpoint rate limits.
@@ -487,25 +519,27 @@ class Settings(BaseSettings):
     CJ_DROPSHIPPING_FREIGHT_CACHE_MAX_ENTRIES: int = 512
 
     # CJ Dropshipping post-creation order tracking
-    CJ_DROPSHIPPING_TRACK_INFO_URL: str = "https://developers.cjdropshipping.com/api2.0/v1/logistic/trackInfo"
+    CJ_DROPSHIPPING_TRACK_INFO_URL: str = (
+        "https://developers.cjdropshipping.com/api2.0/v1/logistic/trackInfo"
+    )
     CJ_DROPSHIPPING_TRACKING_POLL_BATCH_SIZE: int = 50
     CJ_DROPSHIPPING_TRACKING_POLL_INTERVAL_MINUTES: int = 15
     # Stop polling an order that CJ never advanced; it needs human attention.
     CJ_DROPSHIPPING_TRACKING_MAX_AGE_DAYS: int = 90
-    CJ_DROPSHIPPING_TRACKING_URL_TEMPLATE: str = "https://cjpacket.com/track?trackNumber={tracking_number}"
+    CJ_DROPSHIPPING_TRACKING_URL_TEMPLATE: str = (
+        "https://cjpacket.com/track?trackNumber={tracking_number}"
+    )
 
     # CJ Dropshipping shipping-address validation
     CJ_DROPSHIPPING_REJECT_PO_BOX_ADDRESSES: bool = True
 
-
-
-    #--------------RABBITMQ-----------------------
+    # --------------RABBITMQ-----------------------
 
     @property
     def RABBITMQ_BROKER_URL(self):
         return f"amqp://{self.RABBITMQ_USER}:{self.RABBITMQ_PASSWORD}@{self.RABBITMQ_HOST}:{self.RABBITMQ_PORT}"
 
-    #--------------API-GATEWAY-----------------------
+    # --------------API-GATEWAY-----------------------
 
     @property
     def APIGATEWAY_SERVICE_REDIS_URL(self) -> str:
@@ -513,9 +547,11 @@ class Settings(BaseSettings):
 
     @property
     def FULL_API_GATEWAY_SERVICE_URL(self) -> str:
-        return f"{self.API_GATEWAY_SERVICE_URL}{self.API_GATEWAY_SERVICE_URL_API_VERSION}"
+        return (
+            f"{self.API_GATEWAY_SERVICE_URL}{self.API_GATEWAY_SERVICE_URL_API_VERSION}"
+        )
 
-    #--------------USER-SERVICE---------------------
+    # --------------USER-SERVICE---------------------
 
     @property
     def USER_SERVICE_DATABASE_URL(self) -> str | URL:
@@ -533,7 +569,7 @@ class Settings(BaseSettings):
     def USER_SERVICE_REDIS_URL(self) -> str | URL:
         return f"redis://:{self.REDIS_PASSWORD}@{self.REDIS_HOST}:{self.REDIS_PORT}/{self.USER_SERVICE_REDIS_DB}"
 
-    #---------------PRODUCT-SERVICE-------------------
+    # ---------------PRODUCT-SERVICE-------------------
 
     @property
     def PRODUCT_SERVICE_DATABASE_URL(self) -> str:
@@ -551,8 +587,7 @@ class Settings(BaseSettings):
     def PRODUCT_SERVICE_REDIS_URL(self) -> str:
         return f"redis://:{self.REDIS_PASSWORD}@{self.REDIS_HOST}:{self.REDIS_PORT}/{self.PRODUCT_SERVICE_REDIS_DB}"
 
-
-    #---------------NOTIFICATION-SERVICE---------------
+    # ---------------NOTIFICATION-SERVICE---------------
 
     @property
     def NOTIFICATION_SERVICE_DATABASE_URL(self) -> str:
@@ -574,15 +609,12 @@ class Settings(BaseSettings):
     def NOTIFICATION_SERVICE_REDIS_RESULT_BACKEND_URL(self) -> str:
         return f"redis://:{self.REDIS_PASSWORD}@{self.REDIS_HOST}:{self.REDIS_PORT}/{self.NOTIFICATION_SERVICE_REDIS_BACKEND_RESULT_DB}"
 
-
-    #-------------NOTIFICATION-CONSUMER-SERVICE----------------
+    # -------------NOTIFICATION-CONSUMER-SERVICE----------------
     @property
     def FULL_NOTIFICATION_CONSUMER_SERVICE_URL(self) -> str:
         return f"{self.NOTIFICATION_CONSUMER_SERVICE_URL}{self.NOTIFICATION_CONSUMER_SERVICE_URL_API_VERSION}"
 
-
-
-    #---------------ORDER-SERVICE-------------------
+    # ---------------ORDER-SERVICE-------------------
 
     @property
     def ORDER_SERVICE_DATABASE_URL(self) -> str:
@@ -600,8 +632,7 @@ class Settings(BaseSettings):
     def FULL_ORDER_SERVICE_URL(self) -> str:
         return f"{self.ORDER_SERVICE_URL}{self.ORDER_SERVICE_URL_API_VERSION}"
 
-
-    #---------------PAYMENT-SERVICE-------------------
+    # ---------------PAYMENT-SERVICE-------------------
 
     @property
     def PAYMENT_SERVICE_DATABASE_URL(self) -> str:
@@ -623,8 +654,7 @@ class Settings(BaseSettings):
     def FULL_STRIPE_WEBHOOK_ENDPOINT(self) -> str:
         return f"https://{self.APP_HOST}{self.PAYMENT_SERVICE_URL_API_VERSION}/payments/webhook"
 
-
-    #---------------CART-SERVICE-------------------
+    # ---------------CART-SERVICE-------------------
 
     @property
     def CART_SERVICE_DATABASE_URL(self) -> str:
@@ -642,8 +672,7 @@ class Settings(BaseSettings):
     def FULL_CART_SERVICE_URL(self) -> str:
         return f"{self.CART_SERVICE_URL}{self.CART_SERVICE_URL_API_VERSION}"
 
-
-    #---------------SHIPPING-SERVICE-------------------
+    # ---------------SHIPPING-SERVICE-------------------
 
     @property
     def SHIPPING_SERVICE_DATABASE_URL(self) -> str:
@@ -661,8 +690,7 @@ class Settings(BaseSettings):
     def FULL_SHIPPING_SERVICE_URL(self) -> str:
         return f"{self.SHIPPING_SERVICE_URL}{self.SHIPPING_SERVICE_URL_API_VERSION}"
 
-
-    #---------------WISHLIST-SERVICE-------------------
+    # ---------------WISHLIST-SERVICE-------------------
 
     @property
     def WISHLIST_SERVICE_DATABASE_URL(self) -> str:
@@ -680,7 +708,7 @@ class Settings(BaseSettings):
     def FULL_WISHLIST_SERVICE_URL(self) -> str:
         return f"{self.WISHLIST_SERVICE_URL}{self.WISHLIST_SERVICE_URL_API_VERSION}"
 
-    #---------------SUPPLIER-SERVICE-------------------
+    # ---------------SUPPLIER-SERVICE-------------------
 
     @property
     def SUPPLIER_SERVICE_DATABASE_URL(self) -> str:
@@ -702,7 +730,7 @@ class Settings(BaseSettings):
     def FULL_SUPPLIER_SERVICE_URL(self) -> str:
         return f"{self.SUPPLIER_SERVICE_URL}{self.SUPPLIER_SERVICE_URL_API_VERSION}"
 
-    #------------CJDropshipping------------------------
+    # ------------CJDropshipping------------------------
 
     @property
     def CJ_DROPSHIPPING_AUTH_PAYLOAD(self) -> dict[str, str]:
@@ -711,7 +739,6 @@ class Settings(BaseSettings):
     @property
     def CJ_DROPSHIPPING_JSON_HEADERS(self) -> dict[str, str]:
         return {"Content-Type": "application/json"}
-
 
 
 class TestSettings(BaseSettings):
@@ -853,17 +880,27 @@ class TestSettings(BaseSettings):
         "date_updated": None,
     }
 
-    MOCK_UPSTREAM_RESPONSE_BODY: dict[str, str] = {"status": "ok", "data": "upstream_result"}
+    MOCK_UPSTREAM_RESPONSE_BODY: dict[str, str] = {
+        "status": "ok",
+        "data": "upstream_result",
+    }
 
     # ── Auth request payload helpers ─────────────────────────────────────────
-    REGISTER_PAYLOAD: dict[str, str] = {"name": "Test User", "email": "test@example.com", "password": "Password123!"}
-    LOGIN_DATA: dict[str, str] = {"username": "test@example.com", "password": "secret123"}
+    REGISTER_PAYLOAD: dict[str, str] = {
+        "name": "Test User",
+        "email": "test@example.com",
+        "password": "Password123!",
+    }
+    LOGIN_DATA: dict[str, str] = {
+        "username": "test@example.com",
+        "password": "secret123",
+    }
 
 
-
-@lru_cache()
+@lru_cache
 def get_settings():
     return Settings()
+
 
 @lru_cache
 def get_test_settings():

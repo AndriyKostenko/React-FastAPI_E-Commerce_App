@@ -2,6 +2,15 @@ import { AuthOptions, User } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
 import { settings } from "@/lib/config";
+import { ApiError } from "@/lib/api-error";
+import { AUTH_ERROR_PARAM, AUTH_ERROR_MAX_LENGTH } from "@/utils/constants";
+
+const LOGIN_FALLBACK = "Sign-in failed. Please try again.";
+const GOOGLE_FALLBACK = "Google sign-in failed. Please try again.";
+
+/** /login with a message the page shows as a toast; truncated to keep the URL sane. */
+const loginErrorUrl = (message: string): string =>
+    `/login?${AUTH_ERROR_PARAM}=${encodeURIComponent(message.slice(0, AUTH_ERROR_MAX_LENGTH))}`;
 
 // adding jwt, user role and token expiry to the User object
 interface CustomUser extends User {
@@ -70,50 +79,55 @@ export const authOptions: AuthOptions = {
                 throw new Error('Invalid email or password!');
             }
 
-            try {
-                const formData = new URLSearchParams();
-                formData.append('username', credentials.email);
-                formData.append('password', credentials.password);
+            const formData = new URLSearchParams();
+            formData.append('username', credentials.email);
+            formData.append('password', credentials.password);
 
-                const response = await fetch(settings.api.endpoints.authLogin, {
+            let response: Response;
+            try {
+                response = await fetch(settings.api.endpoints.authLogin, {
                     method: "POST",
                     headers: { "Content-Type": "application/x-www-form-urlencoded" },
                     body: formData.toString(),
                 });
-
-                if (!response.ok) {
-                    throw new Error('Something went wrong');
-                }
-
-                const data = await response.json();
-
-                // access_token is returned in the body by the gateway (alongside the HttpOnly cookie).
-                // refresh_token is cookie-only and never exposed here.
-                const jwt = data['access_token'];
-                const role = data['user_role'];
-                const token_expiry = data['token_expiry'];
-                const userId = data['user_id'];
-
-                if (!jwt) {
-                    console.error('authorize(): no access_token in response body');
-                    return null;
-                }
-
-                return { id: userId, email: credentials.email, jwt, role, token_expiry } as CustomUser;
-
-            } catch {
-                return null;
+            } catch (error) {
+                throw ApiError.from(error, LOGIN_FALLBACK);
             }
+
+            // A thrown Error's message reaches signIn({redirect:false}) as `error`,
+            // so the backend's own wording ("User is not verified", …) is shown.
+            if (!response.ok) {
+                const apiError = await ApiError.fromResponse(response, LOGIN_FALLBACK);
+                console.error('authorize(): login failed', apiError.status, apiError.message);
+                throw apiError;
+            }
+
+            const data = await response.json();
+
+            // access_token is returned in the body by the gateway (alongside the HttpOnly cookie).
+            // refresh_token is cookie-only and never exposed here.
+            const jwt = data['access_token'];
+            const role = data['user_role'];
+            const token_expiry = data['token_expiry'];
+            const userId = data['user_id'];
+
+            if (!jwt) {
+                console.error('authorize(): no access_token in response body');
+                throw new Error(LOGIN_FALLBACK);
+            }
+
+            return { id: userId, email: credentials.email, jwt, role, token_expiry } as CustomUser;
         },
     }),
   ],
   callbacks: {
     // Exchange the Google ID token with the backend before persisting the session.
-    // Returning false rejects the sign-in entirely — no half-authenticated state possible.
+    // A failure returns a redirect URL, which cancels the sign-in entirely (no
+    // half-authenticated state) and carries the backend's message to /login.
     signIn: async ({ account }) => {
         if (account?.provider === 'google') {
             const idToken = account.id_token;
-            if (!idToken) return false;
+            if (!idToken) return loginErrorUrl(GOOGLE_FALLBACK);
 
             try {
                 const response = await fetch(settings.api.endpoints.googleLogin, {
@@ -122,7 +136,7 @@ export const authOptions: AuthOptions = {
                     body: JSON.stringify({ id_token: idToken }),
                 });
 
-                if (!response.ok) return false;
+                if (!response.ok) throw await ApiError.fromResponse(response, GOOGLE_FALLBACK);
 
                 const data = await response.json();
 
@@ -131,8 +145,10 @@ export const authOptions: AuthOptions = {
                 (account as Record<string, unknown>).backendRole = data['user_role'];
                 (account as Record<string, unknown>).backendTokenExpiry = data['token_expiry'];
                 (account as Record<string, unknown>).backendUserId = data['user_id'];
-            } catch {
-                return false;
+            } catch (error) {
+                const apiError = ApiError.from(error, GOOGLE_FALLBACK);
+                console.error('signIn(google): backend exchange failed', apiError.status, apiError.message);
+                return loginErrorUrl(apiError.message);
             }
         }
         return true;
