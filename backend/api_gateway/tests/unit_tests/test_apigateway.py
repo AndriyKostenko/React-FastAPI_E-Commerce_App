@@ -252,6 +252,33 @@ class TestForwardRequest:
         call_kwargs = mock_http_client.request.call_args.kwargs
         assert call_kwargs["json"] == override
 
+    async def test_raw_body_reaches_the_service_byte_for_byte(self):
+        """A Stripe webhook is verified over the exact bytes Stripe signed.
+
+        Parsing the JSON and re-serialising it (spacing, key order, unicode
+        escapes) made every webhook fail its signature check in payment-service.
+        """
+        signed = b'{"id": "evt_1",  "object":"event", "data": {"object": {"name": "Caf\\u00e9"}}}'
+        req = self._make_mock_request("POST", "/api/v1/payments/webhook")
+        req.headers = {"content-type": "application/json; charset=utf-8", "stripe-signature": "t=1,v1=abc"}
+        req.body = AsyncMock(return_value=signed)
+
+        mock_response = MagicMock(spec=HttpxResponse)
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"received": True}
+        mock_response.headers = {}
+        mock_http_client = AsyncMock()
+        mock_http_client.request = AsyncMock(return_value=mock_response)
+
+        with patch.object(self.gw, "_http_client", mock_http_client):
+            await self.gw.forward_request(request=req, service_name="payment-service", raw_body=True)
+
+        sent = mock_http_client.request.call_args.kwargs
+        assert sent["content"] == signed
+        assert "json" not in sent and "data" not in sent
+        assert sent["headers"]["stripe-signature"] == "t=1,v1=abc"
+        assert sent["headers"]["Content-Type"] == "application/json; charset=utf-8"
+
     async def test_image_generation_path_uses_standard_timeout(self):
         # Image-generation POST now returns 202 immediately; the background task
         # handles long-running work, so the gateway uses the standard timeout.

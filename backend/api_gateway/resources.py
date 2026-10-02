@@ -123,11 +123,14 @@ class RequestScopedGateway:
         request: Request,
         service_name: str,
         override_body: dict[str, Any] | None = None,
+        *,
+        raw_body: bool = False,
     ) -> Any:
         return await get_api_gateway(request).forward_request(
             request=request,
             service_name=service_name,
             override_body=override_body,
+            raw_body=raw_body,
         )
 
     async def request_service(
