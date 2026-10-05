@@ -465,7 +465,7 @@ class Settings(BaseSettings):
         "https://developers.cjdropshipping.com/api2.0/v1/shopping/order/deleteOrder"
     )
     CJ_DROPSHIPPING_DEFAULT_LOGISTIC_NAME: str = "CJPacket"
-    # Where CJ goods ship from (US warehouses only) and where the store sells
+    # Where CJ goods ship from (China warehouses only) and where the store sells
     # (Canada only) are fixed in shared.contracts.shipping_region, not here:
     # the old CJ_DROPSHIPPING_DEFAULT_FROM_COUNTRY_CODE and
     # CJ_DROPSHIPPING_SUPPORTED_COUNTRY_CODES are no longer read.

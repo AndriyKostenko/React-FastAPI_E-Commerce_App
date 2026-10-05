@@ -2,7 +2,6 @@ from typing import Any
 
 from faststream import FastStream
 from faststream.rabbit.annotations import RabbitMessage
-from orjson import loads
 
 from config import logger, settings
 from events_consumer.payment_event_consumer import PaymentEventConsumer
@@ -68,15 +67,19 @@ payment_order_events_queue = topology.queue(
 
 
 @rabbitmq_broker.subscriber(queue=payment_order_events_queue.queue, exchange=order_exchange)
-async def handle_payment_events(body: str, message: RabbitMessage) -> None:
+async def handle_payment_events(body: dict[str, Any], message: RabbitMessage) -> None:
     """
     FastStream subscriber for order events that require payment action.
     Delegates to PaymentEventConsumer for business logic.
+
+    The body arrives already decoded: publishers send JSON, so FastStream
+    hands over a dict. Declaring it ``str`` failed validation on every
+    message, which went straight to the dead-letter queue.
     """
     await topology.dispatch(
         payment_order_events_queue,
         message,
-        lambda: get_payment_event_consumer().handle_payment_event(loads(body)),
+        lambda: get_payment_event_consumer().handle_payment_event(body),
     )
 
 
@@ -90,10 +93,10 @@ payment_commands_queue = topology.queue(
 
 
 @rabbitmq_broker.subscriber(queue=payment_commands_queue.queue, exchange=order_exchange)
-async def handle_payment_commands(body: str, message: RabbitMessage) -> None:
+async def handle_payment_commands(body: dict[str, Any], message: RabbitMessage) -> None:
     """FastStream subscriber for capture and release commands from order_service."""
     await topology.dispatch(
         payment_commands_queue,
         message,
-        lambda: get_payment_event_consumer().handle_payment_event(loads(body)),
+        lambda: get_payment_event_consumer().handle_payment_event(body),
     )

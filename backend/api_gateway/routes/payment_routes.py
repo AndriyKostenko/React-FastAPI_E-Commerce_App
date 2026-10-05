@@ -24,9 +24,12 @@ payment_proxy = APIRouter(tags=["Payment Service Proxy"])
 )
 async def stripe_webhook(request: Request) -> JSONResponse:
     """Public endpoint — Stripe sends signed webhook events here directly."""
+    # Stripe signs the exact bytes it sent, so they must reach payment-service
+    # untouched; a re-serialised JSON body never verifies.
     return await api_gateway_manager.forward_request(
         request=request,
         service_name=Services.PAYMENT_SERVICE,
+        raw_body=True,
     )
 
 

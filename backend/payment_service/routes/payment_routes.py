@@ -80,9 +80,12 @@ async def stripe_webhook(
     dispute_service: payment_dispute_service_dependency,
 ) -> WebhookAckResponse:
     stripe_event = await payment_service.construct_webhook_event(request=request)
-    event_type: str = stripe_event["type"]
-    event_data: dict[str, Any] = stripe_event["data"]
-    event_id: str = stripe_event["id"]
+    # Since stripe-python 15 a StripeObject is no longer a dict, and every
+    # handler reads the payload with .get(): convert the whole tree once.
+    event: dict[str, Any] = stripe_event.to_dict()
+    event_type: str = event["type"]
+    event_data: dict[str, Any] = event["data"]
+    event_id: str = event["id"]
     claimed = await idempotency_service.try_claim_event(event_id=event_id, event_type=event_type)
     if not claimed:
         return WebhookAckResponse(

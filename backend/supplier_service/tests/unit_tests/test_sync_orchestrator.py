@@ -132,7 +132,7 @@ async def test_catalogue_stock_is_the_us_warehouse_stock_not_the_list_total() ->
 
     emitted = outbox.add_outbox_event.await_args.kwargs["payload"].products[0]
     assert (emitted.quantity, emitted.in_stock) == (12, True)
-    # A size with nothing in the US stays listed but cannot be reserved.
+    # A size with nothing in China stays listed but cannot be reserved.
     assert {v.vid: v.inventory_num for v in emitted.variants} == {"V-S": 7, "V-M": 5, "V-L": 0}
 
 
@@ -148,7 +148,7 @@ async def test_a_product_with_no_us_stock_is_not_imported() -> None:
 
     emitted = outbox.add_outbox_event.await_args.kwargs["payload"].products
     assert [product.supplier_pid for product in emitted] == ["us"]
-    assert "no stock in CJ's US warehouse" in state.error_message
+    assert "no stock in CJ's CN warehouse" in state.error_message
 
 
 @pytest.mark.asyncio
@@ -158,7 +158,7 @@ async def test_a_single_product_without_us_stock_is_refused() -> None:
     )
     orchestrator, _, sync_state_repository, outbox = _orchestrator(provider)
 
-    with pytest.raises(SupplierSyncConfigurationError, match="no stock in CJ's US warehouse"):
+    with pytest.raises(SupplierSyncConfigurationError, match="no stock in CJ's CN warehouse"):
         await orchestrator.run_product_sync("cjdropshipping", "china")
 
     outbox.add_outbox_event.assert_not_awaited()

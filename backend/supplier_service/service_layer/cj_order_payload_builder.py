@@ -78,7 +78,7 @@ class CJOrderPayloadBuilder:
             "payType": self.settings.CJ_DROPSHIPPING_PAY_TYPE,
             "platform": self.settings.CJ_DROPSHIPPING_PLATFORM,
             "logisticName": logistic_name,
-            # Ship from CJ's US warehouse: the one stock was verified in.
+            # Ship from CJ's China warehouse: the one stock was verified in.
             "fromCountryCode": CJ_WAREHOUSE_COUNTRY_CODE,
             "products": products,
         }

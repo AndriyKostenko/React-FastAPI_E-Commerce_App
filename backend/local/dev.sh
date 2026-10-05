@@ -387,10 +387,13 @@ start_one() {
   echo "  started $name (pid $!)"
 }
 
+STOPPED_PID=""
 stop_one() {
   local name="$1" pf; pf="$(pid_file "$name")"
+  STOPPED_PID=""
   if proc_running "$name"; then
     local pid; pid="$(cat "$pf")"
+    STOPPED_PID="$pid"
     # Kill the process group first; fall back to the bare pid plus its direct
     # children if this process never became a group leader.
     kill -TERM -"$pid" 2>/dev/null || {
@@ -462,11 +465,27 @@ cmd_logs() {
   tail -n 100 -f "$(log_file "$1")"
 }
 
+# SIGTERM only asks: uvicorn drains for a second or two before it lets go of
+# its port. A restart that starts the new process meanwhile finds the port
+# held and gives up, so wait for the old one (then kill it if it hangs).
+wait_for_exit() {
+  local name="$1" pid="$2" waited=0 limit="${STOP_TIMEOUT:-15}"
+  [ -n "$pid" ] || return 0
+  while kill -0 "$pid" 2>/dev/null && [ "$waited" -lt "$limit" ]; do
+    sleep 1; waited=$((waited + 1))
+  done
+  if kill -0 "$pid" 2>/dev/null; then
+    kill -KILL -"$pid" 2>/dev/null || kill -KILL "$pid" 2>/dev/null || true
+    echo "  killed $name (still running after ${limit}s)"
+  fi
+}
+
 cmd_restart() {
   [ -n "${1:-}" ] || die "restart: name required"
   service_env
   set -m
   stop_one "$1"
+  wait_for_exit "$1" "$STOPPED_PID"
   PORT_CONFLICTS=""
   while IFS='|' read -r name dir cmd; do
     [ "$name" = "$1" ] && start_one "$name" "$dir" "$cmd"

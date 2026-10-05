@@ -478,11 +478,21 @@ class ApiGateway:
         """
         return self._TIMEOUT
 
-    async def forward_request(self, request: Request, service_name: str, override_body: dict[str, Any] | None = None) -> JSONResponse:
+    async def forward_request(
+        self,
+        request: Request,
+        service_name: str,
+        override_body: dict[str, Any] | None = None,
+        *,
+        raw_body: bool = False,
+    ) -> JSONResponse:
         """
         Forward request to microservice using the shared HTTP client.
         Now automatically extracts the correct path based on service mapping.
         If override_body is provided it replaces the request body (sent as JSON).
+        With ``raw_body`` the body is forwarded byte for byte, never parsed:
+        a signed payload (a Stripe webhook) is verified over its exact bytes,
+        and parsing then re-serialising the JSON changes them.
         """
 
         if service_name not in self.config.services:
@@ -499,10 +509,13 @@ class ApiGateway:
         if override_body is not None:
             prepared_body = override_body
             content_type = "application/json"
+        elif raw_body:
+            prepared_body = await request.body()
+            content_type = request.headers.get("content-type")
         else:
             prepared_body, content_type = await self._detect_and_prepare_body(request, service_path)
 
-        if prepared_body:
+        if prepared_body and not raw_body:
             self.logger.debug(f"Prepared body content: {prepared_body}")
 
         # Prepare headers
@@ -528,7 +541,8 @@ class ApiGateway:
                 send_kwargs["files"] = prepared_body.files
                 send_headers = {k: v for k, v in headers.items() if k.lower() != "content-type"}
             elif prepared_body is not None:
-                body_argument = self._BODY_ARGUMENT.get(content_type or "", "content")
+                # Raw bytes always go as-is: json=/data= would re-encode them.
+                body_argument = "content" if raw_body else self._BODY_ARGUMENT.get(content_type or "", "content")
                 send_kwargs[body_argument] = prepared_body
                 if body_argument != "content":
                     send_headers = {k: v for k, v in headers.items() if k.lower() != "content-type"}

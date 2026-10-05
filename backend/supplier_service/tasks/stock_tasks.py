@@ -1,4 +1,4 @@
-"""Hourly refresh of the catalogue's CJ stock from CJ's US warehouses.
+"""Hourly refresh of the catalogue's CJ stock from CJ's China warehouses.
 
 The catalogue sync only ever sees products CJ still lists as stocked in the
 US, so a product that sells out there would keep its old stock forever. This

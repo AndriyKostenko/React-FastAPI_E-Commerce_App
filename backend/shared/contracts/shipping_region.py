@@ -1,8 +1,11 @@
 """
 Where the store sells and where its CJ goods ship from.
 
-The store sells in Canada only, and dropshipped goods come from CJ's US
-warehouses only. Both are business rules rather than tunables: the province
+The store sells in Canada only, and dropshipped goods come from CJ's China
+warehouses only. CJ has no carrier from its US warehouses to Canada (checked
+2026-10-02: zero freight options US->CA for every T-shirt, 16 from CN), and
+its Canadian warehouse stocks almost none of the range. Both are business
+rules rather than tunables: the province
 list and postal-code format below are Canada's, so "Canada" is not a setting
 that could be flipped to another country without code changes.
 
@@ -16,7 +19,7 @@ from dataclasses import dataclass
 
 SHIPPING_COUNTRY_CODE = "CA"
 SHIPPING_COUNTRY_NAME = "Canada"
-CJ_WAREHOUSE_COUNTRY_CODE = "US"
+CJ_WAREHOUSE_COUNTRY_CODE = "CN"
 
 # ISO 3166-2:CA codes. The names are matched case-insensitively, with the
 # French names Quebec is commonly written with.

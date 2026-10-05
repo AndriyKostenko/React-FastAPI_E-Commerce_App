@@ -1,8 +1,8 @@
 """
-Hourly refresh of the catalogue's CJ stock from CJ's US warehouses.
+Hourly refresh of the catalogue's CJ stock from CJ's China warehouses.
 
 The catalogue sync cannot keep stock current on its own: it lists only
-products CJ reports as stocked in the US, so a product that sells out there
+products CJ reports as stocked in China, so a product that sells out there
 drops out of the listing and its catalogue stock is never touched again. This
 refresh starts from what we sell instead (product-service's list of CJ
 products) and asks CJ about every one of them, sold out or not.

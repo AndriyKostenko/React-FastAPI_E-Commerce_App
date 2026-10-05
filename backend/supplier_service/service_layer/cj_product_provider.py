@@ -43,7 +43,7 @@ class CJDropshippingProductProvider(SupplierProvider):
         """
         Search products using the V2 product list endpoint.
 
-        Always limited to products with stock in CJ's US warehouses, whatever
+        Always limited to products with stock in CJ's China warehouses, whatever
         the caller asked for: this is the one door every listing, preview and
         sync goes through.
         """
@@ -72,7 +72,7 @@ class CJDropshippingProductProvider(SupplierProvider):
         return await self.api_client.request("GET", url, access_token=access_token)
 
     async def get_warehouse_stock(self, supplier_pid: str) -> WarehouseStock:
-        """Stock in CJ's US warehouses, in total and per variant."""
+        """Stock in CJ's China warehouses, in total and per variant."""
         return await self.inventory_verifier.fetch_warehouse_stock(supplier_pid)
 
     async def verify_stock(self, supplier_pid: str, requested_quantity: int) -> StockVerificationResult:
