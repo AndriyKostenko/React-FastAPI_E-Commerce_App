@@ -188,7 +188,7 @@ Schema: `supplier_service` migration `c4a7f1d2e9b8` adds the tracking columns
 (it also creates `cj_order_attempts` when absent, since that table had only ever
 been bootstrapped by `create_all`).
 
-### 3a. Canada only; CJ goods from US warehouses only — DONE (2026-09-28)
+### 3a. Canada only; CJ goods from China warehouses only — DONE (2026-09-28, sourcing moved US → China 2026-10-02)
 - **Selling:** `shared.contracts.shipping_region.CanadianAddress` checks every
   shipping address order-service accepts (order and checkout quote) before it is
   priced: country Canada (a missing one is taken as Canada), a real province or
@@ -196,25 +196,32 @@ been bootstrapped by `create_all`).
   Canadian postal code (stored as `A1A 1A1`). Anything else is a 422 before any
   money moves. supplier-service refuses a non-Canadian freight quote and CJ order
   again, whatever reaches it.
-- **Sourcing:** CJ goods come from CJ's US warehouses only. Every product search
-  sends `countryCode=US`; the catalogue sync replaces CJ's list stock (summed over
-  every warehouse) with the US stock per product and per size/colour, and skips a
-  product with none; order-time stock checks count only US rows; freight quotes and
-  CJ orders ship from `US`.
+- **Sourcing:** CJ goods come from CJ's China warehouses only
+  (`CJ_WAREHOUSE_COUNTRY_CODE = "CN"`). Every product search sends
+  `countryCode=CN`; the catalogue sync replaces CJ's list stock (summed over
+  every warehouse) with the China stock per product and per size/colour, and skips
+  a product with none; order-time stock checks count only China rows; freight
+  quotes and CJ orders ship from `CN`.
+- **Why China, not the US (2026-10-02):** CJ has no carrier from its US
+  warehouses to Canada. `freightCalculate` gave 0 US→CA options for every
+  T-shirt (7 US→US); CJ's Canadian warehouse stocks 1 product in our categories;
+  China has 6,000+ products and 16 options to Canada (about USD 4.50–7,
+  4–15 days). The original rule (2026-09-28) was US warehouses only, which left
+  nothing sellable.
 - `CJ_DROPSHIPPING_DEFAULT_FROM_COUNTRY_CODE` (was `CN`) and
   `CJ_DROPSHIPPING_SUPPORTED_COUNTRY_CODES` are gone; the rules live in code.
-- **Stock refresh (2026-09-29):** a product that sells out in the US drops out of
-  the US-filtered listing, so the sync alone never zeroed it. An hourly
+- **Stock refresh (2026-09-29):** a product that sells out in the warehouse
+  country drops out of the country-filtered listing, so the sync alone never zeroed it. An hourly
   supplier-service task (`tasks.stock_tasks.refresh_cj_stock`) now asks CJ about
   every CJ product *we sell* (product-service's `GET /products/stock-keys/{supplier}`,
   supplier-service's signature only) and sends back the sellable US stock per
-  variant (CJ's US stock less `CJ_DROPSHIPPING_INVENTORY_BUFFER`) in
+  variant (CJ's China stock less `CJ_DROPSHIPPING_INVENTORY_BUFFER`) in
   `supplier.stock.updated` batches. product-service sets each variant, the total
   and `in_stock`; `products.stock_checked_at` makes an older measurement a no-op.
   A product CJ could not be asked about keeps its stock. A Postgres advisory lock
   keeps two runs from overlapping. Migration: product `9b4d2e7f1a63`.
   **Trade-off chosen:** the refresh overwrites, so units sold here but not yet
-  ordered from CJ are covered only by the buffer; the order-time US check remains
+  ordered from CJ are covered only by the buffer; the order-time China check remains
   the final gate. **Later:** CJ's STOCK webhook (needs public HTTPS and
   per-product subscription) for near-real-time changes, with this as the backstop;
   a live stock check at the checkout quote.
@@ -225,9 +232,11 @@ them with CJ's `simulatePay` (no wallet balance read or spent); everything
 else runs as for a real order. `./local/dev.sh cj-sandbox ship|deliver
 <order_id>` plays CJ's shipping and runs a tracking poll. The choice is stored
 per order (`cj_order_attempts.is_sandbox`, supplier migration `f3c8a2d6b519`).
-**Not verified against CJ yet:** whether `confirmOrder` accepts a sandbox order
-before `simulatePay`, and which `orderStatus` strings getOrderDetail reports
-for sandbox statuses 300-600; the first end-to-end run answers both.
+**Verified against CJ (2026-10-02):** `confirmOrder` accepts a sandbox order
+before `simulatePay`, and `cj-sandbox ship` (status 500) and `deliver` (600)
+move a sandbox order through the tracking poll to shipped and delivered. CJ
+allows one request per second per account, so the helper waits 1.1s between
+calls.
 
 ### 3b. Checkout → Stripe → CJ money flow — DONE (2026-09-10)
 Branch `feature/checkout-payment-cj-flow`; diagram in `FLOWS.md` →
@@ -261,8 +270,22 @@ Branch `feature/checkout-payment-cj-flow`; diagram in `FLOWS.md` →
 Migrations: product `7c3e9a51d2f4`, order `3d8b6f0e2a91`, supplier `e5b21c7d9f60`.
 **Before going live:** set `CJ_USD_TO_CAD_RATE` / `CJ_PRICE_MARKUP_MULTIPLIER`
 deliberately, prefund the CJ wallet, subscribe the Stripe webhook to
-`payment_intent.amount_capturable_updated`, and run the end-to-end checks
-against Stripe test mode + CJ sandbox (not yet done).
+`payment_intent.amount_capturable_updated`.
+**End-to-end run — DONE (2026-10-02, PR #11)** against Stripe test mode + the CJ
+sandbox. One CJ T-shirt went the whole way: checkout quote → card authorized →
+stock reserved → order confirmed → CJ sandbox order created, confirmed, paid
+(`simulatePay`) → card captured (Stripe Tax sale recorded) → shipped →
+delivered, with the confirmed / shipped / delivered emails sent. Every service
+ended consistent: order `delivered`/`captured`, payment `succeeded` with a tax
+transaction, CJ attempt `delivered`. The run found and fixed two blockers:
+Stripe webhooks never verified (the gateway re-serialised the signed body; the
+handlers read stripe-python 15 objects with `.get()`), and payment-consumer
+dead-lettered every message (subscribers typed the already-decoded body as
+`str`), so no card was ever captured, voided or refunded.
+**Not exercised in that run:** typing a card into the Stripe Payment Element
+(the order was placed through `/checkout` and confirmed with `pm_card_visa`,
+which is what the Element sends); the refund and cancellation paths; an
+in-house custom-print order.
 Stripe Tax is wired in behind `STRIPE_TAX_ENABLED` (off by default, so the
 `tax_amount` slot stays 0 until it is switched on — see §5). (Done 2026-09-25:
 admin partial refunds, dispute recording and alerts; `STRIPE_SECRET_KEY` rename — old name still loads; live USD/CAD from the Bank of Canada, cached, with `CJ_USD_TO_CAD_RATE` as fallback and `CJ_FX_SOURCE=fixed` to opt out.)
@@ -523,7 +546,8 @@ the services), not only in unit tests.
 
 ### 7. Testing & docs
 - No coverage reports, no inter-service contract tests
-- No end-to-end buy-flow test, no security testing (OWASP ZAP etc.)
+- No *automated* end-to-end buy-flow test (one manual live run passed — see §3b),
+  no security testing (OWASP ZAP etc.)
 - No per-service READMEs, no architecture diagram, OpenAPI not curated/published
 
 ---
