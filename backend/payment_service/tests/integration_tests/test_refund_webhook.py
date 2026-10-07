@@ -144,6 +144,7 @@ async def test_a_dashboard_partial_refund_is_recorded_once_and_announced_as_part
     assert len(events) == 1
     payload = events[0].payload
     assert payload["refund_id"] == str(rows[0].id) and payload["refunded_amount_cents"] == 1_000
+    assert payload["refund_scope"] == "part"
 
 
 async def test_a_dashboard_refund_of_the_rest_marks_the_payment_refunded(db) -> None:
@@ -155,6 +156,7 @@ async def test_a_dashboard_refund_of_the_rest_marks_the_payment_refunded(db) -> 
     recorded, _, events = await _state(db, payment.order_id)
     assert recorded.status == PaymentStatus.REFUNDED and recorded.refundable_cents == 0
     assert events[-1].payload["refund_id"] is None  # a whole-payment refund
+    assert events[-1].payload["refund_scope"] == "rest"  # 1999 went back first
 
 
 async def test_a_refund_that_did_not_succeed_or_is_unknown_changes_nothing(db) -> None:

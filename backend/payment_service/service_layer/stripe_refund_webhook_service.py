@@ -9,7 +9,7 @@ from models.payment_models import Payment, PaymentRefund
 from service_layer.outbox_event_service import OutboxEventService
 from service_layer.payment_refund_service import RefundStatus
 from service_layer.refund_metadata import AppRefundMetadata
-from shared.contracts.events import PaymentRefundedEvent
+from shared.contracts.events import PaymentRefundedEvent, RefundScope
 from shared.enums.event_enums import PaymentEvents
 from shared.enums.services_enums import Services
 from shared.enums.status_enums import PaymentStatus
@@ -120,5 +120,10 @@ class StripeRefundWebhookService:
                 # a refund id it did not issue.
                 refund_id=None if whole else recorded.id,
                 refunded_amount_cents=amount_cents,
+                refund_scope=RefundScope.after(
+                    refunded_total_cents=payment.refunded_cents,
+                    this_refund_cents=amount_cents,
+                    left_cents=payment.refundable_cents,
+                ),
             ),
         )

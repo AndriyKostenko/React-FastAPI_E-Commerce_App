@@ -28,6 +28,7 @@ from shared.contracts.events import (
     PaymentSucceededEvent,
     PaymentRefundedEvent,
     PaymentCancelledEvent,
+    RefundScope,
 )
 from shared.enums.event_enums import PaymentEvents
 from shared.enums.status_enums import PaymentStatus
@@ -519,6 +520,7 @@ class PaymentService:
 
         if payment.status in {PaymentStatus.PENDING, PaymentStatus.AUTHORIZED}:
             # Nothing has been charged yet: cancelling the intent voids any hold.
+            refunded_cents = 0
             await self._finish_read_phase()
             try:
                 await self._stripe.v1.payment_intents.cancel_async(
@@ -572,16 +574,7 @@ class PaymentService:
                 else:
                     await self.outbox_event_service.add_outbox_event(
                         event_type=PaymentEvents.PAYMENT_REFUNDED,
-                        payload=PaymentRefundedEvent(
-                            service=Services.PAYMENT_SERVICE,
-                            event_type=PaymentEvents.PAYMENT_REFUNDED,
-                            order_id=payment.order_id,
-                            user_id=payment.user_id,
-                            user_email=payment.user_email,
-                            payment_intent_id=payment.stripe_payment_intent_id,
-                            amount=payment.amount,
-                            currency=payment.currency,
-                        ),
+                        payload=self._whole_refund_event(payment, refunded_cents),
                     )
             return updated
 
@@ -607,19 +600,30 @@ class PaymentService:
             )
             await self.outbox_event_service.add_outbox_event(
                 event_type=PaymentEvents.PAYMENT_REFUNDED,
-                payload=PaymentRefundedEvent(
-                    service=Services.PAYMENT_SERVICE,
-                    event_type=PaymentEvents.PAYMENT_REFUNDED,
-                    order_id=payment.order_id,
-                    user_id=payment.user_id,
-                    user_email=payment.user_email,
-                    payment_intent_id=payment.stripe_payment_intent_id,
-                    amount=payment.amount,
-                    currency=payment.currency,
-                ),
+                payload=self._whole_refund_event(payment, refunded_cents),
             )
 
         return updated_payment
+
+    @staticmethod
+    def _whole_refund_event(payment: Payment, refunded_cents: int) -> PaymentRefundedEvent:
+        """payment.refunded for refunding everything still captured (an order cancelled after capture)."""
+        return PaymentRefundedEvent(
+            service=Services.PAYMENT_SERVICE,
+            event_type=PaymentEvents.PAYMENT_REFUNDED,
+            order_id=payment.order_id,
+            user_id=payment.user_id,
+            user_email=payment.user_email,
+            payment_intent_id=payment.stripe_payment_intent_id,
+            amount=payment.amount,
+            currency=payment.currency,
+            refunded_amount_cents=refunded_cents,
+            refund_scope=RefundScope.after(
+                refunded_total_cents=payment.refunded_cents + refunded_cents,
+                this_refund_cents=refunded_cents,
+                left_cents=0,
+            ),
+        )
 
     async def handle_payment_intent_cancelled(self, stripe_event_data: dict[str, Any]) -> None:
         """

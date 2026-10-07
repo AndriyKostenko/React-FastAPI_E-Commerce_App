@@ -17,6 +17,7 @@ from shared.contracts.events import (
     PaymentRefundedEvent,
     PaymentRefundFailedEvent,
     PaymentRefundRequested,
+    RefundScope,
 )
 from shared.database_layer.outbox_repository import OutboxRepository
 from shared.enums.event_enums import PaymentEvents
@@ -234,6 +235,11 @@ class PaymentRefundService:
                 refund_id=command.refund_id,
                 refunded_amount_cents=command.amount_cents,
                 applied_before_capture=applied_before_capture,
+                refund_scope=RefundScope.after(
+                    refunded_total_cents=payment.refunded_cents,
+                    this_refund_cents=command.amount_cents,
+                    left_cents=payment.refundable_cents,
+                ),
             ),
         )
 

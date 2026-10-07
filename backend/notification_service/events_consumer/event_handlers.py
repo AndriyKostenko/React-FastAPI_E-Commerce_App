@@ -17,6 +17,7 @@ from shared.contracts.events import (
     PaymentFailedEvent,
     PaymentRefundedEvent,
     PaymentCancelledEvent,
+    RefundScope,
 )
 from shared.enums.event_enums import (
     OrderEvents,
@@ -217,6 +218,24 @@ class OrderEventHandler(BaseEventHandler):
 
 
 class PaymentEventHandler(BaseEventHandler):
+    @staticmethod
+    def _refund_message(order_id: str | None, refunded: PaymentRefundedEvent) -> str:
+        """What the customer is told, by how much of their payment the refund leaves."""
+        amount = f"{(refunded.refunded_amount_cents or 0) / 100:.2f} {refunded.currency.upper()}"
+        match refunded.refund_scope:
+            case RefundScope.WHOLE:
+                return f"Your payment for order #{order_id} was refunded in full ({amount})."
+            case RefundScope.REST:
+                return (
+                    f"The rest of your payment for order #{order_id} was refunded ({amount}). "
+                    "It is now fully refunded."
+                )
+            case RefundScope.PART:
+                return f"Part of your payment for order #{order_id} was refunded ({amount})."
+        # Events published before the scope existed.
+        if refunded.refund_id:
+            return f"Part of your payment for order #{order_id} was refunded ({amount})."
+        return f"Payment for order #{order_id} was refunded."
 
     async def handle(self, body: dict[str, Any]) -> None:
         """Handle payment-related notification events with idempotency checking."""
@@ -243,12 +262,7 @@ class PaymentEventHandler(BaseEventHandler):
                     event = PaymentFailedEvent(**message)
                     notification_message = f"Payment for order #{order_id} failed: {event.reason}"
                 case PaymentEvents.PAYMENT_REFUNDED:
-                    refunded = PaymentRefundedEvent(**message)
-                    notification_message = (
-                        f"Part of your payment for order #{order_id} was refunded "
-                        f"({(refunded.refunded_amount_cents or 0) / 100:.2f} {refunded.currency.upper()})."
-                        if refunded.refund_id else f"Payment for order #{order_id} was refunded."
-                    )
+                    notification_message = self._refund_message(order_id, PaymentRefundedEvent(**message))
                 case PaymentEvents.PAYMENT_DISPUTE_OPENED | PaymentEvents.PAYMENT_DISPUTE_CLOSED:
                     dispute = PaymentDisputeEvent(**message)
                     # An operational alert, not a message for the customer.
