@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html>
+  <body style="font-family: Arial, sans-serif; color: #222; line-height: 1.6;">
+    <h2>Your custom item was cancelled</h2>
+    <p>We're sorry: we had to cancel {{ quantity }} x {{ product_name }} from order
+      <strong>{{ order_id }}</strong> before it was printed.</p>
+    <p>Reason: {{ reason }}</p>
+    {% if refunded_amount %}
+    <p>We have refunded <strong>{{ refunded_amount }} CAD</strong>{% if shipping_refunded %}, shipping included,{% endif %}
+      to your original payment method. Depending on your bank it can take 5-10 business days to appear.</p>
+    {% else %}
+    <p>Our support team will contact you about the refund.</p>
+    {% endif %}
+    <p>{{ app_name }}</p>
+  </body>
+</html>

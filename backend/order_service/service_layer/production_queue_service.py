@@ -29,10 +29,10 @@ from shared.contracts.events import (
 )
 from shared.enums.event_enums import ProductionEvents
 from shared.enums.services_enums import Services
-from shared.enums.status_enums import ProductionJobStatus
+from shared.enums.status_enums import LineFulfillmentStatus, ProductionJobStatus
 from exceptions.order_exceptions import InvalidOrderRefundError, OrderRefundNotAllowedError
-from schemas.order_refund_schemas import RefundLineRequest, RefundRequest
-from service_layer.order_refund_service import OrderRefundService
+from schemas.order_refund_schemas import OrderRefundSchema, RefundLineRequest, RefundRequest
+from service_layer.order_refund_service import OrderRefundService, RefundState
 from config import logger
 
 
@@ -295,26 +295,33 @@ class ProductionQueueService:
         job.cancellation_reason = reason[:500]
         job.reconciliation_required = job.reconciliation_required or needs_review
         await self.repository.update(job)
+        # Refunded before publishing, so the event (and the customer's email)
+        # says what actually went back rather than what was hoped for.
+        refund = None if needs_review else await self._refund_cancelled_line(job, reason)
         await self._publish(
-            job, ProductionEvents.PRODUCTION_JOB_CANCELLED, reason=reason
+            job, ProductionEvents.PRODUCTION_JOB_CANCELLED, reason=reason, refund=refund
         )
-        if not needs_review:
-            await self._refund_cancelled_line(job, reason)
         return self._to_schema(job)
 
-    async def _refund_cancelled_line(self, job: CustomProductionJob, reason: str) -> None:
+    async def _refund_cancelled_line(
+        self, job: CustomProductionJob, reason: str
+    ) -> OrderRefundSchema | None:
         """
         Nothing was printed, so nothing was spent: give the line's money back,
         in the same transaction as the cancellation. Printed or posted jobs are
         left to a human (reconciliation_required), as before.
+
+        The order's shipping goes back too once this leaves nothing to ship:
+        charging postage on an order that will never be posted is not owed.
         """
         if self.refund_service is None:
-            return
+            return None
         try:
-            await self.refund_service.request(
+            return await self.refund_service.request(
                 job.order_id,
                 RefundRequest(
                     lines=[RefundLineRequest(order_item_id=job.order_item_id, quantity=job.quantity)],
+                    include_shipping=await self._nothing_left_to_ship(job.order_id),
                     reason=f"Custom item cancelled before printing: {reason}"[:500],
                 ),
                 requested_by=None,
@@ -325,6 +332,20 @@ class ProductionQueueService:
             job.reconciliation_required = True
             await self.repository.update(job)
             logger.warning("No automatic refund for production job %s: %s", job.id, error.detail)
+            return None
+
+    async def _nothing_left_to_ship(self, order_id: UUID) -> bool:
+        """
+        True when every line of the order is cancelled (this one included) and
+        the shipping was not refunded already. A line that shipped, even one
+        returned since, used the postage, so it keeps the shipping charged.
+        """
+        lines = await self.fulfillment_status_service.get_lines(order_id)
+        if not lines or any(line.status != LineFulfillmentStatus.CANCELLED for line in lines):
+            return False
+        assert self.refund_service is not None
+        refunds = await self.refund_service.list_for_order(order_id)
+        return not any(r.includes_shipping and r.status != RefundState.FAILED for r in refunds)
 
     # ---------------- internals ----------------
 
@@ -377,6 +398,7 @@ class ProductionQueueService:
         event_type: ProductionEvents,
         *,
         reason: str = "",
+        refund: OrderRefundSchema | None = None,
     ) -> None:
         order = job.order
         common = {
@@ -415,6 +437,8 @@ class ProductionQueueService:
                     **common,
                     reason=reason,
                     reconciliation_required=job.reconciliation_required,
+                    refunded_amount=refund.amount if refund else None,
+                    shipping_refunded=bool(refund and refund.includes_shipping),
                 )
             case _:
                 raise ValueError(f"Unsupported production event: {event_type}")
