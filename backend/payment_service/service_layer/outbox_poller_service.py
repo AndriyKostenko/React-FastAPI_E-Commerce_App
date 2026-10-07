@@ -17,7 +17,10 @@ async def route_payment_event(
         PaymentEvents.PAYMENT_SUCCEEDED: publisher.publish_payment_succeeded,
         PaymentEvents.PAYMENT_FAILED: publisher.publish_payment_failed,
         PaymentEvents.PAYMENT_REFUNDED: publisher.publish_payment_refunded,
+        PaymentEvents.PAYMENT_REFUND_FAILED: publisher.publish_payment_refund_failed,
         PaymentEvents.PAYMENT_CANCELLED: publisher.publish_payment_cancelled,
+        PaymentEvents.PAYMENT_DISPUTE_OPENED: publisher.publish_payment_dispute,
+        PaymentEvents.PAYMENT_DISPUTE_CLOSED: publisher.publish_payment_dispute,
     }
     publish = routes.get(event_type)
     if not publish:
