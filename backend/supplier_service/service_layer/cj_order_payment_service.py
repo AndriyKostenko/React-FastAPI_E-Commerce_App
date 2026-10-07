@@ -140,10 +140,13 @@ class CJOrderPaymentService:
         attempt = await self._load(order_id)
         if attempt is None or attempt.status not in CJOrderAttemptStatus.awaiting_payment():
             return CJOrderAttemptStatus(attempt.status) if attempt else None
+        if attempt.cancelled_at is not None:
+            return CJOrderAttemptStatus(attempt.status)  # never pay for a cancelled order
         if not attempt.cj_order_number:
             raise CJPaymentPending(f"Order {order_id} has no CJ order number yet")
 
-        await self._claim(order_id)
+        if not await self._claim(order_id):
+            return CJOrderAttemptStatus(attempt.status)
         try:
             return await self._advance_claimed(order_id, attempt, attempt.cj_order_number)
         finally:
@@ -311,17 +314,21 @@ class CJOrderPaymentService:
         async with self.database.transaction() as session:
             return await CJOrderAttemptRepository(session).get_by_field("order_id", order_id)
 
-    async def _claim(self, order_id: UUID) -> None:
+    async def _claim(self, order_id: UUID) -> bool:
         """
         Take the payment lease, or raise CJPaymentPending if another runner
         holds it. Checked under the row lock, so exactly one caller wins.
+
+        False when the order was cancelled since it was read: nothing to pay.
         """
         now = datetime.now(timezone.utc)
         async with self.database.transaction() as session:
             repository = CJOrderAttemptRepository(session)
             attempt = await repository.get_for_update(order_id)
             if attempt is None:
-                return
+                return True
+            if attempt.cancelled_at is not None:
+                return False
             if attempt.payment_leased_until is not None and attempt.payment_leased_until > now:
                 raise CJPaymentPending(f"CJ payment for order {order_id} is already in progress")
             attempt.payment_attempts = (attempt.payment_attempts or 0) + 1
@@ -329,6 +336,7 @@ class CJOrderPaymentService:
                 minutes=self.settings.CJ_PAYMENT_LEASE_MINUTES
             )
             await repository.update(attempt)
+            return True
 
     async def _release(self, order_id: UUID) -> None:
         async with self.database.transaction() as session:

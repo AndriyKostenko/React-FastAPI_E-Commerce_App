@@ -4,7 +4,7 @@ from urllib.parse import urlencode
 
 from logging import Logger, getLogger
 
-from httpx import AsyncClient, HTTPStatusError, RequestError
+from httpx import AsyncClient, HTTPStatusError, RequestError, Response
 
 from shared.resilience import CircuitBreaker, CircuitOpenError, RetryableError, RetryPolicy
 from shared.settings import Settings
@@ -13,6 +13,17 @@ from shared.settings import Settings
 class CJDropshippingAPIError(Exception):
     """Raised when the CJDropshipping API returns an error or cannot be reached."""
     pass
+
+
+class CJDropshippingNotFoundError(CJDropshippingAPIError):
+    """
+    CJ answered that the order does not exist (code 1600300, "order not found").
+
+    An authoritative answer: an order CJ reports as not found was never
+    created there, unlike a network error or an outage, whose outcome is unknown.
+    """
+
+    CODE = 1600300
 
 
 class CJDropshippingNetworkError(CJDropshippingAPIError, RetryableError):
@@ -227,9 +238,7 @@ class CJDropshippingAPIClient:
             if isinstance(payload, dict) and payload.get("result") is False:
                 code = payload.get("code", "unknown")
                 message = payload.get("message") or "Unknown CJ API error"
-                raise CJDropshippingAPIError(
-                    f"CJ API request failed ({code}): {message}"
-                )
+                raise _rejection(code, f"CJ API request failed ({code}): {message}")
             return payload
         except RequestError as exc:
             raise CJDropshippingNetworkError(f"Network error calling CJ API: {exc}") from exc
@@ -250,8 +259,9 @@ class CJDropshippingAPIClient:
                     f"CJ API returned {exc.response.status_code}: {exc.response.text}",
                     retry_after=_retry_after_seconds(exc.response.headers.get("Retry-After")),
                 ) from exc
-            raise CJDropshippingAPIError(
-                f"CJ API returned {exc.response.status_code}: {exc.response.text}"
+            raise _rejection(
+                _response_code(exc.response),
+                f"CJ API returned {exc.response.status_code}: {exc.response.text}",
             ) from exc
 
     async def get_access_token(self) -> str:
@@ -390,3 +400,19 @@ def _retry_after_seconds(header: str | None) -> float | None:
         return float(header) if header else None
     except ValueError:
         return None
+
+
+def _response_code(response: Response) -> object:
+    """CJ's own error code from an error response body, when it sent one."""
+    try:
+        body = response.json()
+    except ValueError:
+        return None
+    return body.get("code") if isinstance(body, dict) else None
+
+
+def _rejection(code: object, message: str) -> CJDropshippingAPIError:
+    """The error for an authoritative CJ refusal, the not-found case told apart."""
+    if code == CJDropshippingNotFoundError.CODE:
+        return CJDropshippingNotFoundError(message)
+    return CJDropshippingAPIError(message)
