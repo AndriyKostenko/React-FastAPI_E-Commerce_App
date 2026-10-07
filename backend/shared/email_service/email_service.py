@@ -223,19 +223,23 @@ class OrderRelatedNotifications(EmailService):
 
     async def send_order_cancelled_notification(self, event: OrderCancelledEvent) -> None:
         """
-        Send notification when order is cancelled (inventory not available or other issues).
-        This is a "sorry, your order couldn't be processed" notification.
+        Tell the customer their order was cancelled, why, and what happens to the money.
+
+        Not every cancelled order was charged (many are cancelled before payment or
+        while the card is only on hold), so the subject promises no refund.
         """
         await self.send_email_async(
             recipients=[event.user_email],
-            subject="Order Cancelled - Refund Initiated",
+            subject=f"Your order {event.order_id} was cancelled",
             template_name="order_cancelled.html",
             template_body={
                 "order_id": str(event.order_id),
                 "reason": event.reason,
+                # Goods already made or posted: the refund waits for a human decision.
+                "reconciliation_required": event.reconciliation_required,
                 "app_name": self.settings.MAIL_FROM_NAME,
-                "contact_email": self.settings.MAIL_FROM
-            }
+                "contact_email": self.settings.MAIL_FROM,
+            },
         )
         self.logger.info(f"Sent order cancellation notification for order {event.order_id}")
 
