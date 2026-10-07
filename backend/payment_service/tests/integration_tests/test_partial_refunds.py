@@ -18,6 +18,7 @@ from models.base import Base
 from models.outbox_models import OutboxEvent
 from models.payment_models import Payment, PaymentRefund
 from service_layer.payment_refund_service import PaymentRefundService, RefundStatus
+from service_layer.refund_metadata import AppRefundMetadata
 from shared.contracts.events import PaymentRefundRequested
 from shared.enums.event_enums import PaymentEvents
 from shared.enums.status_enums import PaymentStatus
@@ -84,8 +85,14 @@ async def test_a_captured_payment_is_partly_refunded(db) -> None:
 
     payment, events = await _state(db, order_id)
     assert payment.refunded_cents == 2_500 and payment.status == PaymentStatus.SUCCEEDED
-    assert fake.calls == [({"payment_intent": payment.stripe_payment_intent_id, "amount": 2_500},
-                           f"payment_refund:partial:{command.refund_id}")]
+    assert fake.calls == [(
+        {
+            "payment_intent": payment.stripe_payment_intent_id,
+            "amount": 2_500,
+            "metadata": AppRefundMetadata.for_order(order_id, command.refund_id),
+        },
+        f"payment_refund:partial:{command.refund_id}",
+    )]
     assert events == [PaymentEvents.PAYMENT_REFUNDED]
 
 

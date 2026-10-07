@@ -19,11 +19,24 @@ class PaymentRepository(BaseRepository[Payment]):
         )
         return result.scalar_one_or_none()
 
+    async def get_by_intent_for_update(self, payment_intent_id: str) -> Payment | None:
+        """The payment behind a Stripe PaymentIntent, row-locked until the transaction ends."""
+        result = await self.session.execute(
+            select(Payment).where(Payment.stripe_payment_intent_id == payment_intent_id).with_for_update()
+        )
+        return result.scalar_one_or_none()
+
 
 class PaymentRefundRepository(BaseRepository[PaymentRefund]):
     """Partial refunds, keyed by order_service's refund id."""
     def __init__(self, session: AsyncSession):
         super().__init__(session, PaymentRefund)
+
+    async def get_by_stripe_refund_id(self, stripe_refund_id: str) -> PaymentRefund | None:
+        result = await self.session.execute(
+            select(PaymentRefund).where(PaymentRefund.stripe_refund_id == stripe_refund_id)
+        )
+        return result.scalar_one_or_none()
 
 
 class PaymentDisputeRepository(BaseRepository[PaymentDispute]):

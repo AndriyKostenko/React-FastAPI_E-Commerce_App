@@ -11,6 +11,7 @@ from database_layer.payment_repository import PaymentRefundRepository, PaymentRe
 from models.outbox_models import OutboxEvent
 from models.payment_models import Payment, PaymentRefund
 from service_layer.outbox_event_service import OutboxEventService
+from service_layer.refund_metadata import AppRefundMetadata
 from service_layer.tax_service import PaymentTaxLedger
 from shared.contracts.events import (
     PaymentRefundedEvent,
@@ -76,7 +77,11 @@ class PaymentRefundService:
 
         try:
             stripe_refund = await self._stripe.v1.refunds.create_async(
-                {"payment_intent": payment_intent_id, "amount": amount_cents},
+                {
+                    "payment_intent": payment_intent_id,
+                    "amount": amount_cents,
+                    "metadata": AppRefundMetadata.for_order(command.order_id, command.refund_id),
+                },
                 options={"idempotency_key": f"payment_refund:partial:{command.refund_id}"},
             )
         except _DEFINITIVE_STRIPE_ERRORS as error:
