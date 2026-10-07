@@ -1,6 +1,7 @@
 from decimal import Decimal
 from uuid import UUID, uuid4
 from datetime import datetime, timezone
+from enum import StrEnum
 
 from pydantic import BaseModel, EmailStr, PositiveFloat, PositiveInt, Field, model_validator
 
@@ -179,6 +180,21 @@ class PaymentFailedEvent(PaymentBaseEvent):
     reason: str
 
 
+class RefundScope(StrEnum):
+    """How much of what was charged a refund leaves behind: the customer is told accordingly."""
+
+    PART = "part"    # money is still captured after this refund
+    REST = "rest"    # the last of it, after earlier refunds
+    WHOLE = "whole"  # all of it, in this one refund
+
+    @classmethod
+    def after(cls, *, refunded_total_cents: int, this_refund_cents: int, left_cents: int) -> "RefundScope":
+        """``refunded_total_cents`` counts every refund so far, this one included."""
+        if left_cents > 0:
+            return cls.PART
+        return cls.WHOLE if refunded_total_cents == this_refund_cents else cls.REST
+
+
 class PaymentRefundedEvent(PaymentBaseEvent):
     """
     Money went back to the customer: the whole payment after a cancellation,
@@ -190,6 +206,8 @@ class PaymentRefundedEvent(PaymentBaseEvent):
     # True when the card had not been captured yet: the customer is simply
     # charged that much less, rather than refunded.
     applied_before_capture: bool = False
+    # None on events published before the scope existed.
+    refund_scope: RefundScope | None = None
 
 
 class PaymentRefundFailedEvent(PaymentBaseEvent):

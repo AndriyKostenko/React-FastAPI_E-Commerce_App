@@ -213,3 +213,32 @@ async def test_refunding_everything_in_parts_marks_the_payment_refunded(db) -> N
     await service.refund(_command(order_id, 6_000))
     payment, _ = await _state(db, order_id)
     assert payment.status == PaymentStatus.REFUNDED and payment.refunded_cents == AMOUNT
+
+
+async def _refund_scopes(db: TestDatabaseSessionManager) -> list[str | None]:
+    async with db.transaction() as session:
+        payloads = (await session.execute(
+            select(OutboxEvent.payload)
+            .where(OutboxEvent.event_type == PaymentEvents.PAYMENT_REFUNDED)
+            .order_by(OutboxEvent.date_created)
+        )).scalars().all()
+    return [payload.get("refund_scope") for payload in payloads]
+
+
+async def test_the_customer_is_told_part_then_the_rest(db) -> None:
+    order_id = await _payment(db, PaymentStatus.SUCCEEDED)
+    service = PaymentRefundService(db, FakeStripe(), getLogger("t"))
+
+    await service.refund(_command(order_id, 4_000))
+    await service.refund(_command(order_id, AMOUNT - 4_000))
+
+    assert await _refund_scopes(db) == ["part", "rest"]
+
+
+async def test_one_refund_of_everything_is_whole(db) -> None:
+    """Found live: a full refund was announced as 'Part of your payment was refunded'."""
+    order_id = await _payment(db, PaymentStatus.SUCCEEDED)
+
+    await PaymentRefundService(db, FakeStripe(), getLogger("t")).refund(_command(order_id, AMOUNT))
+
+    assert await _refund_scopes(db) == ["whole"]
