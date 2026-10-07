@@ -39,6 +39,7 @@ from tasks.email_tasks import (
     send_order_cancelled_email,
     send_order_shipped_email,
     send_order_delivered_email,
+    send_production_job_cancelled_email,
 )
 
 """
@@ -399,19 +400,25 @@ class ProductionEventHandler(BaseEventHandler):
                     email_task = send_order_delivered_email
                     notification_message = f"Your order #{order_id} has been delivered."
                 case ProductionEvents.PRODUCTION_JOB_CANCELLED:
-                    # Workshop bookkeeping. The customer hears about a
-                    # cancellation through order.cancelled, not from this queue.
+                    # Only the workshop queue publishes this: cancelling the
+                    # whole order emails the customer through order.cancelled.
                     event = ProductionJobCancelledEvent(**message)
                     if event.reconciliation_required:
+                        # Made or posted already: what the customer is told
+                        # (and refunded) is a human decision, so stay silent.
                         self._logger.critical(
                             f"Production job {event.job_id} for order {order_id} was "
                             f"cancelled after the garment was already made or posted "
                             f"({event.reason}) — a return decision is required."
                         )
-                    await self._mark_processed(
-                        event_id=event_id, event_type=event_type, order_id=order_id, result="skipped"
+                        await self._mark_processed(
+                            event_id=event_id, event_type=event_type, order_id=order_id, result="skipped"
+                        )
+                        return
+                    email_task = send_production_job_cancelled_email
+                    notification_message = (
+                        f"Your custom item for order #{order_id} was cancelled before printing: {event.reason}."
                     )
-                    return
                 case _:
                     self._logger.warning(f"Unhandled production event type: {event_type}")
                     await self._mark_processed(

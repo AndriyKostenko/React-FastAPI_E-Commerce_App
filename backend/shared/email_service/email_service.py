@@ -22,6 +22,7 @@ from shared.contracts.events import (
     OrderShippedBaseEvent,
     OrderDeliveredBaseEvent,
     OrderReturnEvent,
+    ProductionJobCancelledEvent,
 )
 from shared.enums.event_enums import OrderEvents
 
@@ -301,6 +302,25 @@ class OrderRelatedNotifications(EmailService):
             },
         )
         self.logger.info(f"Sent return decision for return {event.return_id} of order {event.order_id}")
+
+    async def send_production_job_cancelled(self, event: ProductionJobCancelledEvent) -> None:
+        """Tell the customer a custom item was cancelled before printing, and what was refunded."""
+        await self.send_email_async(
+            recipients=[event.user_email],
+            subject=f"An item in your order {event.order_id} was cancelled",
+            template_name="production_job_cancelled.html",
+            template_body={
+                "order_id": str(event.order_id),
+                "product_name": event.product_name or "custom T-shirt",
+                "quantity": event.quantity,
+                "reason": event.reason,
+                # Orders are priced in CAD only (Canada-only selling).
+                "refunded_amount": f"{event.refunded_amount:.2f}" if event.refunded_amount else None,
+                "shipping_refunded": event.shipping_refunded,
+                "app_name": self.settings.MAIL_FROM_NAME,
+            },
+        )
+        self.logger.info(f"Sent cancellation of production job {event.job_id} for order {event.order_id}")
 
 
 class AdminAlerts(EmailService):

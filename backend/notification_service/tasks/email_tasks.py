@@ -16,6 +16,7 @@ from shared.contracts.events import (
     CJOrderDeliveredEvent,
     OrderDeliveredBaseEvent,
     OrderShippedBaseEvent,
+    ProductionJobCancelledEvent,
     ProductionJobDeliveredEvent,
     ProductionJobShippedEvent,
 )
@@ -111,6 +112,12 @@ async def send_admin_dispute_alert(payload: dict[str, Any]) -> None:
 async def send_admin_return_alert(payload: dict[str, Any]) -> None:
     await admin_alerts.send_return_alert(OrderReturnEvent(**payload))
 
+
+@taskiq_broker.task
+async def send_production_job_cancelled_email(payload: dict[str, Any]) -> None:
+    event = ProductionJobCancelledEvent(**payload)
+    await order_notification_email_service.send_production_job_cancelled(event)
+    logger.info(f"Production job cancelled email sent to {event.user_email} for order {event.order_id}")
 
 @taskiq_broker.task
 async def send_return_decision_email(payload: dict[str, Any]) -> None:

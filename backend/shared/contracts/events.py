@@ -389,10 +389,19 @@ class ProductionJobDeliveredEvent(ProductionJobBaseEvent, OrderDeliveredBaseEven
 
 
 class ProductionJobCancelledEvent(ProductionJobBaseEvent):
-    """Event published when a job leaves the queue without being fulfilled."""
+    """
+    Event published when a job leaves the queue without being fulfilled.
+
+    ``refunded_amount`` is what went back to the customer automatically (None
+    when nothing did: the garment was already made, or a human decides), and
+    ``shipping_refunded`` says whether it included the order's shipping, which
+    happens once no line of the order is left to ship.
+    """
     event_type: str = Field(default_factory=lambda: ProductionEvents.PRODUCTION_JOB_CANCELLED)
     reason: str
     reconciliation_required: bool = False
+    refunded_amount: Decimal | None = None
+    shipping_refunded: bool = False
 
 
 # ============== ARTWORK RETENTION EVENTS ==============

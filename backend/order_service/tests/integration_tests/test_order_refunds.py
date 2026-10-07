@@ -31,7 +31,14 @@ from shared.managers.test_database_session_manager import TestDatabaseSessionMan
 from shared.testing.signing_keys import ANONYMOUS
 from tests.conftest import SIGNING_KEYS
 from tests.constants import TEST_API
-from tests.integration_tests.test_production_routes import PRODUCTION_API, queued_job  # noqa: F401 (fixture)
+from shared.enums.event_enums import ProductionEvents
+from tests.integration_tests.test_production_routes import (  # noqa: F401 (queued_job is a fixture)
+    PRODUCTION_API,
+    _confirm_payment,
+    _custom_order_payload,
+    _signed_asset,
+    queued_job,
+)
 
 
 def _refunds_url(order_id: str) -> str:
@@ -176,6 +183,58 @@ async def test_cancelling_an_unprinted_job_refunds_its_line(
     refunds = (await integration_client.get(_refunds_url(queued_job["order"]["id"]))).json()
     assert len(refunds) == 1 and refunds[0]["requested_by"] is None
     assert "before printing" in refunds[0]["reason"]
+
+
+async def _cancelled_events(db: TestDatabaseSessionManager) -> list[dict]:
+    async with db.transaction() as session:
+        rows = (await session.execute(
+            select(OutboxEvent.payload)
+            .where(OutboxEvent.event_type == ProductionEvents.PRODUCTION_JOB_CANCELLED)
+            .order_by(OutboxEvent.date_created)
+        )).scalars().all()
+    return list(rows)
+
+
+async def test_cancelling_the_only_line_refunds_the_shipping_too(
+    integration_client: AsyncClient, queued_job: dict, test_database_session_manager  # noqa: F811
+) -> None:
+    """Found live: the shirt came back but the customer still paid postage for nothing."""
+    order = queued_job["order"]
+    _, quantity, price = await _line(test_database_session_manager, order["id"])
+
+    await integration_client.post(f"{PRODUCTION_API}/{queued_job['job']['id']}/cancel", json={"reason": "blank out of stock"})
+
+    [refund] = (await integration_client.get(_refunds_url(order["id"]))).json()
+    shipping = Decimal(str(order["shipping_amount"]))
+    assert shipping > 0
+    assert refund["includes_shipping"] is True
+    assert Decimal(refund["amount"]) == price * quantity + shipping
+    [event] = await _cancelled_events(test_database_session_manager)
+    assert Decimal(str(event["refunded_amount"])) == Decimal(refund["amount"])
+    assert event["shipping_refunded"] is True
+
+
+async def test_shipping_stays_until_the_last_line_is_cancelled(
+    integration_client: AsyncClient, test_database_session_manager  # noqa: F811
+) -> None:
+    payload = _custom_order_payload(_signed_asset())
+    payload["products"].append({**payload["products"][0], "id": str(uuid4())})
+    order = (await integration_client.post(f"{TEST_API}/orders", json=payload)).json()
+    await _confirm_payment(
+        test_database_session_manager, UUID(order["id"]), Decimal(str(order["amount"])), order["payment_intent_id"]
+    )
+    jobs = (await integration_client.get(PRODUCTION_API)).json()["items"]
+    assert len(jobs) == 2
+
+    await integration_client.post(f"{PRODUCTION_API}/{jobs[0]['id']}/cancel", json={"reason": "blank out of stock"})
+    first = (await integration_client.get(_refunds_url(order["id"]))).json()
+    await integration_client.post(f"{PRODUCTION_API}/{jobs[1]['id']}/cancel", json={"reason": "blank out of stock"})
+    both = (await integration_client.get(_refunds_url(order["id"]))).json()
+
+    assert [r["includes_shipping"] for r in first] == [False]  # the other shirt still ships
+    assert sorted(r["includes_shipping"] for r in both) == [False, True]
+    events = await _cancelled_events(test_database_session_manager)
+    assert [e["shipping_refunded"] for e in events] == [False, True]
 
 
 async def test_a_job_cancelled_after_printing_is_left_to_a_human(
