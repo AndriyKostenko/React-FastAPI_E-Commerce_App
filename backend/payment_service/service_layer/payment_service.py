@@ -9,6 +9,7 @@ from sqlalchemy.exc import IntegrityError
 from database_layer.payment_repository import PaymentRepository
 from models.payment_models import Payment
 from service_layer.outbox_event_service import OutboxEventService
+from service_layer.refund_metadata import AppRefundMetadata
 from service_layer.tax_service import PaymentTaxLedger
 from exceptions.payment_exceptions import (
     PaymentNotFoundError,
@@ -70,7 +71,10 @@ class PaymentService:
     async def _create_refund(self, payment: Payment) -> Any:
         """Create at most one Stripe refund across retries and worker crashes."""
         return await self._stripe.v1.refunds.create_async(
-            {"payment_intent": payment.stripe_payment_intent_id},
+            {
+                "payment_intent": payment.stripe_payment_intent_id,
+                "metadata": AppRefundMetadata.for_order(payment.order_id),
+            },
             options={"idempotency_key": self._refund_idempotency_key(payment.order_id)},
         )
 
@@ -616,52 +620,6 @@ class PaymentService:
             )
 
         return updated_payment
-
-    async def handle_charge_refund_updated(self, stripe_event_data: dict[str, Any]) -> None:
-        """
-        Handle charge.refund.updated webhook event.
-
-        Stripe fires this when a refund transitions to a terminal state.
-        Only acts when refund status is 'succeeded' and the payment is not
-        already marked as REFUNDED (guards against double-processing if
-        handle_payment_refund() already updated the record synchronously).
-        """
-        refund = stripe_event_data["object"]
-        refund_status: str = refund.get("status", "")
-        payment_intent_id: str = refund.get("payment_intent", "")
-
-        if refund_status != "succeeded":
-            # Pending / failed / cancelled refunds are not actionable here
-            return
-
-        payment = await self.repository.get_by_field(
-            field_name="stripe_payment_intent_id", value=payment_intent_id
-        )
-        if not payment:
-            raise PaymentNotFoundError(payment_id=payment_intent_id)
-
-        if payment.status == PaymentStatus.REFUNDED:
-            # Already handled (e.g. by handle_payment_refund synchronous path)
-            return
-
-        async with self.repository.session.begin_nested():
-            _ = await self.repository.update_by_id(
-                item_id=payment.id,
-                data={"status": PaymentStatus.REFUNDED},
-            )
-            await self.outbox_event_service.add_outbox_event(
-                event_type=PaymentEvents.PAYMENT_REFUNDED,
-                payload=PaymentRefundedEvent(
-                    service=Services.PAYMENT_SERVICE,
-                    event_type=PaymentEvents.PAYMENT_REFUNDED,
-                    order_id=payment.order_id,
-                    user_id=payment.user_id,
-                    user_email=payment.user_email,
-                    payment_intent_id=payment_intent_id,
-                    amount=refund.get("amount", payment.amount),
-                    currency=payment.currency,
-                ),
-            )
 
     async def handle_payment_intent_cancelled(self, stripe_event_data: dict[str, Any]) -> None:
         """

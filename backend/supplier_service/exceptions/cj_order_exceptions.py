@@ -64,3 +64,7 @@ class SupplierSyncConfigurationError(BaseAPIException):
 
     def __init__(self, detail: str = "Supplier sync configuration is invalid."):
         super().__init__(status_code=422, detail=detail)
+
+
+class CJOrderCancelledError(Exception):
+    """The local order was cancelled, so its CJ order must not be created."""

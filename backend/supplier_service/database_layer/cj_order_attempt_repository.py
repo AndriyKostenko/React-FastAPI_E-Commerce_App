@@ -66,6 +66,7 @@ class CJOrderAttemptRepository(BaseRepository[CJOrderAttempt]):
                     [str(status) for status in CJOrderAttemptStatus.awaiting_payment()]
                 ),
                 CJOrderAttempt.cj_order_number.is_not(None),
+                CJOrderAttempt.cancelled_at.is_(None),
                 CJOrderAttempt.date_updated <= updated_before,
             )
             .order_by(CJOrderAttempt.date_updated.asc())

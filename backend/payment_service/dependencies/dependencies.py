@@ -11,8 +11,9 @@ from service_layer.outbox_event_service import OutboxEventService
 from models.outbox_models import OutboxEvent
 from resources import PaymentApiResources, get_payment_api_resources
 from shared.idempotency.idempotency_service import IdempotencyEventService
-from database_layer.payment_repository import PaymentDisputeRepository
+from database_layer.payment_repository import PaymentDisputeRepository, PaymentRefundRepository
 from service_layer.payment_dispute_service import PaymentDisputeService
+from service_layer.stripe_refund_webhook_service import StripeRefundWebhookService
 from service_layer.tax_service import TaxCalculationService
 from config import logger
 
@@ -73,6 +74,23 @@ def get_payment_dispute_service(
 
 
 payment_dispute_service_dependency = Annotated[PaymentDisputeService, Depends(get_payment_dispute_service)]
+
+
+def get_stripe_refund_webhook_service(
+    session: AsyncSession = Depends(get_db_session, scope="function"),
+) -> StripeRefundWebhookService:
+    """Records refunds made outside this service, reported by Stripe's webhook."""
+    return StripeRefundWebhookService(
+        payment_repository=PaymentRepository(session=session),
+        refund_repository=PaymentRefundRepository(session=session),
+        outbox_event_service=OutboxEventService(repository=OutboxRepository(session=session, model=OutboxEvent)),
+        logger=logger,
+    )
+
+
+stripe_refund_webhook_service_dependency = Annotated[
+    StripeRefundWebhookService, Depends(get_stripe_refund_webhook_service)
+]
 idempotency_service_dependency = Annotated[IdempotencyEventService, Depends(get_idempotency_service)]
 
 

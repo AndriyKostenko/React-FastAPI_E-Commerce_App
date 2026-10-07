@@ -24,6 +24,7 @@ from exceptions.payment_exceptions import (
     PaymentCaptureError,
 )
 from models.payment_models import Payment
+from service_layer.refund_metadata import AppRefundMetadata
 from shared.enums.status_enums import PaymentStatus
 import shared.outbox.relay as relay_module
 from shared.outbox.relay import OutboxRelay
@@ -320,7 +321,10 @@ class TestHandlePaymentRefund:
         result = await payment_service_unit.handle_payment_refund(mock_payment_orm.order_id)
 
         mock_stripe_client.v1.refunds.create_async.assert_awaited_once_with(
-            {"payment_intent": mock_payment_orm.stripe_payment_intent_id},
+            {
+                "payment_intent": mock_payment_orm.stripe_payment_intent_id,
+                "metadata": AppRefundMetadata.for_order(mock_payment_orm.order_id),
+            },
             options={
                 "idempotency_key": f"payment_refund:create:{mock_payment_orm.order_id}"
             },
@@ -659,63 +663,6 @@ class TestHandlePaymentIntentCancelled:
             await payment_service_unit.handle_payment_intent_cancelled({
                 "object": {"id": "pi_unknown", "metadata": {}}
             })
-
-
-# ---------------------------------------------------------------------------
-# handle_charge_refund_updated
-# ---------------------------------------------------------------------------
-
-class TestHandleChargeRefundUpdated:
-    async def test_updates_to_refunded_when_refund_succeeded(
-        self,
-        payment_service_unit,
-        mock_payment_repository: MagicMock,
-        mock_outbox_event_service,
-        mock_payment_orm: MagicMock,
-    ) -> None:
-        mock_payment_orm.status = PaymentStatus.SUCCEEDED
-        mock_payment_repository.get_by_field.return_value = mock_payment_orm
-        mock_payment_repository.update_by_id.return_value = mock_payment_orm
-        mock_outbox_event_service.repository.create.return_value = MagicMock()
-
-        await payment_service_unit.handle_charge_refund_updated({
-            "object": {
-                "status": "succeeded",
-                "payment_intent": mock_payment_orm.stripe_payment_intent_id,
-                "amount": mock_payment_orm.amount,
-            }
-        })
-
-        update_call = mock_payment_repository.update_by_id.call_args
-        assert update_call[1]["data"]["status"] == PaymentStatus.REFUNDED
-
-    async def test_skips_non_succeeded_refund_status(
-        self,
-        payment_service_unit,
-        mock_payment_repository: MagicMock,
-    ) -> None:
-        await payment_service_unit.handle_charge_refund_updated({
-            "object": {"status": "pending", "payment_intent": "pi_xxx", "amount": 999}
-        })
-        mock_payment_repository.get_by_field.assert_not_awaited()
-
-    async def test_skips_already_refunded_payment(
-        self,
-        payment_service_unit,
-        mock_payment_repository: MagicMock,
-        mock_payment_orm: MagicMock,
-    ) -> None:
-        mock_payment_orm.status = PaymentStatus.REFUNDED
-        mock_payment_repository.get_by_field.return_value = mock_payment_orm
-
-        await payment_service_unit.handle_charge_refund_updated({
-            "object": {
-                "status": "succeeded",
-                "payment_intent": mock_payment_orm.stripe_payment_intent_id,
-                "amount": mock_payment_orm.amount,
-            }
-        })
-        mock_payment_repository.update_by_id.assert_not_awaited()
 
 
 # ---------------------------------------------------------------------------

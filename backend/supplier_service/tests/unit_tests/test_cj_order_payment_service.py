@@ -97,6 +97,7 @@ def _attempt(store: _Store, status=CJOrderAttemptStatus.CREATED, **overrides):
         payment_attempts=0,
         payment_leased_until=None,
         is_sandbox=False,
+        cancelled_at=None,
         last_error=None,
         date_created=NOW,
         date_updated=NOW,

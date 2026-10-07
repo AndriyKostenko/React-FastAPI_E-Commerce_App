@@ -11,6 +11,7 @@ from models.outbox_models import OutboxEvent
 from shared.database_layer.outbox_repository import OutboxRepository
 from event_publisher.supplier_event_publisher import SupplierEventPublisher
 from exceptions.cj_order_exceptions import (
+    CJOrderCancelledError,
     CJOrderCreationError,
     CJOrderAmbiguousError,
     CJOrderConfigurationError,
@@ -21,6 +22,7 @@ from service_layer.cj_api_client import (
     CJDropshippingAPIClient,
     CJDropshippingAPIError,
     CJDropshippingNetworkError,
+    CJDropshippingNotFoundError,
 )
 from service_layer.cj_order_payment_service import CJOrderPaymentService, CJPaymentPending
 from service_layer.cj_inventory_verifier import CJDropshippingInventoryVerifier
@@ -221,9 +223,12 @@ class SupplierEventConsumer:
         ):
             return
         try:
-            attempt = await self._get_attempt(event.order_id)
-            if not attempt or not attempt.cj_order_number:
-                result = "no_cj_order"
+            # Recorded first, whatever happens next: order.confirmed arrives on
+            # its own queue and may be handled after this, or while the CJ
+            # order is being created, and must find the order gone.
+            attempt = await self._record_cancellation(event)
+            if not attempt.cj_order_number:
+                result = await self._cancel_before_cj_order(event.order_id, attempt)
             elif attempt.status == CJOrderAttemptStatus.CANCELLED:
                 result = "already_cancelled"
             elif attempt.status in {
@@ -251,6 +256,26 @@ class SupplierEventConsumer:
         except Exception:
             await self.idempotency_service.release_claim(event.event_id, event.event_type)
             raise
+
+    async def _cancel_before_cj_order(self, order_id: UUID, attempt: CJOrderAttempt) -> str:
+        """
+        No CJ order number is recorded: make sure no CJ order is left behind.
+
+        A ``creating`` (or unresolved) attempt means a POST may have reached CJ
+        without its answer being recorded, so CJ is asked. A POST still in
+        flight is caught by the confirm handler instead: it sees
+        ``cancelled_at`` when it records the number, and withdraws the order.
+        """
+        if attempt.status in {
+            CJOrderAttemptStatus.CREATING,
+            CJOrderAttemptStatus.RECONCILIATION_REQUIRED,
+        }:
+            cj_order_number = await self._query_existing_cj_order(order_id)
+            if cj_order_number:
+                await self._record_cj_order_number(order_id, cj_order_number)
+                return await self._withdraw_unpaid_cj_order(order_id, cj_order_number)
+        await self._set_attempt_status(order_id, CJOrderAttemptStatus.CANCELLED)
+        return "cancelled_before_cj_order"
 
     async def _withdraw_unpaid_cj_order(self, order_id: UUID, cj_order_number: str) -> str:
         """Delete an unpaid CJ order, or leave a confirmed one to lapse unpaid.
@@ -293,31 +318,49 @@ class SupplierEventConsumer:
             self.logger.info(f"Skipping duplicate order.confirmed event for order: {event.order_id}")
             return
 
+        # Only an order that has, or may have, a live CJ order goes on to payment.
+        pay = False
         try:
             existing = await self._get_attempt(event.order_id)
-            if existing and existing.status not in {
+            if existing and existing.cancelled_at is not None:
+                if existing.cj_order_number and existing.status == CJOrderAttemptStatus.CREATED:
+                    # Created at CJ after the cancellation, and an earlier
+                    # withdrawal did not finish (e.g. a network error).
+                    result = await self._withdraw_unpaid_cj_order(
+                        event.order_id, existing.cj_order_number
+                    )
+                else:
+                    result = "cancelled_before_cj_order"
+            elif existing and existing.status not in {
                 CJOrderAttemptStatus.CREATING,
                 CJOrderAttemptStatus.RECONCILIATION_REQUIRED,
                 CJOrderAttemptStatus.FAILED,
             }:
                 result = f"cj_order_already_{existing.status}"
+                pay = True
             else:
+                cj_order_number: str | None = None
                 if existing and existing.status in {
                     CJOrderAttemptStatus.CREATING,
                     CJOrderAttemptStatus.RECONCILIATION_REQUIRED,
                 }:
+                    # An earlier try may have reached CJ: never submit twice.
+                    # None means CJ says it has no such order, so submitting
+                    # again is safe (an unknown answer raises instead).
                     cj_order_number = await self._query_existing_cj_order(event.order_id)
-                    if not cj_order_number:
-                        await self._mark_reconciliation(
-                            event.order_id, "CJ creation outcome remains unknown"
-                        )
-                        raise CJOrderAmbiguousError("CJ creation outcome remains unknown")
-                else:
+                if cj_order_number is None:
                     payload = await self._build_cj_order_payload(event)
-                    await self._record_creating(event, payload)
+                    if not await self._record_creating(event, payload):
+                        raise CJOrderCancelledError(f"Order {event.order_id} was cancelled")
                     cj_order_number = await self._submit_cj_order(event, payload)
-                await self._record_created(event, cj_order_number)
-                result = "cj_order_created"
+                if await self._record_created(event, cj_order_number):
+                    result = "cj_order_created"
+                    pay = True
+                else:
+                    # Cancelled while CJ was creating it: take it back unpaid.
+                    result = await self._withdraw_unpaid_cj_order(event.order_id, cj_order_number)
+        except CJOrderCancelledError:
+            result = "cancelled_before_cj_order"
         except (CJOrderConfigurationError, CJProductMappingError, CJOrderCreationError) as exc:
             self.logger.error(f"CJ order creation failed for order {event.order_id}: {exc}")
             await self._record_failed(event, str(exc))
@@ -328,6 +371,7 @@ class SupplierEventConsumer:
                 event.order_id,
                 exc,
             )
+            await self._mark_reconciliation(event.order_id, str(exc))
             await self.idempotency_service.release_claim(event.event_id, event.event_type)
             raise
         except Exception:
@@ -340,7 +384,7 @@ class SupplierEventConsumer:
             order_id=event.order_id,
             result=result,
         )
-        if not result.startswith("cj_order_failed"):
+        if pay:
             await self._advance_payment(event.order_id)
 
     async def _advance_payment(self, order_id: UUID) -> None:
@@ -374,26 +418,38 @@ class SupplierEventConsumer:
             return self._extract_cj_order_number(response)
         except CJOrderCreationError:
             raise
-        except CJDropshippingAPIError as exc:
+        except CJDropshippingAPIError:
             # The POST may have reached CJ. Query by our stable orderNumber before
             # doing anything that could refund a real remote order.
             existing = await self._query_existing_cj_order(event.order_id)
             if existing:
                 return existing
-            raise CJOrderAmbiguousError(str(exc)) from exc
+            # CJ has no such order: the POST never created one (a 429, say).
+            # Raised as it was, so the message is retried and submits again.
+            raise
 
     async def _query_existing_cj_order(self, order_id: UUID) -> str | None:
+        """
+        The CJ order created for ``order_id``, or None when CJ says there is none.
+
+        Anything short of an authoritative answer raises CJOrderAmbiguousError:
+        the order may exist at CJ, so nothing may be submitted or compensated.
+        """
         try:
             response = await self.cj_api_client.get_order_detail(str(order_id))
+        except CJDropshippingNotFoundError:
+            return None
         except CJDropshippingAPIError as exc:
             raise CJOrderAmbiguousError(
                 f"Unable to reconcile CJ order {order_id}: {exc}"
             ) from exc
-        if response.get("code") != 200 or not response.get("result"):
+        if response.get("code") == CJDropshippingNotFoundError.CODE:
             return None
         data = response.get("data") or {}
         value = data.get("cjOrderId") or data.get("orderId") or data.get("orderNum")
-        return str(value) if value else None
+        if response.get("code") != 200 or not response.get("result") or not value:
+            raise CJOrderAmbiguousError(f"CJ gave no usable answer about order {order_id}: {response}")
+        return str(value)
 
     async def _get_attempt(self, order_id: UUID) -> CJOrderAttempt | None:
         async with self.database.transaction() as session:
@@ -403,7 +459,8 @@ class SupplierEventConsumer:
 
     async def _record_creating(
         self, event: OrderConfirmedEvent, payload: dict[str, Any]
-    ) -> None:
+    ) -> bool:
+        """Mark the attempt as being sent to CJ; False when the order was cancelled."""
         rate = (await SupplierRetailPricing.live(self.settings, self.logger)).usd_to_cad_rate
         expected_max = CJOrderPaymentService.expected_max_amount_usd(event, self.settings, rate)
         async with self.database.transaction() as session:
@@ -422,6 +479,10 @@ class SupplierEventConsumer:
                         is_sandbox=payload.get("isSandbox") == 1,
                     )
                 )
+            elif attempt.cancelled_at is not None:
+                # Checked under the row lock, right before the POST: a
+                # cancellation recorded since the attempt was first read wins.
+                return False
             elif attempt.status != CJOrderAttemptStatus.CREATED:
                 attempt.status = CJOrderAttemptStatus.CREATING
                 attempt.user_email = event.user_email
@@ -430,13 +491,26 @@ class SupplierEventConsumer:
                 attempt.is_sandbox = payload.get("isSandbox") == 1
                 attempt.last_error = None
                 await repository.update(attempt)
+        return True
 
     async def _record_created(
         self, event: OrderConfirmedEvent, cj_order_number: str
-    ) -> None:
+    ) -> bool:
+        """
+        Record the CJ order and announce it; False when the local order was
+        cancelled meanwhile, so the caller withdraws it instead.
+        """
         async with self.database.transaction() as session:
             repository = CJOrderAttemptRepository(session)
             attempt = await repository.get_for_update(event.order_id)
+            if attempt is not None and attempt.cancelled_at is not None:
+                # Recorded as created (never paid: cancelled_at stops payment)
+                # until the withdrawal succeeds and marks it cancelled.
+                attempt.status = CJOrderAttemptStatus.CREATED
+                attempt.cj_order_number = cj_order_number
+                attempt.last_error = "Created at CJ after the local order was cancelled"
+                await repository.update(attempt)
+                return False
             if attempt is None:
                 attempt = await repository.create(
                     CJOrderAttempt(
@@ -475,6 +549,7 @@ class SupplierEventConsumer:
                     cj_order_number=cj_order_number,
                 ),
             )
+        return True
 
     async def _record_failed(self, event: OrderConfirmedEvent, reason: str) -> None:
         async with self.database.transaction() as session:
@@ -509,6 +584,34 @@ class SupplierEventConsumer:
                     reason=reason,
                 ),
             )
+
+    async def _record_cancellation(self, event: OrderCancelledEvent) -> CJOrderAttempt:
+        """Stamp ``cancelled_at``; an order with no attempt yet gets a cancelled one."""
+        async with self.database.transaction() as session:
+            repository = CJOrderAttemptRepository(session)
+            attempt = await repository.get_for_update(event.order_id)
+            if attempt is None:
+                return await repository.create(
+                    CJOrderAttempt(
+                        order_id=event.order_id,
+                        user_id=event.user_id,
+                        user_email=event.user_email,
+                        status=CJOrderAttemptStatus.CANCELLED,
+                        cancelled_at=datetime.now(timezone.utc),
+                    )
+                )
+            if attempt.cancelled_at is None:
+                attempt.cancelled_at = datetime.now(timezone.utc)
+                attempt = await repository.update(attempt)
+            return attempt
+
+    async def _record_cj_order_number(self, order_id: UUID, cj_order_number: str) -> None:
+        async with self.database.transaction() as session:
+            repository = CJOrderAttemptRepository(session)
+            attempt = await repository.get_for_update(order_id)
+            if attempt:
+                attempt.cj_order_number = cj_order_number
+                await repository.update(attempt)
 
     async def _mark_reconciliation(self, order_id: UUID, reason: str) -> None:
         async with self.database.transaction() as session:

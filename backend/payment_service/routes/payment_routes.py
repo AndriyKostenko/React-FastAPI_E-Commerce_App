@@ -13,6 +13,7 @@ from dependencies.dependencies import (
     payment_dispute_service_dependency,
     idempotency_service_dependency,
     payment_service_dependency,
+    stripe_refund_webhook_service_dependency,
     tax_calculation_service_dependency,
 )
 from shared.auth.route_guards import AdminDep, CallerDep, ensure_owner_or_admin
@@ -78,6 +79,7 @@ async def stripe_webhook(
     payment_service: payment_service_dependency,
     idempotency_service: idempotency_service_dependency,
     dispute_service: payment_dispute_service_dependency,
+    refund_webhook_service: stripe_refund_webhook_service_dependency,
 ) -> WebhookAckResponse:
     stripe_event = await payment_service.construct_webhook_event(request=request)
     # Since stripe-python 15 a StripeObject is no longer a dict, and every
@@ -106,7 +108,7 @@ async def stripe_webhook(
             case "payment_intent.canceled":
                 await payment_service.handle_payment_intent_cancelled(stripe_event_data=event_data)
             case "charge.refund.updated":
-                await payment_service.handle_charge_refund_updated(stripe_event_data=event_data)
+                await refund_webhook_service.refund_updated(event_data)
             case "charge.dispute.created":
                 await dispute_service.opened(event_data)
             case "charge.dispute.updated":

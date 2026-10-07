@@ -28,6 +28,7 @@ from dependencies.dependencies import (
     get_idempotency_service,
     get_outbox_service,
     get_payment_service,
+    get_stripe_refund_webhook_service,
 )
 from service_layer.payment_service import PaymentService
 from service_layer.outbox_event_service import OutboxEventService
@@ -253,7 +254,6 @@ def mock_route_payment_service() -> MagicMock:
     svc.handle_payment_intent_succeeded = AsyncMock(return_value=None)
     svc.handle_payment_intent_failed = AsyncMock(return_value=None)
     svc.handle_payment_intent_cancelled = AsyncMock(return_value=None)
-    svc.handle_charge_refund_updated = AsyncMock(return_value=None)
     svc.get_payment_by_id = AsyncMock()
     svc.get_payments = AsyncMock()
     return svc
@@ -292,6 +292,7 @@ async def client_for_unit_testing(
     app.dependency_overrides[get_payment_dispute_service] = lambda: MagicMock(
         opened=AsyncMock(), updated=AsyncMock(), closed=AsyncMock()
     )
+    app.dependency_overrides[get_stripe_refund_webhook_service] = lambda: MagicMock(refund_updated=AsyncMock())
     app.dependency_overrides[get_idempotency_service] = lambda: mock_idempotency_service
 
     original_debug_mode = settings.DEBUG_MODE

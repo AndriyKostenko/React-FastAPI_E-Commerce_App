@@ -11,7 +11,9 @@ from shared.contracts.events import (
     PaymentSucceededEvent,
     PaymentFailedEvent,
     PaymentRefundedEvent,
+    PaymentRefundFailedEvent,
     PaymentCancelledEvent,
+    PaymentDisputeEvent,
 )
 
 
@@ -76,3 +78,23 @@ class PaymentEventPublisher(BaseEventPublisher):
             routing_key=event.event_type,
         )
         self.logger.info(f"Published PaymentCancelledEvent for order {event.order_id}: {event.reason}")
+
+    async def publish_payment_refund_failed(self, event_data: dict[str, Any]) -> None:
+        """Publish payment.refund_failed — order service marks the refund failed so the line is refundable again."""
+        event = PaymentRefundFailedEvent(**event_data)
+        await self.publish_an_event(
+            event=event,
+            exchange=self.payment_exchange,
+            routing_key=event.event_type,
+        )
+        self.logger.info(f"Published PaymentRefundFailedEvent {event.refund_id} for order {event.order_id}: {event.reason}")
+
+    async def publish_payment_dispute(self, event_data: dict[str, Any]) -> None:
+        """Publish payment.dispute_opened / _closed — order service flags the order, an admin is alerted."""
+        event = PaymentDisputeEvent(**event_data)
+        await self.publish_an_event(
+            event=event,
+            exchange=self.payment_exchange,
+            routing_key=event.event_type,
+        )
+        self.logger.info(f"Published {event.event_type} {event.dispute_id} for order {event.order_id}")

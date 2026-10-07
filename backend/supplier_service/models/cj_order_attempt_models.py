@@ -74,3 +74,9 @@ class CJOrderAttempt(Base, TimestampMixin):
     is_sandbox: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="false"
     )
+    # The local order was cancelled. Kept apart from ``status`` because a
+    # withdrawal CJ refuses moves the status on to reconciliation_required,
+    # and the order.confirmed consumer must still see the order is gone.
+    cancelled_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )

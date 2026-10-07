@@ -74,6 +74,15 @@ def _make_consumer(
     consumer._record_created = AsyncMock()
     consumer._record_failed = AsyncMock()
     consumer._mark_reconciliation = AsyncMock()
+    consumer._set_attempt_status = AsyncMock()
+
+    async def _record_cancellation(event):
+        # Stamps the cancellation and returns the attempt; a missing one is created cancelled.
+        return await consumer._get_attempt(event.order_id) or SimpleNamespace(
+            status=CJOrderAttemptStatus.CANCELLED, cj_order_number=None
+        )
+
+    consumer._record_cancellation = AsyncMock(side_effect=_record_cancellation)
     consumer.payment_service.advance = AsyncMock(return_value=CJOrderAttemptStatus.PAID)
     return consumer
 
@@ -189,10 +198,29 @@ class TestHandleOrderConfirmed:
         consumer.cj_api_client.create_order_v2.assert_not_awaited()
         consumer.publisher.publish_cj_order_created.assert_not_awaited()
 
+    async def test_a_create_cj_never_received_is_retried_not_compensated(self):
+        # CJ answers "order not found" afterwards: the POST created nothing (a 429, say).
+        consumer = _make_consumer(
+            resolve_cj_ids=(TEST_PID, TEST_VID),
+            create_order_response=CJDropshippingUnavailableError("CJ API returned 429"),
+        )
+
+        with pytest.raises(CJDropshippingUnavailableError):
+            await consumer.handle_order_confirmed(_make_order_confirmed_message())
+
+        consumer.publisher.publish_cj_order_created.assert_not_awaited()
+        consumer._record_failed.assert_not_awaited()
+        consumer._mark_reconciliation.assert_not_awaited()
+        consumer.idempotency_service.release_claim.assert_awaited_once()
+
     async def test_ambiguous_cj_api_failure_never_compensates(self):
+        # CJ cannot say whether the order exists: nothing may be submitted or refunded.
         consumer = _make_consumer(
             resolve_cj_ids=(TEST_PID, TEST_VID),
             create_order_response=CJDropshippingAPIError("CJ API error"),
+        )
+        consumer.cj_api_client.get_order_detail = AsyncMock(
+            side_effect=CJDropshippingUnavailableError("CJ API returned 503")
         )
 
         with pytest.raises(CJOrderAmbiguousError):
@@ -200,6 +228,7 @@ class TestHandleOrderConfirmed:
 
         consumer.publisher.publish_cj_order_created.assert_not_awaited()
         consumer._record_failed.assert_not_awaited()
+        consumer._mark_reconciliation.assert_awaited_once()
         consumer.idempotency_service.release_claim.assert_awaited_once()
 
     async def test_missing_address_triggers_compensation(self):
