@@ -147,7 +147,9 @@ class PaymentRefundService:
                 return
             refund.status = RefundStatus.SUCCEEDED
             refund.stripe_refund_id = stripe_refund_id
-            if payment.refunded_cents >= payment.amount:
+            # What was taken off before capture was never charged, so it
+            # counts too: refunded once nothing that was captured is left.
+            if payment.refundable_cents <= 0:
                 payment.status = PaymentStatus.REFUNDED
             await session.flush()
             await self._emit_refunded(session, payment, command, applied_before_capture=False)

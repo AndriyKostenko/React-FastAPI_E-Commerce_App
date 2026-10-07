@@ -135,6 +135,25 @@ async def test_before_capture_the_card_is_charged_less(db) -> None:
     assert events == [PaymentEvents.PAYMENT_REFUNDED]
 
 
+async def test_refunding_the_rest_after_a_reduction_marks_the_payment_refunded(db) -> None:
+    """Found live: 30.00 taken off before capture, the other 70.00 refunded after it."""
+    order_id = await _payment(db, PaymentStatus.AUTHORIZED)
+    service = PaymentRefundService(db, FakeStripe(), getLogger("t"))
+    await service.refund(_command(order_id, 3_000))
+    async with db.transaction() as session:
+        # Capture charges amount - capture_reduction_cents and records the payment as succeeded.
+        captured = (await session.execute(select(Payment).where(Payment.order_id == order_id))).scalar_one()
+        captured.status = PaymentStatus.SUCCEEDED
+
+    await service.refund(_command(order_id, 4_000))
+    partly, _ = await _state(db, order_id)
+    await service.refund(_command(order_id, 3_000))
+    payment, _ = await _state(db, order_id)
+
+    assert partly.status == PaymentStatus.SUCCEEDED and partly.refundable_cents == 3_000
+    assert payment.refundable_cents == 0 and payment.status == PaymentStatus.REFUNDED
+
+
 async def test_a_reduction_that_would_void_the_hold_is_refused(db) -> None:
     order_id = await _payment(db, PaymentStatus.AUTHORIZED)
     status = await PaymentRefundService(db, FakeStripe(), getLogger("t")).refund(_command(order_id, AMOUNT))
