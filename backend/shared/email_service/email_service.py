@@ -33,7 +33,7 @@ class EmailService:
         self.logger: Logger = logger
         self.config: ConnectionConfig = ConnectionConfig(
             MAIL_USERNAME=self.settings.MAIL_USERNAME,
-            MAIL_PASSWORD=self.settings.MAIL_PASSWORD,
+            MAIL_PASSWORD=self.settings.MAIL_SERVER_PASSWORD,
             MAIL_FROM=self.settings.MAIL_FROM,
             MAIL_PORT=self.settings.MAIL_PORT,
             MAIL_SERVER=self.settings.MAIL_SERVER,

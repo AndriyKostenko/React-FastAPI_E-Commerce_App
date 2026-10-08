@@ -33,11 +33,22 @@ of its own `.venv`. The Next.js frontend is started by the same script.
 (`POSTGRES_HOST=127.0.0.1`, `*_SERVICE_URL=http://127.0.0.1:80xx`, …). There is no
 `.env.local` any more.
 
+Secrets are not in it: they live in a local HashiCorp Vault that `dev.sh` runs
+on `127.0.0.1:8200`, one path per service (`secret/ecommerce/<service>`, plus
+`secret/ecommerce/shared-infra` for the Postgres/Redis/RabbitMQ passwords).
+Every process `dev.sh` starts signs in with its own AppRole and can read only
+its own path; a service that can't reach Vault refuses to start, naming what is
+missing. The unseal key, root token and AppRole credentials are kept in
+`backend/local/run/vault/` (this machine only).
+
 ## First-time setup
 
 ```bash
 cd backend
-./local/dev.sh install          # brew: postgresql@16, redis, rabbitmq
+./local/dev.sh install          # brew: postgresql@16, redis, rabbitmq, vault
+./local/dev.sh vault up         # start, initialise and unseal Vault; one AppRole per service
+./local/dev.sh vault import     # one time, run it yourself: move the secrets from
+                                # backend's config file into Vault (--dry-run first)
 ./local/dev.sh init             # initdb, create every DB, provision the rabbit user
 
 # Python deps — once per service
@@ -61,6 +72,7 @@ RELOAD=1 ./local/dev.sh up      # same, with uvicorn --reload
 ./local/dev.sh restart order-service
 ./local/dev.sh down             # stop services + infra
 ./local/dev.sh migrate          # alembic upgrade head for every service
+./local/dev.sh vault status     # which secret keys each Vault path holds (names only)
 ./local/dev.sh reset            # down + delete local data (destructive)
 ./local/dev.sh cj-sandbox status|ship|deliver|poll <order_id>   # see below
 ```
@@ -118,6 +130,7 @@ without re-testing repeated reloads; `next build` is unaffected.
 | supplier-service             | `http://127.0.0.1:8010`                                           |
 | cj-mcp (CJ Dropshipping MCP) | `http://127.0.0.1:3009/mcp` — health at `/health`                 |
 | admin-js (AdminJS)           | `http://localhost:3001/admin` — log in with an admin account      |
+| Vault                        | `http://127.0.0.1:8200` — UI at `/ui`, root token in `backend/local/run/vault/init.json` |
 
 Every FastAPI app serves Swagger at `/docs` and its routes under `/api/v1`.
 The gateway exposes `/health`; the services expose `/health/live` and `/health/ready`.
@@ -145,6 +158,19 @@ otel-collector.
 Each service is a standalone `uv` project; pytest is configured in its `pyproject.toml`
 (`asyncio_mode = "auto"`, `testpaths = ["tests"]`). Tests split into
 `tests/unit_tests/` and `tests/integration_tests/`.
+
+Settings read their secrets (the database password included) from Vault, so run
+a suite through `dev.sh`, which gives it that service's Vault identity:
+
+```bash
+cd backend
+./local/dev.sh test order_service                 # the whole suite
+./local/dev.sh test order_service -k integration  # any pytest arguments
+./local/dev.sh test shared                        # shared/'s own suite
+```
+
+Inside a service directory, plain `uv run pytest` works only with the `VAULT_*`
+variables `dev.sh` exports (see `export_vault_identity` in `local/dev.sh`):
 
 ```bash
 cd backend/<service>            # e.g. backend/order_service
