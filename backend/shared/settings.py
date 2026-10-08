@@ -6,9 +6,11 @@ from typing import ClassVar, Literal
 from uuid import UUID, uuid4
 
 from pydantic import AliasChoices, DirectoryPath, Field, SecretStr
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
 from shared.enums.status_enums import OrderDeliveryStatus, OrderStatus
 from sqlalchemy.engine import URL
+
+from shared.vault import VaultSettingsSource
 
 # Resolve the single shared .env that lives one level above this file (backend/.env).
 # It is the one source of configuration; real environment variables (compose's
@@ -21,7 +23,23 @@ class Settings(BaseSettings):
         env_file=_ROOT_ENV,
         env_file_encoding="utf-8",
         extra="ignore",  # ignore vars in .env that aren't declared on this model
+        # A validation error would otherwise print part of the input, which now
+        # includes this service's secrets from Vault.
+        hide_input_in_errors=True,
     )
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        # Secrets come from Vault (this service's own path only); the file holds
+        # the rest of the configuration. Real environment variables still win.
+        return (init_settings, env_settings, VaultSettingsSource(settings_cls), dotenv_settings, file_secret_settings)
 
     # Application configuration
     WEBSITE_NAME: str
@@ -139,7 +157,8 @@ class Settings(BaseSettings):
 
     # pgAdmin
     PGADMIN_DEFAULT_EMAIL: str
-    PGADMIN_DEFAULT_PASSWORD: str
+    # Only the compose pgAdmin container uses it; no service does.
+    PGADMIN_DEFAULT_PASSWORD: SecretStr | None = None
 
     # RabbitMQ configuration
     RABBITMQ_HOST: str
@@ -182,7 +201,8 @@ class Settings(BaseSettings):
     IDEMPOTENCY_EVENT_SERVICE_HOURS: int
 
     # JWT configuration
-    SECRET_KEY: str
+    # No longer an auth secret; only the artwork-signing fallback reads it.
+    SECRET_KEY: SecretStr | None = None
     # Unused since tokens are Ed25519-signed (EdDSA); kept so an existing .env
     # that still sets it keeps loading.
     ALGORITHM: str | None = None
@@ -245,7 +265,8 @@ class Settings(BaseSettings):
 
     # Email
     MAIL_USERNAME: str
-    MAIL_PASSWORD: SecretStr
+    # Held by notification-service only; read through MAIL_SERVER_PASSWORD.
+    MAIL_PASSWORD: SecretStr | None = None
     MAIL_PORT: int
     MAIL_SERVER: str
     MAIL_STARTTLS: bool
@@ -327,9 +348,10 @@ class Settings(BaseSettings):
     PRINT_IMAGE_MIN_EFFECTIVE_DPI: int = Field(default=150, ge=72, le=600)
 
     MISSING_SECRET_HINT: ClassVar[str] = (
-        "{name} is not configured for this service. Provider secrets are "
-        "optional so a process that never uses one need not hold it; supply "
-        "it in this service's environment if the feature is meant to work."
+        "{name} is not configured for this service. Secrets are optional so "
+        "a process that never uses one need not hold it; put it in this "
+        "service's Vault path (secret/ecommerce/<service>) if the feature is "
+        "meant to work here."
     )
 
     @staticmethod
@@ -377,6 +399,10 @@ class Settings(BaseSettings):
         )
 
     @property
+    def MAIL_SERVER_PASSWORD(self) -> str:
+        return self._reveal(self.MAIL_PASSWORD, "MAIL_PASSWORD")
+
+    @property
     def OPENROUTER_KEY(self) -> str:
         return self._reveal(self.OPENROUTER_API_KEY, "OPENROUTER_API_KEY")
 
@@ -390,7 +416,7 @@ class Settings(BaseSettings):
 
         if self.ARTWORK_SIGNING_SECRET is not None:
             return self.ARTWORK_SIGNING_SECRET.get_secret_value()
-        return self.SECRET_KEY
+        return self._reveal(self.SECRET_KEY, "ARTWORK_SIGNING_SECRET (or its SECRET_KEY fallback)")
 
     # Other
     SECRET_ROLE: str

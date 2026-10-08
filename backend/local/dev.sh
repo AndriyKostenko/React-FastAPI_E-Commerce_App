@@ -26,6 +26,13 @@
 #   ./local/dev.sh cj-sandbox status|ship|deliver|poll <order_id>
 #                                   # play CJ's part for a sandbox order
 #                                   # (CJ_DROPSHIPPING_SANDBOX=true only)
+#   ./local/dev.sh vault up|down|status
+#                                   # the local Vault holding every secret
+#   ./local/dev.sh vault import [--dry-run]
+#                                   # one-time: move secrets from the config
+#                                   # file into Vault (you run it)
+#   ./local/dev.sh test <service_dir> [pytest args]
+#                                   # a service's tests, with its Vault identity
 #
 # RELOAD=1           ./local/dev.sh up   HTTP services start with --reload.
 # FRONTEND_PORT=3000 ./local/dev.sh up   override the Next.js port.
@@ -75,14 +82,45 @@ env_get() {
 }
 
 POSTGRES_USER="$(env_get POSTGRES_USER)"
-POSTGRES_PASSWORD="$(env_get POSTGRES_PASSWORD)"
 POSTGRES_PORT="$(env_get POSTGRES_PORT)"
-REDIS_PASSWORD="$(env_get REDIS_PASSWORD)"
 REDIS_PORT="$(env_get REDIS_PORT)"
 RABBITMQ_USER="$(env_get RABBITMQ_USER)"
-RABBITMQ_PASSWORD="$(env_get RABBITMQ_PASSWORD)"
 RABBITMQ_PORT="$(env_get RABBITMQ_PORT)"
 : "${POSTGRES_PORT:=5432}" "${REDIS_PORT:=6379}" "${RABBITMQ_PORT:=5672}"
+# The three infra passwords live in Vault (secret/ecommerce/shared-infra) and
+# are loaded by load_infra_secrets only where a command needs them.
+POSTGRES_PASSWORD="" REDIS_PASSWORD="" RABBITMQ_PASSWORD=""
+
+# --------------------------------------------------------------------------
+# Vault: every secret lives here, one KV path per service, and each process
+# signs in with its own AppRole, so it can read only its own path plus the
+# infra credentials (shared-infra) every process needs.
+# --------------------------------------------------------------------------
+VAULT_PORT="${VAULT_PORT:-8200}"
+VAULT_LOCAL_ADDR="http://127.0.0.1:$VAULT_PORT"
+VAULT_DATA="$DATA_DIR/vault"
+VAULT_RUN="$RUN_DIR/vault"
+# Unseal key + root token. One key share, kept on this machine only (git-ignored).
+VAULT_INIT_FILE="$VAULT_RUN/init.json"
+VAULT_PREFIX="ecommerce"
+
+# identity | service dir. Each identity gets a policy and an AppRole of its name.
+vault_identities() {
+  cat <<'EOF'
+api-gateway|api_gateway
+user-service|user_service
+product-service|product_service
+supplier-service|supplier_service
+order-service|order_service
+payment-service|payment_service
+cart-service|cart_service
+wishlist-service|wishlist_service
+shipping-service|shipping_service
+notification-service|notification_service
+admin-js|admin-js-service
+shared-tests|shared
+EOF
+}
 
 # frontend/.env pins NEXT_PUBLIC_APP_URL to :30000 and backend CORS_ALLOWED_ORIGINS
 # lists that same port, so serving on anything else needs both updated too.
@@ -189,8 +227,10 @@ cmd_port() {
 # Infra
 # --------------------------------------------------------------------------
 cmd_install() {
-  say "Installing postgresql@16, redis and rabbitmq via Homebrew"
+  say "Installing postgresql@16, redis, rabbitmq and vault via Homebrew"
   brew install postgresql@16 redis rabbitmq
+  brew tap hashicorp/tap
+  brew install hashicorp/tap/vault
 }
 
 require_bin() {
@@ -217,7 +257,8 @@ pg_stop() {
   if pg_running; then say "stopping postgres"; pg_ctl -D "$PGDATA" -m fast -w stop; fi
 }
 
-psql_run() { PGPASSWORD="$POSTGRES_PASSWORD" psql -h 127.0.0.1 -p "$POSTGRES_PORT" -U "$POSTGRES_USER" "$@"; }
+# Over the unix socket, which initdb set to trust: no password needed.
+psql_run() { psql -h "$RUN_DIR" -p "$POSTGRES_PORT" -U "$POSTGRES_USER" "$@"; }
 
 redis_pid_file="$RUN_DIR/redis.pid"
 redis_running() { [ -f "$redis_pid_file" ] && kill -0 "$(cat "$redis_pid_file")" 2>/dev/null; }
@@ -263,11 +304,180 @@ rabbit_stop() {
   if rabbit_running; then say "stopping rabbitmq"; rabbitmqctl -q stop; fi
 }
 
+vault_pid_file="$RUN_DIR/vault.pid"
+vault_running() { [ -f "$vault_pid_file" ] && kill -0 "$(cat "$vault_pid_file")" 2>/dev/null; }
+
+# 200 unsealed, 501 not initialised, 503 sealed, 000 not answering.
+vault_health() {
+  curl -s -o /dev/null -w '%{http_code}' "$VAULT_LOCAL_ADDR/v1/sys/health?standbyok=true" 2>/dev/null || true
+}
+
+# One field of the init file (a JSON document), e.g. root_token.
+vault_init_field() {
+  python3 -c 'import json, sys; d = json.load(open(sys.argv[1])); f = d[sys.argv[2]]; print(f[0] if isinstance(f, list) else f)' \
+    "$VAULT_INIT_FILE" "$1"
+}
+
+# The vault CLI as the operator (root token), for dev.sh's own bookkeeping.
+vault_op() {
+  [ -f "$VAULT_INIT_FILE" ] || die "Vault is not initialised yet. Run: ./local/dev.sh vault up"
+  VAULT_ADDR="$VAULT_LOCAL_ADDR" VAULT_TOKEN="$(vault_init_field root_token)" vault "$@"
+}
+
+vault_start() {
+  require_bin vault
+  mkdir -p "$VAULT_DATA" "$VAULT_RUN"
+  chmod 700 "$VAULT_RUN"
+  if ! vault_running; then
+    if port_busy "$VAULT_PORT"; then die "port $VAULT_PORT is already in use (held by $(port_owner "$VAULT_PORT"))"; fi
+    cat > "$VAULT_RUN/server.hcl" <<EOF
+storage "file" {
+  path = "$VAULT_DATA"
+}
+listener "tcp" {
+  address     = "127.0.0.1:$VAULT_PORT"
+  tls_disable = 1
+}
+api_addr      = "$VAULT_LOCAL_ADDR"
+disable_mlock = true
+ui            = true
+EOF
+    say "starting vault on :$VAULT_PORT"
+    ( exec nohup vault server -config="$VAULT_RUN/server.hcl" >> "$LOG_DIR/vault.log" 2>&1 ) &
+    echo $! > "$vault_pid_file"
+    local tries=0
+    while [ "$(vault_health)" = "000" ]; do
+      tries=$((tries + 1))
+      [ "$tries" -gt 30 ] && die "vault did not come up -- see $LOG_DIR/vault.log"
+      sleep 1
+    done
+  else
+    say "vault already running"
+  fi
+  if [ "$(vault_health)" = "501" ]; then
+    say "initialising vault (one key share, kept in $VAULT_INIT_FILE -- this machine only)"
+    ( umask 077; VAULT_ADDR="$VAULT_LOCAL_ADDR" vault operator init -key-shares=1 -key-threshold=1 -format=json > "$VAULT_INIT_FILE" )
+  fi
+  if [ "$(vault_health)" = "503" ]; then
+    VAULT_ADDR="$VAULT_LOCAL_ADDR" vault operator unseal "$(vault_init_field unseal_keys_b64)" >/dev/null
+  fi
+  [ "$(vault_health)" = "200" ] || die "vault is not ready (health $(vault_health)) -- see $LOG_DIR/vault.log"
+  vault_bootstrap
+}
+
+vault_stop() {
+  if vault_running; then say "stopping vault"; kill "$(cat "$vault_pid_file")" 2>/dev/null || true; fi
+  rm -f "$vault_pid_file"
+}
+
+# Idempotent: the KV engine, AppRole auth, and per identity a read-only policy
+# on its own path + shared-infra, an AppRole, and its credentials in files.
+vault_bootstrap() {
+  # Captured, not piped into grep -q: under pipefail an early-exiting grep
+  # would fail the check and try to enable an engine that already exists.
+  local engines auths
+  engines="$(vault_op secrets list -format=json)"
+  [[ "$engines" == *'"secret/"'* ]] || vault_op secrets enable -path=secret -version=2 kv >/dev/null
+  auths="$(vault_op auth list -format=json)"
+  [[ "$auths" == *'"approle/"'* ]] || vault_op auth enable approle >/dev/null
+  local name
+  while IFS='|' read -r name _; do
+    printf 'path "secret/data/%s/%s" { capabilities = ["read"] }\npath "secret/data/%s/shared-infra" { capabilities = ["read"] }\n' \
+      "$VAULT_PREFIX" "$name" "$VAULT_PREFIX" | vault_op policy write "$name" - >/dev/null
+    vault_op write "auth/approle/role/$name" token_policies="$name" token_ttl=1h token_max_ttl=24h secret_id_ttl=0 >/dev/null
+    # Every identity's own path exists, empty when it holds no secret of its own
+    # (cart, wishlist, shipping): a missing path makes the service refuse to start.
+    vault_op kv metadata get "secret/$VAULT_PREFIX/$name" >/dev/null 2>&1 || \
+      printf '{"data": {}}' | vault_op write "secret/data/$VAULT_PREFIX/$name" - >/dev/null
+    ( umask 077
+      vault_op read -field=role_id "auth/approle/role/$name/role-id" > "$VAULT_RUN/$name.role-id"
+      # A secret id is issued once and reused; delete the file to rotate it.
+      [ -s "$VAULT_RUN/$name.secret-id" ] || \
+        vault_op write -f -field=secret_id "auth/approle/role/$name/secret-id" > "$VAULT_RUN/$name.secret-id" )
+  done < <(vault_identities)
+}
+
+# The infra passwords dev.sh itself needs (redis, rabbitmq, a new cluster).
+load_infra_secrets() {
+  local path="secret/$VAULT_PREFIX/shared-infra"
+  vault_op kv get "$path" >/dev/null 2>&1 || \
+    die "Vault has no $path yet. Move the secrets in first: ./local/dev.sh vault import"
+  POSTGRES_PASSWORD="$(vault_op kv get -field=POSTGRES_PASSWORD "$path")"
+  REDIS_PASSWORD="$(vault_op kv get -field=REDIS_PASSWORD "$path")"
+  RABBITMQ_PASSWORD="$(vault_op kv get -field=RABBITMQ_PASSWORD "$path")"
+}
+
+vault_identity_for_dir() {
+  local name dir
+  while IFS='|' read -r name dir; do
+    [ "$dir" = "$1" ] && { printf '%s' "$name"; return; }
+  done < <(vault_identities)
+}
+
+# Point a Python process at its own Vault identity (call inside its subshell).
+# Settings read the secrets themselves (shared.vault.VaultSettingsSource).
+export_vault_identity() {
+  local name; name="$(vault_identity_for_dir "$1")"
+  [ -n "$name" ] || return 0
+  export VAULT_ADDR="$VAULT_LOCAL_ADDR"
+  export VAULT_ROLE_ID_FILE="$VAULT_RUN/$name.role-id"
+  export VAULT_SECRET_ID_FILE="$VAULT_RUN/$name.secret-id"
+  export VAULT_SECRET_PATHS="$VAULT_PREFIX/shared-infra,$VAULT_PREFIX/$name"
+}
+
+# The secrets a Node process reads, and nothing more: its AppRole may read the
+# whole shared-infra path, but admin-js needs only the Redis password from it.
+vault_node_keys() {
+  case "$1" in
+    admin-js) printf 'COOKIE_SECRET,REDIS_PASSWORD' ;;
+    *) die "no secret list for Node identity $1" ;;
+  esac
+}
+
+# admin-js is Node and has no Vault client: read its secrets here, signed in
+# with its own AppRole, and export them into its own environment (call inside
+# its subshell). Exported variables win over the file node --env-file reads.
+export_vault_secrets_for_node() {
+  local name="$1" exports
+  exports="$(python3 "$LOCAL_DIR/vault_read.py" \
+    --address "$VAULT_LOCAL_ADDR" --keys "$(vault_node_keys "$name")" \
+    --role-id-file "$VAULT_RUN/$name.role-id" --secret-id-file "$VAULT_RUN/$name.secret-id" \
+    "$VAULT_PREFIX/shared-infra" "$VAULT_PREFIX/$name")" || die "$name could not read its secrets from Vault"
+  eval "$exports"
+}
+
+cmd_vault() {
+  case "${1:-status}" in
+    up)     vault_start ;;
+    down)   vault_stop ;;
+    status)
+      if ! vault_running; then echo "vault     down"; return; fi
+      echo "vault     up (health $(vault_health))"
+      local name
+      # tooling and observability: read by no local process, root token only.
+      for name in shared-infra $(vault_identities | cut -d'|' -f1) tooling observability; do
+        # Key names only, never values.
+        printf '  %-22s %s\n' "$name" "$(vault_op kv get -format=json "secret/$VAULT_PREFIX/$name" 2>/dev/null \
+          | python3 -c 'import json, sys; print(", ".join(sorted(json.load(sys.stdin)["data"]["data"])))' 2>/dev/null || echo '(empty)')"
+      done ;;
+    import)
+      shift
+      vault_start
+      # order-service's venv has python-dotenv: the file is parsed exactly as Settings parses it.
+      VAULT_ADDR="$VAULT_LOCAL_ADDR" VAULT_TOKEN="$(vault_init_field root_token)" \
+        "$BACKEND_DIR/order_service/.venv/bin/python" "$LOCAL_DIR/vault_import.py" \
+        --env-file "$BACKEND_DIR/.env" --prefix "$VAULT_PREFIX" "$@" ;;
+    *) die "vault: expected up|down|status|import" ;;
+  esac
+}
+
 cmd_infra() {
   case "${1:-up}" in
-    up)     pg_start; redis_start; rabbit_start ;;
-    down)   rabbit_stop; redis_stop; pg_stop ;;
-    status) pg_running && echo "postgres  up" || echo "postgres  down"
+    up)     vault_start; load_infra_secrets; pg_start; redis_start; rabbit_start ;;
+    down)   if vault_running && [ -f "$VAULT_INIT_FILE" ]; then load_infra_secrets; fi
+            rabbit_stop; redis_stop; pg_stop; vault_stop ;;
+    status) vault_running && echo "vault     up" || echo "vault     down"
+            pg_running && echo "postgres  up" || echo "postgres  down"
             redis_running && echo "redis     up" || echo "redis     down"
             rabbit_running && echo "rabbitmq  up" || echo "rabbitmq  down" ;;
     *) die "infra: expected up|down|status" ;;
@@ -279,6 +489,8 @@ cmd_infra() {
 # --------------------------------------------------------------------------
 cmd_init() {
   require_bin initdb
+  vault_start
+  load_infra_secrets
 
   if [ ! -d "$PGDATA" ]; then
     say "creating postgres cluster at $PGDATA"
@@ -339,7 +551,7 @@ cmd_migrate() {
   pg_start
   for svc in $MIGRATABLE; do
     say "alembic upgrade head -- $svc"
-    ( cd "$BACKEND_DIR/$svc" && ./.venv/bin/alembic upgrade head )
+    ( export_vault_identity "$svc"; cd "$BACKEND_DIR/$svc" && ./.venv/bin/alembic upgrade head )
   done
 }
 
@@ -382,7 +594,13 @@ start_one() {
   esac
   local reload=""
   [ "${RELOAD:-0}" = "1" ] && case "$cmd" in *uvicorn*) reload=" --reload";; esac
-  ( cd "$BACKEND_DIR/$dir" && exec nohup $cmd$reload >> "$(log_file "$name")" 2>&1 ) &
+  (
+    case "$cmd" in
+      .venv/bin/*) export_vault_identity "$dir" ;;
+      *start:local*) export_vault_secrets_for_node "$(vault_identity_for_dir "$dir")" ;;
+    esac
+    cd "$BACKEND_DIR/$dir" && exec nohup $cmd$reload >> "$(log_file "$name")" 2>&1
+  ) &
   echo $! > "$(pid_file "$name")"
   echo "  started $name (pid $!)"
 }
@@ -514,7 +732,7 @@ cmd_dlq() {
       shift
       [ -n "${1:-}" ] || die "dlq replay: queue name required (see: dlq list)"
       # Any service venv has aio-pika and the shared package; order-service's is used.
-      (cd "$BACKEND_DIR/order_service" && \
+      (export_vault_identity order_service; cd "$BACKEND_DIR/order_service" && \
         PYTHONPATH="$BACKEND_DIR" .venv/bin/python -m shared.messaging.dead_letter_replay "$@")
       ;;
     *) die "dlq: list | replay <queue> [--to <queue>] [--limit N]" ;;
@@ -526,7 +744,17 @@ cmd_dlq() {
 # emails and returns can be tested end to end.  Refuses real orders.
 cmd_cj_sandbox() {
   service_env
-  (cd "$BACKEND_DIR/supplier_service" && .venv/bin/python -m tools.cj_sandbox "$@")
+  (export_vault_identity supplier_service; cd "$BACKEND_DIR/supplier_service" && .venv/bin/python -m tools.cj_sandbox "$@")
+}
+
+# A service's test suite, with that service's Vault identity: its settings
+# (database password included) come from Vault exactly as when it runs.
+cmd_test() {
+  [ -n "${1:-}" ] || die "test: service dir required (e.g. order_service)"
+  local svc="$1"; shift
+  [ -d "$BACKEND_DIR/$svc" ] || die "test: no service dir $svc"
+  service_env
+  (export_vault_identity "$svc"; cd "$BACKEND_DIR/$svc" && uv run pytest tests/ "$@")
 }
 
 case "${1:-}" in
@@ -543,5 +771,7 @@ case "${1:-}" in
   reset)    shift; cmd_reset "$@" ;;
   dlq)      shift; cmd_dlq "$@" ;;
   cj-sandbox) shift; cmd_cj_sandbox "$@" ;;
-  *) sed -n '2,28p' "${BASH_SOURCE[0]}" | sed -E 's/^#[[:space:]]?//'; exit 1 ;;
+  vault)    shift; cmd_vault "$@" ;;
+  test)     shift; cmd_test "$@" ;;
+  *) sed -n '2,36p' "${BASH_SOURCE[0]}" | sed -E 's/^#[[:space:]]?//'; exit 1 ;;
 esac
