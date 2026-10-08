@@ -11,6 +11,11 @@ import os
 
 # Tests never call the Bank of Canada: prices use the configured rate.
 os.environ.setdefault("CJ_FX_SOURCE", "fixed")
+# Orders are priced tax-free here whatever the local configuration says: with
+# Stripe Tax on, every fixture-built OrderPricingService (no tax client) fails.
+# Tax pricing is tested on its own, with explicit settings, in
+# test_order_pricing_service.py.
+os.environ["STRIPE_TAX_ENABLED"] = "false"
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from decimal import Decimal
