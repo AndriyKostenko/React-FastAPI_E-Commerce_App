@@ -4,7 +4,8 @@ Context: business goal is (1) users create AI print designs on t-shirts that you
 produce at home and ship yourself, and (2) users buy t-shirts sourced from
 CJDropshipping (products pre-fetched and stored in your DB).
 
-Assessment date: 2026-09-03. The hard architectural + integration work is
+Assessment date: 2026-09-03. Last updated 2026-10-07 (refund and cancellation
+paths, PRs #12-#16, see §5a). The hard architectural + integration work is
 substantially done (CJ integration, AI generation, order saga, artwork storage).
 What remains is operational glue, hardening, and in-house fulfillment tooling —
 estimated a few focused weeks, no re-architecting required.
@@ -152,6 +153,15 @@ from the queue, moved the order to `dispatched`.
 refunds that line on its own (a partial refund through §5). A job cancelled
 after printing is still flagged for reconciliation and left to a human.
 
+**Done (2026-10-07, PR #14):** when that cancellation leaves no line of the
+order to ship (every line cancelled, shipping not yet refunded), the refund
+includes the order's shipping too; a line that shipped, even one returned
+since, keeps the shipping charged. The refund now runs before
+`production.job.cancelled` is published, the event carries `refunded_amount`
+and `shipping_refunded`, and notification-service emails the customer
+(`production_job_cancelled.html`: the item, the reason, the amount refunded).
+A job cancelled after printing still sends nothing: that is a human decision.
+
 ### 3. CJ dropshipping order lifecycle completeness — DONE (2026-09-08)
 - [x] Checkout-time shipping quote from CJ (`freightCalculate`)
   - `cj_api_client.calculate_freight` + `CJFreightQuoteService` (resolves local
@@ -183,6 +193,17 @@ after printing is still flagged for reconciliation and left to a human.
     postal formats, phone digit count, CJ field-length caps, PO-box and
     missing-house-number rejection, optional country allow-list
   - Reports every problem at once and runs before any CJ call
+- [x] **No CJ order for a cancelled order (2026-10-05, PR #12).** `order.confirmed`
+  and `order.cancelled` arrive on separate queues; after a backlog the
+  cancellation could be handled first, leave nothing behind, and the
+  confirmation then submitted (and would have paid) a CJ order for an order
+  whose card hold was voided. `cj_order_attempts.cancelled_at` (migration
+  `a6d4e2f8c135`) is stamped by every cancellation; the confirm handler checks
+  it under the row lock before the CJ request, withdraws a CJ order created
+  meanwhile, and the CJ payment service never pays an attempt that has it.
+  CJ's code `1600300` ("order not found") is now an authoritative "not at CJ"
+  (`CJDropshippingNotFoundError`), so a create that failed (e.g. a 429) is
+  submitted again instead of sticking at `creating` until it is dead-lettered.
 
 Schema: `supplier_service` migration `c4a7f1d2e9b8` adds the tracking columns
 (it also creates `cj_order_attempts` when absent, since that table had only ever
@@ -269,8 +290,13 @@ Branch `feature/checkout-payment-cj-flow`; diagram in `FLOWS.md` →
 
 Migrations: product `7c3e9a51d2f4`, order `3d8b6f0e2a91`, supplier `e5b21c7d9f60`.
 **Before going live:** set `CJ_USD_TO_CAD_RATE` / `CJ_PRICE_MARKUP_MULTIPLIER`
-deliberately, prefund the CJ wallet, subscribe the Stripe webhook to
-`payment_intent.amount_capturable_updated`.
+deliberately and prefund the CJ wallet. The Stripe dashboard webhook endpoint
+must subscribe to every event the app handles, by name (locally `stripe listen`
+forwards everything, so a missing one only shows up in production):
+`payment_intent.amount_capturable_updated`, `payment_intent.succeeded`,
+`payment_intent.payment_failed`, `payment_intent.canceled`,
+`charge.refund.updated`, `charge.dispute.created`, `charge.dispute.updated`,
+`charge.dispute.closed`.
 **End-to-end run — DONE (2026-10-02, PR #11)** against Stripe test mode + the CJ
 sandbox. One CJ T-shirt went the whole way: checkout quote → card authorized →
 stock reserved → order confirmed → CJ sandbox order created, confirmed, paid
@@ -285,7 +311,7 @@ dead-lettered every message (subscribers typed the already-decoded body as
 **Not exercised in that run:** typing a card into the Stripe Payment Element
 (the order was placed through `/checkout` and confirmed with `pm_card_visa`,
 which is what the Element sends); the refund and cancellation paths; an
-in-house custom-print order.
+in-house custom-print order. (The last two have since been run live, see §5a.)
 Stripe Tax is wired in behind `STRIPE_TAX_ENABLED` (off by default, so the
 `tax_amount` slot stays 0 until it is switched on — see §5). (Done 2026-09-25:
 admin partial refunds, dispute recording and alerts; `STRIPE_SECRET_KEY` rename — old name still loads; live USD/CAD from the Bank of Canada, cached, with `CJ_USD_TO_CAD_RATE` as fallback and `CJ_FX_SOURCE=fixed` to opt out.)
@@ -532,10 +558,70 @@ the services), not only in unit tests.
   prepaid return labels; store credit; restocking a received catalog item
   (adjust stock by hand); S3 for the photos (local disk / the `return_evidence`
   volume only); photos of a request that fails to commit stay on disk.
+- [x] Refund and cancellation fixes (2026-10-05 to 2026-10-07), all found by
+  running the paths live; details in §5a:
+  - **PR #12:** the `charge.refund.updated` webhook marked the whole payment
+    refunded on any refund, so after one partial refund the customer was told
+    the payment was refunded and every later refund was refused. The app's own
+    refunds now carry Stripe metadata (`refund_origin=payment-service`) and are
+    left alone; a refund made in the Stripe dashboard is recorded once, by
+    Stripe refund id (`StripeRefundWebhookService`). payment-service's outbox
+    also had no route for `payment.refund_failed` (a refused refund stayed
+    `requested` in order-service) or for `payment.dispute_opened` / `_closed`
+    (no dispute alert was ever sent); all routed, with a guard test like
+    order-service's.
+  - **PR #13:** a payment refunded down to zero after a pre-capture reduction
+    stayed `succeeded`; it is now `refunded` once `refundable_cents` is 0.
+  - **PR #15:** every `payment.refunded` carries a `refund_scope` (part / rest /
+    whole), so the customer reads "Part of your payment...", "The rest of your
+    payment..." or "...refunded in full" instead of "Part of" for everything.
+    The order-cancelled email (`order_cancelled.html`) was a heading and a
+    footer under the subject "Refund Initiated"; it now gives the reason and
+    what happens to the money, with a separate wording when goods were already
+    made or posted.
 - Terms / privacy / returns policy pages
 - GDPR data export + delete, audit logging, data retention (checklist §13 fully unchecked)
 - AI-print content moderation — you physically print user designs, so IP / trademark / NSFW
   screening is genuine liability, not optional
+
+### 5a. Refund and cancellation paths — verified live (2026-10-05, 2026-10-07)
+
+Every path below was run against Stripe test mode and the CJ sandbox, through
+the gateway, as a real customer and admin; the bugs the runs found are the
+fixes listed in §5 and §3. The flows are drawn in
+`docs/refund-and-cancellation-flows.excalidraw` (one row per path, trigger to
+outcome, coloured by service).
+
+- **Cancellations:** before paying (intent cancelled); after authorization
+  (hold voided, stock released); an order CJ was paid for (409); the 24-hour
+  stall sweep (cancel + void); cancel and confirm out of order (no CJ order).
+- **Refunds:** admin refund before capture (card charged less: 2874 of 4873)
+  and after capture; over-refund attempts (422); a refund payment-service
+  refuses (`payment.refund_failed`); a refund made in the Stripe dashboard; a
+  custom line cancelled before printing (line + shipping refunded, customer
+  emailed).
+- **Returns and disputes:** a defect (returnless, unit + shipping refunded on
+  approval); a change of mind (sent back to `RETURN_ADDRESS`, refunded on
+  receipt); a dispute opened and closed won (recorded, order flagged, admin
+  alerted, nothing refunded automatically).
+- **Supplier-side:** CJ rejecting an address before any CJ call
+  (`cj.order.failed` -> cancel -> void).
+
+**Not exercised:** fully refunding an already-charged order by cancelling it
+(`PaymentService.handle_payment_refund` on a succeeded payment) needs a product
+sold from local stock; only CJ products exist locally.
+
+**Open follow-ups:**
+- `cj_api_client` has no shared limiter for CJ's one-request-per-second limit:
+  handlers calling CJ at the same moment get 429s (the cancellation-race order
+  on 2026-10-05 failed its create this way). PR #12 makes such a create recover
+  on retry, but each 429 still costs a retry.
+- 10 old messages sit in `taskiq.notifications.dead_letter` (from before
+  PR #11); replay or discard them.
+- After any change to `shared/contracts/events.py`, restart every process of
+  the publishing service, outbox worker included: it rebuilds each event from
+  the contract before publishing, and a stale one drops new fields silently
+  (seen with `refund_scope` on 2026-10-07).
 
 ### 6. Frontend completeness
 - No user account/profile page, address book, order-tracking detail page
@@ -545,25 +631,116 @@ the services), not only in unit tests.
 - Loading/error states, mobile polish
 
 ### 7. Testing & docs
+- All ten service suites pass (1,496 tests on 2026-10-07: gateway 215, user 157,
+  product 278, supplier 193, order 275, payment 126, cart 62, wishlist 27,
+  shipping 44, notification 119), but **nothing runs them**: there is no CI, so
+  every PR so far was merged with only GitGuardian checking it.
+- The suites no longer depend on the local configuration: order-service's
+  tests pin `STRIPE_TAX_ENABLED=false` in `tests/conftest.py` (with Stripe Tax
+  on locally, 69 of them used to fail). Tax pricing keeps its own tests with
+  explicit settings in `test_order_pricing_service.py`.
 - No coverage reports, no inter-service contract tests
-- No *automated* end-to-end buy-flow test (one manual live run passed — see §3b),
+- No *automated* end-to-end buy-flow test (manual live runs passed — see §3b, §5a),
   no security testing (OWASP ZAP etc.)
-- No per-service READMEs, no architecture diagram, OpenAPI not curated/published
+- No per-service READMEs, no overall architecture diagram (the refund and
+  cancellation flows are drawn, §5a), OpenAPI not curated/published
+
+### 8. Planned next (added 2026-10-07)
+
+Worked one at a time, in this order. Each entry says what exists today and the
+approach; decisions are recorded here as they are made.
+
+1. **Secrets in HashiCorp Vault.** Today every process reads the same single
+   configuration file, so each one is given every secret (§4, last item).
+   Approach: Vault's KV v2 engine with one path per service
+   (`secret/ecommerce/<service>`) and a policy per service; each service signs
+   in to Vault with its own AppRole at startup and can read only its own path.
+   `shared/settings.py` gains a Vault settings source that takes precedence
+   over the file. Locally, `dev.sh` runs Vault like Postgres and Redis. This
+   also unblocks bug list #19: Vault's database secrets engine can issue each
+   service its own short-lived Postgres user.
+   **Status: live since 2026-10-08.** The owner ran the import (17 secrets, plus
+   the two observability ones) and restarted the stack; verified: all 36
+   processes up and ready, each Python process holding only its Vault identity
+   (no secret in its environment), admin-js only its two keys, all ten suites
+   and `shared`'s passing through `dev.sh test`, and a live checkout (login,
+   card authorization, CJ sandbox order, capture, emails) on Vault-held secrets.
+   Decisions:
+   a persistent local Vault run by `dev.sh` (file storage under
+   `backend/local/data/vault`; unseal key and root token in
+   `backend/local/run/vault/init.json`); static secrets now, per-service
+   Postgres users as the next step; the import is a script the owner runs
+   (`./local/dev.sh vault import`), so values never pass through anyone else;
+   Vault only, with no fallback to the file.
+   - `shared.vault`: `VaultClient` (AppRole sign-in, KV v2 reads) and
+     `VaultSettingsSource`, which `Settings` reads after real environment
+     variables and before the file. Per-service secrets became optional
+     fields, each raising a named error where it is used; only the three
+     infra passwords stay required.
+   - `dev.sh`: `vault up|down|status|import`; the infra commands read the
+     infra passwords from Vault; every Python process (services, workers,
+     migrations, the dlq and cj-sandbox tools, and `dev.sh test`) gets its own
+     AppRole; admin-js (Node) gets its secrets exported by `dev.sh`.
+   - Paths: `shared-infra` (Postgres/Redis/RabbitMQ passwords), then one per
+     service (signing keys, Stripe, CJ, OpenRouter, mail, artwork secret;
+     `COOKIE_SECRET` for admin-js). A role reading another service's path
+     gets 403 (checked against the real Vault).
+   - Two more paths, read by no local process (root token only): `tooling`
+     (pgAdmin, an unused AdminJS token) and `observability` (Alertmanager's
+     Telegram token, Grafana's secret key). `Settings` hides its input in
+     validation errors, which would otherwise print part of it, secrets included.
+   - Not covered yet: compose (its containers would need Vault Agent), the
+     frontend's own secrets, and Redis/RabbitMQ users per service. All three
+     infra passwords sit in one path that every service may read, until the
+     per-service database users step.
+2. **CJ stock webhook.** §3a lists it as "Later": CJ's STOCK webhook would push
+   stock changes instead of the hourly refresh pulling them. First confirm it
+   exists and how it is subscribed and signed (CJ's API documentation); if it
+   does, add an endpoint in supplier-service behind the gateway, verify each
+   call, subscribe the products we sell, and keep the hourly refresh as the
+   backstop. It needs a public HTTPS address, so locally it is tested with a
+   tunnel.
+3. **S3 for images.** Generated designs can already be stored in S3
+   (`ARTWORK_STORAGE_BACKEND=s3`) but run on local disk. CJ product images are
+   hotlinked from CJ's CDN (`products.image_url`), so a CJ change or outage
+   breaks the catalogue. Return photos are on local disk. Approach: copy each
+   CJ product image into S3 when the catalogue syncs, move generated designs to
+   S3, and keep return photos under a private prefix served by presigned URLs.
+4. **AdminJS: token, security, coverage.** What exists: AdminJS signs in with
+   the admin's password through the gateway and keeps only the 20-minute
+   access token in a 1-hour session. It drops the refresh token, so it stops
+   working part-way through a session. There is no second factor, and it
+   manages only users, products, categories, images, reviews and orders.
+   Approach: keep the session's token fresh, add a second factor for admins
+   and the other protections that fit a single-operator shop, and add
+   resources for payments and refunds, returns, disputes, the print queue, CJ
+   orders, shipments, notifications and supplier configuration.
+5. **Remove `shared/`.** It holds 83 modules, installed into every service as
+   an editable path dependency and imported from about 405 files. Deliverable
+   first: a plan saying where each part moves. Code used by one service goes
+   into that service. Event contracts become a small versioned package, or each
+   consumer keeps its own copy. The infrastructure layers (messaging, outbox,
+   database base classes, settings) are placed case by case.
 
 ---
 
 ## Rough priority order
 
-1. CI/CD + automated migrations + backups
+1. CI/CD + automated migrations + backups (CI first: the suites are green and
+   self-contained, so a workflow only has to run them)
 2. ~~In-house production-queue admin tooling~~ (done — see §2)
 3. ~~HTTPS / CORS / rate-limit hardening~~ (done — see §4); secret
    *distribution* per service + a secret manager is the one §4 item left
 4. ~~CJ shipping quotes + tracking + failure handling~~ (done — see §3)
-5. Tax, legal pages, GDPR, AI content moderation
+5. AI content moderation (design generation works end to end, so unscreened
+   designs can reach the printer), legal pages, GDPR. Tax is wired in (§5);
+   it needs the Stripe registrations before going live
 6. Frontend account / tracking / designer polish (checkout shipping options
    are done — see §3b)
-7. Finish gateway auth (bug list 1, 2b/5/6, 4, 9) and the reliability items
-   (12–20) below
+7. ~~Finish gateway auth (bug list 1, 2b/5/6, 4, 9) and the reliability items
+   (12–20) below~~ (done — only #19, per-service Postgres roles, is left)
+8. Refund and cancellation paths (done and verified live — see §5a); the CJ
+   rate limiter is the open follow-up
 
 ## Bug list — triage (2026-09-24)
 
