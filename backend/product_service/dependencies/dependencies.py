@@ -14,6 +14,7 @@ from database_layer.review_repository import ReviewRepository
 from shared.utils.authenticated_caller import AuthenticatedCaller
 from service_layer.background_removal_service import RembgBackgroundRemover
 from service_layer.artwork_asset_service import ArtworkAssetService
+from service_layer.catalogue_image_uploader import CatalogueImageUploader
 from service_layer.category_service import CategoryService
 from service_layer.image_generation_quota import GenerationQuotaService
 from service_layer.image_generation_service import ImageGenerationService
@@ -25,6 +26,7 @@ from service_layer.product_service import ProductService
 from service_layer.supplier_stock_service import SupplierStockService
 from service_layer.review_service import ReviewService
 from resources import ProductApiResources, get_product_api_resources
+from storage.object_storage_provider import ObjectStorageProvider, get_object_storage_provider
 
 
 def get_resources(request: Request) -> ProductApiResources:
@@ -50,14 +52,31 @@ async def get_db_session(
         yield session
 
 
+def get_object_storage() -> ObjectStorageProvider:
+    """The catalogue and private stores, one set per process."""
+    return get_object_storage_provider()
+
+
+def get_catalogue_image_uploader(
+    resources: ProductApiResources = Depends(get_resources),
+    storage: ObjectStorageProvider = Depends(get_object_storage),
+) -> CatalogueImageUploader:
+    return CatalogueImageUploader(
+        store=storage.catalogue,
+        max_bytes=resources.settings.CATALOGUE_UPLOAD_MAX_BYTES,
+    )
+
+
 def get_category_service(
     resources: ProductApiResources = Depends(get_resources),
     session: AsyncSession = Depends(get_db_session, scope="function"),
+    uploader: CatalogueImageUploader = Depends(get_catalogue_image_uploader),
 ) -> CategoryService:
     """Dependency to provide CategoryService."""
     return CategoryService(
         CategoryRepository(session=session),
         default_category_name=resources.settings.CJ_DROPSHIPPING_DEFAULT_CATEGORY_NAME,
+        uploader=uploader,
     )
 
 
@@ -66,18 +85,22 @@ def get_review_service(session: AsyncSession = Depends(get_db_session, scope="fu
     return ReviewService(ReviewRepository(session=session))
 
 
-def get_product_image_service(session: AsyncSession = Depends(get_db_session, scope="function")) -> ProductImageService:
+def get_product_image_service(
+    session: AsyncSession = Depends(get_db_session, scope="function"),
+    uploader: CatalogueImageUploader = Depends(get_catalogue_image_uploader),
+) -> ProductImageService:
     """Dependency to provide ProductImageService."""
-    return ProductImageService(ProductImageRepository(session=session))
+    return ProductImageService(ProductImageRepository(session=session), uploader=uploader)
 
 
 def get_product_service(
     resources: ProductApiResources = Depends(get_resources),
     session: AsyncSession = Depends(get_db_session, scope="function"),
+    uploader: CatalogueImageUploader = Depends(get_catalogue_image_uploader),
 ) -> ProductService:
     """Dependency to provide ProductService."""
     image_repo = ProductImageRepository(session=session)
-    product_image_service = ProductImageService(repository=image_repo)
+    product_image_service = ProductImageService(repository=image_repo, uploader=uploader)
     product_repo = ProductRepository(session=session)
     category_service = CategoryService(
         CategoryRepository(session=session),
@@ -130,8 +153,11 @@ def get_image_job_store(
 
 def get_image_storage_service(
     resources: ProductApiResources = Depends(get_resources),
+    storage: ObjectStorageProvider = Depends(get_object_storage),
 ) -> ImageStorageService:
-    return ImageStorageService(logger=resources.logger, settings=resources.settings)
+    return ImageStorageService(
+        logger=resources.logger, settings=resources.settings, store=storage.private()
+    )
 
 
 def get_image_generation_service(
@@ -155,12 +181,14 @@ def get_image_generation_service(
 def get_artwork_asset_service(
     resources: ProductApiResources = Depends(get_resources),
     session: AsyncSession = Depends(get_db_session, scope="function"),
+    storage: ObjectStorageProvider = Depends(get_object_storage),
 ) -> ArtworkAssetService:
     """Dependency to provide ArtworkAssetService for print-file downloads and retention."""
     return ArtworkAssetService(
         logger=resources.logger,
         settings=resources.settings,
         repository=RetainedArtworkRepository(session=session),
+        store=storage.private(),
     )
 
 

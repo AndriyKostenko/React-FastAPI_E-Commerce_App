@@ -21,6 +21,7 @@ from service_layer.image_job_store import ImageJobStore
 from service_layer.openrouter_client import OpenRouterClient
 from service_layer.image_storage_service import ImageStorageService, StoredImage
 from shared.contracts.artwork import GeneratedArtworkAsset
+from storage.object_store import LocalObjectStore
 
 
 def _asset() -> GeneratedArtworkAsset:
@@ -131,8 +132,7 @@ def job_store(mock_cache_manager: MagicMock) -> ImageJobStore:
 @pytest.fixture
 def artwork_storage_settings(tmp_path: Path) -> MagicMock:
     settings = MagicMock()
-    settings.ARTWORK_STORAGE_BACKEND = "local"
-    settings.AWS_S3_ARTWORK_BUCKET = None
+    settings.OBJECT_STORAGE_BACKEND = "local"
     settings.MEDIA_ROOT = str(tmp_path)
     settings.PRINT_IMAGE_MIN_WIDTH_PX = 10
     settings.PRINT_IMAGE_MIN_HEIGHT_PX = 10
@@ -148,9 +148,9 @@ def artwork_storage_settings(tmp_path: Path) -> MagicMock:
 
 
 @pytest.fixture
-def storage_service(artwork_storage_settings: MagicMock) -> ImageStorageService:
+def storage_service(artwork_storage_settings: MagicMock, tmp_path: Path) -> ImageStorageService:
     return ImageStorageService(
-        logger=MagicMock(), settings=artwork_storage_settings
+        logger=MagicMock(), settings=artwork_storage_settings, store=LocalObjectStore(tmp_path)
     )
 
 
@@ -359,29 +359,6 @@ class TestImageStorageService:
     ) -> None:
         with pytest.raises(ImageGenerationProviderError, match="too small"):
             await storage_service.save(_png_payload(5, 5))
-
-    async def test_s3_upload_is_private_encrypted_and_checksummed(
-        self, artwork_storage_settings: MagicMock
-    ) -> None:
-        artwork_storage_settings.ARTWORK_STORAGE_BACKEND = "s3"
-        artwork_storage_settings.AWS_S3_ARTWORK_BUCKET = "print-artwork"
-        s3 = MagicMock()
-        s3.generate_presigned_url.return_value = "https://signed.example/artwork"
-        service = ImageStorageService(
-            logger=MagicMock(), settings=artwork_storage_settings, s3_client=s3
-        )
-
-        stored = await service.save(_png_payload())
-
-        request = s3.put_object.call_args.kwargs
-        assert request["Bucket"] == "print-artwork"
-        assert request["Key"] == stored.asset.key
-        assert request["ContentType"] == "image/png"
-        assert request["ServerSideEncryption"] == "AES256"
-        assert request["ChecksumSHA256"]
-        assert "ACL" not in request
-        assert request["Metadata"]["width-px"] == "20"
-        assert stored.image_url == "https://signed.example/artwork"
 
 
 # ── GenerationQuotaService ─────────────────────────────────────────────────────

@@ -4,12 +4,14 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, HttpUrl
 
+from storage.catalogue_url import CatalogueImageUrl
+
 
 class CategoryBase(BaseModel):
     """Base category schema with common attributes"""
     name: str
     cj_category_id: Optional[str] = None
-    image_url: Optional[str] = None
+    image_url: Optional[CatalogueImageUrl] = None
 
     # adding config for model serialization from ORM attributes
     model_config = ConfigDict(from_attributes=True)

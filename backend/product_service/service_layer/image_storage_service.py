@@ -1,25 +1,19 @@
-import base64
 import hashlib
 import io
-import os
 from asyncio import to_thread
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from logging import Logger
-from pathlib import Path
-from typing import Any
 from urllib.parse import quote
 from uuid import uuid4
 
-import aiofiles
-import boto3
-from botocore.exceptions import BotoCoreError, ClientError
 from PIL import Image, UnidentifiedImageError
 
 from exceptions.image_generation_exceptions import ImageGenerationProviderError
 from service_layer.image_payload import decode_image_payload
 from shared.contracts.artwork import GeneratedArtworkAsset, sign_artwork_asset
 from shared.settings import Settings
+from storage.object_store import ObjectStorageError, ObjectStore, ObjectWrite
 
 
 @dataclass(frozen=True, slots=True)
@@ -35,32 +29,11 @@ class ImageStorageService:
 
     _ALLOWED_FORMATS = {"PNG", "JPEG", "WEBP"}
 
-    def __init__(
-        self,
-        logger: Logger,
-        settings: Settings,
-        s3_client: Any | None = None,
-    ) -> None:
+    def __init__(self, logger: Logger, settings: Settings, store: ObjectStore) -> None:
+        """``store`` is the private store: designs are never publicly listed."""
         self._logger = logger
         self._settings = settings
-        self._backend = settings.ARTWORK_STORAGE_BACKEND
-        self._bucket = settings.AWS_S3_ARTWORK_BUCKET
-        self._s3 = s3_client
-
-        if self._backend == "s3":
-            if not self._bucket:
-                raise ValueError(
-                    "AWS_S3_ARTWORK_BUCKET is required when ARTWORK_STORAGE_BACKEND=s3"
-                )
-            if self._s3 is None:
-                # The default credential chain uses workload roles in AWS and
-                # local profiles during development. Static keys never enter
-                # application configuration.
-                self._s3 = boto3.client(
-                    "s3",
-                    region_name=settings.AWS_S3_REGION,
-                    endpoint_url=settings.AWS_S3_ENDPOINT_URL,
-                )
+        self._store = store
 
     async def save(self, b64_image: str) -> StoredImage:
         """Persist a provider image only after print-readiness validation."""
@@ -88,15 +61,26 @@ class ImageStorageService:
                 }
             )
 
-            if self._backend == "s3":
-                image_url = await self._save_to_s3(png_bytes, asset)
-            else:
-                image_url = await self._save_locally(png_bytes, asset.key)
-
-            return StoredImage(image_url=image_url, asset=asset)
+            await self._store.put(
+                ObjectWrite(
+                    key=asset.key,
+                    body=png_bytes,
+                    content_type="image/png",
+                    cache_control="private, max-age=3600",
+                    content_disposition="inline",
+                    metadata={
+                        "width-px": str(asset.width_px),
+                        "height-px": str(asset.height_px),
+                        "embedded-dpi": str(asset.embedded_dpi),
+                        "sha256": asset.sha256,
+                    },
+                    sha256=asset.sha256,
+                )
+            )
+            return StoredImage(image_url=await self._preview_url(asset.key), asset=asset)
         except ImageGenerationProviderError:
             raise
-        except (BotoCoreError, ClientError, OSError, ValueError) as error:
+        except (ObjectStorageError, ValueError) as error:
             self._logger.error("Failed to persist generated artwork: %s", error)
             raise ImageGenerationProviderError(
                 "Failed to persist generated artwork"
@@ -118,7 +102,7 @@ class ImageStorageService:
                 normalized = source.convert("RGBA")
 
             output = io.BytesIO()
-            save_options: dict[str, Any] = {
+            save_options: dict[str, str | int | bytes | tuple[int, int]] = {
                 "format": "PNG",
                 "compress_level": 6,
                 "dpi": (
@@ -161,60 +145,10 @@ class ImageStorageService:
                 "Generated artwork exceeds the maximum pixel count"
             )
 
-    async def _save_locally(self, image_bytes: bytes, key: str) -> str:
-        media_root = Path(self._settings.MEDIA_ROOT)
-        output_file = media_root / key
-        output_file.parent.mkdir(parents=True, exist_ok=True)
-        temporary_file = output_file.with_suffix(".tmp")
-        try:
-            async with aiofiles.open(temporary_file, "wb") as file:
-                await file.write(image_bytes)
-                await file.flush()
-            os.replace(temporary_file, output_file)
-        finally:
-            temporary_file.unlink(missing_ok=True)
-        return f"/media/{key}"
-
-    async def _save_to_s3(
-        self, image_bytes: bytes, asset: GeneratedArtworkAsset
-    ) -> str:
-        assert self._s3 is not None
-        assert self._bucket is not None
-
-        digest_b64 = base64.b64encode(bytes.fromhex(asset.sha256)).decode("ascii")
-        request: dict[str, Any] = {
-            "Bucket": self._bucket,
-            "Key": asset.key,
-            "Body": image_bytes,
-            "ContentType": "image/png",
-            "ContentDisposition": "inline",
-            "CacheControl": "private, max-age=3600",
-            "ChecksumSHA256": digest_b64,
-            "Metadata": {
-                "width-px": str(asset.width_px),
-                "height-px": str(asset.height_px),
-                "embedded-dpi": str(asset.embedded_dpi),
-                "sha256": asset.sha256,
-            },
-        }
-        if self._settings.AWS_S3_KMS_KEY_ID:
-            request.update(
-                {
-                    "ServerSideEncryption": "aws:kms",
-                    "SSEKMSKeyId": self._settings.AWS_S3_KMS_KEY_ID,
-                }
-            )
-        else:
-            request["ServerSideEncryption"] = "AES256"
-
-        await to_thread(self._s3.put_object, **request)
-
-        public_base = self._settings.AWS_S3_PUBLIC_BASE_URL
-        if public_base:
-            return f"{public_base.rstrip('/')}/{quote(asset.key, safe='/')}"
-        return await to_thread(
-            self._s3.generate_presigned_url,
-            "get_object",
-            Params={"Bucket": self._bucket, "Key": asset.key},
-            ExpiresIn=self._settings.AWS_S3_PRESIGNED_URL_TTL_SECONDS,
-        )
+    async def _preview_url(self, key: str) -> str:
+        """Where the browser previews the design: the private CDN when one is
+        configured, otherwise a presigned GET (or /media under ``local``)."""
+        cdn = self._settings.AWS_S3_PUBLIC_BASE_URL
+        if cdn and self._settings.OBJECT_STORAGE_BACKEND == "s3":
+            return f"{cdn.rstrip('/')}/{quote(key, safe='/')}"
+        return await self._store.presign_get(key, self._settings.AWS_S3_PRESIGNED_URL_TTL_SECONDS)

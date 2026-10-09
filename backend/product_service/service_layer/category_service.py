@@ -8,15 +8,27 @@ from database_layer.category_repository import CategoryRepository
 from exceptions.category_exceptions import CategoryCreationError, CategoryNotFoundError
 from models.category_models import ProductCategory
 from schemas.category_schema import CategorySchema, CreateCategory, UpdateCategory
-from utils.image_processing import image_processing_manager
+from service_layer.catalogue_image_uploader import CatalogueImageUploader
 
 
 class CategoryService:
     """Service layer for category management operations, business logic and data validation."""
 
-    def __init__(self, repository: CategoryRepository, default_category_name: str = "cjdropshipping"):
+    def __init__(self,
+                 repository: CategoryRepository,
+                 default_category_name: str = "cjdropshipping",
+                 uploader: CatalogueImageUploader | None = None):
         self.repository: CategoryRepository = repository
         self.default_category_name: str = default_category_name
+        # Only the admin routes upload icons; the supplier sync builds this
+        # service without an uploader.
+        self._uploader = uploader
+
+    @property
+    def uploader(self) -> CatalogueImageUploader:
+        if self._uploader is None:
+            raise RuntimeError("CategoryService was built without an uploader")
+        return self._uploader
 
     async def create_category(self,
                               category_data: CreateCategory,
@@ -33,7 +45,7 @@ class CategoryService:
         # Determine image URL: uploaded image takes priority, else use provided URL
         image_url: HttpUrl | str | None = category_data.image_url
         if image:
-            image_url = await image_processing_manager.save_icon(image)
+            image_url = await self.uploader.save_category_icon(image)
 
         # Create category
         new_category = ProductCategory(
@@ -113,8 +125,7 @@ class CategoryService:
         if name is not None:
             update_dict["name"] = name.lower()
         if image is not None:
-            image_paths = await image_processing_manager.save_icon(image)
-            update_dict["image_url"] = image_paths[0]
+            update_dict["image_url"] = await self.uploader.save_category_icon(image)
 
         # Update category
         updated_category = await self.repository.update_by_id(

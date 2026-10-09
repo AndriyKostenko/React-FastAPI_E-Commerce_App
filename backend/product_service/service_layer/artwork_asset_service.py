@@ -1,20 +1,17 @@
 """Serves and retains the print-ready artwork objects this service owns."""
 
-from asyncio import to_thread
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from logging import Logger
 from pathlib import Path
-from typing import Any
 from uuid import UUID
-
-import boto3
 
 from database_layer.retained_artwork_repository import RetainedArtworkRepository
 from exceptions.image_generation_exceptions import ImageGenerationProviderError
 from models.retained_artwork_models import RetainedArtwork
 from shared.contracts.artwork import GeneratedArtworkAsset, verify_artwork_asset
 from shared.settings import Settings
+from storage.object_store import ObjectMissingError, ObjectStore
 
 
 class ArtworkManifestRejectedError(ImageGenerationProviderError):
@@ -50,20 +47,26 @@ class ArtworkAssetService:
         logger: Logger,
         settings: Settings,
         repository: RetainedArtworkRepository | None = None,
-        s3_client: Any | None = None,
+        store: ObjectStore | None = None,
     ) -> None:
         self._logger = logger
         self._settings = settings
         self._repository = repository
-        self._backend = settings.ARTWORK_STORAGE_BACKEND
-        self._bucket = settings.AWS_S3_ARTWORK_BUCKET
-        self._s3 = s3_client
+        # The private store; only build_download needs it, so the event
+        # consumer (retain/release only) is built without one.
+        self._store = store
 
     @property
     def repository(self) -> RetainedArtworkRepository:
         if self._repository is None:
             raise RuntimeError("ArtworkAssetService was built without a repository")
         return self._repository
+
+    @property
+    def store(self) -> ObjectStore:
+        if self._store is None:
+            raise RuntimeError("ArtworkAssetService was built without an object store")
+        return self._store
 
     async def build_download(self, asset: GeneratedArtworkAsset) -> ArtworkDownload:
         """Resolve a manifest into a URL the operator's browser can fetch."""
@@ -73,59 +76,26 @@ class ArtworkAssetService:
             )
 
         filename = Path(asset.key).name
-        if self._backend == "s3":
-            url = await self._presign(asset.key, filename)
-            expires_in = self._settings.AWS_S3_PRESIGNED_URL_TTL_SECONDS
-        else:
-            url = self._local_url(asset.key)
-            # A locally served file is reachable for as long as it exists;
-            # report the same TTL so callers can cache uniformly.
-            expires_in = self._settings.AWS_S3_PRESIGNED_URL_TTL_SECONDS
+        ttl = self._settings.AWS_S3_PRESIGNED_URL_TTL_SECONDS
+        try:
+            # A presigned GET under s3 (an attachment, so the browser saves
+            # it); a /media path under local, reachable for as long as the file
+            # exists -- the same TTL is reported so callers can cache uniformly.
+            url = await self.store.presign_get(
+                asset.key, ttl, download_filename=filename, content_type="image/png"
+            )
+        except ObjectMissingError as error:
+            raise ArtworkObjectMissingError(
+                "The stored print file for this artwork no longer exists"
+            ) from error
 
         return ArtworkDownload(
             download_url=url,
             filename=filename,
             sha256=asset.sha256,
             content_type="image/png",
-            expires_in_seconds=expires_in,
+            expires_in_seconds=ttl,
         )
-
-    def _local_url(self, key: str) -> str:
-        stored_file = Path(self._settings.MEDIA_ROOT) / key
-        if not stored_file.is_file():
-            raise ArtworkObjectMissingError(
-                "The stored print file for this artwork no longer exists"
-            )
-        # Relative on purpose: the browser reaches media through the API
-        # gateway origin, not product-service directly.
-        return f"/media/{key}"
-
-    async def _presign(self, key: str, filename: str) -> str:
-        client = self._s3_client()
-        return await to_thread(
-            client.generate_presigned_url,
-            "get_object",
-            Params={
-                "Bucket": self._bucket,
-                "Key": key,
-                "ResponseContentDisposition": f'attachment; filename="{filename}"',
-                "ResponseContentType": "image/png",
-            },
-            ExpiresIn=self._settings.AWS_S3_PRESIGNED_URL_TTL_SECONDS,
-        )
-
-    def _s3_client(self) -> Any:
-        if self._s3 is None:
-            if not self._bucket:
-                raise RuntimeError(
-                    "AWS_S3_ARTWORK_BUCKET is required when ARTWORK_STORAGE_BACKEND=s3"
-                )
-            self._s3 = boto3.client(
-                "s3",
-                region_name=self._settings.AWS_S3_REGION,
-                endpoint_url=self._settings.AWS_S3_ENDPOINT_URL,
-            )
-        return self._s3
 
     async def retain(self, order_id: UUID, artwork_keys: list[str]) -> int:
         """Protect an order's print files from the unreferenced-draft cleanup."""

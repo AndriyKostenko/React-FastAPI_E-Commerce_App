@@ -25,8 +25,8 @@
 # Running the project locally (no Docker)
 
 We develop natively — Docker / docker-compose is **not** used day to day. Everything
-is driven by `backend/local/dev.sh`, which runs Postgres, Redis and RabbitMQ as
-Homebrew processes (data under `backend/local/data`) and every service straight out
+is driven by `backend/local/dev.sh`, which runs Postgres, Redis, RabbitMQ and
+SeaweedFS (the local S3 server) as Homebrew processes (data under `backend/local/data`) and every service straight out
 of its own `.venv`. The Next.js frontend is started by the same script.
 
 `backend/.env` is the single source of configuration and holds the local values
@@ -45,7 +45,7 @@ missing. The unseal key, root token and AppRole credentials are kept in
 
 ```bash
 cd backend
-./local/dev.sh install          # brew: postgresql@16, redis, rabbitmq, cloudflared, vault
+./local/dev.sh install          # brew: postgresql@16, redis, rabbitmq, cloudflared, seaweedfs, vault
 ./local/dev.sh vault up         # start, initialise and unseal Vault; one AppRole per service
 ./local/dev.sh vault import     # one time, run it yourself: move the secrets from
                                 # backend's config file into Vault (--dry-run first)
@@ -73,6 +73,9 @@ RELOAD=1 ./local/dev.sh up      # same, with uvicorn --reload
 ./local/dev.sh down             # stop services + infra
 ./local/dev.sh migrate          # alembic upgrade head for every service
 ./local/dev.sh vault status     # which secret keys each Vault path holds (names only)
+./local/dev.sh storage status   # S3 buckets and object counts
+./local/dev.sh storage import-local   # one time: copy local-disk designs and return photos into S3
+./local/dev.sh images mirror    # copy CJ catalogue images into S3 now (also runs every 15 min)
 ./local/dev.sh reset            # down + delete local data (destructive)
 ./local/dev.sh cj-sandbox status|ship|deliver|poll <order_id>   # see below
 ./local/dev.sh cj-webhook tunnel|tunnel-stop|subscribe|status    # see below
@@ -87,6 +90,20 @@ to shipped, `deliver` to completed; both then run one tracking poll so the event
 follow at once. Whether an order is a sandbox one is recorded when it is sent
 (`cj_order_attempts.is_sandbox`), so toggling the setting never changes how an
 existing order is paid. Never enable it where real sales happen.
+
+**Images live in S3** (SeaweedFS on `127.0.0.1:8333`, started by `infra up`).
+Two buckets: `ecommerce-catalogue` is anonymously readable and holds product,
+variant and category images (CJ copies and admin uploads); `ecommerce-private`
+holds generated designs and return photos and is reached only with a
+service's own key or a presigned URL. The non-secret settings
+(`OBJECT_STORAGE_BACKEND=s3`, endpoint, bucket names) are exported by `dev.sh`;
+product- and order-service's access keys, the admin key and the at-rest
+encryption key are generated into Vault on first start (`local/s3_local.py`),
+and each service's key reaches only its own bucket or prefix. The database
+keeps catalogue *keys*, not URLs; responses add the public origin. CJ images
+are copied in by the product taskiq task `mirror_catalogue_images`; until an
+image is copied its CJ URL is served. Test suites use their own
+`ecommerce-*-test` buckets. Details: `backend/product_service/ARTWORK_STORAGE.md`.
 
 **CJ stock webhook.** CJ pushes stock changes (topic STOCK) to
 `POST /api/v1/cjdropshipping/webhook` on the gateway, which forwards the raw
@@ -146,6 +163,7 @@ without re-testing repeated reloads; `next build` is unaffected.
 | cj-mcp (CJ Dropshipping MCP) | `http://127.0.0.1:3009/mcp` — health at `/health`                 |
 | admin-js (AdminJS)           | `http://localhost:3001/admin` — log in with an admin account      |
 | Vault                        | `http://127.0.0.1:8200` — UI at `/ui`, root token in `backend/local/run/vault/init.json` |
+| S3 (SeaweedFS)               | `http://127.0.0.1:8333` — catalogue images public at `/ecommerce-catalogue/<key>` |
 
 Every FastAPI app serves Swagger at `/docs` and its routes under `/api/v1`.
 The gateway exposes `/health`; the services expose `/health/live` and `/health/ready`.

@@ -6,6 +6,7 @@ from service_layer.image_job_store import ImageJobStore
 from service_layer.openrouter_client import OpenRouterClient
 from service_layer.image_storage_service import ImageStorageService
 from service_layer.background_removal_service import RembgBackgroundRemover
+from storage.object_storage_provider import get_object_storage_provider
 from .broker import taskiq_broker
 
 
@@ -44,7 +45,11 @@ async def generate_image_task(job_id: str,
                     cache_manager=cache,
                     logger=logger,
                 ),
-                storage_service=ImageStorageService(logger=logger, settings=settings),
+                storage_service=ImageStorageService(
+                    logger=logger,
+                    settings=settings,
+                    store=get_object_storage_provider().private(),
+                ),
                 background_remover=RembgBackgroundRemover(settings=settings, logger=logger),
                 settings=settings,
                 logger=logger,

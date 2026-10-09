@@ -36,11 +36,17 @@
 #                                   # file into Vault (you run it)
 #   ./local/dev.sh test <service_dir> [pytest args]
 #                                   # a service's tests, with its Vault identity
+#   ./local/dev.sh storage status|import-local
+#                                   # the local S3 server (SeaweedFS): buckets
+#                                   # and counts; one-time copy of local-disk
+#                                   # designs and return photos into it
+#   ./local/dev.sh images mirror    # copy CJ catalogue images into S3 now
 #
 # RELOAD=1           ./local/dev.sh up   HTTP services start with --reload.
 # FRONTEND_PORT=3000 ./local/dev.sh up   override the Next.js port.
 # ADMIN_JS_PORT=3002 ./local/dev.sh up   override the AdminJS port.
 # CJ_MCP_PORT=3009   ./local/dev.sh up   override the CJ MCP server port.
+# S3_PORT=8333       ./local/dev.sh up   override the local S3 server's port.
 
 set -euo pipefail
 
@@ -142,6 +148,23 @@ CJ_MCP_DIR="${CJ_MCP_DIR:-../../api-mcp}"
 ADMIN_JS_PORT="${ADMIN_JS_PORT:-3001}"
 
 # --------------------------------------------------------------------------
+# Object storage: SeaweedFS speaks S3 on $S3_PORT, standing in for AWS S3.
+# Two buckets, never mixed: the catalogue one is anonymously readable (the
+# storefront loads its images straight from it), the private one is reachable
+# only with a service's own key. Every service key is scoped by bucket and
+# prefix (local/s3_local.py), and kept in that service's Vault path.
+# --------------------------------------------------------------------------
+S3_PORT="${S3_PORT:-8333}"
+S3_LOCAL_ENDPOINT="http://127.0.0.1:$S3_PORT"
+S3_CATALOGUE_BUCKET="ecommerce-catalogue"
+S3_PRIVATE_BUCKET="ecommerce-private"
+SEAWEED_DATA="$DATA_DIR/seaweedfs"
+SEAWEED_RUN="$RUN_DIR/seaweedfs"
+# master / volume / filer HTTP ports (gRPC: each + 10000). The volume server
+# moves off its default 8080, which too many other tools want.
+SEAWEED_MASTER_PORT=9333 SEAWEED_VOLUME_PORT=8380 SEAWEED_FILER_PORT=8888
+
+# --------------------------------------------------------------------------
 # The process table: name | service dir | command (relative to that dir)
 #
 # Mirrors docker-compose.yml minus the observability stack, traefik and
@@ -178,9 +201,10 @@ payment-consumer|payment_service|.venv/bin/faststream run events_consumer.app:ap
 cart-consumer|cart_service|.venv/bin/faststream run events_consumer.app:app
 wishlist-consumer|wishlist_service|.venv/bin/faststream run events_consumer.app:app
 shipping-consumer|shipping_service|.venv/bin/faststream run events_consumer.app:app
-product-taskiq-worker|product_service|.venv/bin/taskiq worker tasks.broker:taskiq_broker tasks.image_tasks --workers 1
+product-taskiq-worker|product_service|.venv/bin/taskiq worker tasks.broker:taskiq_broker tasks.image_tasks tasks.catalogue_image_tasks --workers 1
 supplier-taskiq-worker|supplier_service|.venv/bin/taskiq worker tasks.broker:taskiq_broker tasks.sync_tasks tasks.tracking_tasks tasks.cj_payment_tasks tasks.stock_tasks --workers 1
 notification-taskiq-worker|notification_service|.venv/bin/taskiq worker tasks.broker:taskiq_broker tasks.email_tasks --workers 1
+product-taskiq-scheduler|product_service|.venv/bin/taskiq scheduler tasks.scheduler:product_task_scheduler tasks.catalogue_image_tasks
 supplier-taskiq-scheduler|supplier_service|.venv/bin/taskiq scheduler tasks.scheduler:supplier_task_scheduler tasks.sync_tasks tasks.tracking_tasks tasks.cj_payment_tasks tasks.stock_tasks
 EOF
   # No --hostname: next's default binding answers on both localhost and
@@ -230,9 +254,10 @@ cmd_port() {
 # Infra
 # --------------------------------------------------------------------------
 cmd_install() {
-  say "Installing postgresql@16, redis, rabbitmq, cloudflared and vault via Homebrew"
+  say "Installing postgresql@16, redis, rabbitmq, cloudflared, seaweedfs and vault via Homebrew"
   # cloudflared: the tunnel CJ's stock webhook reaches the local gateway through.
-  brew install postgresql@16 redis rabbitmq cloudflared
+  # seaweedfs: the local S3 server images are stored in.
+  brew install postgresql@16 redis rabbitmq cloudflared seaweedfs
   brew tap hashicorp/tap
   brew install hashicorp/tap/vault
 }
@@ -450,6 +475,106 @@ export_vault_secrets_for_node() {
   eval "$exports"
 }
 
+seaweed_pid_file="$RUN_DIR/seaweedfs.pid"
+seaweed_running() { [ -f "$seaweed_pid_file" ] && kill -0 "$(cat "$seaweed_pid_file")" 2>/dev/null; }
+
+# local/s3_local.py as the operator (root token), on product-service's venv
+# (it has boto3). It prints names only, never a key.
+s3_local() {
+  [ -x "$BACKEND_DIR/product_service/.venv/bin/python" ] || die "product_service has no .venv -- run 'uv sync' in it first"
+  VAULT_ADDR="$VAULT_LOCAL_ADDR" VAULT_TOKEN="$(vault_init_field root_token)" VAULT_KV_PREFIX="$VAULT_PREFIX" \
+    S3_LOCAL_ENDPOINT="$S3_LOCAL_ENDPOINT" S3_CATALOGUE_BUCKET="$S3_CATALOGUE_BUCKET" S3_PRIVATE_BUCKET="$S3_PRIVATE_BUCKET" \
+    "$BACKEND_DIR/product_service/.venv/bin/python" -I "$LOCAL_DIR/s3_local.py" "$@"
+}
+
+seaweed_start() {
+  require_bin weed
+  mkdir -p "$SEAWEED_DATA" "$SEAWEED_RUN"
+  chmod 700 "$SEAWEED_RUN"
+  # Keys missing from Vault are generated, and the identities file is
+  # rendered from Vault: nothing to set up by hand. Exit 10 = it changed.
+  local rendered=0
+  s3_local bootstrap --config "$SEAWEED_RUN/s3.json" || rendered=$?
+  [ "$rendered" = 0 ] || [ "$rendered" = 10 ] || die "could not prepare the S3 credentials (see above)"
+  if seaweed_running; then
+    if [ "$rendered" = 10 ]; then
+      warn "S3 identities changed while seaweedfs runs: restarting it to load them"
+      seaweed_stop
+    else
+      say "seaweedfs already running"; return
+    fi
+  fi
+  local port
+  for port in "$S3_PORT" "$SEAWEED_MASTER_PORT" "$SEAWEED_VOLUME_PORT" "$SEAWEED_FILER_PORT"; do
+    port_busy "$port" && die "port $port is already in use (held by $(port_owner "$port"))"
+  done
+  say "starting seaweedfs, S3 on :$S3_PORT"
+  local kek
+  kek="$(vault_op kv get -field=SEAWEEDFS_SSE_KEK "secret/$VAULT_PREFIX/tooling")"
+  # The key that encrypts objects at rest reaches only this process. Small
+  # volumes and a fixed count: the defaults (30 GB each, as many as the disk
+  # holds) run out of slots after a couple of buckets on a laptop.
+  ( export WEED_S3_SSE_KEK="$kek"
+    exec nohup weed server -dir="$SEAWEED_DATA" -ip=127.0.0.1 -ip.bind=127.0.0.1 \
+      -master.port="$SEAWEED_MASTER_PORT" -volume.port="$SEAWEED_VOLUME_PORT" -filer.port="$SEAWEED_FILER_PORT" \
+      -master.volumeSizeLimitMB=128 -volume.max=64 \
+      -s3 -s3.port="$S3_PORT" -s3.port.iceberg=0 -s3.port.lance=0 -s3.config="$SEAWEED_RUN/s3.json" \
+      >> "$LOG_DIR/seaweedfs.log" 2>&1 ) &
+  echo $! > "$seaweed_pid_file"
+  local tries=0
+  until [ "$(curl -s -o /dev/null -w '%{http_code}' "$S3_LOCAL_ENDPOINT/" 2>/dev/null || true)" != "000" ]; do
+    tries=$((tries + 1))
+    [ "$tries" -gt 60 ] && die "seaweedfs did not come up -- see $LOG_DIR/seaweedfs.log"
+    sleep 1
+  done
+  # The S3 port answers before the filer is ready to take a bucket.
+  tries=0
+  until s3_local buckets >/dev/null 2>&1; do
+    tries=$((tries + 1))
+    [ "$tries" -gt 30 ] && { s3_local buckets; die "could not create the S3 buckets -- see $LOG_DIR/seaweedfs.log"; }
+    sleep 1
+  done
+}
+
+seaweed_stop() {
+  if seaweed_running; then
+    say "stopping seaweedfs"
+    local pid; pid="$(cat "$seaweed_pid_file")"
+    kill "$pid" 2>/dev/null || true
+    # weed server runs master, volume and filer in one process and takes
+    # ~20s to shut them down; wait for it to let go of its ports, or an
+    # immediate restart fails to bind.
+    local tries=0
+    while kill -0 "$pid" 2>/dev/null && [ "$tries" -lt 120 ]; do sleep 0.5; tries=$((tries + 1)); done
+    kill -0 "$pid" 2>/dev/null && { warn "seaweedfs did not stop in 60s: killing it"; kill -9 "$pid" 2>/dev/null || true; }
+  fi
+  rm -f "$seaweed_pid_file"
+}
+
+cmd_storage() {
+  case "${1:-status}" in
+    status)
+      if ! seaweed_running; then echo "seaweedfs down"; return; fi
+      echo "seaweedfs up -- S3 at $S3_LOCAL_ENDPOINT"
+      s3_local status ;;
+    import-local)
+      seaweed_running || die "seaweedfs is not running -- ./local/dev.sh infra up"
+      s3_local import-local --media "$DATA_DIR/media" --evidence "$DATA_DIR/private-media" ;;
+    *) die "storage: expected status|import-local" ;;
+  esac
+}
+
+# CJ catalogue images into the catalogue bucket, now: the 15-minute task
+# does one batch per run, this repeats batches until nothing is due.
+cmd_images() {
+  case "${1:-}" in
+    mirror)
+      service_env
+      (export_vault_identity product_service; cd "$BACKEND_DIR/product_service" && .venv/bin/python -m tools.mirror_catalogue_images) ;;
+    *) die "images: expected mirror" ;;
+  esac
+}
+
 cmd_vault() {
   case "${1:-status}" in
     up)     vault_start ;;
@@ -477,13 +602,14 @@ cmd_vault() {
 
 cmd_infra() {
   case "${1:-up}" in
-    up)     vault_start; load_infra_secrets; pg_start; redis_start; rabbit_start ;;
+    up)     vault_start; load_infra_secrets; pg_start; redis_start; rabbit_start; seaweed_start ;;
     down)   if vault_running && [ -f "$VAULT_INIT_FILE" ]; then load_infra_secrets; fi
-            rabbit_stop; redis_stop; pg_stop; vault_stop ;;
+            seaweed_stop; rabbit_stop; redis_stop; pg_stop; vault_stop ;;
     status) vault_running && echo "vault     up" || echo "vault     down"
             pg_running && echo "postgres  up" || echo "postgres  down"
             redis_running && echo "redis     up" || echo "redis     down"
-            rabbit_running && echo "rabbitmq  up" || echo "rabbitmq  down" ;;
+            rabbit_running && echo "rabbitmq  up" || echo "rabbitmq  down"
+            seaweed_running && echo "seaweedfs up" || echo "seaweedfs down" ;;
     *) die "infra: expected up|down|status" ;;
   esac
 }
@@ -548,6 +674,14 @@ service_env() {
   export MEDIA_ROOT="$DATA_DIR/media"
   # Return photos are private: kept apart from the publicly served media.
   export RETURN_EVIDENCE_ROOT="$DATA_DIR/private-media"
+  # Images live in the local S3 server. Only the non-secret half is set here;
+  # each service's access key pair comes from its own Vault path.
+  export OBJECT_STORAGE_BACKEND=s3
+  export AWS_S3_ENDPOINT_URL="$S3_LOCAL_ENDPOINT"
+  export AWS_S3_REGION=us-east-1
+  export AWS_S3_CATALOGUE_BUCKET="$S3_CATALOGUE_BUCKET"
+  export AWS_S3_CATALOGUE_PUBLIC_BASE_URL="$S3_LOCAL_ENDPOINT/$S3_CATALOGUE_BUCKET"
+  export AWS_S3_PRIVATE_BUCKET="$S3_PRIVATE_BUCKET"
 }
 
 cmd_migrate() {
@@ -671,7 +805,7 @@ cmd_up() {
   cmd_services up "${1:-}"
   echo
   say "frontend on http://localhost:$FRONTEND_PORT  |  gateway on http://127.0.0.1:8000"
-  say "gateway docs http://127.0.0.1:8000/docs  |  rabbitmq UI http://127.0.0.1:15672"
+  say "gateway docs http://127.0.0.1:8000/docs  |  rabbitmq UI http://127.0.0.1:15672  |  S3 $S3_LOCAL_ENDPOINT"
   say "admin-js on http://localhost:$ADMIN_JS_PORT/admin"
   [ -d "$BACKEND_DIR/$CJ_MCP_DIR" ] && \
     say "cj mcp on http://127.0.0.1:$CJ_MCP_PORT/mcp  |  health http://127.0.0.1:$CJ_MCP_PORT/health"
@@ -828,6 +962,9 @@ cmd_test() {
   local svc="$1"; shift
   [ -d "$BACKEND_DIR/$svc" ] || die "test: no service dir $svc"
   service_env
+  # The suites' own buckets, like their own *_test_db databases.
+  export AWS_S3_CATALOGUE_BUCKET="$S3_CATALOGUE_BUCKET-test" AWS_S3_PRIVATE_BUCKET="$S3_PRIVATE_BUCKET-test"
+  export AWS_S3_CATALOGUE_PUBLIC_BASE_URL="$S3_LOCAL_ENDPOINT/$S3_CATALOGUE_BUCKET-test"
   (export_vault_identity "$svc"; cd "$BACKEND_DIR/$svc" && uv run pytest tests/ "$@")
 }
 
@@ -847,6 +984,8 @@ case "${1:-}" in
   cj-sandbox) shift; cmd_cj_sandbox "$@" ;;
   cj-webhook) shift; cmd_cj_webhook "$@" ;;
   vault)    shift; cmd_vault "$@" ;;
+  storage)  shift; cmd_storage "$@" ;;
+  images)   shift; cmd_images "$@" ;;
   test)     shift; cmd_test "$@" ;;
-  *) sed -n '2,39p' "${BASH_SOURCE[0]}" | sed -E 's/^#[[:space:]]?//'; exit 1 ;;
+  *) sed -n '2,49p' "${BASH_SOURCE[0]}" | sed -E 's/^#[[:space:]]?//'; exit 1 ;;
 esac

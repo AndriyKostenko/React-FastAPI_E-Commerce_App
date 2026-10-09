@@ -4,8 +4,9 @@ Context: business goal is (1) users create AI print designs on t-shirts that you
 produce at home and ship yourself, and (2) users buy t-shirts sourced from
 CJDropshipping (products pre-fetched and stored in your DB).
 
-Assessment date: 2026-09-03. Last updated 2026-10-09 (CJ stock webhook, §8.2;
-before that the refund and cancellation paths, PRs #12-#16, see §5a). The hard architectural + integration work is
+Assessment date: 2026-09-03. Last updated 2026-10-09 (S3 for images, §8.3; the
+CJ stock webhook, §8.2; before that the refund and cancellation paths,
+PRs #12-#16, see §5a). The hard architectural + integration work is
 substantially done (CJ integration, AI generation, order saga, artwork storage).
 What remains is operational glue, hardening, and in-house fulfillment tooling —
 estimated a few focused weeks, no re-architecting required.
@@ -557,8 +558,8 @@ the services), not only in unit tests.
   returns policy page (below) with the same rules.
   **Not covered:** the frontend (return form, admin queue, regenerated types);
   prepaid return labels; store credit; restocking a received catalog item
-  (adjust stock by hand); S3 for the photos (local disk / the `return_evidence`
-  volume only); photos of a request that fails to commit stay on disk.
+  (adjust stock by hand); photos of a request that fails to commit stay in
+  storage. (S3 for the photos: done in §8.3.)
 - [x] Refund and cancellation fixes (2026-10-05 to 2026-10-07), all found by
   running the paths live; details in §5a:
   - **PR #12:** the `charge.refund.updated` webhook marked the whole payment
@@ -632,9 +633,9 @@ sold from local stock; only CJ products exist locally.
 - Loading/error states, mobile polish
 
 ### 7. Testing & docs
-- All ten service suites pass (1,529 tests on 2026-10-09: gateway 218, user 157,
-  product 278, supplier 223, order 275, payment 126, cart 62, wishlist 27,
-  shipping 44, notification 119), but **nothing runs them**: there is no CI, so
+- All ten service suites pass (1,577 tests on 2026-10-09: gateway 218, user 157,
+  product 319, supplier 223, order 282, payment 126, cart 62, wishlist 27,
+  shipping 44, notification 119; `shared` 50), but **nothing runs them**: there is no CI, so
   every PR so far was merged with only GitGuardian checking it.
 - The suites no longer depend on the local configuration: order-service's
   tests pin `STRIPE_TAX_ENABLED=false` in `tests/conftest.py` (with Stripe Tax
@@ -740,12 +741,68 @@ approach; decisions are recorded here as they are made.
      deduplication by `messageId` (levels are absolute, so a repeat is
      harmless, but a late retry can briefly overwrite a newer level until the
      next push or refresh).
-3. **S3 for images.** Generated designs can already be stored in S3
-   (`ARTWORK_STORAGE_BACKEND=s3`) but run on local disk. CJ product images are
-   hotlinked from CJ's CDN (`products.image_url`), so a CJ change or outage
-   breaks the catalogue. Return photos are on local disk. Approach: copy each
-   CJ product image into S3 when the catalogue syncs, move generated designs to
-   S3, and keep return photos under a private prefix served by presigned URLs.
+3. **S3 for images.** Generated designs could already be stored in S3
+   (`ARTWORK_STORAGE_BACKEND=s3`) but ran on local disk; CJ product images
+   were hotlinked from CJ's CDN, so a CJ change or outage broke the catalogue;
+   return photos, admin uploads and category icons were on local disk (uploads
+   stored as absolute file paths).
+   **Status: live locally since 2026-10-09** (branch `feature/s3-images`).
+   Decisions: SeaweedFS as the local S3 server, run by `dev.sh` (Homebrew's
+   `minio` is deprecated, its upstream archived); two buckets, never mixed
+   (public-read catalogue; private for designs and return photos); the
+   database stores catalogue *keys* and responses add the public origin; all
+   four kinds of image in scope.
+   - Settings: `OBJECT_STORAGE_BACKEND` (old name `ARTWORK_STORAGE_BACKEND`
+     still read), `AWS_S3_CATALOGUE_BUCKET`, `AWS_S3_CATALOGUE_PUBLIC_BASE_URL`,
+     `AWS_S3_PRIVATE_BUCKET` (old name `AWS_S3_ARTWORK_BUCKET`), and
+     `AWS_S3_ACCESS_KEY_ID` / `AWS_S3_SECRET_ACCESS_KEY` for S3-compatible
+     servers only (Vault, per service; AWS uses the workload role).
+   - product-service: `storage/` is the only place boto3 is built
+     (`ObjectStore` with S3 and local adapters, `ObjectStorageProvider`,
+     `CatalogueImageUrl` for response schemas). Generated designs, print-file
+     downloads and admin uploads go through it; uploads are typed from their
+     bytes (JPEG/PNG/WebP), size-capped, and stored under fresh keys.
+     `utils/image_processing.py` is gone (it also stored the first character
+     of the path as a category's icon on update).
+   - CJ images: `catalogue_image_mirrors` (product migration `c2f8a4d1e7b9`);
+     a 15-minute task on a new `product-taskiq-scheduler` copies every CJ URL
+     still in use and rewrites `products.image_url`, `product_images` and
+     `product_variants.variant_image` to the copy's key, in the transaction
+     that records it; the supplier sync translates CJ URLs through the table,
+     so a re-sync keeps the keys. Fetches are HTTPS on `*.cjdropshipping.com`
+     only, no redirects, size-capped (SSRF). A failure keeps the CJ URL, is
+     retried 15 min, 30 min, ... up to a day apart and given up on after 10.
+     `dev.sh images mirror` runs it now.
+   - order-service: `S3ReturnEvidenceStorage` under `return-evidence/`. The
+     admin photo route keeps streaming the bytes rather than handing out
+     presigned links, unlike the approach above: a link works for anyone it
+     is forwarded to, the route checks the admin every time.
+   - `dev.sh`: SeaweedFS in `infra up/down/status` (S3 on :8333); keys for
+     product- and order-service, the admin pair and the at-rest encryption key
+     are generated into Vault on first start, and each service's key may touch
+     only its bucket or prefix. `storage status | import-local`. Test suites use
+     their own `-test` buckets.
+   - Frontend: `next.config.js` allows the S3 origin (`CATALOGUE_IMAGE_HOST`
+     for the CDN) and lifts Next 16's private-IP image guard in development
+     only.
+   - **Verified live (2026-10-09):** all 126 CJ images copied (~58 s), no CJ URL
+     left in the catalogue, the storefront loads every image from :8333 and
+     none from CJ; a re-sync keeps the keys; the 4 existing designs and 1
+     return photo copied in by `import-local`, and a stored design downloads
+     through a presigned link (SHA-256 matches its manifest; unsigned GET 403).
+     All ten suites and `shared` pass (1,627 tests), with the new storage tests
+     against the real SeaweedFS (private bucket not public, cross-service keys
+     refused, wrong checksum refused).
+   - Not exercised live: a new design generation (spends provider credit) and
+     an admin upload through the UI (needs an admin session); both paths are
+     covered by tests against the stores.
+   - **Before production:** create the two buckets and roles as in
+     `product_service/ARTWORK_STORAGE.md`, put CloudFront in front of the
+     catalogue bucket and set `AWS_S3_CATALOGUE_PUBLIC_BASE_URL` and the
+     frontend's `CATALOGUE_IMAGE_HOST`; compose has none of the new settings.
+   - Not covered: deleting catalogue objects no product uses any more (keys
+     are shared between products, so it needs a reference sweep); the local
+     media files are left in place until you delete them.
 4. **AdminJS: token, security, coverage.** What exists: AdminJS signs in with
    the admin's password through the gateway and keeps only the 20-minute
    access token in a 1-hour session. It drops the refresh token, so it stops

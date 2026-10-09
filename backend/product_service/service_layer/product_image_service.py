@@ -10,29 +10,41 @@ from exceptions.product_image_exceptions import (
 )
 from models.product_image_models import ProductImage
 from schemas.product_image_schema import ImageType, ProductImageSchema
-from utils.image_processing import image_processing_manager
+from service_layer.catalogue_image_uploader import CatalogueImageUploader
 
 
 class ProductImageService:
     """Service layer for product image management operations."""
 
-    def __init__(self, repository: ProductImageRepository):
+    def __init__(self, repository: ProductImageRepository, uploader: CatalogueImageUploader | None = None):
         self.repository = repository
+        # Only the admin upload routes store files; the supplier sync and the
+        # read paths are built without an uploader.
+        self._uploader = uploader
         self.product_image_relations = ProductImage.get_relations()
         self.product_image_search_fields = ProductImage.get_search_fields()
 
-    async def _build_image_metadata(self,
-                                    images: list[UploadFile],
-                                    colors: list[str],
-                                    color_codes: list[str]) -> list[ImageType]:
+    @property
+    def uploader(self) -> CatalogueImageUploader:
+        if self._uploader is None:
+            raise RuntimeError("ProductImageService was built without an uploader")
+        return self._uploader
+
+    async def build_image_metadata(self,
+                                   images: list[UploadFile],
+                                   colors: list[str],
+                                   color_codes: list[str]) -> list[ImageType]:
+        """Store the uploads, then pair each stored key with its colour."""
+        # Checked before anything is stored, so a mismatch leaves no objects.
         if not (len(images) == len(colors) == len(color_codes)):
-            raise ProductImageProcessingError("Mismatched image metadata")
-        image_urls = await image_processing_manager.save_images(images)
-        return image_processing_manager.create_metadata_list(
-            image_urls=image_urls,
-            image_colors=colors,
-            image_color_codes=color_codes,
-        )
+            raise ProductImageProcessingError(
+                "Image metadata lists (images, colors, color_codes) must have the same length"
+            )
+        keys = await self.uploader.save_product_images(images)
+        return [
+            ImageType(image_url=key, image_color=color, image_color_code=code)
+            for key, color, code in zip(keys, colors, color_codes, strict=True)
+        ]
 
     # ---------- create ----------
 
@@ -62,7 +74,7 @@ class ProductImageService:
         color_codes: List[str],
     ) -> List[ProductImageSchema]:
         """Create product images by handling file uploads and metadata"""
-        image_metadata = await self._build_image_metadata(
+        image_metadata = await self.build_image_metadata(
             images=images,
             colors=colors,
             color_codes=color_codes,
@@ -139,7 +151,7 @@ class ProductImageService:
         image_url: Optional[str] = None
 
         if image:
-            image_url = await image_processing_manager.save_image(image)
+            image_url = await self.uploader.save_product_image(image)
 
         return await self.update_product_image(
             image_id=image_id,
@@ -176,7 +188,7 @@ class ProductImageService:
         # Files are saved (and the metadata validated) first, so the old rows
         # are deleted and the new ones inserted in one short step — not held
         # deleted and locked while uploads are written to disk.
-        image_metadata = await self._build_image_metadata(
+        image_metadata = await self.build_image_metadata(
             images=images,
             colors=image_colors,
             color_codes=color_codes,

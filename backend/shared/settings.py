@@ -324,17 +324,46 @@ class Settings(BaseSettings):
     # artwork that is too small to print.
     PRINT_IMAGE_GENERATION_SIZE: str = "4K"
 
-    # Immutable generated-artwork storage. Production should use ``s3`` and
-    # workload IAM credentials; static AWS access keys are intentionally not
-    # part of application settings.
-    ARTWORK_STORAGE_BACKEND: Literal["local", "s3"] = "local"
+    # Object storage for every image: ``local`` (disk under MEDIA_ROOT /
+    # RETURN_EVIDENCE_ROOT) or ``s3``. Two buckets, never mixed:
+    #   catalogue -- public-read: product, variant and category images (CJ
+    #                copies and admin uploads), served from
+    #                AWS_S3_CATALOGUE_PUBLIC_BASE_URL;
+    #   private   -- generated designs and return photos, reached only through
+    #                presigned URLs or the owning service.
+    # The bucket settings are checked where they are used, so a service that
+    # never touches storage starts without them.
+    OBJECT_STORAGE_BACKEND: Literal["local", "s3"] = Field(
+        default="local",
+        validation_alias=AliasChoices("OBJECT_STORAGE_BACKEND", "ARTWORK_STORAGE_BACKEND"),
+    )
     ARTWORK_SIGNING_SECRET: SecretStr | None = None
-    AWS_S3_ARTWORK_BUCKET: str | None = None
+    AWS_S3_PRIVATE_BUCKET: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("AWS_S3_PRIVATE_BUCKET", "AWS_S3_ARTWORK_BUCKET"),
+    )
+    AWS_S3_CATALOGUE_BUCKET: str | None = None
+    # Public origin of the catalogue bucket (CloudFront in production, the
+    # local S3 server's bucket URL in development); keys are appended to it.
+    AWS_S3_CATALOGUE_PUBLIC_BASE_URL: str | None = None
     AWS_S3_REGION: str | None = None
     AWS_S3_ENDPOINT_URL: str | None = None
+    # Static keys exist for S3-compatible servers (the local SeaweedFS) only.
+    # Unset in AWS, where the default credential chain picks up the workload
+    # role; they are Vault secrets, one pair per service.
+    AWS_S3_ACCESS_KEY_ID: SecretStr | None = None
+    AWS_S3_SECRET_ACCESS_KEY: SecretStr | None = None
+    # CloudFront in front of the *private* bucket for design previews (Origin
+    # Access Control); without it previews are presigned GETs.
     AWS_S3_PUBLIC_BASE_URL: str | None = None
     AWS_S3_KMS_KEY_ID: str | None = None
     AWS_S3_PRESIGNED_URL_TTL_SECONDS: int = Field(default=3600, ge=60, le=604800)
+    # CJ catalogue images copied into the catalogue bucket.
+    CATALOGUE_IMAGE_MAX_BYTES: int = Field(default=10 * 1024 * 1024, gt=0)
+    CATALOGUE_IMAGE_MIRROR_BATCH: int = Field(default=50, gt=0, le=1000)
+    CATALOGUE_IMAGE_MIRROR_MAX_ATTEMPTS: int = Field(default=10, gt=0)
+    # Admin uploads (product images, category icons).
+    CATALOGUE_UPLOAD_MAX_BYTES: int = Field(default=10 * 1024 * 1024, gt=0)
 
     # 2250x2700 supports a 15x18 inch maximum garment area at 150 effective
     # DPI. The preferred provider request is 4K; no artificial upscaling is

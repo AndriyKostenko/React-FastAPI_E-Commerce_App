@@ -1,6 +1,6 @@
 # Running the backend locally, without Docker
 
-A temporary alternative to `docker compose up`: Postgres, Redis and RabbitMQ run
+A temporary alternative to `docker compose up`: Postgres, Redis, RabbitMQ, Vault and SeaweedFS (S3) run
 as ordinary Homebrew processes, and every Python service runs straight out of the
 venv it already has. The observability stack (Prometheus, Grafana, Loki, Tempo,
 otel-collector, cAdvisor, Alertmanager), Traefik, pgAdmin and admin-js are **not**
@@ -25,7 +25,7 @@ hosts, a compose run needs the container host names (`db`, `redis`, `rabbitmq`,
 
 ```bash
 cd backend
-./local/dev.sh install   # brew install postgresql@16 redis rabbitmq
+./local/dev.sh install   # brew install postgresql@16 redis rabbitmq cloudflared seaweedfs vault
 ./local/dev.sh init      # initdb, create the per-service DBs, add the rabbit user
 ```
 
