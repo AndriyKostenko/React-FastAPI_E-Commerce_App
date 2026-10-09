@@ -4,10 +4,13 @@ from collections.abc import AsyncGenerator
 from fastapi import Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from database_layer.cj_stock_subscription_repository import CJStockSubscriptionRepository
 from database_layer.supplier_config_repository import SupplierConfigRepository
 from database_layer.supplier_sync_state_repository import SupplierSyncStateRepository
 from service_layer.cj_freight_service import CJFreightQuoteService
 from service_layer.cj_product_provider import CJDropshippingProductProvider
+from service_layer.cj_webhook_service import CJWebhookService
+from service_layer.cj_webhook_signature import CJWebhookSignature
 from service_layer.outbox_event_service import OutboxEventService
 from models.outbox_models import OutboxEvent
 from service_layer.sync_orchestrator_service import SupplierSyncOrchestrator
@@ -83,6 +86,21 @@ def get_freight_quote_service(
     )
 
 
+def get_cj_webhook_service(
+    resources: SupplierApiResources = Depends(get_resources),
+    session: AsyncSession = Depends(get_db_session, scope="function"),
+) -> CJWebhookService:
+    """One push, one transaction: the stock event commits before CJ is answered."""
+    return CJWebhookService(
+        settings=resources.settings,
+        signature=CJWebhookSignature(resources.settings.CJ_WEBHOOK_SIGNING_KEY),
+        subscriptions=CJStockSubscriptionRepository(session),
+        outbox=OutboxEventService(repository=OutboxRepository(session=session, model=OutboxEvent)),
+        logger=resources.logger,
+    )
+
+
 cj_provider_dependency = Annotated[CJDropshippingProductProvider, Depends(get_cj_provider)]
 freight_quote_dependency = Annotated[CJFreightQuoteService, Depends(get_freight_quote_service)]
 sync_orchestrator_dependency = Annotated[SupplierSyncOrchestrator, Depends(get_sync_orchestrator)]
+cj_webhook_dependency = Annotated[CJWebhookService, Depends(get_cj_webhook_service)]

@@ -36,7 +36,7 @@ SECRET_PATHS: dict[str, tuple[str, ...]] = {
     # SECRET_KEY: only the artwork-signing fallback reads it, in these two services.
     "product-service": ("OPENROUTER_API_KEY", "ARTWORK_SIGNING_SECRET", "SECRET_KEY"),
     "order-service": ("ORDER_SERVICE_ASSERTION_PRIVATE_KEY", "ARTWORK_SIGNING_SECRET", "SECRET_KEY"),
-    "supplier-service": ("SUPPLIER_SERVICE_ASSERTION_PRIVATE_KEY", "CJ_DROPSHIPPING_API_KEY"),
+    "supplier-service": ("SUPPLIER_SERVICE_ASSERTION_PRIVATE_KEY", "CJ_DROPSHIPPING_API_KEY", "CJ_DROPSHIPPING_OPEN_ID"),
     "payment-service": ("STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET"),
     "notification-service": ("MAIL_PASSWORD",),
     "admin-js": ("COOKIE_SECRET",),

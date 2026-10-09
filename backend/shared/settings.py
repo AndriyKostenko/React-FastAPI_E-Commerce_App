@@ -411,6 +411,10 @@ class Settings(BaseSettings):
         return self._reveal(self.CJ_DROPSHIPPING_API_KEY, "CJ_DROPSHIPPING_API_KEY")
 
     @property
+    def CJ_WEBHOOK_SIGNING_KEY(self) -> str:
+        return self._reveal(self.CJ_DROPSHIPPING_OPEN_ID, "CJ_DROPSHIPPING_OPEN_ID")
+
+    @property
     def ARTWORK_SIGNING_KEY(self) -> str:
         """Use a dedicated key when configured, with a migration-safe fallback."""
 
@@ -558,6 +562,19 @@ class Settings(BaseSettings):
 
     # CJ Dropshipping shipping-address validation
     CJ_DROPSHIPPING_REJECT_PO_BOX_ADDRESSES: bool = True
+
+    # CJ Dropshipping webhooks (stock pushes). CJ signs every push with the
+    # account's openId (returned with the access token), so it is a secret.
+    CJ_DROPSHIPPING_OPEN_ID: SecretStr | None = None
+    CJ_DROPSHIPPING_WEBHOOK_SET_URL: str = (
+        "https://developers.cjdropshipping.com/api2.0/v1/webhook/set"
+    )
+    CJ_DROPSHIPPING_WEBHOOK_SUBSCRIBE_URL: str = (
+        "https://developers.cjdropshipping.com/api2.0/v1/webhook/product/subscribe"
+    )
+    CJ_DROPSHIPPING_WEBHOOK_UNSUBSCRIBE_URL: str = (
+        "https://developers.cjdropshipping.com/api2.0/v1/webhook/product/unsubscribe"
+    )
 
     # --------------RABBITMQ-----------------------
 

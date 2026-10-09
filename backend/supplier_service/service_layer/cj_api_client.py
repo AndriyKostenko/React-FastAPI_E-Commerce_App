@@ -6,6 +6,7 @@ from logging import Logger, getLogger
 
 from httpx import AsyncClient, HTTPStatusError, RequestError, Response
 
+from schemas.cj_webhook_schemas import CJProductSubscriptionResult, CJWebhookSettingsRequest
 from shared.resilience import CircuitBreaker, CircuitOpenError, RetryableError, RetryPolicy
 from shared.settings import Settings
 
@@ -24,6 +25,16 @@ class CJDropshippingNotFoundError(CJDropshippingAPIError):
     """
 
     CODE = 1600300
+
+
+class CJDropshippingWebhookNotEnabledError(CJDropshippingAPIError):
+    """
+    CJ refused a product subscription because the account's product webhook
+    is off (code 1606010): never registered, or switched off by CJ after too
+    many failed pushes. Registering the callback URL again turns it back on.
+    """
+
+    CODE = 1606010
 
 
 class CJDropshippingNetworkError(CJDropshippingAPIError, RetryableError):
@@ -356,6 +367,39 @@ class CJDropshippingAPIClient:
             json={"orderId": cj_order_id},
         )
 
+    # -------------------------------------------------------------- webhooks
+    #
+    # All three are safe to repeat: they set state rather than add to it, so
+    # a lost response may be retried like a read.
+
+    async def set_webhooks(self, settings_request: CJWebhookSettingsRequest) -> dict[str, Any]:
+        """Register (or switch off) the callback URL of each webhook topic."""
+        return await self.request(
+            "POST",
+            self.settings.CJ_DROPSHIPPING_WEBHOOK_SET_URL,
+            json=settings_request.model_dump(by_alias=True),
+            idempotent=True,
+        )
+
+    async def subscribe_products(self, pids: list[str]) -> CJProductSubscriptionResult:
+        """Subscribe up to 100 products to product/stock pushes."""
+        response = await self.request(
+            "POST",
+            self.settings.CJ_DROPSHIPPING_WEBHOOK_SUBSCRIBE_URL,
+            json={"productIds": pids},
+            idempotent=True,
+        )
+        return CJProductSubscriptionResult.model_validate(response.get("data") or {})
+
+    async def unsubscribe_products(self, pids: list[str]) -> dict[str, Any]:
+        """Stop product/stock pushes for up to 100 products."""
+        return await self.request(
+            "POST",
+            self.settings.CJ_DROPSHIPPING_WEBHOOK_UNSUBSCRIBE_URL,
+            json={"productIds": pids},
+            idempotent=True,
+        )
+
     # --------------------------------------------------------------- sandbox
     #
     # Only valid for orders created with isSandbox=1; CJ rejects them for any
@@ -415,4 +459,6 @@ def _rejection(code: object, message: str) -> CJDropshippingAPIError:
     """The error for an authoritative CJ refusal, the not-found case told apart."""
     if code == CJDropshippingNotFoundError.CODE:
         return CJDropshippingNotFoundError(message)
+    if code == CJDropshippingWebhookNotEnabledError.CODE:
+        return CJDropshippingWebhookNotEnabledError(message)
     return CJDropshippingAPIError(message)

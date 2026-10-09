@@ -26,6 +26,9 @@
 #   ./local/dev.sh cj-sandbox status|ship|deliver|poll <order_id>
 #                                   # play CJ's part for a sandbox order
 #                                   # (CJ_DROPSHIPPING_SANDBOX=true only)
+#   ./local/dev.sh cj-webhook tunnel|tunnel-stop|store-open-id|subscribe|status
+#                                   # CJ's stock pushes, through a cloudflared
+#                                   # tunnel to the gateway
 #   ./local/dev.sh vault up|down|status
 #                                   # the local Vault holding every secret
 #   ./local/dev.sh vault import [--dry-run]
@@ -227,8 +230,9 @@ cmd_port() {
 # Infra
 # --------------------------------------------------------------------------
 cmd_install() {
-  say "Installing postgresql@16, redis, rabbitmq and vault via Homebrew"
-  brew install postgresql@16 redis rabbitmq
+  say "Installing postgresql@16, redis, rabbitmq, cloudflared and vault via Homebrew"
+  # cloudflared: the tunnel CJ's stock webhook reaches the local gateway through.
+  brew install postgresql@16 redis rabbitmq cloudflared
   brew tap hashicorp/tap
   brew install hashicorp/tap/vault
 }
@@ -747,6 +751,76 @@ cmd_cj_sandbox() {
   (export_vault_identity supplier_service; cd "$BACKEND_DIR/supplier_service" && .venv/bin/python -m tools.cj_sandbox "$@")
 }
 
+# CJ's STOCK webhook: CJ pushes stock changes to a public HTTPS address, so
+# locally a cloudflared quick tunnel (no account, a new URL every run) gives
+# the gateway one.  `tunnel` starts it and registers its URL with CJ; the
+# rest runs tools/cj_webhook.py with supplier-service's Vault identity.
+cj_tunnel_pid_file="$RUN_DIR/cj-tunnel.pid"
+cj_tunnel_url_file="$RUN_DIR/cj-tunnel.url"
+cj_tunnel_log="$LOG_DIR/cj-tunnel.log"
+cj_tunnel_running() { [ -f "$cj_tunnel_pid_file" ] && kill -0 "$(cat "$cj_tunnel_pid_file")" 2>/dev/null; }
+
+cj_webhook_tool() {
+  (export_vault_identity supplier_service; cd "$BACKEND_DIR/supplier_service" && .venv/bin/python -m tools.cj_webhook "$@")
+}
+
+cmd_cj_webhook() {
+  service_env
+  local action="${1:-}"; shift || true
+  case "$action" in
+    tunnel)
+      require_bin cloudflared
+      mkdir -p "$RUN_DIR" "$LOG_DIR"
+      if ! cj_tunnel_running; then
+        : > "$cj_tunnel_log"
+        # The gateway checks the Host header against its allowlist, so the
+        # tunnel presents the local address rather than the trycloudflare one.
+        nohup cloudflared tunnel --no-autoupdate --url "http://127.0.0.1:8000" \
+          --http-host-header "127.0.0.1:8000" >>"$cj_tunnel_log" 2>&1 &
+        echo $! > "$cj_tunnel_pid_file"
+        local url="" i
+        for i in $(seq 1 30); do
+          url="$(grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' "$cj_tunnel_log" | head -1 || true)"
+          [ -n "$url" ] && break
+          sleep 1
+        done
+        [ -n "$url" ] || die "cloudflared gave no URL in 30s; see $cj_tunnel_log"
+        echo "$url" > "$cj_tunnel_url_file"
+        say "cj tunnel up: $url"
+        # A fresh quick-tunnel hostname takes a few seconds to resolve.
+        sleep 5
+      fi
+      cj_webhook_tool enable "$(cat "$cj_tunnel_url_file")"
+      ;;
+    tunnel-stop)
+      if [ -f "$cj_tunnel_url_file" ]; then
+        cj_webhook_tool disable "$(cat "$cj_tunnel_url_file")" || warn "CJ did not accept the cancel"
+      fi
+      if cj_tunnel_running; then kill "$(cat "$cj_tunnel_pid_file")"; say "cj tunnel stopped"; fi
+      rm -f "$cj_tunnel_pid_file" "$cj_tunnel_url_file"
+      ;;
+    store-open-id)
+      # Straight from CJ into Vault: the value is never printed or put on a
+      # command line (vault reads it from stdin), so it shows in no log or ps.
+      # The tool writes the openId into a private file (never stdout, where
+      # its log lines go); it is checked, piped into Vault and deleted.
+      local secret_file
+      secret_file="$(umask 077; mktemp "$RUN_DIR/cj-open-id.XXXXXX")"
+      # Expanded now: the trap runs at exit, after this function's locals are gone.
+      # shellcheck disable=SC2064
+      trap "rm -f '$secret_file'" EXIT
+      cj_webhook_tool open-id --to "$secret_file" || die "could not read the openId from CJ"
+      grep -qE '^[0-9]{1,20}$' "$secret_file" || die "what CJ returned is not a numeric openId; nothing stored"
+      vault_op kv patch "secret/$VAULT_PREFIX/supplier-service" \
+        CJ_DROPSHIPPING_OPEN_ID=- <"$secret_file" >/dev/null
+      rm -f "$secret_file"
+      say "CJ_DROPSHIPPING_OPEN_ID stored in Vault; restart supplier-service to load it"
+      ;;
+    enable|disable|subscribe|status) cj_webhook_tool "$action" "$@" ;;
+    *) die "cj-webhook: tunnel | tunnel-stop | store-open-id | enable <url> | disable <url> | subscribe | status" ;;
+  esac
+}
+
 # A service's test suite, with that service's Vault identity: its settings
 # (database password included) come from Vault exactly as when it runs.
 cmd_test() {
@@ -771,7 +845,8 @@ case "${1:-}" in
   reset)    shift; cmd_reset "$@" ;;
   dlq)      shift; cmd_dlq "$@" ;;
   cj-sandbox) shift; cmd_cj_sandbox "$@" ;;
+  cj-webhook) shift; cmd_cj_webhook "$@" ;;
   vault)    shift; cmd_vault "$@" ;;
   test)     shift; cmd_test "$@" ;;
-  *) sed -n '2,36p' "${BASH_SOURCE[0]}" | sed -E 's/^#[[:space:]]?//'; exit 1 ;;
+  *) sed -n '2,39p' "${BASH_SOURCE[0]}" | sed -E 's/^#[[:space:]]?//'; exit 1 ;;
 esac

@@ -100,6 +100,8 @@ class PublicRouteRegistry:
             PublicRoute(f"{api}/customization/pricing", get, cacheable=True),
             # Stripe authenticates itself with the webhook signature
             PublicRoute(f"{api}/payments/webhook", post),
+            # CJ signs its pushes the same way (supplier-service checks it)
+            PublicRoute(f"{api}/cjdropshipping/webhook", post),
             # Shipping lookups at checkout
             PublicRoute(f"{api}/shipping/methods", get, PathScope.TREE, cacheable=True),
             PublicRoute(f"{api}/shipping/rates", post),

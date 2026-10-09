@@ -136,6 +136,15 @@ class TestPaymentRoutes:
         response = await client.post(f"{TEST_API}/payments/webhook", content=b"stripe payload")
         mock_forward.assert_awaited_once()
 
+    async def test_cj_webhook_forwards_the_body_untouched(
+        self, client: AsyncClient, mock_forward: AsyncMock
+    ):
+        """CJ signs the exact bytes it sent: they must not be parsed and re-serialised."""
+        await client.post(f"{TEST_API}/cjdropshipping/webhook", content=b'{"type":"STOCK"}')
+        mock_forward.assert_awaited_once()
+        assert mock_forward.await_args.kwargs["raw_body"] is True
+        assert mock_forward.await_args.kwargs["service_name"] == "supplier-service"
+
     async def test_get_payment_by_id_authenticated_calls_forward(
         self, admin_client: AsyncClient, mock_forward: AsyncMock
     ):
