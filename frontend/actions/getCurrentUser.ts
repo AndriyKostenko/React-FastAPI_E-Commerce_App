@@ -86,18 +86,6 @@ class SessionManager {
         return this.session.jwt;
     }
 
-    public async getCurrentUserRole() {
-        await this.fetchSession();
-
-        if (this.isSessionExpired()) {
-            return null;
-        }
-
-        if (!this.session?.role) {
-            return null;
-        }
-        return this.session.role;
-    }
 
     public async getCurrentUserTokenExpiry() {
         await this.fetchSession();

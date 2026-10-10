@@ -41,6 +41,10 @@
 #                                   # and counts; one-time copy of local-disk
 #                                   # designs and return photos into it
 #   ./local/dev.sh images mirror    # copy CJ catalogue images into S3 now
+#   ./local/dev.sh admin enrol|list|revoke <email> [passkey-id]
+#                                   # admin passkeys: a one-time enrolment
+#                                   # link (also the recovery path), list,
+#                                   # remove a lost one
 #
 # RELOAD=1           ./local/dev.sh up   HTTP services start with --reload.
 # FRONTEND_PORT=3000 ./local/dev.sh up   override the Next.js port.
@@ -575,6 +579,17 @@ cmd_images() {
   esac
 }
 
+# Admin passkeys. Enrolment is only ever started from here: it needs this
+# machine's Vault identity and database, which a leaked password does not give.
+cmd_admin() {
+  case "${1:-}" in
+    enrol|list|revoke)
+      service_env
+      (export_vault_identity user_service; cd "$BACKEND_DIR/user_service" && .venv/bin/python -m tools.passkeys "$@") ;;
+    *) die "admin: expected enrol|list|revoke <email> [passkey-id]" ;;
+  esac
+}
+
 cmd_vault() {
   case "${1:-status}" in
     up)     vault_start ;;
@@ -986,6 +1001,7 @@ case "${1:-}" in
   vault)    shift; cmd_vault "$@" ;;
   storage)  shift; cmd_storage "$@" ;;
   images)   shift; cmd_images "$@" ;;
+  admin)    shift; cmd_admin "$@" ;;
   test)     shift; cmd_test "$@" ;;
-  *) sed -n '2,49p' "${BASH_SOURCE[0]}" | sed -E 's/^#[[:space:]]?//'; exit 1 ;;
+  *) sed -n '2,53p' "${BASH_SOURCE[0]}" | sed -E 's/^#[[:space:]]?//'; exit 1 ;;
 esac

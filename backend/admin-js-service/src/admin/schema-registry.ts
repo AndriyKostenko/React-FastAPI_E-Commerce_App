@@ -1,4 +1,4 @@
-import type { ApiResourceProvider } from '../resources/api-resource-provider.js';
+import type { ApiResource } from '../resources/api-resource.js';
 
 /**
  * Every API-backed resource whose field schema is admin-only.
@@ -8,16 +8,16 @@ import type { ApiResourceProvider } from '../resources/api-resource-provider.js'
  * admin's token right after login — before the dashboard is rendered.
  */
 class SchemaRegistry {
-    private readonly providers: ApiResourceProvider[] = [];
+    private readonly resources: ApiResource[] = [];
 
-    register(provider: ApiResourceProvider): ApiResourceProvider {
-        this.providers.push(provider);
-        return provider;
+    register(resource: ApiResource): ApiResource {
+        this.resources.push(resource);
+        return resource;
     }
 
-    async loadAll(token: string): Promise<void> {
+    async loadAll(accessToken: string): Promise<void> {
         // One failing schema must not block the others or the login itself.
-        await Promise.allSettled(this.providers.map((provider) => provider.ensureSchema(token)));
+        await Promise.allSettled(this.resources.map((resource) => resource.ensureSchema(accessToken)));
     }
 }
 

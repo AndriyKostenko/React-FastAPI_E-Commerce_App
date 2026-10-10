@@ -1,9 +1,7 @@
 from fastapi import APIRouter, Request, status
 
 from dependencies.dependencies import artwork_asset_service_dependency
-from helpers.internal_access_helper import internal_access_helper
 from schemas.artwork_schema import ArtworkDownloadRequest, ArtworkDownloadResponse
-from shared.exceptions.base_exceptions import BaseAPIException
 from shared.auth.service_assertion import require_service
 from typing import Annotated
 from fastapi import Depends
@@ -14,16 +12,6 @@ OrderServiceCaller = Annotated[str, Depends(require_service("order-service"))]
 
 
 artwork_routes = APIRouter(tags=["artwork"])
-
-
-class ArtworkAccessForbiddenError(BaseAPIException):
-    """Raised when a print-file download is requested from outside the mesh."""
-
-    def __init__(self) -> None:
-        super().__init__(
-            status_code=403,
-            detail="Artwork downloads are available to internal services only",
-        )
 
 
 @artwork_routes.post(
@@ -44,9 +32,9 @@ async def create_artwork_download_link(
     production queue. It is deliberately not exposed through the API gateway:
     the artwork belongs to a paying customer and is not a public asset.
     """
-    if not internal_access_helper.is_internal_client(request):
-        raise ArtworkAccessForbiddenError()
-
+    # The signed order-service assertion (OrderServiceCaller) is the access
+    # check. A client-IP test used to sit here too; it held only inside
+    # Docker's private network and refused every local call from 127.0.0.1.
     download = await artwork_asset_service.build_download(download_data.asset)
     return ArtworkDownloadResponse(
         download_url=download.download_url,

@@ -19,18 +19,32 @@ const toInteger = (key, value) => {
     }
     return parsed;
 };
+const optionalInteger = (env, key, fallback) => {
+    const value = env[key];
+    return value ? toInteger(key, value) : fallback;
+};
 export const loadConfig = (env = process.env) => {
     const missing = REQUIRED_KEYS.filter((key) => !env[key]);
     if (missing.length > 0) {
         throw new AdminConfigError(`admin-js cannot start: ${missing.join(', ')} ${missing.length === 1 ? 'is' : 'are'} not set (add to backend/.env)`);
     }
     const value = (key) => env[key];
+    const idleMinutes = optionalInteger(env, 'ADMIN_JS_SESSION_IDLE_MINUTES', 30);
+    const maxHours = optionalInteger(env, 'ADMIN_JS_SESSION_MAX_HOURS', 8);
+    if (idleMinutes < 1 || maxHours < 1) {
+        throw new AdminConfigError('ADMIN_JS_SESSION_IDLE_MINUTES and ADMIN_JS_SESSION_MAX_HOURS must be at least 1');
+    }
     return {
         port: toInteger('ADMIN_JS_PORT', value('ADMIN_JS_PORT')),
+        listenHost: env.ADMIN_JS_LISTEN_HOST || '127.0.0.1',
         gatewayApiUrl: value('API_GATEWAY_SERVICE_URL') + value('API_GATEWAY_SERVICE_URL_API_VERSION'),
         adminRole: value('SECRET_ROLE'),
         cookieSecret: value('COOKIE_SECRET'),
         production: env.NODE_ENV === 'production',
+        session: {
+            idleMs: idleMinutes * 60_000,
+            absoluteMs: maxHours * 3_600_000,
+        },
         redis: {
             host: value('REDIS_HOST'),
             port: toInteger('REDIS_PORT', value('REDIS_PORT')),

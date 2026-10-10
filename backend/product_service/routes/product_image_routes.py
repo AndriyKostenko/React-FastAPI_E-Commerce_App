@@ -1,7 +1,7 @@
 from typing import Any
 from uuid import uuid4, UUID
 
-from fastapi import APIRouter, File, Form, Request, Response, UploadFile, status
+from fastapi import APIRouter, File, Form, Query, Request, Response, UploadFile, status
 
 from dependencies.dependencies import (
     admin_caller_dependency,
@@ -116,10 +116,14 @@ async def add_product_images(
     status_code=status.HTTP_200_OK,
 )
 async def get_all_images(
-    request: Request, image_service: product_image_service_dependency
+    request: Request,
+    image_service: product_image_service_dependency,
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
 ) -> list[ProductImageSchema]:
-    images = await image_service.get_images()
-    return images
+    # Paged, newest first: the admin panel pages through it, and the whole
+    # table (every product's every image) is not one response.
+    return await image_service.get_images(limit=limit, offset=offset)
 
 
 @product_images_routes.get(

@@ -127,17 +127,6 @@ async def delete_order(
     )
 
 
-@order_proxy.get("/admin/schema/orders")
-async def get_order_schema_for_admin_js(
-    request: Request,
-    admin: CurrentUserInfo = Depends(require_admin),
-):
-    return await api_gateway_manager.forward_request(
-        service_name="order-service",
-        request=request
-    )
-
-
 # ==================== IN-HOUSE PRODUCTION QUEUE (ADMIN) ====================
 #
 # The queue an operator works to print, pack, and post a custom T-shirt. Every

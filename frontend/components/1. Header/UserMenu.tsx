@@ -8,10 +8,7 @@ import Link from "next/link";
 import BackDrop from "./BackDrop";
 import { signOut } from "next-auth/react";
 
-const UserMenu: React.FC<UserMenuProps> = ({
-    currentUser,
-    currentUserRole,
-}) => {
+const UserMenu: React.FC<UserMenuProps> = ({ currentUser }) => {
     const [isOpen, setIsOpen] = useState(false);
 
     const toggleOpen = useCallback(() => {
@@ -66,13 +63,6 @@ const UserMenu: React.FC<UserMenuProps> = ({
                                     </MenuItem>
                                 </Link>
                             </div>
-                        )}
-                        {currentUserRole === "admin" && (
-                            <Link href="/admin">
-                                <MenuItem onClick={toggleOpen}>
-                                    Admin Dashboard
-                                </MenuItem>
-                            </Link>
                         )}
                     </div>
                 )}

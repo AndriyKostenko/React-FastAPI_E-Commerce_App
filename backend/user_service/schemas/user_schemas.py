@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Optional, List
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, JsonValue, field_validator
 from pydantic.fields import Field
 
 
@@ -164,3 +164,54 @@ class UsersFilterParams(BaseModel):
     date_created_to: Optional[datetime] = Field(None, description="Filter users created up to this date")
     date_updated_from: Optional[datetime] = Field(None, description="Filter users updated from this date")
     date_updated_to: Optional[datetime] = Field(None, description="Filter users updated up to this date")
+
+
+# ==================== Admin passkeys (WebAuthn) ====================
+
+class PasskeySignInStart(BaseModel):
+    """Step 1 of an admin sign-in: the password, before any challenge is issued."""
+    email: EmailStr
+    password: str = Field(..., min_length=1, max_length=100)
+
+    @field_validator("email")
+    @classmethod
+    def normalise_email(cls, value: EmailStr) -> str:
+        return str(value).strip().lower()
+
+
+class PasskeyCeremonyOptions(BaseModel):
+    """What the browser passes to navigator.credentials.get() / .create().
+
+    ``options`` is the WebAuthn options object in its JSON form (binary fields
+    base64url-encoded), as py_webauthn produces it.
+    """
+    challenge_id: str
+    options: dict[str, JsonValue]
+
+
+class PasskeySignInFinish(BaseModel):
+    challenge_id: str = Field(..., min_length=16, max_length=64)
+    # The PublicKeyCredential the browser returned, in its JSON form.
+    credential: dict[str, JsonValue]
+
+
+class PasskeyEnrolmentStart(BaseModel):
+    token: str = Field(..., min_length=32, max_length=128)
+
+
+class PasskeyEnrolmentFinish(BaseModel):
+    token: str = Field(..., min_length=32, max_length=128)
+    challenge_id: str = Field(..., min_length=16, max_length=64)
+    credential: dict[str, JsonValue]
+    name: str = Field(..., min_length=1, max_length=64, description="What this passkey is on, e.g. 'MacBook'")
+
+
+class PasskeySummary(BaseModel):
+    """A registered passkey as the owner sees it; no key material."""
+    id: UUID
+    name: str
+    backed_up: bool
+    date_created: datetime
+    last_used_at: Optional[datetime]
+
+    model_config = ConfigDict(from_attributes=True)

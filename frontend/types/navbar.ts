@@ -13,7 +13,6 @@ export interface MenuItemProps {
 
 export interface UserMenuProps {
     currentUser?: CurrentUserShape | null;
-    currentUserRole?: string | null | undefined;
 }
 
 export interface NavCategoryProps {

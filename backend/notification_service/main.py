@@ -11,6 +11,7 @@ from app_config import DESCRIPTOR, resolve_resources, notification_service_lifes
 from resources import NotificationApiResources
 from resources import logger, settings
 from routes.notification_routes import notification_routes
+from routes.admin_routes import admin_routes
 from shared.app import DatabaseEngineProbe, ServiceAppBuilder
 
 app = (
@@ -19,6 +20,7 @@ app = (
     .with_tracing(instrument_sqlalchemy=False)
     .with_readiness(DatabaseEngineProbe())
     .with_router(notification_routes, prefix=DESCRIPTOR.api_prefix)
+    .with_router(admin_routes, prefix=DESCRIPTOR.api_prefix)
     .build()
 )
 

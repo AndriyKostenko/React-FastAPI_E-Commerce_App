@@ -11,6 +11,7 @@ from app_config import DESCRIPTOR, resolve_resources, payment_service_lifespan
 from resources import PaymentApiResources
 from config import logger, settings
 from routes.payment_routes import payment_routes
+from routes.admin_routes import admin_routes
 from shared.app import DatabaseEngineProbe, ServiceAppBuilder
 
 app = (
@@ -18,6 +19,7 @@ app = (
     .with_lifespan(payment_service_lifespan, resolve_resources)
     .with_readiness(DatabaseEngineProbe())
     .with_router(payment_routes, prefix=DESCRIPTOR.api_prefix)
+    .with_router(admin_routes, prefix=DESCRIPTOR.api_prefix)
     .build()
 )
 

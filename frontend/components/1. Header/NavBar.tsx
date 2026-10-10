@@ -9,7 +9,6 @@ import HeaderNavLinks from "./HeaderNavLinks";
 const NavBar = async () => {
     // getting current user from the server session
     const currentUser = await sessionManagaer.getCurrentUser();
-    const currentUserRole = await sessionManagaer.getCurrentUserRole();
 
     return (
         <header className="w-full z-50 px-margin-desktop py-6">
@@ -40,10 +39,7 @@ const NavBar = async () => {
                     <div className="bg-white/50 backdrop-blur p-3 rounded-full border border-white/20 hover:bg-white transition-all cursor-pointer">
                         <CartCount />
                     </div>
-                    <UserMenu
-                        currentUser={currentUser}
-                        currentUserRole={currentUserRole}
-                    />
+                    <UserMenu currentUser={currentUser} />
                 </div>
             </nav>
         </header>

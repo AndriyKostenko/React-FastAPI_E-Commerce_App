@@ -35,8 +35,8 @@ services:
     ports: !reset []
   shipping-service:
     ports: !reset []
-  admin-js-service:
-    ports: !reset []
+  # admin-js keeps its loopback-only port: it is reached over an SSH tunnel,
+  # never through Traefik (see docker-compose.yml).
   otel-collector:
     ports: !reset []
   tempo:

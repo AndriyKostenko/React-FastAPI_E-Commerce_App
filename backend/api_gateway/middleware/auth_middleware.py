@@ -5,6 +5,7 @@ from fastapi.responses import JSONResponse
 from shared.settings import Settings
 from shared.managers.session_registry import SessionRegistry
 from shared.auth.user_tokens import UserTokenVerifier
+from shared.contracts.auth import TokenClaims
 from shared.enums.auth_enums import AuthCookies
 from middleware.public_routes import PublicRouteRegistry
 
@@ -57,6 +58,21 @@ class AuthMiddleware:
             )
         return revoked
 
+    def _meets_role_sign_in_policy(self, user_data: TokenClaims) -> bool:
+        """An admin token counts only if its session was signed in with a passkey.
+
+        user-service never mints one otherwise; this is the second lock, so a
+        token from before passkeys (or from any future bug in issuing) cannot
+        act as an admin. Every service trusts the gateway's assertion, so this
+        one check covers them all.
+        """
+        if user_data.role != self.settings.SECRET_ROLE:
+            return True
+        if user_data.signed_in_with_passkey():
+            return True
+        self.logger.warning("Rejected an admin token for %s signed in without a passkey", user_data.id)
+        return False
+
     async def middleware(self, request: Request, call_next):
         """
         Main middleware function to authenticate requests using JWT tokens.
@@ -85,6 +101,11 @@ class AuthMiddleware:
                     raise HTTPException(
                         status_code=401,
                         detail="Session has been revoked. Please sign in again.",
+                    )
+                if not self._meets_role_sign_in_policy(user_data):
+                    raise HTTPException(
+                        status_code=401,
+                        detail="Admin sessions must be signed in with a passkey.",
                     )
                 request.state.current_user = user_data
                 self.logger.info(f"Token is validated for: {user_data.email}")

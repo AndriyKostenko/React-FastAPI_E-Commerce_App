@@ -3,5 +3,6 @@
 from .base import Base
 from .outbox_models import OutboxEvent
 from .user_models import User
+from .webauthn_credential_models import WebAuthnCredential
 
-__all__ = ["Base", "OutboxEvent", "User"]
+__all__ = ["Base", "OutboxEvent", "User", "WebAuthnCredential"]

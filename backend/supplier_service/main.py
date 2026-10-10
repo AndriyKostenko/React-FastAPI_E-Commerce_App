@@ -15,6 +15,7 @@ from app_config import (
 )
 from resources import SupplierApiResources, logger, settings
 from routes.supplier_routes import supplier_routes
+from routes.admin_routes import admin_routes, supplier_config_admin_routes
 from shared.app import DatabaseEngineProbe, ServiceAppBuilder
 
 app = (
@@ -23,6 +24,8 @@ app = (
     .with_readiness(DatabaseEngineProbe())
     .with_exception_handlers(build_exception_handlers())
     .with_router(supplier_routes, prefix=DESCRIPTOR.api_prefix)
+    .with_router(admin_routes, prefix=DESCRIPTOR.api_prefix)
+    .with_router(supplier_config_admin_routes, prefix=DESCRIPTOR.api_prefix)
     .build()
 )
 
