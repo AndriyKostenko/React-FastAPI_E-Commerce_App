@@ -303,6 +303,20 @@ class Settings(BaseSettings):
     # AdminJs
     ADMINJS_SERVICE_TOKEN: SecretStr | None = None
 
+    # Admin passkeys (WebAuthn), checked by user-service. Admin accounts sign
+    # in only with a passkey, and only on the admin panel's own origin: a
+    # passkey is bound to WEBAUTHN_RP_ID (a host name, ports ignored) and every
+    # signed response names its origin, which must be one of WEBAUTHN_ORIGINS.
+    # Locally the panel is http://localhost:3001; in production it is the
+    # private host admin-js is reached on (it is never routed publicly).
+    WEBAUTHN_RP_ID: str = "localhost"
+    WEBAUTHN_RP_NAME: str = "E-Commerce Admin"
+    WEBAUTHN_ORIGINS: list[str] = Field(default_factory=lambda: ["http://localhost:3001"])
+    # The admin panel's base URL, for the enrolment link the owner is given.
+    ADMIN_PANEL_URL: str = "http://localhost:3001/admin"
+    PASSKEY_ENROLMENT_TTL_MINUTES: int = Field(default=15, ge=1, le=60)
+    PASSKEY_CHALLENGE_TTL_SECONDS: int = Field(default=300, ge=30, le=600)
+
     # OpenRouter image generation
     OPENROUTER_API_KEY: SecretStr | None = None
     OPENROUTER_BASE_URL: str

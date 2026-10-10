@@ -86,8 +86,8 @@ class ProductImageService:
 
     # ---------- read ----------
 
-    async def get_images(self) -> List[ProductImageSchema]:
-        images = await self.repository.get_all()
+    async def get_images(self, limit: int = 50, offset: int = 0) -> List[ProductImageSchema]:
+        images = await self.repository.get_all(sort_by="date_created", sort_order="desc", limit=limit, offset=offset)
         return [ProductImageSchema.model_validate(img) for img in images]
 
     async def get_product_images(self, product_id: UUID) -> List[ProductImageSchema]:

@@ -37,6 +37,7 @@ dependencies = [
     "opentelemetry-instrumentation-sqlalchemy>=0.50b0",
     "opentelemetry-instrumentation-redis>=0.50b0",
     "pyjwt[crypto]>=2.10",
+    "webauthn>=2.7",
 ]
 
 [tool.uv.sources]

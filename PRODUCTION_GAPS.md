@@ -4,7 +4,8 @@ Context: business goal is (1) users create AI print designs on t-shirts that you
 produce at home and ship yourself, and (2) users buy t-shirts sourced from
 CJDropshipping (products pre-fetched and stored in your DB).
 
-Assessment date: 2026-09-03. Last updated 2026-10-09 (S3 for images, §8.3; the
+Assessment date: 2026-09-03. Last updated 2026-10-10 (AdminJS: passkeys, sole
+back office, every resource, §8.4; before that S3 for images, §8.3; the
 CJ stock webhook, §8.2; before that the refund and cancellation paths,
 PRs #12-#16, see §5a). The hard architectural + integration work is
 substantially done (CJ integration, AI generation, order saga, artwork storage).
@@ -141,7 +142,8 @@ owns the queue, because it owns `CustomProductionJob`.
       `RetainedArtworkRepository.is_key_retained` before deleting anything.
 - [x] Frontend admin: `/admin/production` — queue with status counts and
       filters, print-file preview and download, printable packing slip, and the
-      start/print/ship/deliver/hold/cancel controls.
+      start/print/ship/deliver/hold/cancel controls. (Moved to AdminJS's
+      "Print queue" on 2026-10-10, §8.4; the Next.js admin pages are gone.)
 
 Tests: `tests/unit_tests/test_production_queue_service.py` (state machine +
 aggregator) and `tests/integration_tests/test_production_routes.py` (16 tests
@@ -503,8 +505,8 @@ the services), not only in unit tests.
 - **admin-js** runs under `dev.sh` now (2026-09-28, `./local/dev.sh up admin-js`,
   :3001). It checks its configuration at startup: `backend/.env` was missing
   `COOKIE_SECRET`, `ADMINJS_SERVICE_REDIS_DB` and `ADMINJS_SERVICE_REDIS_PREFIX`,
-  so it could not have worked under compose either. Still open: its stored access
-  token expires with no refresh.
+  so it could not have worked under compose either. Its token refresh is
+  done since 2026-10-10 (§8.4).
 
 ### 5. Payments & tax/legal
 - [x] Partial refunds (2026-09-25). `POST /admin/orders/{id}/refunds` refunds
@@ -633,8 +635,8 @@ sold from local stock; only CJ products exist locally.
 - Loading/error states, mobile polish
 
 ### 7. Testing & docs
-- All ten service suites pass (1,577 tests on 2026-10-09: gateway 218, user 157,
-  product 319, supplier 223, order 282, payment 126, cart 62, wishlist 27,
+- All ten service suites pass (1,621 tests on 2026-10-10: gateway 228, user 174,
+  product 321, supplier 230, order 282, payment 134, cart 62, wishlist 27,
   shipping 44, notification 119; `shared` 50), but **nothing runs them**: there is no CI, so
   every PR so far was merged with only GitGuardian checking it.
 - The suites no longer depend on the local configuration: order-service's
@@ -803,15 +805,94 @@ approach; decisions are recorded here as they are made.
    - Not covered: deleting catalogue objects no product uses any more (keys
      are shared between products, so it needs a reference sweep); the local
      media files are left in place until you delete them.
-4. **AdminJS: token, security, coverage.** What exists: AdminJS signs in with
-   the admin's password through the gateway and keeps only the 20-minute
-   access token in a 1-hour session. It drops the refresh token, so it stops
-   working part-way through a session. There is no second factor, and it
-   manages only users, products, categories, images, reviews and orders.
-   Approach: keep the session's token fresh, add a second factor for admins
-   and the other protections that fit a single-operator shop, and add
-   resources for payments and refunds, returns, disputes, the print queue, CJ
-   orders, shipments, notifications and supplier configuration.
+4. **AdminJS: token, security, coverage.** AdminJS signed in with the
+   admin's password alone and kept only the 20-minute access token in a 1-hour
+   session (it stopped working part-way through), and managed only users,
+   products, categories, images, reviews and orders.
+   **Status: live locally since 2026-10-10** (branch `feature/adminjs-passkeys`).
+   Decisions: the second factor is a **passkey (WebAuthn)**, checked by
+   user-service and required for every admin login by any route; **AdminJS is
+   the one back office** (the Next.js `/admin` pages are removed); every
+   resource listed is covered; admin-js is **private only** (never routed
+   publicly); the first passkey comes from an **owner-run one-time link**, which
+   is also the recovery path.
+   - **Passkeys (user-service).** `webauthn_credentials` (user migration
+     `a3d7f2c9e614`; public keys only), py_webauthn. Sign-in is password, then
+     passkey: `POST /login/passkey/options` checks the password and issues a
+     single-use challenge; `/login/passkey/verify` checks the signature, origin,
+     RP id, user verification (PIN/biometric) and the sign counter (a clone is
+     refused) before any token exists. Enrolment: `./local/dev.sh admin enrol
+     <email>` prints a 15-minute link (token in the URL fragment, spent only on
+     success); `admin list`, `admin revoke <email> <id>` (also ends every
+     session). Settings: `WEBAUTHN_RP_ID` (default `localhost`),
+     `WEBAUTHN_ORIGINS`, `ADMIN_PANEL_URL`.
+   - **No admin token without a passkey.** `SessionIssuer` is now the one place
+     user tokens are minted, and stamps `amr` (`pwd`, `google`, `webauthn`),
+     carried through every refresh. Password and Google sign-in refuse admin
+     accounts (403); a refresh never mints an admin token for a session that
+     lacks `webauthn` (also covers a user promoted while signed in); the gateway
+     refuses any admin-role token without it, which covers every service.
+   - **Gateway `/refresh` and `/logout` fixed.** Both set or cleared their
+     cookies on FastAPI's injected `response` and then returned a new one, so
+     FastAPI dropped them: `/refresh` set no cookie and put the rotated refresh
+     token in the body (the next refresh then read as theft and ended every
+     session), `/logout` cleared nothing. One `_signed_in_response` now builds
+     every sign-in response; the refresh token is cookie-only.
+   - **admin-js.** Tokens never reach the browser: AdminJS renders
+     `currentAdmin` into every page (`window.REDUX_STATE`), and the access token
+     used to be in it. They live in Redis (`AdminTokenStore`) under an opaque
+     `sessionRef`, refreshed two minutes before expiry, serialised in-process and
+     by a Redis lock (two requests refreshing with one rotating token would look
+     like theft). A gateway 401 ends the session. Session cookie HttpOnly +
+     SameSite=Strict, rolling 30-minute idle and 8-hour absolute limit
+     (`ADMIN_JS_SESSION_IDLE_MINUTES` / `_MAX_HOURS`), new session id at
+     sign-in, `frame-ancestors 'none'` and related headers, no-store, listens on
+     127.0.0.1 (`ADMIN_JS_LISTEN_HOST`). No more logging of request params,
+     records or tokens. Unused TypeORM/pg dependencies removed.
+   - **Coverage.** `shared.admin.admin_tables` builds paged, filterable,
+     admin-only list/detail/field-schema routes from a response schema; used for
+     payments, payment refunds, disputes (payment-service), orders, order items,
+     refunds (order-service), CJ orders, supplier syncs, supplier configs
+     (supplier-service, plus a narrow PATCH: active, interval, name, category),
+     shipments, notifications; the gateway maps each to its service
+     (`routes/admin_table_routes.py`). AdminJS resources for all of them, in
+     Orders / Payments / Catalogue / Suppliers / Customers. Money and fulfilment
+     rows are read-only; they change only through workflow actions that call
+     the services' own endpoints: refund (lines, quantities, shipping), cancel
+     order, approve / receive / reject a return, every print-queue step
+     (start, printed, ship with tracking, delivered, hold, resume, cancel),
+     sync a supplier now. Views: print file (preview, download), printable
+     packing slip, return photos (streamed through admin-js per request; no
+     shareable link).
+   - **Found on the way:** the artwork route also required the caller's IP to
+     start with `10.`/`172.`/`192.168.` (Docker's network), so since the move to
+     native dev every print-file request from order-service was refused; the
+     signed order-service assertion is the check now, and the IP test is gone.
+     `GET /images` took no paging and returned the first 50 of every product's
+     images on every page; it takes `limit`/`offset` now (newest first).
+   - **Verified live (2026-10-10)** in Chromium with a CDP virtual authenticator
+     (user verification on): enrolment by link (link spent; cross-origin post
+     refused), wrong password stops before any prompt, passkey sign-in, no JWT
+     anywhere in the page, two concurrent near-expiry requests made exactly one
+     refresh (rotated, `amr` kept), `admin revoke` ended the open session at its
+     next request, password-only admin login 403 at the gateway, logout revoked
+     the refresh token. Every resource lists; the refund form loads the order's
+     lines and shows the service's refusal; supplier interval edited and
+     restored; return photo and print file render; Images pages by 10. Tests: +44 (passkeys over
+     HTTP with a software authenticator that signs with a real P-256 key,
+     gateway cookies and the passkey rule, admin tables, supplier config PATCH,
+     image list paging).
+   - **Not exercised live:** a refund, return decision or print step that
+     moves money or goods (the forms and refusals were; the endpoints have their
+     own tests and live runs, §2, §5a); a real (non-virtual) authenticator.
+   - **Before production:** set `WEBAUTHN_RP_ID` / `WEBAUTHN_ORIGINS` /
+     `ADMIN_PANEL_URL` to the host admin-js is reached on (with an SSH tunnel,
+     `localhost:3001` works as is), enrol each admin with `dev.sh admin enrol`
+     (or the same tool in the user-service image), keep admin-js off Traefik
+     (compose now publishes it on 127.0.0.1 only, production included).
+   - Not covered: no automated tests for admin-js itself (no runner); no full
+     CSP (AdminJS needs inline scripts); the frontend's `npm run lint` is broken (`next lint` is gone in
+     Next 16, and there is no ESLint config).
 5. **Remove `shared/`.** It holds 83 modules, installed into every service as
    an editable path dependency and imported from about 405 files. Deliverable
    first: a plan saying where each part moves. Code used by one service goes

@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Register a passkey</title>
+  <style>
+    :root { color-scheme: light dark; --fg: #1c1c38; --muted: #6b6b80; --bg: #f6f7fb; --card: #fff; --accent: #3040d6; --danger: #c20012; --ok: #007a5a; }
+    @media (prefers-color-scheme: dark) { :root { --fg: #ececf3; --muted: #a0a0b4; --bg: #15151f; --card: #1f1f2c; --accent: #7d8bff; --danger: #ff6b78; --ok: #4fd1a5; } }
+    body { margin: 0; font: 16px/1.5 system-ui, sans-serif; color: var(--fg); background: var(--bg); }
+    main { max-width: 440px; margin: 10vh auto; padding: 32px 16px; background: var(--card); border-radius: 8px; box-shadow: 0 2px 12px rgb(0 0 0 / 0.08); }
+    h1 { font-size: 1.4rem; margin: 0 0 8px; }
+    p { color: var(--muted); margin: 0 0 20px; }
+    label { display: block; font-weight: 600; margin-bottom: 6px; }
+    input { width: 100%; box-sizing: border-box; padding: 10px; font: inherit; border: 1px solid var(--muted); border-radius: 4px; background: transparent; color: inherit; }
+    button { margin-top: 20px; width: 100%; padding: 12px; font: inherit; font-weight: 600; color: #fff; background: var(--accent); border: 0; border-radius: 4px; cursor: pointer; }
+    button:disabled { opacity: 0.5; cursor: default; }
+    #status { margin-top: 20px; min-height: 1.5em; }
+    .error { color: var(--danger); }
+    .ok { color: var(--ok); }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Register a passkey</h1>
+    <p id="intro">This link registers a passkey for an admin account. It works once, for 15 minutes.</p>
+    <form id="enrol">
+      <label for="name">What is this passkey on?</label>
+      <input id="name" name="name" maxlength="64" placeholder="e.g. MacBook, YubiKey" required autocomplete="off">
+      <button id="submit" type="submit">Create passkey</button>
+    </form>
+    <div id="status" role="status"></div>
+  </main>
+  <script src="enrol.js"></script>
+</body>
+</html>

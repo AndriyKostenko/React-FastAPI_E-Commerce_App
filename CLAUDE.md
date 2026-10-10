@@ -76,6 +76,8 @@ RELOAD=1 ./local/dev.sh up      # same, with uvicorn --reload
 ./local/dev.sh storage status   # S3 buckets and object counts
 ./local/dev.sh storage import-local   # one time: copy local-disk designs and return photos into S3
 ./local/dev.sh images mirror    # copy CJ catalogue images into S3 now (also runs every 15 min)
+./local/dev.sh admin enrol <email>          # one-time 15-min link to register an admin's passkey
+./local/dev.sh admin list|revoke <email> [id]   # an admin's passkeys; revoke ends their sessions
 ./local/dev.sh reset            # down + delete local data (destructive)
 ./local/dev.sh cj-sandbox status|ship|deliver|poll <order_id>   # see below
 ./local/dev.sh cj-webhook tunnel|tunnel-stop|subscribe|status    # see below
@@ -134,6 +136,16 @@ host-specific values (Redis host, gateway URL, port) pinned by `dev.sh`. It need
 `COOKIE_SECRET`, `ADMINJS_SERVICE_REDIS_DB` and `ADMINJS_SERVICE_REDIS_PREFIX` in
 `backend/.env` and refuses to start, naming the missing ones, without them.
 
+**AdminJS is the only back office** (the Next.js `/admin` pages are gone). Admins
+sign in there with their password **and a passkey**; no route issues an admin
+token on a password alone (storefront login, Google and refresh all refuse it,
+and the gateway rejects an admin token without the passkey `amr` claim). The
+first passkey comes from `./local/dev.sh admin enrol <email>`: open the printed
+link on the device that will hold it. Passkeys are bound to `WEBAUTHN_RP_ID`
+(default `localhost`) and `WEBAUTHN_ORIGINS` (default `http://localhost:3001`),
+so open the panel at `localhost`, not `127.0.0.1`. Its tokens stay in Redis,
+never in the page. It listens on 127.0.0.1 only and is never routed publicly.
+
 Logs land in `backend/local/logs/<name>.log`, pids in `backend/local/run/`.
 
 ## Frontend runs on webpack, not Turbopack
@@ -161,7 +173,7 @@ without re-testing repeated reloads; `next build` is unaffected.
 | wishlist-service             | `http://127.0.0.1:8009`                                           |
 | supplier-service             | `http://127.0.0.1:8010`                                           |
 | cj-mcp (CJ Dropshipping MCP) | `http://127.0.0.1:3009/mcp` — health at `/health`                 |
-| admin-js (AdminJS)           | `http://localhost:3001/admin` — log in with an admin account      |
+| admin-js (AdminJS)           | `http://localhost:3001/admin` — admin password + passkey (`dev.sh admin enrol`) |
 | Vault                        | `http://127.0.0.1:8200` — UI at `/ui`, root token in `backend/local/run/vault/init.json` |
 | S3 (SeaweedFS)               | `http://127.0.0.1:8333` — catalogue images public at `/ecommerce-catalogue/<key>` |
 

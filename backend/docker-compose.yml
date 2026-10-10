@@ -854,23 +854,22 @@ services:
       dockerfile: Dockerfile
     env_file:
       - .env
+    environment:
+      # Inside its container it must accept the port mapping below; the
+      # mapping is what keeps it private.
+      ADMIN_JS_LISTEN_HOST: 0.0.0.0
+    # Private only: never routed through Traefik. Published on the host's
+    # loopback and reached over an SSH tunnel (ssh -L 3001:127.0.0.1:3001
+    # <host>) or a VPN; passkeys are bound to that origin (WEBAUTHN_ORIGINS).
     ports:
-      - "${INTERNAL_BIND_HOST:-127.0.0.1}:3001:3000"
+      - "127.0.0.1:3001:3000"
     depends_on:
-      db:
-        condition: service_healthy
       api-gateway:
         condition: service_healthy
     networks:
-      - edge
       - backend
     labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.admin-js.rule=Host(`admin.${DOMAIN}`)"
-      - "traefik.http.routers.admin-js.entrypoints=${TRAEFIK_ENTRYPOINT:-web}"
-      - "traefik.http.routers.admin-js.tls.certresolver=${CERT_RESOLVER:-}"
-      - "traefik.http.routers.admin-js.middlewares=admin-ip-allowlist@file"
-      - "traefik.http.services.admin-js.loadbalancer.server.port=3000"
+      - "traefik.enable=false"
 
   otel-collector:
     image: otel/opentelemetry-collector-contrib:0.123.0

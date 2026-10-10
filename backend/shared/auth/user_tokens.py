@@ -31,7 +31,7 @@ class TokenPurpose(StrEnum):
 _RESERVED_CLAIMS = frozenset({"sub", "id", "role", "purpose", "iss", "aud", "iat", "exp", "jti"})
 _REQUIRED_CLAIMS = ["sub", "id", "purpose", "iss", "aud", "iat", "exp", "jti"]
 
-type ClaimValue = str | int | float | bool | None
+type ClaimValue = str | int | float | bool | None | list[str]
 
 
 class UserTokenIssuer:
@@ -137,6 +137,7 @@ class UserTokenVerifier:
                 role=payload.get("role"),
                 purpose=payload["purpose"],
                 token_version=payload.get("ver"),
+                amr=payload.get("amr") or [],
             )
         except ValueError:  # pydantic: malformed email or id in a validly signed token
             raise self._unauthorized("Invalid token")

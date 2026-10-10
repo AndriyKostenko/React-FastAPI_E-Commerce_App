@@ -8,6 +8,9 @@ from httpx import AsyncClient
 from service_layer.user_service import UserService
 from models.outbox_models import OutboxEvent
 from database_layer.user_repository import UserRepository
+from database_layer.webauthn_credential_repository import WebAuthnCredentialRepository
+from service_layer.passkey_ceremony_store import PasskeyCeremonyStore
+from service_layer.passkey_service import PasskeyService, RelyingParty
 from shared.database_layer.outbox_repository import OutboxRepository
 from service_layer.outbox_event_service import OutboxEventService
 from shared.managers.token_manager import TokenManager
@@ -97,6 +100,27 @@ def get_user_service(session: AsyncSession = Depends(get_db_session, scope="func
 
 # Type annotations for dependency injection
 user_service_dependency = Annotated[UserService, Depends(get_user_service)]
+
+
+def get_passkey_service(user_service: user_service_dependency,
+                        session: AsyncSession = Depends(get_db_session, scope="function"),
+                        resources: UserApiResources = Depends(get_resources)) -> PasskeyService:
+    """Admin passkeys, on the same transaction as the user service they extend."""
+    app_settings = resources.settings
+    return PasskeyService(
+        user_service=user_service,
+        credentials=WebAuthnCredentialRepository(session=session),
+        ceremonies=PasskeyCeremonyStore(
+            cache=resources.cache,
+            challenge_ttl_seconds=app_settings.PASSKEY_CHALLENGE_TTL_SECONDS,
+            enrolment_ttl_seconds=app_settings.PASSKEY_ENROLMENT_TTL_MINUTES * 60,
+        ),
+        relying_party=RelyingParty.from_settings(app_settings),
+        enrolment_link_base=app_settings.ADMIN_PANEL_URL,
+    )
+
+
+passkey_service_dependency = Annotated[PasskeyService, Depends(get_passkey_service)]
 
 
 async def get_current_user(request: Request, user_service: user_service_dependency) -> CurrentUserInfo:

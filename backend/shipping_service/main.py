@@ -11,6 +11,7 @@ from app_config import DESCRIPTOR, resolve_resources, shipping_service_lifespan
 from resources import ShippingApiResources
 from service_config import logger, settings
 from routes.shipping_routes import shipping_routes
+from routes.admin_routes import admin_routes
 from shared.app import DatabaseEngineProbe, ServiceAppBuilder
 
 app = (
@@ -18,6 +19,7 @@ app = (
     .with_lifespan(shipping_service_lifespan, resolve_resources)
     .with_readiness(DatabaseEngineProbe())
     .with_router(shipping_routes, prefix=DESCRIPTOR.api_prefix)
+    .with_router(admin_routes, prefix=DESCRIPTOR.api_prefix)
     .build()
 )
 

@@ -11,6 +11,7 @@ from uuid import uuid4
 
 from middleware.auth_middleware import AuthMiddleware
 from resources import settings
+from shared.contracts.auth import TokenClaims
 from shared.testing.signing_keys import EphemeralSigningKeys
 
 
@@ -211,6 +212,55 @@ class TestMiddlewareAuth:
 
         call_next.assert_awaited_once()
         assert response.status_code == 200
+
+
+def _admin_token(amr: list[str]) -> str:
+    token, _ = KEYS.token_manager(settings).create_access_token(
+        email="owner@example.com",
+        user_id=uuid4(),
+        role=settings.SECRET_ROLE,
+        expires_delta=timedelta(minutes=5),
+        extra_claims={"amr": amr},
+    )
+    return token
+
+
+class TestAdminSessionsNeedAPasskey:
+    """An admin token counts only if its session was signed in with a passkey."""
+
+    def setup_method(self):
+        self.mw = AuthMiddleware.__new__(AuthMiddleware)
+        self.mw.__init__(settings=settings, logger=MagicMock(), token_verifier=KEYS.user_token_verifier())
+
+    async def _call(self, token: str, path: str = f"{API}/users") -> tuple[int, AsyncMock, MagicMock]:
+        req = _make_request(path, "GET", headers={"Authorization": f"Bearer {token}"})
+        call_next = AsyncMock(return_value=JSONResponse(content={}, status_code=200))
+        response = await self.mw.middleware(req, call_next)
+        return response.status_code, call_next, req
+
+    async def test_admin_token_signed_in_with_a_passkey_passes(self):
+        status, call_next, req = await self._call(_admin_token(["pwd", "webauthn"]))
+        assert status == 200
+        call_next.assert_awaited_once()
+        assert req.state.current_user.signed_in_with_passkey()
+
+    @pytest.mark.parametrize("amr", [["pwd"], ["google"], []], ids=["password", "google", "none"])
+    async def test_admin_token_without_a_passkey_is_refused(self, amr: list[str]):
+        status, call_next, _ = await self._call(_admin_token(amr))
+        assert status == 401
+        call_next.assert_not_awaited()
+
+    async def test_admin_token_without_a_passkey_is_anonymous_on_a_public_route(self):
+        status, call_next, req = await self._call(_admin_token(["pwd"]), path=f"{API}/products")
+        assert status == 200
+        call_next.assert_awaited_once()
+        # Not authenticated as the admin: the token was set aside, not trusted.
+        assert not isinstance(getattr(req.state, "current_user", None), TokenClaims)
+
+    async def test_shopper_token_needs_no_passkey(self):
+        status, call_next, _ = await self._call(_access_token(), path=f"{API}/users/abc")
+        assert status == 200
+        call_next.assert_awaited_once()
 
 
 class TestPublicRouteBoundaries:

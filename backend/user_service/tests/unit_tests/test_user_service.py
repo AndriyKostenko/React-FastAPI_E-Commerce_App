@@ -20,11 +20,12 @@ from exceptions.user_exceptions import (
     UserUpdateError,
 )
 from schemas.user_schemas import (
-    DecodedTokenSchema,
     UserBasicUpdate,
     UserSignUp,
     UsersFilterParams,
 )
+# What TokenManager.decode_token returns.
+from shared.contracts.auth import TokenClaims
 
 
 # ---------------------------------------------------------------------------
@@ -725,7 +726,7 @@ class TestRefreshAccessToken:
         mock_redis: AsyncMock,
         mock_user_orm: MagicMock,
     ) -> None:
-        decoded = DecodedTokenSchema(
+        decoded = TokenClaims(
             email="test@example.com",
             id=mock_user_orm.id,
             role="user",
@@ -758,7 +759,7 @@ class TestRefreshAccessToken:
         mock_user_orm: MagicMock,
         mock_repository: MagicMock,
     ) -> None:
-        decoded = DecodedTokenSchema(
+        decoded = TokenClaims(
             email="test@example.com",
             id=mock_user_orm.id,
             role="user",

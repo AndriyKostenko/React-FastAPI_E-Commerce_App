@@ -89,6 +89,12 @@ class PublicRouteRegistry:
             PublicRoute(f"{api}/register", post),
             PublicRoute(f"{api}/login", post),
             PublicRoute(f"{api}/google-login", post),
+            # Passkey sign-in and enrolment: gated by the password (sign-in) or
+            # by the one-time link token the owner issues (enrolment).
+            PublicRoute(f"{api}/login/passkey/options", post),
+            PublicRoute(f"{api}/login/passkey/verify", post),
+            PublicRoute(f"{api}/passkeys/enrolment/options", post),
+            PublicRoute(f"{api}/passkeys/enrolment/verify", post),
             PublicRoute(f"{api}/refresh", post),
             PublicRoute(f"{api}/logout", post),
             PublicRoute(f"{api}/forgot-password", post),

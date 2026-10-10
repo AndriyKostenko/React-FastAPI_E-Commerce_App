@@ -1,6 +1,5 @@
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from asyncio import Lock
-import hashlib
 import secrets
 from time import monotonic
 from typing import Annotated
@@ -30,6 +29,7 @@ from shared.contracts.events import (
     EmailVerificationEvent,
     UserDeletedEvent,
 )
+from shared.contracts.auth import AuthMethod
 from shared.settings import Settings
 from shared.managers.cache_manager import CacheManager
 from shared.enums.event_enums import UserEvents
@@ -43,6 +43,7 @@ from shared.managers.password_manager import PasswordManager
 from shared.managers.session_registry import SessionRegistry
 from shared.managers.token_manager import TokenManager
 from service_layer.outbox_event_service import OutboxEventService
+from service_layer.session_issuer import IssuedSession, SessionIssuer
 
 
 class UserService:
@@ -74,32 +75,23 @@ class UserService:
         # absent, revocation still bumps token_version and drops the refresh
         # family, it just is not broadcast to the gateway.
         self.session_registry = session_registry
+        self.session_issuer = SessionIssuer(token_manager, cache_manager, settings)
 
     def _token_hash(self, token: str) -> str:
         """Compute SHA-256 hash of a token for secure Redis storage."""
-        return hashlib.sha256(token.encode("utf-8")).hexdigest()
+        return SessionIssuer.token_hash(token)
 
     def _refresh_key(self, token_or_hash: str) -> str:
-        return f"refresh:{token_or_hash}"
+        return SessionIssuer.refresh_key(token_or_hash)
 
     def _user_refresh_set_key(self, user_id: UUID | str) -> str:
-        return f"refresh:user:{user_id}"
+        return SessionIssuer.user_refresh_set_key(user_id)
 
     def _verify_token_key(self, token: str) -> str:
         return f"verify_email:{self._token_hash(token)}"
 
     def _reset_token_key(self, token: str) -> str:
         return f"pwd_reset:{self._token_hash(token)}"
-
-    async def _store_refresh(self, user_id: UUID | str, refresh_token: str) -> None:
-        """Store hashed refresh token and index it in the user's active token set."""
-        token_hash = self._token_hash(refresh_token)
-        ttl_seconds = self.settings.REFRESH_TOKEN_TIME_DELTA_DAYS * 86400
-        pipe = self.cache_manager.redis.pipeline()
-        pipe.setex(self._refresh_key(token_hash), ttl_seconds, str(user_id))
-        pipe.sadd(self._user_refresh_set_key(user_id), token_hash)
-        pipe.expire(self._user_refresh_set_key(user_id), ttl_seconds)
-        await pipe.execute()
 
     async def _revoke_all_sessions_for_user(
         self, user_id: UUID | str, token_version: int | None = None
@@ -182,15 +174,23 @@ class UserService:
             email=form_data.username, password=form_data.password
         )
 
+        await self.record_sign_in(current_user.email, current_user.id)
+        return current_user, access_token, access_expiry, refresh_token, refresh_expiry
+
+    async def record_sign_in(self, email: str, user_id: UUID) -> None:
         await self.outbox_event_service.add_outbox_event(
             event_type=UserEvents.USER_LOGGED_IN,
-            payload=UserLoginEvent(
-                user_email=current_user.email,
-                user_id=current_user.id,
-            )
+            payload=UserLoginEvent(user_email=email, user_id=user_id),
         )
 
-        return current_user, access_token, access_expiry, refresh_token, refresh_expiry
+    async def end_all_sessions(self, user: User) -> None:
+        """Sign the user out everywhere: refresh tokens dropped, access tokens refused."""
+        new_version = (user.token_version or 1) + 1
+        await self.repository.update_by_id(item_id=user.id, data={"token_version": new_version})
+        # Committed before publishing, as in refresh_access_token: the registry
+        # must never run ahead of the database.
+        await self.repository.commit()
+        await self._revoke_all_sessions_for_user(user.id, new_version)
 
     async def login_or_register_google_user(self, id_token: str) -> tuple[CurrentUserInfo, str, int, str, int]:
         """
@@ -214,6 +214,10 @@ class UserService:
 
         # Find or create the user
         user = await self.repository.get_by_field("email", email)
+        if user:
+            # Before the account is touched: linking Google would otherwise
+            # drop an admin's password and sessions on the way to a refusal.
+            self._refuse_admin_without_passkey(user)
         if not user:
             try:
                 hashed_password = self.password_manager.hash_password(secrets.token_urlsafe(32))
@@ -245,23 +249,9 @@ class UserService:
         if not user.is_active:
             raise HTTPException(status_code=401, detail="Account is deactivated")
 
-        access_token, access_expiry = self.token_manager.create_access_token(
-            email=email,
-            user_id=user.id,
-            role=user.role,
-            expires_delta=timedelta(minutes=self.settings.TOKEN_TIME_DELTA_MINUTES),
-            purpose="access",
-            extra_claims={"ver": user.token_version},
-        )
-        refresh_token, refresh_expiry = self.token_manager.create_refresh_token(
-            email=email,
-            user_id=user.id,
-            role=user.role,
-            extra_claims={"ver": user.token_version},
-        )
-        await self._store_refresh(user.id, refresh_token)
+        session = await self.session_issuer.issue(user, [AuthMethod.GOOGLE])
         current_user = CurrentUserInfo(email=user.email, id=user.id, role=user.role)
-        return current_user, access_token, access_expiry, refresh_token, refresh_expiry
+        return current_user, *self._unpack(session)
 
     async def _verify_google_id_token(self, id_token: str) -> dict:
         """Verify a Google ID token locally against Google's rotating JWKS."""
@@ -511,11 +501,26 @@ class UserService:
 
         return UserInfo.model_validate(updated_user)
 
-    async def authenticate_user(self,
-                                email: EmailStr,
-                                password: str) -> tuple[CurrentUserInfo, str, int, str, int]:
+    def is_admin(self, user: User) -> bool:
+        return user.role == self.settings.SECRET_ROLE
+
+    def _refuse_admin_without_passkey(self, user: User) -> None:
+        """Admin accounts sign in only with a passkey, on the admin panel.
+
+        Raised only once the password (or Google) has already checked out, so
+        it tells nothing to someone who does not hold the account's password.
         """
-        Authenticate user with constant-time password verification and rotating refresh tokens.
+        if self.is_admin(user):
+            raise HTTPException(
+                status_code=403,
+                detail="Admin accounts sign in with a passkey on the admin panel",
+            )
+
+    async def verify_credentials(self, email: EmailStr | str, password: str) -> User:
+        """The account behind this email and password, if it may sign in at all.
+
+        Constant-time: an unknown email still pays for one hash check, so the
+        response time does not reveal which addresses have accounts.
         """
         # Registration stores emails lowercased, so the lookup must match that
         # form or a differently-cased email would read as a wrong password.
@@ -531,30 +536,23 @@ class UserService:
             raise HTTPException(status_code=401, detail="User is not verified")
         if not user.is_active:
             raise HTTPException(status_code=401, detail="Account is deactivated")
+        return user
 
-        access_token, access_expiry = self.token_manager.create_access_token(
-            email=email,
-            user_id=user.id,
-            role=user.role,
-            expires_delta=timedelta(minutes=self.settings.TOKEN_TIME_DELTA_MINUTES),
-            purpose="access",
-            extra_claims={"ver": user.token_version}
-        )
-        refresh_token, refresh_expiry = self.token_manager.create_refresh_token(
-            email=email,
-            user_id=user.id,
-            role=user.role,
-            extra_claims={"ver": user.token_version}
-        )
+    async def authenticate_user(self,
+                                email: EmailStr,
+                                password: str) -> tuple[CurrentUserInfo, str, int, str, int]:
+        """
+        Password sign-in, for every account except admins (see ``PasskeyService``).
+        """
+        user = await self.verify_credentials(email, password)
+        self._refuse_admin_without_passkey(user)
+        session = await self.session_issuer.issue(user, [AuthMethod.PASSWORD])
+        current_user = CurrentUserInfo(email=user.email, id=user.id, role=user.role)
+        return current_user, *self._unpack(session)
 
-        await self._store_refresh(user.id, refresh_token)
-
-        current_user = CurrentUserInfo(
-            email=user.email,
-            id=user.id,
-            role=user.role
-        )
-        return current_user, access_token, access_expiry, refresh_token, refresh_expiry
+    @staticmethod
+    def _unpack(session: IssuedSession) -> tuple[str, int, str, int]:
+        return session.access_token, session.access_expiry, session.refresh_token, session.refresh_expiry
 
     async def refresh_access_token(self, refresh_token: str) -> tuple[str, int, str, int]:
         """
@@ -599,25 +597,15 @@ class UserService:
         if token_data.token_version != user.token_version:
             raise HTTPException(status_code=401, detail="Token version revoked")
 
-        # Mint rotated refresh token
-        new_refresh_token, new_refresh_expiry = self.token_manager.create_refresh_token(
-            email=user.email,
-            user_id=user.id,
-            role=user.role,
-            extra_claims={"ver": user.token_version}
-        )
-        await self._store_refresh(user.id, new_refresh_token)
+        # A session keeps the sign-in methods it started with. An admin session
+        # that never presented a passkey gets nothing: that covers a user
+        # promoted to admin while signed in, and any session from before
+        # passkeys, whose refresh token would otherwise mint admin tokens.
+        if self.is_admin(user) and AuthMethod.PASSKEY not in token_data.amr:
+            raise HTTPException(status_code=401, detail="Admin sessions must be signed in with a passkey")
 
-        # Mint new access token
-        access_token, expiry = self.token_manager.create_access_token(
-            email=user.email,
-            user_id=user.id,
-            role=user.role,
-            expires_delta=timedelta(minutes=self.settings.TOKEN_TIME_DELTA_MINUTES),
-            purpose="access",
-            extra_claims={"ver": user.token_version}
-        )
-        return access_token, expiry, new_refresh_token, new_refresh_expiry
+        session = await self.session_issuer.issue(user, token_data.amr)
+        return self._unpack(session)
 
     async def logout_user(self, refresh_token: str, user_id: UUID | None = None) -> None:
         """Revoke a refresh token and remove from user's active set."""

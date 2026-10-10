@@ -1,4 +1,3 @@
-from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Request, status
@@ -11,8 +10,7 @@ from schemas.order_schemas import (
     QuoteOrderRequest,
     QuoteOrderResponse,
 )
-from dependencies.dependencies import admin_caller_dependency, order_service_dependency
-from models.order_models import Order
+from dependencies.dependencies import order_service_dependency
 from shared.auth.route_guards import AdminDep, CallerDep, SelfOrAdminDep, ensure_owner_or_admin
 
 order_routes = APIRouter(tags=["orders"])
@@ -164,13 +162,3 @@ async def delete_order_by_id(
 ) -> None:
     await order_service.delete_order_by_id(order_id=order_id)
     return None
-
-
-@order_routes.get(
-    "/admin/schema/orders",
-    summary="Schema for AdminJS",
-    response_model=dict[str, Any],
-    status_code=status.HTTP_200_OK,
-)
-async def get_order_schema_for_admin_js(_admin: admin_caller_dependency) -> dict[str, Any]:
-    return {"fields": Order.get_admin_schema()}

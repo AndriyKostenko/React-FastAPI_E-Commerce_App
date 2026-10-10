@@ -19,6 +19,7 @@ from app_config import (
     resolve_resources,
 )
 from resources import ApiGatewayResources, get_api_gateway_resources, logger, settings
+from routes.admin_table_routes import admin_table_proxy
 from routes.cart_routes import cart_proxy
 from routes.checkout_routes import checkout_proxy
 from routes.notification_routes import notification_proxy
@@ -42,6 +43,7 @@ PROXIES = (
     (cart_proxy, "Cart Service Proxy"),
     (shipping_proxy, "Shipping Service Proxy"),
     (wishlist_proxy, "Wishlist Service Proxy"),
+    (admin_table_proxy, "Admin tables"),
 )
 
 builder = (
