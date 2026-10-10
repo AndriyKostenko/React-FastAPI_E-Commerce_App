@@ -4,8 +4,8 @@ Context: business goal is (1) users create AI print designs on t-shirts that you
 produce at home and ship yourself, and (2) users buy t-shirts sourced from
 CJDropshipping (products pre-fetched and stored in your DB).
 
-Assessment date: 2026-09-03. Last updated 2026-10-07 (refund and cancellation
-paths, PRs #12-#16, see §5a). The hard architectural + integration work is
+Assessment date: 2026-09-03. Last updated 2026-10-09 (CJ stock webhook, §8.2;
+before that the refund and cancellation paths, PRs #12-#16, see §5a). The hard architectural + integration work is
 substantially done (CJ integration, AI generation, order saga, artwork storage).
 What remains is operational glue, hardening, and in-house fulfillment tooling —
 estimated a few focused weeks, no re-architecting required.
@@ -179,7 +179,8 @@ A job cancelled after printing still sends nothing: that is a human decision.
     the same transaction as the state change; order_service moves the order to
     dispatched/delivered, notification_service emails the customer their tracking
     number (new `notification.cj.order.events.queue`, bound on `cj.order.#`)
-  - CJ publishes no webhook, so polling is the only option available.
+  - CJ does push order and logistics changes by webhook (§8.2 found it), but
+    tracking stays polled: those two topics are registered as off.
 - [x] Stock-out / order rejection / refund handling
   - Pre-submission stock-out and mapping failures raise before the CJ POST, so
     they stay on the definitive-failure path -> `cj.order.failed` -> order
@@ -243,9 +244,9 @@ been bootstrapped by `create_all`).
   keeps two runs from overlapping. Migration: product `9b4d2e7f1a63`.
   **Trade-off chosen:** the refresh overwrites, so units sold here but not yet
   ordered from CJ are covered only by the buffer; the order-time China check remains
-  the final gate. **Later:** CJ's STOCK webhook (needs public HTTPS and
-  per-product subscription) for near-real-time changes, with this as the backstop;
-  a live stock check at the checkout quote.
+  the final gate. **Since 2026-10-09** CJ's STOCK webhook pushes changes as
+  they happen, with this refresh as the backstop (§8.2). **Later:** a live stock
+  check at the checkout quote.
 
 ### 3c. CJ sandbox for end-to-end tests — DONE (2026-09-28)
 `CJ_DROPSHIPPING_SANDBOX=true` creates CJ orders with `isSandbox=1` and pays
@@ -631,8 +632,8 @@ sold from local stock; only CJ products exist locally.
 - Loading/error states, mobile polish
 
 ### 7. Testing & docs
-- All ten service suites pass (1,496 tests on 2026-10-07: gateway 215, user 157,
-  product 278, supplier 193, order 275, payment 126, cart 62, wishlist 27,
+- All ten service suites pass (1,529 tests on 2026-10-09: gateway 218, user 157,
+  product 278, supplier 223, order 275, payment 126, cart 62, wishlist 27,
   shipping 44, notification 119), but **nothing runs them**: there is no CI, so
   every PR so far was merged with only GitGuardian checking it.
 - The suites no longer depend on the local configuration: order-service's
@@ -693,13 +694,52 @@ approach; decisions are recorded here as they are made.
      frontend's own secrets, and Redis/RabbitMQ users per service. All three
      infra passwords sit in one path that every service may read, until the
      per-service database users step.
-2. **CJ stock webhook.** §3a lists it as "Later": CJ's STOCK webhook would push
-   stock changes instead of the hourly refresh pulling them. First confirm it
-   exists and how it is subscribed and signed (CJ's API documentation); if it
-   does, add an endpoint in supplier-service behind the gateway, verify each
-   call, subscribe the products we sell, and keep the hourly refresh as the
-   backstop. It needs a public HTTPS address, so locally it is tested with a
-   tunnel.
+2. **CJ stock webhook.** §3a listed it as "Later": CJ's STOCK webhook pushes
+   stock changes instead of the hourly refresh pulling them.
+   **Status: live locally since 2026-10-09** (branch `feature/cj-stock-webhook`).
+   Decisions: the openId CJ signs with is a Vault secret
+   (`CJ_DROPSHIPPING_OPEN_ID`, supplier-service's path), not fetched at runtime;
+   locally a cloudflared quick tunnel; PRODUCT/VARIANT pushes are acknowledged
+   and logged only; the hourly refresh stays as the backstop.
+   - What CJ offers (docs, 2026-10): `POST /webhook/set` registers one public
+     HTTPS URL per topic (product, stock, order and logistics are required in
+     every call); STOCK pushes come only for products subscribed one by one
+     (`/webhook/product/subscribe`, 100 per call, 1,000 at account level 1;
+     subscribe-all was withdrawn in July 2026), and subscribing needs the
+     product topic on. Each push carries `sign` = Base64(HMAC-SHA256(openId,
+     raw body)). CJ wants a 200 within 3 s and switches a topic off after two
+     hours below 80% success.
+   - Gateway: public `POST /api/v1/cjdropshipping/webhook`, body forwarded byte
+     for byte (as for Stripe). supplier-service verifies `sign` (401 otherwise),
+     then a STOCK push becomes the same `supplier.stock.updated` event the
+     refresh sends: China rows only, buffer held back, variants mapped to their
+     product. A variant with no China row is left alone, not zeroed. Any push
+     that verifies is answered 200, even one we cannot read, so CJ never
+     switches the topic off over it.
+   - Subscriptions: `cj_stock_subscriptions` + `cj_stock_subscription_variants`
+     (supplier migration `b8e3f1a6c274`), kept equal to what product-service
+     sells by the hourly `reconcile_cj_stock_subscriptions` task (at :30, clear
+     of the refresh).
+   - `dev.sh cj-webhook tunnel | tunnel-stop | store-open-id | subscribe | status`.
+     A quick-tunnel URL changes every run: re-run `tunnel` after a restart.
+   - **Verified live (2026-10-09):** CJ's registration sends one signed test
+     push per topic; all four verified and the STOCK one parsed. 26 products
+     subscribed. A STOCK push through the public tunnel reached product-service
+     (`1 updated`). Subscribing a product twice is a success at CJ, not the
+     failure its docs suggest. CJ names the logistics topic `LOGISTIC`.
+   - Found on the way: the first `store-open-id` captured the tool's stdout,
+     log lines included, and stored them in Vault around the openId (every push
+     then got 401). The openId now goes only into a private file dev.sh
+     creates, and must be digits.
+   - **Before production:** register the real public gateway URL
+     (`cj-webhook enable https://<domain>`); a genuine stock change has not
+     been seen yet, only CJ's test pushes and ours. CJ also answered the failed
+     registration with code `1600300`, which the client maps to "order not
+     found": that mapping holds only for order calls.
+   - Not covered: acting on PRODUCT/VARIANT pushes (delisting, off sale);
+     deduplication by `messageId` (levels are absolute, so a repeat is
+     harmless, but a late retry can briefly overwrite a newer level until the
+     next push or refresh).
 3. **S3 for images.** Generated designs can already be stored in S3
    (`ARTWORK_STORAGE_BACKEND=s3`) but run on local disk. CJ product images are
    hotlinked from CJ's CDN (`products.image_url`), so a CJ change or outage

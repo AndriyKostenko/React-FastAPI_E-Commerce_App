@@ -114,6 +114,11 @@ class TestIsPublicEndpoint:
     def test_payments_webhook_post_is_public(self):
         assert self.mw.is_public_endpoint(f"{API}/payments/webhook", "POST") is True
 
+    def test_cj_webhook_post_is_public_and_nothing_else_of_it(self):
+        assert self.mw.is_public_endpoint(f"{API}/cjdropshipping/webhook", "POST") is True
+        assert self.mw.is_public_endpoint(f"{API}/cjdropshipping/webhook", "GET") is False
+        assert self.mw.is_public_endpoint(f"{API}/cjdropshipping/sync", "POST") is False
+
     def test_users_user_id_get_is_not_public(self):
         assert self.mw.is_public_endpoint(f"{API}/users/abc-123", "GET") is False
 
@@ -231,6 +236,7 @@ class TestPublicRouteBoundaries:
         f"{API}/login-as-admin",
         f"{API}/login/extra",
         f"{API}/payments/webhook/replay",
+        f"{API}/cjdropshipping/webhook/replay",
         "/healthz",
         "/openapi.json.bak",
     ])

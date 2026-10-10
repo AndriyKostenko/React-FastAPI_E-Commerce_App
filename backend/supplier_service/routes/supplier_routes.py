@@ -1,9 +1,10 @@
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Query, status
+from fastapi import APIRouter, Header, HTTPException, Query, Request, status
 
 from dependencies.dependencies import (
     cj_provider_dependency,
+    cj_webhook_dependency,
     freight_quote_dependency,
     sync_orchestrator_dependency,
 )
@@ -12,7 +13,9 @@ from schemas.dropshipping_schemas import (
     CJFreightQuoteResponse,
     CJProductsFilterParams,
 )
+from schemas.cj_webhook_schemas import CJWebhookAck
 from schemas.supplier_schemas import CJProductPreview, SupplierSyncRunSummary
+from service_layer.cj_webhook_signature import InvalidCJWebhookSignature
 from shared.auth.route_guards import AdminDep
 from shared.auth.service_assertion import require_service
 from fastapi import Depends
@@ -163,3 +166,25 @@ async def quote_cjdropshipping_freight(
     can never be delivered.
     """
     return await freight_service.quote(quote_request)
+
+
+@supplier_routes.post(
+    "/cjdropshipping/webhook",
+    response_model=CJWebhookAck,
+    status_code=status.HTTP_200_OK,
+    summary="CJ Dropshipping webhook receiver (called by CJ, signed)",
+)
+async def receive_cj_webhook(
+    request: Request,
+    webhook_service: cj_webhook_dependency,
+    sign: Annotated[str | None, Header()] = None,
+) -> CJWebhookAck:
+    """
+    A push from CJ: verified over its exact bytes, then acted on (STOCK) or
+    acknowledged. Reached through the gateway, which forwards the body untouched.
+    """
+    try:
+        await webhook_service.receive(await request.body(), sign)
+    except InvalidCJWebhookSignature:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid CJ webhook signature")
+    return CJWebhookAck()

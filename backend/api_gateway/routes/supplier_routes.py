@@ -37,6 +37,21 @@ async def quote_cjdropshipping_freight(request: Request, current_user: dict = De
     )
 
 
+@supplier_proxy.post(
+    "/cjdropshipping/webhook",
+    summary="CJ Dropshipping webhook receiver (called by CJ — no auth required)",
+)
+async def cj_dropshipping_webhook(request: Request):
+    """PUBLIC - CJ pushes stock changes here; supplier-service verifies CJ's signature."""
+    # CJ signs the exact bytes it sent, so they must reach supplier-service
+    # untouched; a re-serialised JSON body never verifies.
+    return await api_gateway_manager.forward_request(
+        service_name="supplier-service",
+        request=request,
+        raw_body=True,
+    )
+
+
 @supplier_proxy.post("/cjdropshipping/sync", summary="Synchronize CJ Dropshipping products")
 async def sync_cjdropshipping_products(request: Request, current_user: dict = Depends(require_admin)):
     """ADMIN ONLY - Trigger CJ Dropshipping sync."""

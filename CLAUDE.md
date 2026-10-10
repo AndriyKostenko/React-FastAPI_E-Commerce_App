@@ -45,7 +45,7 @@ missing. The unseal key, root token and AppRole credentials are kept in
 
 ```bash
 cd backend
-./local/dev.sh install          # brew: postgresql@16, redis, rabbitmq, vault
+./local/dev.sh install          # brew: postgresql@16, redis, rabbitmq, cloudflared, vault
 ./local/dev.sh vault up         # start, initialise and unseal Vault; one AppRole per service
 ./local/dev.sh vault import     # one time, run it yourself: move the secrets from
                                 # backend's config file into Vault (--dry-run first)
@@ -75,6 +75,7 @@ RELOAD=1 ./local/dev.sh up      # same, with uvicorn --reload
 ./local/dev.sh vault status     # which secret keys each Vault path holds (names only)
 ./local/dev.sh reset            # down + delete local data (destructive)
 ./local/dev.sh cj-sandbox status|ship|deliver|poll <order_id>   # see below
+./local/dev.sh cj-webhook tunnel|tunnel-stop|subscribe|status    # see below
 ```
 
 **CJ sandbox.** With `CJ_DROPSHIPPING_SANDBOX=true`, new CJ orders are created
@@ -86,6 +87,20 @@ to shipped, `deliver` to completed; both then run one tracking poll so the event
 follow at once. Whether an order is a sandbox one is recorded when it is sent
 (`cj_order_attempts.is_sandbox`), so toggling the setting never changes how an
 existing order is paid. Never enable it where real sales happen.
+
+**CJ stock webhook.** CJ pushes stock changes (topic STOCK) to
+`POST /api/v1/cjdropshipping/webhook` on the gateway, which forwards the raw
+body to supplier-service; each push is verified against CJ's `sign` header
+(HMAC-SHA256 keyed by the account's openId, `CJ_DROPSHIPPING_OPEN_ID` in
+supplier-service's Vault path) and becomes the same `supplier.stock.updated`
+event the hourly refresh sends, which stays as the backstop. CJ only pushes to a
+public HTTPS address, so locally `./local/dev.sh cj-webhook tunnel` starts a
+cloudflared quick tunnel to the gateway and registers its URL with CJ (a new
+URL each run, so re-run it after a restart; `tunnel-stop` cancels it).
+`./local/dev.sh cj-webhook store-open-id` (run it yourself, once) copies the
+openId from CJ into Vault without printing it; restart supplier-service after.
+Only subscribed products push: the hourly `reconcile_cj_stock_subscriptions`
+task (and `cj-webhook subscribe`) keeps the subscriptions equal to what we sell.
 
 A single process by name — `frontend` included:
 
