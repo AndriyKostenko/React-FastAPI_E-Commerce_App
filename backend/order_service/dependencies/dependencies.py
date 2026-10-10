@@ -30,7 +30,7 @@ from service_layer.order_refund_service import OrderRefundService
 from database_layer.order_saga_repository import OrderSagaRepository
 from database_layer.order_return_repository import ReturnRequestRepository
 from service_layer.order_return_service import OrderReturnService
-from service_layer.return_evidence_storage import LocalReturnEvidenceStorage, ReturnEvidenceStorage
+from service_layer.return_evidence_storage import ReturnEvidenceStorage, ReturnEvidenceStorageFactory
 
 
 def get_api_resources(request: Request) -> OrderApiResources:
@@ -163,7 +163,7 @@ admin_caller_dependency = Annotated[AuthenticatedCaller, Depends(get_admin_calle
 
 
 def get_return_evidence_storage() -> ReturnEvidenceStorage:
-    return LocalReturnEvidenceStorage(settings)
+    return ReturnEvidenceStorageFactory.get(settings)
 
 
 def get_order_return_service(

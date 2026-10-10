@@ -8,6 +8,7 @@ from sqlalchemy.exc import IntegrityError
 
 from database_layer.category_repository import CategoryRepository
 from database_layer.product_image_repository import ProductImageRepository
+from database_layer.catalogue_image_mirror_repository import CatalogueImageMirrorRepository
 from database_layer.product_repository import ProductRepository
 from database_layer.product_variant_repository import ProductVariantRepository
 from database_layer.inventory_reservation_repository import InventoryReservationRepository
@@ -38,7 +39,6 @@ from schemas.product_schemas import (
     OrderQuoteLineRequest,
     OrderQuoteResponse,
 )
-from utils.image_processing import image_processing_manager
 
 
 class ProductService:
@@ -49,13 +49,17 @@ class ProductService:
                  variant_repository: ProductVariantRepository | None = None,
                  image_repository: ProductImageRepository | None = None,
                  category_service: CategoryService | None = None,
-                 reservation_repository: InventoryReservationRepository | None = None):
+                 reservation_repository: InventoryReservationRepository | None = None,
+                 image_mirror_repository: CatalogueImageMirrorRepository | None = None):
         self.repository: ProductRepository = repository
         self.product_image_service: ProductImageService = product_image_service
         self.variant_repository: ProductVariantRepository = variant_repository or ProductVariantRepository(repository.session)
         self.image_repository: ProductImageRepository = image_repository or ProductImageRepository(repository.session)
         self.category_service: CategoryService | None = category_service
         self.reservation_repository = reservation_repository or InventoryReservationRepository(
+            repository.session
+        )
+        self.image_mirror_repository = image_mirror_repository or CatalogueImageMirrorRepository(
             repository.session
         )
         self.product_relations: list[str] = Product.get_relations()
@@ -155,10 +159,38 @@ class ProductService:
             # Re-raise other integrity errors
             raise ProductCreationError(f"Failed to create product: {str(e)}")
 
+    async def _with_mirrored_images(self, product_data: CreateProduct) -> CreateProduct:
+        """Swap every supplier image URL already copied into the catalogue store
+        for its object key.
+
+        Without this each sync would compare CJ's URLs with the stored keys,
+        see them all as changed, and put CJ's links back.
+        """
+        variants = product_data.variants or []
+        urls = [product_data.image_url, *(product_data.images or []), *(v.variant_image for v in variants)]
+        keys = await self.image_mirror_repository.mirrored_keys(url for url in urls if url)
+        if not keys:
+            return product_data
+
+        def mirrored(url: str | None) -> str | None:
+            return keys.get(url, url) if url else url
+
+        return product_data.model_copy(
+            update={
+                "image_url": mirrored(product_data.image_url),
+                "images": [keys.get(url, url) for url in product_data.images] if product_data.images else product_data.images,
+                "variants": [
+                    variant.model_copy(update={"variant_image": mirrored(variant.variant_image)})
+                    for variant in variants
+                ] if product_data.variants is not None else None,
+            }
+        )
+
     async def upsert_product_by_pid(self, product_data: CreateProduct) -> ProductBase:
         """Create or update a product keyed by supplier plus external PID."""
         if not product_data.pid or not product_data.supplier_id:
             raise ProductCreationError("Cannot upsert supplier product without supplier_id and pid.")
+        product_data = await self._with_mirrored_images(product_data)
 
         category_id = await self._resolve_category_id(product_data.category_id)
         existing = await self.repository.get_by_supplier_pid(
@@ -228,10 +260,11 @@ class ProductService:
         return results
 
     async def create_product_with_images(self, product_data: ProductUploadForm) -> ProductSchema:
-        image_urls = await image_processing_manager.save_images(product_data.images)
-        image_metadata = image_processing_manager.create_metadata_list(image_urls=image_urls,
-														           image_colors=product_data.image_colors,
-														           image_color_codes=product_data.image_color_codes)
+        image_metadata = await self.product_image_service.build_image_metadata(
+            images=product_data.images,
+            colors=product_data.image_colors,
+            color_codes=product_data.image_color_codes,
+        )
         product_dto = CreateProduct(**product_data.model_dump(exclude={"images", "image_colors", "image_color_codes"}))
         new_product = await self.create_product_item(product_data=product_dto)
         await self.product_image_service.create_product_images(product_id=new_product.id,images=image_metadata)

@@ -4,26 +4,22 @@ Customer returns through the API, against the real order test database.
 The confirmed order comes from the production-queue fixture: a real custom
 order confirmed through the payment path. A test that needs a catalog or CJ
 line re-labels the line's fulfilment type, and delivery is recorded the way
-the fulfilment channels record it. Only the photo storage is swapped, for a
-temporary directory.
+the fulfilment channels record it. Photos go through the app's own storage:
+the local S3 server's private test bucket under ``dev.sh test``.
 """
 
 import json
-from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
-from types import SimpleNamespace
 from uuid import UUID, uuid4
 
 import pytest
 from database_layer.order_fulfillment_repository import OrderLineFulfillmentRepository
 from database_layer.order_repository import OrderRepository
-from dependencies.dependencies import get_return_evidence_storage
 from httpx import AsyncClient
 from main import app
 from models.order_refund_models import OrderRefund
 from models.outbox_models import OutboxEvent
 from service_layer.order_fulfillment_status_service import OrderFulfillmentStatusService
-from service_layer.return_evidence_storage import LocalReturnEvidenceStorage
 from shared.enums.event_enums import OrderEvents, PaymentCommands
 from shared.enums.status_enums import LineFulfillmentStatus
 from shared.managers.test_database_session_manager import TestDatabaseSessionManager
@@ -40,16 +36,6 @@ JPEG = b"\xff\xd8\xff\xe0" + b"\x00" * 64
 PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 64
 OWNER = SIGNING_KEYS.caller_auth(user_id=TEST_USER_ID)
 STRANGER = SIGNING_KEYS.caller_auth(user_id=uuid4())
-
-
-@pytest.fixture(autouse=True)
-def evidence_storage(tmp_path) -> Iterator[None]:
-    storage = LocalReturnEvidenceStorage(
-        SimpleNamespace(RETURN_EVIDENCE_ROOT=str(tmp_path))
-    )
-    app.dependency_overrides[get_return_evidence_storage] = lambda: storage
-    yield
-    app.dependency_overrides.pop(get_return_evidence_storage, None)
 
 
 # ---------------------------------------------------------------- helpers

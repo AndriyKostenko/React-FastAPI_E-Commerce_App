@@ -36,6 +36,7 @@ dependencies = [
     "opentelemetry-instrumentation-redis>=0.50b0",
     "httpx >= 0.28.1",
     "pyjwt[crypto]>=2.10",
+    "boto3>=1.40.0,<2",
 ]
 
 [tool.uv.sources]

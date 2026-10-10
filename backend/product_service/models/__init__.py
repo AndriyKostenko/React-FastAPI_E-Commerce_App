@@ -21,3 +21,4 @@ __all__ = [
     "InventoryReservation",
     "RetainedArtwork",
 ]
+from .catalogue_image_mirror_models import CatalogueImageMirror

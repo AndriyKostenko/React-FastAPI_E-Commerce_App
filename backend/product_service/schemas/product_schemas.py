@@ -8,8 +8,9 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from fastapi import UploadFile, Form, File
 
 from schemas.category_schema import CategorySchema
-from schemas.product_image_schema import ImageType
+from schemas.product_image_schema import ProductImageView
 from schemas.review_schemas import ReviewSchema
+from storage.catalogue_url import CatalogueImageUrl
 
 
 # --- Product Variant Schemas ---
@@ -24,7 +25,7 @@ class ProductVariantBase(BaseModel):
     variant_name_en: str | None = None
     variant_sku: str | None = None
     barcode: str | None = None
-    variant_image: str | None = None
+    variant_image: CatalogueImageUrl | None = None
     variant_weight: Decimal | None = None
     variant_length: int | None = None
     variant_width: int | None = None
@@ -84,7 +85,7 @@ class ProductBase(BaseModel):
     price: Decimal = Field(..., gt=0, le=99999)
     in_stock: bool
     sku: str | None = None
-    image_url: str | None = None
+    image_url: CatalogueImageUrl | None = None
     date_created: datetime
     date_updated: datetime | None = None
 
@@ -201,7 +202,7 @@ class ProductSchema(ProductBase):
 
     reviews: Optional[List[ReviewSchema]] = None
     category: Optional[CategorySchema] = None
-    images: List[ImageType]
+    images: List[ProductImageView]
     variants: List[ProductVariantBase] = []
 
 
