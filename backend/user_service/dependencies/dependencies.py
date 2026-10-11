@@ -14,7 +14,7 @@ from service_layer.passkey_service import PasskeyService, RelyingParty
 from shared.database_layer.outbox_repository import OutboxRepository
 from service_layer.outbox_event_service import OutboxEventService
 from shared.managers.token_manager import TokenManager
-from shared.managers.password_manager import PasswordManager
+from managers.password_manager import PasswordManager
 from managers import ResourceManager, UserApiResources, settings
 from schemas.user_schemas import CurrentUserInfo
 from shared.utils.authenticated_caller import AuthenticatedCaller

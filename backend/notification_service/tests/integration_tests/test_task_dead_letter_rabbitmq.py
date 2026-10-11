@@ -19,7 +19,7 @@ from aio_pika.abc import ExchangeType
 from taskiq.receiver import Receiver
 from taskiq_aio_pika import AioPikaBroker, Exchange, Queue
 
-from shared.messaging.task_dead_letter import (
+from tasks.task_dead_letter import (
     TASK_ERROR_HEADER,
     TASK_NAME_HEADER,
     DeadLetteringRetryMiddleware,

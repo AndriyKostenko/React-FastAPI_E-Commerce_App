@@ -42,7 +42,7 @@ from shared.testing.signing_keys import EphemeralSigningKeys
 # token key and the gateway's assertion key — so an integration test can log
 # in, then call a protected route exactly the way the gateway would.
 SIGNING_KEYS = EphemeralSigningKeys()
-from shared.managers.password_manager import PasswordManager
+from managers.password_manager import PasswordManager
 from schemas.user_schemas import CurrentUserInfo, UserInfo
 
 

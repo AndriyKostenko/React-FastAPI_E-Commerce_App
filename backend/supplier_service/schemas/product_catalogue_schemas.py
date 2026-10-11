@@ -1,4 +1,4 @@
-"""Minimal product API response contract consumed by supplier-service."""
+"""The part of product-service's product response that supplier-service reads."""
 
 from uuid import UUID
 

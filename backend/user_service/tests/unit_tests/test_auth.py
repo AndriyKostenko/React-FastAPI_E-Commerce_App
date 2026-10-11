@@ -3,7 +3,7 @@ Unit tests for PasswordManager.
 
 Uses a minimal settings stub so no .env or live services are required.
 """
-from shared.managers.password_manager import PasswordManager
+from managers.password_manager import PasswordManager
 
 
 class TestHashPassword:

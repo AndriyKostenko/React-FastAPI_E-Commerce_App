@@ -10,7 +10,7 @@ from dependencies.auth_dependencies import (get_current_user,
 from shared.contracts.auth import TokenClaims as CurrentUserInfo
 from shared.utils.customized_json_response import JSONResponse
 from shared.enums.services_enums import Services
-from shared.enums.auth_enums import AuthCookies
+from enums.auth_enums import AuthCookies
 
 
 user_proxy = APIRouter(tags=["User Service Proxy"])

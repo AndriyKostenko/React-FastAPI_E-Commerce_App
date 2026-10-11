@@ -3,7 +3,7 @@ from typing import Annotated, Any
 from uuid import UUID, uuid4
 
 from fastapi import Query, UploadFile
-from shared.utils.filter_parser import FilterParser
+from utils.filter_parser import FilterParser
 from sqlalchemy.exc import IntegrityError
 
 from database_layer.category_repository import CategoryRepository
