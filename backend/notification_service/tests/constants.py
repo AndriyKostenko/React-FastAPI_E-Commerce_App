@@ -1,4 +1,4 @@
-"""Test constants for notification_service — sourced from shared TestSettings."""
+"""Test constants for notification_service — sourced from this service's TestSettings."""
 from settings import get_test_settings
 
 test_settings = get_test_settings()

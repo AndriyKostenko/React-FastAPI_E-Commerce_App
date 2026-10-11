@@ -9,14 +9,11 @@ from sqlalchemy.ext.asyncio import create_async_engine
 
 from alembic import context  # type: ignore
 
-# Make sure the backend root is on sys.path so `shared` and local `models` are importable.
-_HERE = Path(__file__).resolve().parent          # alembic/
-_SERVICE_ROOT = _HERE.parent                      # payment_service/
-_BACKEND_ROOT = _SERVICE_ROOT.parent              # backend/
+# Make sure the service root is on sys.path so local `models` and `settings` are importable.
+_SERVICE_ROOT = Path(__file__).resolve().parent.parent  # payment_service/
 
-for p in (_SERVICE_ROOT, _BACKEND_ROOT):
-    if str(p) not in sys.path:
-        sys.path.insert(0, str(p))
+if str(_SERVICE_ROOT) not in sys.path:
+    sys.path.insert(0, str(_SERVICE_ROOT))
 
 from models.base import Base  # noqa: E402
 from models.outbox_models import OutboxEvent  # noqa: E402, F401

@@ -24,18 +24,18 @@ in-house printing, AI-generated artwork, Stripe payments, event-driven microserv
 
 | Pattern | Status | Where | Notes |
 | --- | --- | --- | --- |
-| **Transactional Outbox** | IN USE | `shared/outbox/relay.py`, `shared/outbox/worker.py`, per-service `outbox_worker.py`, `models/outbox_models.py` | Events are written in the same DB transaction as the state change, then relayed at-least-once. Every new event MUST go through the outbox — never publish to RabbitMQ directly from a request handler. |
+| **Transactional Outbox** | IN USE | `infrastructure/outbox/relay.py`, `infrastructure/outbox/worker.py`, per-service `outbox_worker.py`, `models/outbox_models.py` | Events are written in the same DB transaction as the state change, then relayed at-least-once. Every new event MUST go through the outbox — never publish to RabbitMQ directly from a request handler. |
 | **Saga (orchestrated/choreographed)** | IN USE | `order_service/saga_timeout_worker.py`, `order_service/events_consumer/`, `payment_service`, `product_service` (inventory reservation) | Checkout = order → reserve stock → authorize payment → pay CJ → capture. Each step needs a compensating action (release stock, void auth, cancel order). Add new steps as event handlers + compensations, never as synchronous cross-service calls. |
-| **Idempotent Consumer** | IN USE | `shared/idempotency/idempotency_service.py` | Required on every consumer because the outbox is at-least-once. Key = event id. |
+| **Idempotent Consumer** | IN USE | `infrastructure/idempotency/idempotency_service.py` | Required on every consumer because the outbox is at-least-once. Key = event id. |
 | **API Gateway / Facade** | IN USE | `api_gateway/gateway/apigateway.py`, `routes/*` | Frontend talks only to the gateway. Aggregation endpoints (e.g. checkout) belong here, not in the frontend. |
-| **Repository** | IN USE | every `database_layer/*_repository.py`, `shared/database_layer/database_layer.py` | Only repositories touch SQLAlchemy sessions. Services never build queries. |
-| **Unit of Work** | IN USE | `shared/managers/database_session_manager.py` (`transaction()` context) | One transaction per use case; outbox row + business row commit together. |
+| **Repository** | IN USE | every `database_layer/*_repository.py`, `infrastructure/database_layer/database_layer.py` | Only repositories touch SQLAlchemy sessions. Services never build queries. |
+| **Unit of Work** | IN USE | `infrastructure/managers/database_session_manager.py` (`transaction()` context) | One transaction per use case; outbox row + business row commit together. |
 | **Service Layer** | IN USE | every `service_layer/` | Use-case orchestration, no HTTP and no SQL. |
 | **Competing Consumers / Work Queue** | IN USE | Taskiq `tasks/broker.py` (notification, product image tasks) | Use for slow or retryable side effects: email, image processing. |
 | **Circuit Breaker + Retry w/ backoff** | APPLY | Outbound clients: CJ API (`supplier_service`), Stripe (`payment_service`), `OpenRouterClient`, `artwork_asset_client.py` | Wrap each third-party client so a CJ/OpenRouter outage fails fast and the saga compensates instead of hanging requests. Backoff already exists in `OutboxRelay`; extract a reusable decorator/class. |
 | **CQRS-lite (read models)** | WATCH | Product listing / admin graphs (`getGraphData`) | Only if list/search queries start hurting. Today a repository read method is enough. |
 | **Event Sourcing** | WATCH | — | Do not adopt; the outbox + status enums cover the audit need. |
-| **Anti-Corruption Layer** | APPLY | `SupplierProductMapper`, CJ payloads | Keep CJ's field names/currency (USD) confined to the supplier service; translate to our contracts in `shared/contracts/`. Applies to Stripe objects in `payment_service` too. |
+| **Anti-Corruption Layer** | APPLY | `SupplierProductMapper`, CJ payloads | Keep CJ's field names/currency (USD) confined to the supplier service; translate to our contracts in each service's `contracts/`. Applies to Stripe objects in `payment_service` too. |
 
 ## 2. Creational patterns
 
@@ -59,19 +59,19 @@ in-house printing, AI-generated artwork, Stripe payments, event-driven microserv
 | **Composite** | APPLY | Order = lines; a line can be catalog, CJ-dropship, or custom print (`LineFulfillmentStatus` doc-string). Cart/pricing totals | Treat single line and whole order uniformly for `total()`, `status()`, `can_cancel()`. |
 | **Bridge** | WATCH | Notification channel (email/SMS/push) × notification type | Only when a second channel appears. |
 | **Flyweight** | — | — | Not needed. |
-| **Mixin / composition** | IN USE | `shared/database_layer/repository_mixins.py` (`LockableRepositoryMixin[ModelType]`), `models_mixins.py` | Compose repository capabilities (locking, filtering, pagination) instead of a deep inheritance tree. Per CLAUDE.md: break complex classes via inheritance/composition/decomposition. |
+| **Mixin / composition** | IN USE | `infrastructure/database_layer/repository_mixins.py` (`LockableRepositoryMixin[ModelType]`), `models_mixins.py` | Compose repository capabilities (locking, filtering, pagination) instead of a deep inheritance tree. Per CLAUDE.md: break complex classes via inheritance/composition/decomposition. |
 
 ## 4. Behavioural patterns
 
 | Pattern | Status | Where | Notes |
 | --- | --- | --- | --- |
 | **State** | IN USE (as enums) / APPLY | `OrderStatus`, `LineFulfillmentStatus`, `ProductionJobStatus` in `order_service/enums/status_enums.py`; `PaymentStatus` in `payment_service/enums/status_enums.py` | The enums encode `terminal()`, `blocks_cancellation()`. Next step: a transition table (`allowed_transitions: dict[Status, frozenset[Status]]`) or State classes so illegal transitions (e.g. `DELIVERED → QUEUED`, refund after capture rules) are rejected in one place. |
-| **Strategy** | IN USE / APPLY | `SupplierRetailPricing` (`shared/utils/supplier_pricing.py`, uses `Protocol`); APPLY to: shipping-rate selection, tax (today `tax_amount = 0`; Stripe Tax later), discount/promo rules, image style presets, low-balance alert channel | Interface + interchangeable implementations chosen via factory/config. The tax slot is a textbook fit: `TaxStrategy` → `NoTax`, `StripeTax`. |
+| **Strategy** | IN USE / APPLY | `SupplierRetailPricing` (`utils/supplier_pricing.py` in product-, order- and supplier-service, uses `Protocol`); APPLY to: shipping-rate selection, tax (today `tax_amount = 0`; Stripe Tax later), discount/promo rules, image style presets, low-balance alert channel | Interface + interchangeable implementations chosen via factory/config. The tax slot is a textbook fit: `TaxStrategy` → `NoTax`, `StripeTax`. |
 | **Chain of Responsibility** | APPLY | Checkout validation (stock → address → shipping option → price re-check → fraud), gateway middleware (`auth_middleware`, `cache_middleware`, logging, host validation) | Each link validates one concern and passes on; add a link without touching the others. |
-| **Observer / Pub-Sub** | IN USE | RabbitMQ events; `event_publisher.py`, `*_event_consumer.py` | The event catalogue is `shared/enums/event_enums.py` + `shared/contracts/events.py`. Add events there first. |
+| **Observer / Pub-Sub** | IN USE | RabbitMQ events; `event_publisher.py`, `*_event_consumer.py` | Each service keeps its own copy of the events it publishes or consumes in `contracts/event_enums.py` + `contracts/events.py`; a new event is added to every publisher's and consumer's copy in one commit. |
 | **Command** | APPLY | Saga steps and their compensations as objects (`ReserveStock`, `AuthorizePayment`, `PayCjOrder` each with `execute()` / `compensate()`); `CjOrderAttempt` records already model a retryable command | Makes retry, timeout and rollback uniform. |
 | **Template Method** | APPLY | Event consumers (`order_event_consumer`, `supplier_event_consumer`, …): fixed skeleton *dedupe → parse → handle → ack/nack → log*, subclass supplies `handle()` | Removes the copy-pasted skeleton in the 24–32 KB consumer files. |
-| **Mediator / Event Router** | IN USE | `EventRouter` callable in `shared/outbox/relay.py`; per-service routing function | Keep routing a lookup `dict[EventType, Handler]`, not an `if/elif` chain. |
+| **Mediator / Event Router** | IN USE | `EventRouter` callable in `infrastructure/outbox/relay.py`; per-service routing function | Keep routing a lookup `dict[EventType, Handler]`, not an `if/elif` chain. |
 | **Specification** | APPLY | Product filtering/search (`filter_parser.py`), eligibility rules (can-cancel, promo-applicable, refundable) | Composable predicates (`and_`, `or_`) that also translate to SQLAlchemy `where` clauses. |
 | **Iterator / Generator** | APPLY | Paged CJ catalogue sync (`supplier_sync_state`), outbox batches | Yield pages lazily instead of loading full catalogue. |
 | **Visitor** | — | — | Not needed. |
@@ -87,18 +87,18 @@ in-house printing, AI-generated artwork, Stripe payments, event-driven microserv
 | CJ order + balance payment + retry | supplier | Adapter, Command (`CjOrderAttempt`), Circuit Breaker, Template Method (consumer), Facade |
 | Fulfillment routing (CJ / warehouse / in-house) | order + supplier + product | Strategy + Factory, Composite (lines), State |
 | Shipping quotes (live CJ freight) | shipping | Strategy, Adapter, Decorator (cache quotes) |
-| Pricing (retail markup, currency, tax, promos) | shared / order | Strategy, Null Object, Decorator (promo stacking), `shared/utils/money.py` value object |
+| Pricing (retail markup, currency, tax, promos) | product / order / supplier | Strategy, Null Object, Decorator (promo stacking), `utils/money.py` value object |
 | Inventory reservation | product | Repository + `LockableRepositoryMixin`, Saga compensation, State |
 | Catalogue sync from supplier | supplier / product | Anti-Corruption Layer (`SupplierProductMapper`), Iterator, Idempotent Consumer |
 | AI artwork generation | product | Adapter (`ImageGenerationInterface`), Strategy (style presets), Proxy (quota — `GenerationQuotaService`), Job store |
 | Notifications (email) | notification | Observer, Template Method, Bridge (if more channels), Taskiq work queue |
-| Caching / rate limiting | gateway + shared | Decorator, Proxy |
+| Caching / rate limiting | gateway + each service's infrastructure | Decorator, Proxy |
 | Auth & sessions | user | Chain of Responsibility (middleware), Strategy (token vs session) |
 | Wishlist / cart | wishlist / cart | Repository, Composite (line items), Memento (optional) |
 
 ## 6. Value objects & typing
 
-- `Money` (amount + currency) as a frozen dataclass wrapping `shared/utils/money.py`;
+- `Money` (amount + currency) as a frozen dataclass wrapping `utils/money.py` (order- and supplier-service);
   never pass bare `float`/`Decimal` + separate currency string. This directly prevents
   the earlier USD-sold-as-CAD bug.
 - Use `Protocol` for structural ports (as `_PricingSettings` does) and `ABC` when a

@@ -622,7 +622,7 @@ sold from local stock; only CJ products exist locally.
   on retry, but each 429 still costs a retry.
 - 10 old messages sit in `taskiq.notifications.dead_letter` (from before
   PR #11); replay or discard them.
-- After any change to `shared/contracts/events.py`, restart every process of
+- After any change to an event in a service's `contracts/events.py`, restart every process of
   the publishing service, outbox worker included: it rebuilds each event from
   the contract before publishing, and a stale one drops new fields silently
   (seen with `refund_scope` on 2026-10-07).
@@ -893,8 +893,8 @@ approach; decisions are recorded here as they are made.
    - Not covered: no automated tests for admin-js itself (no runner); no full
      CSP (AdminJS needs inline scripts); the frontend's `npm run lint` is broken (`next lint` is gone in
      Next 16, and there is no ESLint config).
-5. **Remove `shared/`.** It holds 83 modules, installed into every service as
-   an editable path dependency and imported from 441 files.
+5. **Remove `shared/`.** It held 83 modules, imported from 441 files.
+   **Done (2026-10-11): `shared/` is gone; all five phases below are complete.**
    **Decided (2026-10-10): no shared library of any kind.** Every service
    carries its own copy of what it uses; nothing is published or installed
    from a common path.
@@ -972,13 +972,53 @@ approach; decisions are recorded here as they are made.
         restarted through `dev.sh up` and healthy, `dlq replay` still loads
         its settings.
      3. Per-service contracts.
-     4. Per-service infrastructure; each service's `pyproject.toml` declares
-        the packages it was getting through `shared` (fastapi-mail, passlib,
-        taskiq, OpenTelemetry, …).
-     5. `shared/` deleted: the path dependency and lock entries, the
-        `./shared` mounts in both compose files, Dockerfiles, `dev.sh`
-        (`test shared`, the `shared-tests` Vault identity, `dlq` replay),
-        CLAUDE.md and docs; `uv sync` in every service.
+        **Done (2026-10-11).** Each service's `contracts/` holds only the
+        events it publishes or consumes and their base classes (wishlist 3 …
+        order 44), only its queue/event enums and only the members it
+        references (`event_type` is a plain `str` on every event, so an
+        unknown member never fails validation), `services_enums.py`, and the
+        DTO modules it sends or receives. The pricing helpers
+        (`supplier_pricing`, `exchange_rates`, `money`) are copied whole into
+        product-, order- and supplier-service's `utils/`, with their test.
+        `contracts/auth.py` waited for phase 4: the auth modules pass
+        `TokenClaims` around, and two copies of that model would fail
+        Pydantic validation across the boundary.
+     4. Per-service infrastructure.
+        **Done (2026-10-11).** Every service carries the `shared/` modules it
+        reaches under `infrastructure/` (gateway 36 files … supplier and
+        order 50), same sub-paths, `from infrastructure.x`. User tokens: the
+        issuer, verifier and token manager are in user-service only; the
+        gateway's `user_tokens.py` is the verifier alone, and its tests mint
+        tokens with a test-only issuer copy
+        (`infrastructure/testing/user_token_issuer.py`). Each copy of the
+        test signing keys keeps only what that service's tests call. The
+        tests travelled with their modules: caller assertion (all ten),
+        service assertion (product, supplier, order, payment), resilience
+        (gateway, supplier), the commit-before-response scan (each service
+        scans itself), the RabbitMQ topology test (the eight consumers; the
+        replay case only in order-service, which keeps the `dlq replay` CLI)
+        and the Vault settings-source test (all ten); the Vault import-script
+        test is `dev.sh` tooling and sits in order-service. `shared` was
+        never an installed dependency (it was found through `PYTHONPATH` and
+        pytest's `..`), so the services already declared what they import;
+        added explicitly: `prometheus-client` everywhere, `cryptography`
+        where the auth code imports it, `aio-pika` where a module or test
+        does (the locks only gained entries).
+     5. `shared/` deleted.
+        **Done (2026-10-11).** Gone with it: the `[tool.uv.sources]` path
+        entry and the `..` pytest/pyright paths in every `pyproject.toml`,
+        the 29 + 10 `./shared` mounts in `docker-compose.yml` and
+        `docker-compose.test.yml` (the resolved config is otherwise
+        identical), `PYTHONPATH=backend` and the `shared-tests` identity in
+        `dev.sh` (the AppRole stays in Vault, unused), the backend-root path
+        hacks in payment's `alembic/env.py` and product's seed script.
+        `dev.sh dlq replay` runs `infrastructure.messaging.dead_letter_replay`
+        from order-service. CLAUDE.md, DESIGN_PATTERNS and the observability
+        README point at the new paths. Suites green: gateway 255, user 194,
+        product 358, supplier 276, order 329, payment 165, cart 87, wishlist
+        52, shipping 69, notification 144 (1,929, nothing skipped); all 33
+        processes restarted through `dev.sh up` and healthy. Docker images
+        not built.
    - **Cost, accepted:** the same infrastructure code exists in up to ten
      services (today each service reaches 3.6k–6k lines of `shared/`, less
      once settings and contracts are trimmed), and a fix to a copied module

@@ -80,17 +80,11 @@ dependencies = [
     "aio-pika>=9.5",
 ]
 
-[tool.uv.sources]
-shared = { path = "../shared", editable = true }
-
-[tool.pyright]
-extraPaths = [".."]
-
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "session"
 testpaths = ["tests"]
-pythonpath = [".", ".."]
+pythonpath = ["."]
 filterwarnings = [
     "ignore::DeprecationWarning:passlib",
 ]

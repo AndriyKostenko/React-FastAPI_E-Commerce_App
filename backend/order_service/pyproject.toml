@@ -42,14 +42,11 @@ dependencies = [
     "aio-pika>=9.5",
 ]
 
-[tool.uv.sources]
-shared = { path = "../shared", editable = true }
-
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "session"
 testpaths = ["tests"]
-pythonpath = [".", ".."]
+pythonpath = ["."]
 
 [dependency-groups]
 dev = [
@@ -59,7 +56,3 @@ dev = [
     "pytest-asyncio>=0.26.0",
     "pytest-mock>=3.14.0",
 ]
-
-[tool.basedpyright]
-# Use tool.basedpyright instead of tool.pyright for better compatibility
-extraPaths = [".."]

@@ -7,23 +7,16 @@ from pathlib import Path
 from uuid import UUID
 
 # ---------------------------------------------------------------------------
-# Ensure import roots are available BEFORE importing service/shared modules.
+# Ensure the service root is importable BEFORE importing service modules.
 #
 # Works for both:
 # - local repo:   backend/product_service/utils/seed_database.py
-# - container:    /app/utils/seed_database.py  (with /app/shared mounted)
+# - container:    /app/utils/seed_database.py
 # ---------------------------------------------------------------------------
-_THIS_FILE = Path(__file__).resolve()
-_SERVICE_DIR = _THIS_FILE.parents[1]     # .../product_service or /app
-_BACKEND_DIR = _SERVICE_DIR.parent       # .../backend (local) or / (container)
-_IMPORT_ROOTS = [_SERVICE_DIR]
-if (_BACKEND_DIR / "shared").exists():
-    _IMPORT_ROOTS.append(_BACKEND_DIR)
+_SERVICE_DIR = Path(__file__).resolve().parents[1]  # .../product_service or /app
 
-for _path in _IMPORT_ROOTS:
-    _path_str = str(_path)
-    if _path_str not in sys.path:
-        sys.path.insert(0, _path_str)
+if str(_SERVICE_DIR) not in sys.path:
+    sys.path.insert(0, str(_SERVICE_DIR))
 
 from infrastructure.managers.database_session_manager import DatabaseSessionManager
 from infrastructure.managers.logger_manager import setup_logger

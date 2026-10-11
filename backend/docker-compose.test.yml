@@ -4,8 +4,6 @@ services:
       context: ./user_service
       dockerfile: Dockerfile
       target: test
-    volumes:
-      - ./shared:/app/shared:ro
     networks:
       - backend
     profiles:
@@ -22,8 +20,6 @@ services:
       context: ./product_service
       dockerfile: Dockerfile
       target: test
-    volumes:
-      - ./shared:/app/shared:ro
     networks:
       - backend
     profiles:
@@ -40,8 +36,6 @@ services:
       context: ./supplier_service
       dockerfile: Dockerfile
       target: test
-    volumes:
-      - ./shared:/app/shared:ro
     networks:
       - backend
     profiles:
@@ -58,8 +52,6 @@ services:
       context: ./payment_service
       dockerfile: Dockerfile
       target: test
-    volumes:
-      - ./shared:/app/shared:ro
     networks:
       - backend
     profiles:
@@ -76,8 +68,6 @@ services:
       context: ./cart_service
       dockerfile: Dockerfile
       target: test
-    volumes:
-      - ./shared:/app/shared:ro
     networks:
       - backend
     profiles:
@@ -94,8 +84,6 @@ services:
       context: ./wishlist_service
       dockerfile: Dockerfile
       target: test
-    volumes:
-      - ./shared:/app/shared:ro
     networks:
       - backend
     profiles:
@@ -112,8 +100,6 @@ services:
       context: ./order_service
       dockerfile: Dockerfile
       target: test
-    volumes:
-      - ./shared:/app/shared:ro
     networks:
       - backend
     profiles:
@@ -130,8 +116,6 @@ services:
       context: ./notification_service
       dockerfile: Dockerfile
       target: test
-    volumes:
-      - ./shared:/app/shared:ro
     networks:
       - backend
     profiles:
@@ -148,8 +132,6 @@ services:
       context: ./shipping_service
       dockerfile: Dockerfile
       target: test
-    volumes:
-      - ./shared:/app/shared:ro
     networks:
       - backend
     profiles:
@@ -166,8 +148,6 @@ services:
       context: ./api_gateway
       dockerfile: Dockerfile
       target: test
-    volumes:
-      - ./shared:/app/shared:ro
     networks:
       - backend
     profiles:

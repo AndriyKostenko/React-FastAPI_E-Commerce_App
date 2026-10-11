@@ -1,4 +1,4 @@
-// Error bodies the backend sends (backend/shared/app/errors.py and the gateway).
+// Error bodies the backend sends (each service's infrastructure/app/errors.py and the gateway).
 
 /** One Pydantic validation failure, keyed by the offending field's name. */
 export interface ApiFieldError {
