@@ -1,7 +1,7 @@
 from dependencies.dependencies import get_db_session
 from models.payment_models import Payment, PaymentDispute, PaymentRefund
 from schemas.admin_schemas import PaymentAdminSchema, PaymentDisputeAdminSchema, PaymentRefundAdminSchema
-from shared.admin.admin_tables import AdminTable, AdminTableRouter
+from infrastructure.admin.admin_tables import AdminTable, AdminTableRouter
 
 # Read-only: money moves only through refunds order-service requests and
 # through Stripe; disputes are answered in the Stripe dashboard.

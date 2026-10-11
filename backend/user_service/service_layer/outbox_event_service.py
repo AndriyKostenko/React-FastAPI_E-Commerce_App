@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 
 from pydantic import BaseModel
 
-from shared.database_layer.outbox_repository import OutboxRepository
+from infrastructure.database_layer.outbox_repository import OutboxRepository
 from models.outbox_models import OutboxEvent
 from exceptions.outbox_event_exceptions import OutboxEventCreationError, OutboxEventUpdateError
 

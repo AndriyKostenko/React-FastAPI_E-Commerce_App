@@ -16,7 +16,7 @@ from service_layer.cj_api_client import (
     CJDropshippingNetworkError,
     CJDropshippingUnavailableError,
 )
-from shared.resilience import CircuitBreaker, CircuitState, RetryPolicy
+from infrastructure.resilience import CircuitBreaker, CircuitState, RetryPolicy
 from settings import Settings
 
 

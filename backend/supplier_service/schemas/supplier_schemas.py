@@ -11,7 +11,7 @@ from decimal import Decimal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
-from shared.contracts.supplier import GenericSupplierProduct as EventSupplierProduct
+from contracts.supplier import GenericSupplierProduct as EventSupplierProduct
 
 
 class SupplierProductVariant(BaseModel):

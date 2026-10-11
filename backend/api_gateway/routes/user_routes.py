@@ -7,9 +7,9 @@ from resources import api_gateway_manager, get_api_gateway_resources, rate_limit
 from dependencies.auth_dependencies import (get_current_user,
                                             require_admin,
                                             require_user_or_admin)
-from shared.contracts.auth import TokenClaims as CurrentUserInfo
-from shared.utils.customized_json_response import JSONResponse
-from shared.enums.services_enums import Services
+from contracts.auth import TokenClaims as CurrentUserInfo
+from infrastructure.utils.customized_json_response import JSONResponse
+from contracts.services_enums import Services
 from enums.auth_enums import AuthCookies
 
 

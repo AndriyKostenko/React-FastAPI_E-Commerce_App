@@ -2,7 +2,7 @@ from logging import Logger
 from uuid import UUID
 
 from settings import Settings
-from shared.managers.cache_manager import CacheManager
+from infrastructure.managers.cache_manager import CacheManager
 from exceptions.image_generation_exceptions import ImageGenerationLimitExceededError
 
 

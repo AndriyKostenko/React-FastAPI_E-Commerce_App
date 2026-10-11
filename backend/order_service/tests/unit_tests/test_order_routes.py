@@ -6,7 +6,7 @@ import pytest
 from httpx import AsyncClient
 
 from settings import get_settings
-from shared.testing.signing_keys import GatewayCallerAuth
+from infrastructure.testing.signing_keys import GatewayCallerAuth
 from tests.conftest import SIGNING_KEYS
 
 from exceptions.order_exceptions import (
@@ -17,7 +17,7 @@ from tests.constants import (
     TEST_PAYMENT_INTENT_ID, TEST_ORDER_ADDRESS_ID, TEST_DATETIME, TEST_API,
     MOCK_ORDER_RESULT,
 )
-from shared.testing.signing_keys import ANONYMOUS
+from infrastructure.testing.signing_keys import ANONYMOUS
 
 
 def _order_payload(**overrides) -> dict:

@@ -2,10 +2,10 @@ from logging import Logger
 from typing import Any
 from uuid import UUID
 
-from shared.idempotency.idempotency_service import IdempotencyEventService
-from shared.managers.database_session_manager import DatabaseSessionManager
+from infrastructure.idempotency.idempotency_service import IdempotencyEventService
+from infrastructure.managers.database_session_manager import DatabaseSessionManager
 from taskiq import AsyncTaskiqDecoratedTask
-from shared.contracts.events import (
+from contracts.events import (
     PaymentDisputeEvent,
     OrderReturnEvent,
     CJOrderDeliveredEvent,
@@ -19,7 +19,7 @@ from shared.contracts.events import (
     PaymentCancelledEvent,
     RefundScope,
 )
-from shared.enums.event_enums import (
+from contracts.event_enums import (
     OrderEvents,
     PaymentEvents,
     ProductionEvents,

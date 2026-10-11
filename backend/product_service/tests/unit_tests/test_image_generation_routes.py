@@ -11,7 +11,7 @@ from exceptions.image_generation_exceptions import (
 from tests.conftest import TEST_API
 from settings import get_settings
 from tests.conftest import SIGNING_KEYS
-from shared.testing.signing_keys import ANONYMOUS
+from infrastructure.testing.signing_keys import ANONYMOUS
 
 settings = get_settings()
 

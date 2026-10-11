@@ -17,8 +17,8 @@ from service_layer.product_service import ProductService
 from service_layer.supplier_stock_service import SupplierStockService
 from service_layer.product_image_service import ProductImageService
 from service_layer.category_service import CategoryService
-from shared.database_layer.outbox_repository import OutboxRepository
-from shared.contracts.events import (
+from infrastructure.database_layer.outbox_repository import OutboxRepository
+from contracts.events import (
     ArtworkReleasedEvent,
     ArtworkRetainedEvent,
     InventoryReserveRequested,
@@ -29,13 +29,13 @@ from shared.contracts.events import (
     SupplierProductImportCompletedEvent,
     SupplierStockUpdatedEvent,
 )
-from shared.managers.cache_manager import CacheManager
-from shared.managers.database_session_manager import DatabaseSessionManager
+from infrastructure.managers.cache_manager import CacheManager
+from infrastructure.managers.database_session_manager import DatabaseSessionManager
 from event_publisher.event_publisher import ProductEventPublisher
-from shared.idempotency.idempotency_service import IdempotencyEventService
-from shared.enums.event_enums import ArtworkEvents, InventoryEvents, SupplierEvents
+from infrastructure.idempotency.idempotency_service import IdempotencyEventService
+from contracts.event_enums import ArtworkEvents, InventoryEvents, SupplierEvents
 from service_layer.supplier_product_mapper import SupplierProductMapper
-from shared.utils.supplier_pricing import SupplierRetailPricing
+from utils.supplier_pricing import SupplierRetailPricing
 from settings import Settings
 
 """

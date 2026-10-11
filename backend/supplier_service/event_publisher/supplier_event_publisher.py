@@ -3,9 +3,9 @@ from typing import Any
 
 from faststream.rabbit import RabbitBroker, RabbitExchange
 
-from shared.events.event_publisher import BaseEventPublisher
+from infrastructure.events.event_publisher import BaseEventPublisher
 from settings import Settings
-from shared.contracts.events import (
+from contracts.events import (
     CJOrderCreatedEvent,
     CJOrderDeliveredEvent,
     CJOrderFailedEvent,
@@ -16,7 +16,7 @@ from shared.contracts.events import (
     SupplierProductsFetchedEvent,
     SupplierStockUpdatedEvent,
 )
-from shared.enums.event_enums import InventoryEvents, OrderEvents, SupplierEvents
+from contracts.event_enums import InventoryEvents, OrderEvents, SupplierEvents
 
 
 class SupplierEventPublisher(BaseEventPublisher):

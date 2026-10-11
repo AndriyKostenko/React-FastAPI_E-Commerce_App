@@ -14,9 +14,9 @@ from pydantic import SecretStr
 
 from service_layer.artwork_asset_client import ArtworkAssetClient
 from service_layer.order_pricing_service import CatalogQuoteClient, FreightQuoteClient
-from shared.auth.caller_assertion import CallerAssertionVerifier, RequestTarget
-from shared.auth.service_assertion import SERVICE_ASSERTION_AUDIENCE, SERVICE_ASSERTION_HEADER
-from shared.testing.signing_keys import EphemeralSigningKeys
+from infrastructure.auth.caller_assertion import CallerAssertionVerifier, RequestTarget
+from infrastructure.auth.service_assertion import SERVICE_ASSERTION_AUDIENCE, SERVICE_ASSERTION_HEADER
+from infrastructure.testing.signing_keys import EphemeralSigningKeys
 
 
 KEYS = EphemeralSigningKeys()

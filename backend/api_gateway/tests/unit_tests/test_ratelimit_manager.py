@@ -6,8 +6,8 @@ from unittest.mock import patch
 import pytest
 from starlette.requests import Request
 
-from shared.exceptions.base_exceptions import RateLimitExceededError
-from shared.managers.ratelimit_manager import RateLimitManager
+from infrastructure.exceptions.base_exceptions import RateLimitExceededError
+from infrastructure.managers.ratelimit_manager import RateLimitManager
 
 
 TRUSTED = ["172.16.0.0/12"]
@@ -120,7 +120,7 @@ class TestWindowAccounting:
         manager, redis = _manager()
         request = _request()
 
-        with patch("shared.managers.ratelimit_manager.time", return_value=1_700_000_000.0):
+        with patch("infrastructure.managers.ratelimit_manager.time", return_value=1_700_000_000.0):
             for _ in range(3):
                 await manager.is_rate_limited(request, times=5, seconds=60)
 
@@ -132,7 +132,7 @@ class TestWindowAccounting:
         manager, redis = _manager()
         request = _request()
 
-        with patch("shared.managers.ratelimit_manager.time", return_value=1_700_000_000.0):
+        with patch("infrastructure.managers.ratelimit_manager.time", return_value=1_700_000_000.0):
             await manager.is_rate_limited(request, times=5, seconds=60)
 
         key = manager._generate_rate_limit_key(request)
@@ -142,10 +142,10 @@ class TestWindowAccounting:
         manager, _ = _manager()
         request = _request()
 
-        with patch("shared.managers.ratelimit_manager.time", return_value=1_000.0):
+        with patch("infrastructure.managers.ratelimit_manager.time", return_value=1_000.0):
             for _ in range(2):
                 await manager.is_rate_limited(request, times=2, seconds=60)
-        with patch("shared.managers.ratelimit_manager.time", return_value=1_100.0):
+        with patch("infrastructure.managers.ratelimit_manager.time", return_value=1_100.0):
             assert await manager.is_rate_limited(request, times=2, seconds=60) is False
 
 

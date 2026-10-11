@@ -22,12 +22,12 @@ from models.shipping_models import ShippingMethod, Shipment
 from service_layer.shipping_method_service import ShippingMethodService
 from service_layer.shipment_service import ShipmentService
 from events_publisher.shipping_event_publisher import ShippingEventPublisher
-from shared.managers.test_database_session_manager import TestDatabaseSessionManager
+from infrastructure.managers.test_database_session_manager import TestDatabaseSessionManager
 from schemas.shipping_schemas import ShippingMethodSchema, ShipmentSchema
-from shared.testing.helpers import allow_testserver_host
+from infrastructure.testing.helpers import allow_testserver_host
 from service_test_config import test_settings
 from settings import get_settings
-from shared.testing.signing_keys import EphemeralSigningKeys
+from infrastructure.testing.signing_keys import EphemeralSigningKeys
 
 # Throwaway gateway keys: the test clients' apps trust assertions signed
 # with these, exactly as a deployed service trusts the gateway's.

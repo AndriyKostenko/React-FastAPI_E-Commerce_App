@@ -4,7 +4,7 @@ from uuid import UUID
 
 from orjson import loads as orjson_loads, dumps as orjson_dumps
 
-from shared.managers.cache_manager import CacheManager
+from infrastructure.managers.cache_manager import CacheManager
 from exceptions.image_generation_exceptions import ImageGenerationJobNotFoundError
 
 

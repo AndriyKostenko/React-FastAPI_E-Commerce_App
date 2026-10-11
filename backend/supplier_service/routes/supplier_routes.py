@@ -16,8 +16,8 @@ from schemas.dropshipping_schemas import (
 from schemas.cj_webhook_schemas import CJWebhookAck
 from schemas.supplier_schemas import CJProductPreview, SupplierSyncRunSummary
 from service_layer.cj_webhook_signature import InvalidCJWebhookSignature
-from shared.auth.route_guards import AdminDep
-from shared.auth.service_assertion import require_service
+from infrastructure.auth.route_guards import AdminDep
+from infrastructure.auth.service_assertion import require_service
 from fastapi import Depends
 
 # Called by order-service directly, never through the gateway: only a request

@@ -12,7 +12,7 @@ from uuid import UUID, uuid4
 from pydantic import AliasChoices, Field, SecretStr
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
 
-from shared.vault import VaultSettingsSource
+from infrastructure.vault import VaultSettingsSource
 
 # Resolve the single .env that lives one level above this file (backend/.env).
 # It is the one source of configuration; real environment variables (compose's
@@ -127,7 +127,7 @@ class Settings(BaseSettings):
     GATEWAY_ASSERTION_ISSUER: str = "api-gateway"
     GATEWAY_ASSERTION_AUDIENCE: str = "internal-services"
 
-    # Direct service-to-service calls (see shared.auth.service_assertion):
+    # Direct service-to-service calls (see infrastructure.auth.service_assertion):
     # order-service signs its calls to product-, supplier- and payment-service;
     # supplier-service signs its calls to product-service (the hourly CJ stock
     # refresh reads which CJ products we sell). The caller holds the private

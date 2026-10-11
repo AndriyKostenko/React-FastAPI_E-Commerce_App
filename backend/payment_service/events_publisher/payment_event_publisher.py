@@ -4,9 +4,9 @@ from logging import Logger
 from faststream.rabbit import RabbitBroker, RabbitExchange
 
 from settings import Settings
-from shared.events.event_publisher import BaseEventPublisher
+from infrastructure.events.event_publisher import BaseEventPublisher
 from messaging import payment_exchange
-from shared.contracts.events import (
+from contracts.events import (
     PaymentAuthorizedEvent,
     PaymentSucceededEvent,
     PaymentFailedEvent,

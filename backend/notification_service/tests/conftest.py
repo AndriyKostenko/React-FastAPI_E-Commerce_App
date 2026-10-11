@@ -23,8 +23,8 @@ from dependencies.dependencies import get_db_session, get_notification_service
 from models.base import Base
 from models.notification_models import Notification
 from service_layer.notification_service import NotificationService
-from shared.managers.logger_manager import setup_logger
-from shared.managers.test_database_session_manager import TestDatabaseSessionManager
+from infrastructure.managers.logger_manager import setup_logger
+from infrastructure.managers.test_database_session_manager import TestDatabaseSessionManager
 from settings import get_settings, get_test_settings
 from schemas.notifications_schemas import NotificationInfo
 from tests.constants import (
@@ -37,9 +37,9 @@ from tests.constants import (
 )
 
 
-from shared.testing.helpers import allow_testserver_host
+from infrastructure.testing.helpers import allow_testserver_host
 from uuid import UUID
-from shared.testing.signing_keys import EphemeralSigningKeys
+from infrastructure.testing.signing_keys import EphemeralSigningKeys
 
 # Throwaway gateway keys: the test clients' apps trust assertions signed
 # with these, exactly as a deployed service trusts the gateway's.

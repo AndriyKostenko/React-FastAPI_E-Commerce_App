@@ -4,7 +4,7 @@ from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.product_variant_models import ProductVariant
-from shared.database_layer.database_layer import BaseRepository
+from infrastructure.database_layer.database_layer import BaseRepository
 
 
 class ProductVariantRepository(BaseRepository[ProductVariant]):

@@ -9,7 +9,7 @@ from httpx import AsyncClient
 from models.category_models import ProductCategory
 from models.product_image_models import ProductImage
 from models.product_models import Product
-from shared.managers.test_database_session_manager import TestDatabaseSessionManager
+from infrastructure.managers.test_database_session_manager import TestDatabaseSessionManager
 
 IMAGES = "/api/v1/images"
 

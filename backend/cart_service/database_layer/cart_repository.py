@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.cart_models import Cart, CartItem
-from shared.database_layer.database_layer import BaseRepository
+from infrastructure.database_layer.database_layer import BaseRepository
 
 
 class CartRepository(BaseRepository[Cart]):

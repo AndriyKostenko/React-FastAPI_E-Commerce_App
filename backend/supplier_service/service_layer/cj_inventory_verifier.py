@@ -9,7 +9,7 @@ from service_layer.cj_api_client import (
     CJDropshippingNetworkError,
 )
 from service_layer.supplier_provider import WarehouseStock
-from shared.contracts.shipping_region import CJ_WAREHOUSE_COUNTRY_CODE
+from contracts.shipping_region import CJ_WAREHOUSE_COUNTRY_CODE
 from settings import Settings
 
 

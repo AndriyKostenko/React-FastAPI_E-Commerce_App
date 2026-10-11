@@ -11,7 +11,7 @@ from typing import ClassVar, Literal
 from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
 
-from shared.vault import VaultSettingsSource
+from infrastructure.vault import VaultSettingsSource
 
 # Resolve the single .env that lives one level above this file (backend/.env).
 # It is the one source of configuration; real environment variables (compose's
@@ -133,7 +133,7 @@ class Settings(BaseSettings):
     GATEWAY_ASSERTION_ISSUER: str = "api-gateway"
     GATEWAY_ASSERTION_AUDIENCE: str = "internal-services"
 
-    # Direct service-to-service calls (see shared.auth.service_assertion):
+    # Direct service-to-service calls (see infrastructure.auth.service_assertion):
     # order-service signs its calls to product-, supplier- and payment-service;
     # supplier-service signs its calls to product-service (the hourly CJ stock
     # refresh reads which CJ products we sell). The caller holds the private
@@ -242,7 +242,7 @@ class Settings(BaseSettings):
     )
     CJ_DROPSHIPPING_DEFAULT_LOGISTIC_NAME: str = "CJPacket"
     # Where CJ goods ship from (China warehouses only) and where the store sells
-    # (Canada only) are fixed in shared.contracts.shipping_region, not here:
+    # (Canada only) are fixed in contracts.shipping_region, not here:
     # the old CJ_DROPSHIPPING_DEFAULT_FROM_COUNTRY_CODE and
     # CJ_DROPSHIPPING_SUPPORTED_COUNTRY_CODES are no longer read.
     # 3 = create only. Confirmation and balance payment then run as separate,

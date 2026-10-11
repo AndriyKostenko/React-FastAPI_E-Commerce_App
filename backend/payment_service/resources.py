@@ -12,8 +12,8 @@ from stripe import HTTPXClient, StripeClient
 from config import logger, settings
 from events_publisher.payment_event_publisher import PaymentEventPublisher
 from messaging import create_rabbitmq_broker
-from shared.idempotency.idempotency_service import IdempotencyEventService
-from shared.managers.database_session_manager import DatabaseSessionManager
+from infrastructure.idempotency.idempotency_service import IdempotencyEventService
+from infrastructure.managers.database_session_manager import DatabaseSessionManager
 from settings import Settings
 
 

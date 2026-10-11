@@ -5,8 +5,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.product_models import Product
 from models.product_variant_models import ProductVariant
-from shared.database_layer.database_layer import BaseRepository
-from shared.database_layer.repository_mixins import AdvancedQueryMixin
+from infrastructure.database_layer.database_layer import BaseRepository
+from infrastructure.database_layer.repository_mixins import AdvancedQueryMixin
 
 
 class ProductRepository(AdvancedQueryMixin[Product], BaseRepository[Product]):

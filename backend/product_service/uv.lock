@@ -1576,6 +1576,7 @@ name = "product-service"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "aio-pika" },
     { name = "aiocache" },
     { name = "aiofiles" },
     { name = "aiohappyeyeballs" },
@@ -1620,6 +1621,7 @@ dependencies = [
     { name = "packaging" },
     { name = "passlib" },
     { name = "pillow" },
+    { name = "prometheus-client" },
     { name = "prometheus-fastapi-instrumentator" },
     { name = "propcache" },
     { name = "pyasn1" },
@@ -1662,6 +1664,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "aio-pika", specifier = ">=9.5" },
     { name = "aiocache", specifier = "==0.12.3" },
     { name = "aiofiles", specifier = ">=25.1.0" },
     { name = "aiohappyeyeballs", specifier = "==2.6.1" },
@@ -1706,6 +1709,7 @@ requires-dist = [
     { name = "packaging", specifier = "==25.0" },
     { name = "passlib", specifier = "==1.7.4" },
     { name = "pillow", specifier = "==10.2.0" },
+    { name = "prometheus-client", specifier = ">=0.21.0" },
     { name = "prometheus-fastapi-instrumentator", specifier = ">=7.1.0" },
     { name = "propcache", specifier = "==0.3.2" },
     { name = "pyasn1", specifier = "==0.6.1" },

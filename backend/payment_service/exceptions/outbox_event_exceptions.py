@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from shared.exceptions.base_exceptions import BaseAPIException
+from infrastructure.exceptions.base_exceptions import BaseAPIException
 
 
 class OutboxEventCreatioError(BaseAPIException):

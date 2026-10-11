@@ -17,7 +17,7 @@ import pytest
 from faststream.rabbit import TestRabbitBroker
 
 from events_consumer import app as consumer_app
-from shared.enums.event_enums import OrderEvents, PaymentCommands
+from contracts.event_enums import OrderEvents, PaymentCommands
 
 
 @pytest.fixture

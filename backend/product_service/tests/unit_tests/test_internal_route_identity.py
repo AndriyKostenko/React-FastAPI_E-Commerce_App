@@ -6,7 +6,7 @@ and nothing else — not an anonymous caller, not even a signed-in admin.
 import pytest
 from httpx import AsyncClient
 
-from shared.testing.signing_keys import ANONYMOUS, EphemeralSigningKeys
+from infrastructure.testing.signing_keys import ANONYMOUS, EphemeralSigningKeys
 from tests.conftest import DEFAULT_CALLER, SIGNING_KEYS, TEST_API
 
 

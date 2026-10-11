@@ -16,7 +16,7 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from shared.managers.test_database_session_manager import TestDatabaseSessionManager
+from infrastructure.managers.test_database_session_manager import TestDatabaseSessionManager
 
 
 pytestmark = pytest.mark.asyncio(loop_scope="session")

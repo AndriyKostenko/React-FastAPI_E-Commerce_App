@@ -7,10 +7,10 @@ from uuid import uuid4
 import pytest
 
 from events_consumer.event_handlers import OrderEventHandler
-from shared.contracts.events import OrderReturnEvent
-from shared.contracts.returns import ReturnFault, ReturnLineSummary, ReturnReason
+from contracts.events import OrderReturnEvent
+from contracts.returns import ReturnFault, ReturnLineSummary, ReturnReason
 from email_service.email_service import AdminAlerts, OrderRelatedNotifications
-from shared.enums.event_enums import OrderEvents
+from contracts.event_enums import OrderEvents
 from settings import get_settings
 from tests.unit_tests.test_event_handlers import _make_handler
 

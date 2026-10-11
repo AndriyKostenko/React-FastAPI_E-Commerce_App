@@ -2,8 +2,8 @@ from typing import Any
 
 from fastapi import Request, Response
 
-from shared.managers.cache_manager import CacheManager
-from shared.managers.ratelimit_manager import RateLimitManager
+from infrastructure.managers.cache_manager import CacheManager
+from infrastructure.managers.ratelimit_manager import RateLimitManager
 
 
 class GatewayRequestMiddleware:

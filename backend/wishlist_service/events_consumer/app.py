@@ -10,8 +10,8 @@ from events_consumer.runtime import (
     create_wishlist_consumer_resources,
 )
 from events_consumer.wishlist_event_consumer import WishlistEventConsumer
-from shared.enums.event_enums import WishlistEventsQueue
-from shared.messaging import ConsumerTopology
+from contracts.event_enums import WishlistEventsQueue
+from infrastructure.messaging import ConsumerTopology
 
 
 rabbitmq_broker = RabbitBroker(url=settings.RABBITMQ_BROKER_URL)

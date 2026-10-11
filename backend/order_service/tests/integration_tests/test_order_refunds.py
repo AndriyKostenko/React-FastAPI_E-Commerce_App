@@ -23,15 +23,15 @@ from models.outbox_models import OutboxEvent
 from schemas.order_refund_schemas import RefundLineRequest, RefundRequest
 from service_layer.order_refund_service import OrderRefundService, RefundState
 from service_layer.outbox_event_service import OutboxEventService
-from shared.contracts.events import PaymentDisputeEvent
-from shared.database_layer.outbox_repository import OutboxRepository
-from shared.enums.event_enums import PaymentCommands, PaymentEvents
+from contracts.events import PaymentDisputeEvent
+from infrastructure.database_layer.outbox_repository import OutboxRepository
+from contracts.event_enums import PaymentCommands, PaymentEvents
 from enums.status_enums import OrderStatus
-from shared.managers.test_database_session_manager import TestDatabaseSessionManager
-from shared.testing.signing_keys import ANONYMOUS
+from infrastructure.managers.test_database_session_manager import TestDatabaseSessionManager
+from infrastructure.testing.signing_keys import ANONYMOUS
 from tests.conftest import SIGNING_KEYS
 from tests.constants import TEST_API
-from shared.enums.event_enums import ProductionEvents
+from contracts.event_enums import ProductionEvents
 from tests.integration_tests.test_production_routes import (  # noqa: F401 (queued_job is a fixture)
     PRODUCTION_API,
     _confirm_payment,

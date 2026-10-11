@@ -6,7 +6,7 @@ from sqlalchemy import ForeignKey, Index, inspect
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 
 from models.base import Base
-from shared.utils.models_mixins import TimestampMixin
+from infrastructure.utils.models_mixins import TimestampMixin
 
 
 class ProductImage(Base, TimestampMixin):

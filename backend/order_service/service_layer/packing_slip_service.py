@@ -9,7 +9,7 @@ from schemas.production_schemas import (
     PackingSlipSchema,
     PrintSpecification,
 )
-from shared.contracts.order import CustomTshirtSpecification
+from contracts.order import CustomTshirtSpecification
 from settings import Settings
 
 

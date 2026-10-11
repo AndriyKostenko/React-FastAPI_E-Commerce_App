@@ -32,7 +32,7 @@ from resources import create_database_manager, logger, settings
 from service_layer.cj_api_client import CJDropshippingAPIClient, CJDropshippingAPIError
 from service_layer.cj_webhook_subscription_service import CJWebhookSubscriptionService
 from service_layer.product_service_client import ProductServiceClient, ProductServiceError
-from shared.managers.database_session_manager import DatabaseSessionManager
+from infrastructure.managers.database_session_manager import DatabaseSessionManager
 
 # CJ's openId is a Long.
 _OPEN_ID = re.compile(r"\d{1,20}")

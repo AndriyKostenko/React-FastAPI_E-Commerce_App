@@ -13,17 +13,17 @@ from models.payment_models import Payment, PaymentRefund
 from service_layer.outbox_event_service import OutboxEventService
 from service_layer.refund_metadata import AppRefundMetadata
 from service_layer.tax_service import PaymentTaxLedger
-from shared.contracts.events import (
+from contracts.events import (
     PaymentRefundedEvent,
     PaymentRefundFailedEvent,
     PaymentRefundRequested,
     RefundScope,
 )
-from shared.database_layer.outbox_repository import OutboxRepository
-from shared.enums.event_enums import PaymentEvents
-from shared.enums.services_enums import Services
+from infrastructure.database_layer.outbox_repository import OutboxRepository
+from contracts.event_enums import PaymentEvents
+from contracts.services_enums import Services
 from enums.status_enums import PaymentStatus
-from shared.managers.database_session_manager import DatabaseSessionManager
+from infrastructure.managers.database_session_manager import DatabaseSessionManager
 
 
 class RefundStatus(StrEnum):

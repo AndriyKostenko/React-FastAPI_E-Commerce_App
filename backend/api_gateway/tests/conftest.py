@@ -26,7 +26,7 @@ from resources import (
     settings,
 )
 from settings import get_test_settings
-from shared.contracts.auth import TokenClaims as CurrentUserInfo
+from contracts.auth import TokenClaims as CurrentUserInfo
 from tests.constants import (
     TEST_USER_ID,
     TEST_ADMIN_ID,
@@ -38,7 +38,7 @@ from tests.constants import (
 )
 
 
-from shared.testing.helpers import allow_testserver_host
+from infrastructure.testing.helpers import allow_testserver_host
 
 
 test_settings = get_test_settings()

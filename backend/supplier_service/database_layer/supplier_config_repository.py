@@ -1,6 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from shared.database_layer.database_layer import BaseRepository
+from infrastructure.database_layer.database_layer import BaseRepository
 from models.supplier_config_models import SupplierConfig
 
 

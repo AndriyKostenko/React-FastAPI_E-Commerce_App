@@ -32,12 +32,12 @@ from dependencies.dependencies import (
 )
 from service_layer.payment_service import PaymentService
 from service_layer.outbox_event_service import OutboxEventService
-from shared.database_layer.outbox_repository import OutboxRepository
+from infrastructure.database_layer.outbox_repository import OutboxRepository
 from models.base import Base
 from models.outbox_models import OutboxEvent
 from models.payment_models import Payment
 from config import logger, settings
-from shared.managers.test_database_session_manager import TestDatabaseSessionManager
+from infrastructure.managers.test_database_session_manager import TestDatabaseSessionManager
 from enums.status_enums import PaymentStatus
 from tests.constants import (
     TEST_PAYMENT_ID,
@@ -54,10 +54,10 @@ from tests.constants import (
 )
 
 
-from shared.testing.helpers import allow_testserver_host
+from infrastructure.testing.helpers import allow_testserver_host
 from uuid import UUID
 from settings import get_settings
-from shared.testing.signing_keys import EphemeralSigningKeys
+from infrastructure.testing.signing_keys import EphemeralSigningKeys
 
 # Throwaway gateway keys: the test clients' apps trust assertions signed
 # with these, exactly as a deployed service trusts the gateway's.

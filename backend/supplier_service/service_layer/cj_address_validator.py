@@ -11,8 +11,8 @@ from dataclasses import dataclass
 from logging import Logger
 
 from exceptions.cj_order_exceptions import CJAddressValidationError
-from shared.contracts.order import ConfirmedOrderAddress
-from shared.contracts.shipping_region import SHIPPING_COUNTRY_CODE
+from contracts.order import ConfirmedOrderAddress
+from contracts.shipping_region import SHIPPING_COUNTRY_CODE
 from settings import Settings
 
 

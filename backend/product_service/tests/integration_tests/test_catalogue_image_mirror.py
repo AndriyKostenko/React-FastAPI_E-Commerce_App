@@ -27,8 +27,8 @@ from service_layer.catalogue_image_fetcher import (
     ImageSourcePolicy,
 )
 from service_layer.catalogue_image_mirror_service import CatalogueImageMirrorService
-from shared.contracts.events import SupplierProductsFetchedEvent
-from shared.contracts.supplier import GenericSupplierProduct, SupplierProductVariant
+from contracts.events import SupplierProductsFetchedEvent
+from contracts.supplier import GenericSupplierProduct, SupplierProductVariant
 from storage.catalogue_url import CatalogueUrlResolver
 from storage.object_storage_provider import ObjectStorageProvider
 from tests.integration_tests.test_object_storage_s3 import _http_get

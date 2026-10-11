@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, status
 
 from dependencies.dependencies import order_refund_service_dependency
 from schemas.order_refund_schemas import OrderRefundSchema, RefundRequest
-from shared.auth.route_guards import AdminDep, require_admin
+from infrastructure.auth.route_guards import AdminDep, require_admin
 
 
 # Refunds move money: admin-only end to end, guarded at the router.

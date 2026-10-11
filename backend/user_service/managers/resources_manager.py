@@ -23,13 +23,13 @@ from fastapi import FastAPI, Request
 from httpx import AsyncClient, Limits, Timeout
 from starlette.requests import HTTPConnection
 
-from shared.managers.cache_manager import CacheManager
-from shared.managers.database_session_manager import DatabaseSessionManager
-from shared.managers.logger_manager import setup_logger
+from infrastructure.managers.cache_manager import CacheManager
+from infrastructure.managers.database_session_manager import DatabaseSessionManager
+from infrastructure.managers.logger_manager import setup_logger
 from managers.password_manager import PasswordManager
-from shared.managers.ratelimit_manager import RateLimitManager
-from shared.managers.session_registry import SessionRegistry
-from shared.managers.token_manager import TokenManager
+from infrastructure.managers.ratelimit_manager import RateLimitManager
+from infrastructure.managers.session_registry import SessionRegistry
+from infrastructure.managers.token_manager import TokenManager
 from settings import Settings, get_settings
 
 

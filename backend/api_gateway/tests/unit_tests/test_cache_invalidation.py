@@ -8,7 +8,7 @@ would clear the wrong namespace and leave the real one serving stale data.
 
 import pytest
 
-from shared.managers.cache_manager import CacheManager
+from infrastructure.managers.cache_manager import CacheManager
 
 
 @pytest.fixture

@@ -2,17 +2,17 @@ from typing import Any
 from stripe import StripeClient
 from logging import Logger
 
-from shared.idempotency.idempotency_service import IdempotencyEventService
-from shared.managers.database_session_manager import DatabaseSessionManager
-from shared.enums.event_enums import OrderEvents, PaymentCommands
-from shared.contracts.events import (
+from infrastructure.idempotency.idempotency_service import IdempotencyEventService
+from infrastructure.managers.database_session_manager import DatabaseSessionManager
+from contracts.event_enums import OrderEvents, PaymentCommands
+from contracts.events import (
     PaymentRefundRequested,
     OrderCancelledEvent,
     PaymentCaptureRequested,
     PaymentReleaseRequested,
 )
 from database_layer.payment_repository import PaymentRepository
-from shared.database_layer.outbox_repository import OutboxRepository
+from infrastructure.database_layer.outbox_repository import OutboxRepository
 from service_layer.payment_service import PaymentService
 from service_layer.outbox_event_service import OutboxEventService
 from models.outbox_models import OutboxEvent

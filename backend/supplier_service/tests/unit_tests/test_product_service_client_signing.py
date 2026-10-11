@@ -12,9 +12,9 @@ from cryptography.hazmat.primitives.serialization import Encoding, NoEncryption,
 from pydantic import SecretStr
 
 from service_layer.product_service_client import ProductServiceClient, ProductServiceError
-from shared.auth.caller_assertion import CallerAssertionVerifier, RequestTarget
-from shared.auth.service_assertion import SERVICE_ASSERTION_AUDIENCE, SERVICE_ASSERTION_HEADER
-from shared.testing.signing_keys import EphemeralSigningKeys
+from infrastructure.auth.caller_assertion import CallerAssertionVerifier, RequestTarget
+from infrastructure.auth.service_assertion import SERVICE_ASSERTION_AUDIENCE, SERVICE_ASSERTION_HEADER
+from infrastructure.testing.signing_keys import EphemeralSigningKeys
 
 KEYS = EphemeralSigningKeys()
 

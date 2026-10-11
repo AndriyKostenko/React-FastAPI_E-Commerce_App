@@ -4,8 +4,8 @@ from fastapi import APIRouter, Request, Depends
 
 from resources import api_gateway_manager, rate_limited
 from dependencies.auth_dependencies import get_current_user, require_user_or_admin, require_admin
-from shared.contracts.auth import TokenClaims as CurrentUserInfo
-from shared.enums.services_enums import Services
+from contracts.auth import TokenClaims as CurrentUserInfo
+from contracts.services_enums import Services
 
 shipping_proxy = APIRouter(tags=["Shipping Service Proxy"])
 

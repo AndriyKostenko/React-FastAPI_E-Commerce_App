@@ -35,17 +35,17 @@ from service_layer.cj_api_client import (
     CJDropshippingAPIError,
 )
 from service_layer.outbox_event_service import OutboxEventService
-from shared.contracts.events import (
+from contracts.events import (
     CJOrderFailedEvent,
     CJOrderPaidEvent,
     OrderConfirmedEvent,
 )
-from shared.database_layer.outbox_repository import OutboxRepository
-from shared.enums.event_enums import OrderEvents
-from shared.managers.database_session_manager import DatabaseSessionManager
+from infrastructure.database_layer.outbox_repository import OutboxRepository
+from contracts.event_enums import OrderEvents
+from infrastructure.managers.database_session_manager import DatabaseSessionManager
 from settings import Settings
-from shared.utils.money import CENT
-from shared.utils.supplier_pricing import SupplierRetailPricing
+from utils.money import CENT
+from utils.supplier_pricing import SupplierRetailPricing
 
 
 # CJ order statuses, as documented for getOrderDetail.

@@ -6,7 +6,7 @@ from sqlalchemy import or_, select
 
 from enums.cj_order_enums import CJOrderAttemptStatus
 from models.cj_order_attempt_models import CJOrderAttempt
-from shared.database_layer.database_layer import BaseRepository
+from infrastructure.database_layer.database_layer import BaseRepository
 
 
 class CJOrderAttemptRepository(BaseRepository[CJOrderAttempt]):

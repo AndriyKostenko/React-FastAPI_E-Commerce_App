@@ -3,7 +3,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from shared.enums.event_enums import OrderEvents
+from contracts.event_enums import OrderEvents
 from events_consumer.cart_event_consumer import CartEventConsumer
 
 

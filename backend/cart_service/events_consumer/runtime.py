@@ -1,8 +1,8 @@
 from dataclasses import dataclass
 from logging import Logger
 
-from shared.idempotency.idempotency_service import IdempotencyEventService
-from shared.managers.database_session_manager import DatabaseSessionManager
+from infrastructure.idempotency.idempotency_service import IdempotencyEventService
+from infrastructure.managers.database_session_manager import DatabaseSessionManager
 from settings import Settings
 
 from service_config import logger, settings

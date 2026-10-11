@@ -7,9 +7,9 @@ from logging import Logger
 
 from starlette.requests import HTTPConnection
 
-from shared.idempotency.idempotency_service import IdempotencyEventService
-from shared.managers.database_session_manager import DatabaseSessionManager
-from shared.managers.logger_manager import setup_logger
+from infrastructure.idempotency.idempotency_service import IdempotencyEventService
+from infrastructure.managers.database_session_manager import DatabaseSessionManager
+from infrastructure.managers.logger_manager import setup_logger
 from settings import Settings, get_settings
 
 

@@ -3,8 +3,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.user_models import User
-from shared.database_layer.database_layer import BaseRepository
-from shared.database_layer.repository_mixins import AdvancedQueryMixin
+from infrastructure.database_layer.database_layer import BaseRepository
+from infrastructure.database_layer.repository_mixins import AdvancedQueryMixin
 
 
 class UserRepository(AdvancedQueryMixin[User], BaseRepository[User]):

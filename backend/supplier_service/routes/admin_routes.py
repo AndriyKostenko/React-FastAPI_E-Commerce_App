@@ -13,8 +13,8 @@ from schemas.admin_schemas import (
     SupplierConfigAdminUpdate,
     SupplierSyncAdminSchema,
 )
-from shared.admin.admin_tables import AdminTable, AdminTableRouter
-from shared.auth.route_guards import AdminDep
+from infrastructure.admin.admin_tables import AdminTable, AdminTableRouter
+from infrastructure.auth.route_guards import AdminDep
 
 # CJ orders are read-only here: they move through the confirm/pay/track
 # workflow; a stuck one is handled with the cj-sandbox / reconciliation tools.

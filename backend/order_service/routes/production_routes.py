@@ -14,7 +14,7 @@ from schemas.production_schemas import (
     ShipProductionJobRequest,
     StartProductionJobRequest,
 )
-from shared.auth.route_guards import require_admin
+from infrastructure.auth.route_guards import require_admin
 from enums.status_enums import ProductionJobStatus
 
 

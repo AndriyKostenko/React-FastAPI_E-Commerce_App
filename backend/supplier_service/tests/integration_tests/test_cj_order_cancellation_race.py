@@ -29,10 +29,10 @@ from service_layer.cj_api_client import (
     CJDropshippingNotFoundError,
     CJDropshippingUnavailableError,
 )
-from shared.enums.event_enums import OrderEvents
-from shared.managers.test_database_session_manager import TestDatabaseSessionManager
+from contracts.event_enums import OrderEvents
+from infrastructure.managers.test_database_session_manager import TestDatabaseSessionManager
 from settings import Settings, get_settings
-from shared.utils.supplier_pricing import SupplierRetailPricing
+from utils.supplier_pricing import SupplierRetailPricing
 
 
 pytestmark = pytest.mark.asyncio(loop_scope="session")

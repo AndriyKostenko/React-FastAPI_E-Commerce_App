@@ -19,7 +19,7 @@ from schemas.category_schema import (
     CreateCategory,
     UpdateCategory,
 )
-from shared.auth.route_guards import AdminDep
+from infrastructure.auth.route_guards import AdminDep
 
 category_routes = APIRouter(tags=["categories"])
 

@@ -8,7 +8,7 @@ from database_layer.cj_order_attempt_repository import CJOrderAttemptRepository
 from enums.cj_order_enums import CJOrderAttemptStatus
 from models.cj_order_attempt_models import CJOrderAttempt
 from models.outbox_models import OutboxEvent
-from shared.database_layer.outbox_repository import OutboxRepository
+from infrastructure.database_layer.outbox_repository import OutboxRepository
 from event_publisher.supplier_event_publisher import SupplierEventPublisher
 from exceptions.cj_order_exceptions import (
     CJOrderCancelledError,
@@ -29,8 +29,8 @@ from service_layer.cj_inventory_verifier import CJDropshippingInventoryVerifier
 from service_layer.cj_order_payload_builder import CJOrderPayloadBuilder
 from service_layer.outbox_event_service import OutboxEventService
 from service_layer.product_service_client import ProductServiceClient
-from shared.enums.event_enums import OrderEvents, SupplierEvents
-from shared.contracts.events import (
+from contracts.event_enums import OrderEvents, SupplierEvents
+from contracts.events import (
     CJOrderCreatedEvent,
     CJOrderFailedEvent,
     OrderCancelledEvent,
@@ -38,10 +38,10 @@ from shared.contracts.events import (
     SupplierProductImportFailedEvent,
     SupplierProductImportCompletedEvent,
 )
-from shared.idempotency.idempotency_service import IdempotencyEventService
-from shared.managers.database_session_manager import DatabaseSessionManager
+from infrastructure.idempotency.idempotency_service import IdempotencyEventService
+from infrastructure.managers.database_session_manager import DatabaseSessionManager
 from settings import Settings
-from shared.utils.supplier_pricing import SupplierRetailPricing
+from utils.supplier_pricing import SupplierRetailPricing
 
 
 class SupplierEventConsumer:

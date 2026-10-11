@@ -11,7 +11,7 @@ from exceptions.cj_order_exceptions import (
 from service_layer.supplier_provider import WarehouseStock
 from service_layer.sync_orchestrator_service import SupplierSyncOrchestrator
 from schemas.dropshipping_schemas import CJProductsFilterParams
-from shared.contracts.supplier import GenericSupplierProduct, SupplierProductVariant
+from contracts.supplier import GenericSupplierProduct, SupplierProductVariant
 from schemas.supplier_schemas import SupplierProductsPage
 
 

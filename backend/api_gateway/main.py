@@ -1,7 +1,7 @@
 """api-gateway ASGI entrypoint.
 
 Assembly — middleware order, health probes, the Prometheus endpoint and the
-exception contract — lives in ``shared.app``; this module only states what is
+exception contract — lives in ``infrastructure.app``; this module only states what is
 specific to the gateway.
 """
 
@@ -30,7 +30,7 @@ from routes.shipping_routes import shipping_proxy
 from routes.supplier_routes import supplier_proxy
 from routes.user_routes import user_proxy
 from routes.wishlist_routes import wishlist_proxy
-from shared.app import ServiceAppBuilder
+from infrastructure.app import ServiceAppBuilder
 
 PROXIES = (
     (user_proxy, "User Service Proxy"),

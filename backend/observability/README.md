@@ -2,8 +2,9 @@
 
 Metrics, logs, traces and alerting for the backend. Everything here is
 configuration for containers defined in `backend/docker-compose.yml` — there is
-no application code. The Python side is one file, `shared/telemetry.py`, which
-every service's `main.py` calls as `setup_tracing(app, service_name=...)`.
+no application code. The Python side is one file, `infrastructure/telemetry.py`
+(each service has its own copy), which every service's app builder calls as
+`setup_tracing(app, service_name=...)`.
 
 **This stack only runs under Docker.** `backend/local/dev.sh` deliberately skips
 it and exports `OTEL_TRACES_DISABLED=true`, so a native dev run has no collector,

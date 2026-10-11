@@ -17,9 +17,9 @@ from fastapi import FastAPI, Request
 from prometheus_client import Counter, Histogram
 
 from resources import api_gateway_runtime, get_api_gateway_resources, logger, settings
-from shared.app import MONITORING_PATHS, ExceptionHandlerRegistry, ServiceDescriptor
-from shared.exceptions.base_exceptions import BaseAPIException
-from shared.app.errors import api_exception_renderer
+from infrastructure.app import MONITORING_PATHS, ExceptionHandlerRegistry, ServiceDescriptor
+from infrastructure.exceptions.base_exceptions import BaseAPIException
+from infrastructure.app.errors import api_exception_renderer
 
 DESCRIPTOR = ServiceDescriptor(
     name="api-gateway",

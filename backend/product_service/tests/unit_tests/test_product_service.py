@@ -17,7 +17,7 @@ from exceptions.product_exceptions import (
     ProductNotFoundError,
     ProductUpdateError,
 )
-from shared.contracts.order import OrderItem as OrderItemBase
+from contracts.order import OrderItem as OrderItemBase
 from schemas.product_schemas import (
     CreateProduct,
     CreateProductVariant,

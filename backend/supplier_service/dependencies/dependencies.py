@@ -14,7 +14,7 @@ from service_layer.cj_webhook_signature import CJWebhookSignature
 from service_layer.outbox_event_service import OutboxEventService
 from models.outbox_models import OutboxEvent
 from service_layer.sync_orchestrator_service import SupplierSyncOrchestrator
-from shared.database_layer.outbox_repository import OutboxRepository
+from infrastructure.database_layer.outbox_repository import OutboxRepository
 from resources import SupplierApiResources, get_supplier_api_resources
 
 

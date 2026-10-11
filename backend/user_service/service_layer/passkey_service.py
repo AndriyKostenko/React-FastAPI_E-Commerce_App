@@ -30,7 +30,7 @@ from schemas.user_schemas import CurrentUserInfo, PasskeyCeremonyOptions, Passke
 from service_layer.passkey_ceremony_store import CeremonyPurpose, PasskeyCeremonyStore
 from service_layer.session_issuer import IssuedSession
 from service_layer.user_service import UserService
-from shared.contracts.auth import AuthMethod
+from contracts.auth import AuthMethod
 from settings import Settings
 
 

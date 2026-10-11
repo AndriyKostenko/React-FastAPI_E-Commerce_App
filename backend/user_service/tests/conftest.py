@@ -28,15 +28,15 @@ from dependencies.dependencies import (
 )
 from service_layer.user_service import UserService
 from service_layer.outbox_event_service import OutboxEventService
-from shared.database_layer.outbox_repository import OutboxRepository
+from infrastructure.database_layer.outbox_repository import OutboxRepository
 from models.base import Base
 from models.outbox_models import OutboxEvent
 from models.user_models import User
 from managers import ResourceManager, UserApiResources, logger, settings
 from settings import get_test_settings
-from shared.managers.test_database_session_manager import TestDatabaseSessionManager
-from shared.managers.token_manager import TokenManager
-from shared.testing.signing_keys import EphemeralSigningKeys
+from infrastructure.managers.test_database_session_manager import TestDatabaseSessionManager
+from infrastructure.managers.token_manager import TokenManager
+from infrastructure.testing.signing_keys import EphemeralSigningKeys
 
 # One set of throwaway keys for the whole session, playing both user-service's
 # token key and the gateway's assertion key — so an integration test can log
@@ -46,7 +46,7 @@ from managers.password_manager import PasswordManager
 from schemas.user_schemas import CurrentUserInfo, UserInfo
 
 
-from shared.testing.helpers import allow_testserver_host
+from infrastructure.testing.helpers import allow_testserver_host
 
 
 test_settings = get_test_settings()

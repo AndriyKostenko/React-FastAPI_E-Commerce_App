@@ -21,6 +21,12 @@
 - Break the complex classes using proper inheritance or composition or decomposition
 - Never use “Any” as the type - ask for clarifications what i’m expecting to send/receive
 - Where the generic types with latest syntax where they are applicable
+- There is no shared library: every service is self-contained. Each has its own
+  `settings.py` (only the fields it reads), `contracts/` (only the events and DTOs it
+  publishes or consumes, additive changes only) and `infrastructure/` (its copy of the
+  app builder, middleware, auth, messaging, outbox, Vault, … under the same sub-paths in
+  every service, so copies compare with `diff -r`). A fix to a copied module, or a change
+  to an event, goes into every copy in the same commit.
 
 # Running the project locally (no Docker)
 
@@ -211,7 +217,6 @@ a suite through `dev.sh`, which gives it that service's Vault identity:
 cd backend
 ./local/dev.sh test order_service                 # the whole suite
 ./local/dev.sh test order_service -k integration  # any pytest arguments
-./local/dev.sh test shared                        # shared/'s own suite
 ```
 
 Inside a service directory, plain `uv run pytest` works only with the `VAULT_*`

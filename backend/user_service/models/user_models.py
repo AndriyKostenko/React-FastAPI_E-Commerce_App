@@ -7,7 +7,7 @@ from sqlalchemy import CheckConstraint, DateTime, String, Index, inspect
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 
 from models.base import Base
-from shared.utils.models_mixins import TimestampMixin
+from infrastructure.utils.models_mixins import TimestampMixin
 
 
 # User model representing a user in the system

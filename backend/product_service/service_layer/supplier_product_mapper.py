@@ -4,8 +4,8 @@ import re
 from uuid import UUID
 
 from schemas.product_schemas import CreateProduct, CreateProductVariant
-from shared.contracts.supplier import GenericSupplierProduct, SupplierProductVariant
-from shared.utils.supplier_pricing import SupplierRetailPricing
+from contracts.supplier import GenericSupplierProduct, SupplierProductVariant
+from utils.supplier_pricing import SupplierRetailPricing
 
 
 class SupplierProductMapper:

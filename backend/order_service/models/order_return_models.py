@@ -6,8 +6,8 @@ from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from models.base import Base
-from shared.contracts.returns import ReturnStatus
-from shared.utils.models_mixins import TimestampMixin
+from contracts.returns import ReturnStatus
+from infrastructure.utils.models_mixins import TimestampMixin
 
 # [{"order_item_id": str, "quantity": int, "ships_back": bool, "refunded": bool}]
 type ReturnLineRow = dict[str, str | int | bool]

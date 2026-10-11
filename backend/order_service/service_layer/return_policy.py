@@ -9,8 +9,8 @@ one class here; the return service only asks.
 
 from abc import ABC, abstractmethod
 
-from shared.contracts.order import FulfillmentType
-from shared.contracts.returns import ReturnFault, ReturnReason
+from contracts.order import FulfillmentType
+from contracts.returns import ReturnFault, ReturnReason
 
 
 class ReturnPolicy(ABC):

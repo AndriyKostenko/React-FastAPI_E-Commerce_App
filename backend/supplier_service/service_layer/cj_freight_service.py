@@ -23,7 +23,7 @@ from service_layer.product_service_client import (
     ProductServiceClient,
     ProductServiceError,
 )
-from shared.contracts.shipping_region import (
+from contracts.shipping_region import (
     CJ_WAREHOUSE_COUNTRY_CODE,
     SHIPPING_COUNTRY_CODE,
     SHIPPING_COUNTRY_NAME,

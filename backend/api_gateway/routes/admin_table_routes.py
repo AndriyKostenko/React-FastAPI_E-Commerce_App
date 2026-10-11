@@ -1,5 +1,5 @@
 """
-The back office's read-only tables (shared.admin.admin_tables), proxied.
+The back office's read-only tables (infrastructure.admin.admin_tables), proxied.
 
 Each service builds GET /admin/<table>, /admin/<table>/{id} and
 /admin/schema/<table> for its own tables; this maps every table to its
@@ -14,7 +14,7 @@ from fastapi.responses import Response
 
 from dependencies.auth_dependencies import require_admin
 from resources import api_gateway_manager
-from shared.enums.services_enums import Services
+from contracts.services_enums import Services
 
 ADMIN_TABLES: dict[str, Services] = {
     "payments": Services.PAYMENT_SERVICE,

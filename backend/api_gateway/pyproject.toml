@@ -29,6 +29,8 @@ dependencies = [
     "opentelemetry-instrumentation-sqlalchemy>=0.50b0",
     "opentelemetry-instrumentation-redis>=0.50b0",
     "pyjwt[crypto]>=2.10",
+    "prometheus-client>=0.21.0",
+    "cryptography>=45.0",
 ]
 
 [dependency-groups]
@@ -43,11 +45,6 @@ dev = [
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "session"
-pythonpath = [".", ".."]
+pythonpath = ["."]
 testpaths = ["tests"]
 
-[tool.uv.sources]
-shared = { path = "../shared", editable = true }
-
-[tool.pyright]
-extraPaths = [".."]

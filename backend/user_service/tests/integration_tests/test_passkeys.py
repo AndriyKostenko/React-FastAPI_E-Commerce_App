@@ -18,10 +18,10 @@ from managers import ResourceManager, UserApiResources, settings
 from models.user_models import User
 from service_layer.passkey_ceremony_store import PasskeyCeremonyStore
 from service_layer.session_issuer import SessionIssuer
-from shared.contracts.auth import AuthMethod
-from shared.managers.cache_manager import CacheManager
+from contracts.auth import AuthMethod
+from infrastructure.managers.cache_manager import CacheManager
 from managers.password_manager import PasswordManager
-from shared.managers.test_database_session_manager import TestDatabaseSessionManager
+from infrastructure.managers.test_database_session_manager import TestDatabaseSessionManager
 from tests.conftest import SIGNING_KEYS
 from tests.software_authenticator import SoftwareAuthenticator
 

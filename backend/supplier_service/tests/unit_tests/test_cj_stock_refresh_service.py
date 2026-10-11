@@ -16,8 +16,8 @@ import service_layer.cj_stock_refresh_service as refresh_module
 from service_layer.cj_api_client import CJDropshippingAPIError
 from service_layer.cj_stock_refresh_service import CJStockRefreshService
 from service_layer.supplier_provider import WarehouseStock
-from shared.contracts.supplier import SupplierStockKey
-from shared.enums.event_enums import SupplierEvents
+from contracts.supplier import SupplierStockKey
+from contracts.event_enums import SupplierEvents
 
 T0 = datetime(2026, 9, 29, 12, 0, tzinfo=timezone.utc)
 

@@ -5,8 +5,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import update
 
 from models.notification_models import Notification
-from shared.database_layer.database_layer import BaseRepository
-from shared.database_layer.repository_mixins import AdvancedQueryMixin
+from infrastructure.database_layer.database_layer import BaseRepository
+from infrastructure.database_layer.repository_mixins import AdvancedQueryMixin
 
 
 class NotificationRepository(AdvancedQueryMixin[Notification], BaseRepository[Notification]):

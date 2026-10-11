@@ -7,7 +7,7 @@ from models.catalogue_image_mirror_models import CatalogueImageMirror, MirrorSta
 from models.product_image_models import ProductImage
 from models.product_models import Product
 from models.product_variant_models import ProductVariant
-from shared.database_layer.database_layer import BaseRepository
+from infrastructure.database_layer.database_layer import BaseRepository
 
 
 class CatalogueImageMirrorRepository(BaseRepository[CatalogueImageMirror]):

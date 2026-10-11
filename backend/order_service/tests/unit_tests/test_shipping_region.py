@@ -2,7 +2,7 @@
 
 import pytest
 
-from shared.contracts.shipping_region import CanadianAddress, NotShippableError
+from contracts.shipping_region import CanadianAddress, NotShippableError
 
 
 def _normalise(**overrides: str | None) -> CanadianAddress:

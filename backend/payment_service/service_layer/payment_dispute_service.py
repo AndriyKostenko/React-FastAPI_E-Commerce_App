@@ -7,9 +7,9 @@ from typing import Any
 from database_layer.payment_repository import PaymentDisputeRepository, PaymentRepository
 from models.payment_models import PaymentDispute
 from service_layer.outbox_event_service import OutboxEventService
-from shared.contracts.events import PaymentDisputeEvent
-from shared.enums.event_enums import PaymentEvents
-from shared.enums.services_enums import Services
+from contracts.events import PaymentDisputeEvent
+from contracts.event_enums import PaymentEvents
+from contracts.services_enums import Services
 
 
 class PaymentDisputeService:

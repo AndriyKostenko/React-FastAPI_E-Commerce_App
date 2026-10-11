@@ -12,7 +12,7 @@ from starlette.requests import Request
 
 from gateway.apigateway import ApiGateway, MultipartBody
 from resources import logger, settings
-from shared.testing.signing_keys import EphemeralSigningKeys
+from infrastructure.testing.signing_keys import EphemeralSigningKeys
 from tests.constants import TEST_API, TEST_ORDER_ID
 
 RETURN_ID = uuid4()

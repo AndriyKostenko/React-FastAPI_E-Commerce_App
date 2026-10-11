@@ -16,10 +16,10 @@ import pytest
 
 from events_publisher.order_event_publisher import OrderEventPublisher
 from service_layer.outbox_poller_service import route_order_event
-from shared.contracts.events import OrderReturnEvent, PaymentRefundRequested
-from shared.contracts.returns import ReturnFault, ReturnLineSummary, ReturnReason
-from shared.enums import event_enums
-from shared.enums.event_enums import OrderEvents, PaymentCommands, ProductionEvents
+from contracts.events import OrderReturnEvent, PaymentRefundRequested
+from contracts.returns import ReturnFault, ReturnLineSummary, ReturnReason
+from contracts import event_enums
+from contracts.event_enums import OrderEvents, PaymentCommands, ProductionEvents
 
 SERVICE_ROOT = Path(__file__).resolve().parents[2]
 WRITTEN = re.compile(r"add_outbox_event\(\s*event_type=(\w+)\.(\w+)")

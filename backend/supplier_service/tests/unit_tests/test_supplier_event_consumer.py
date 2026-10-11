@@ -11,9 +11,9 @@ from enums.cj_order_enums import CJOrderAttemptStatus
 from exceptions.cj_order_exceptions import CJOrderCreationError, CJOrderAmbiguousError
 from service_layer.cj_api_client import CJDropshippingAPIError, CJDropshippingUnavailableError
 from service_layer.product_service_client import ProductServiceError
-from shared.enums.event_enums import InventoryEvents, OrderEvents, SupplierEvents
+from contracts.event_enums import InventoryEvents, OrderEvents, SupplierEvents
 from settings import get_settings
-from shared.contracts.events import SupplierProductImportCompletedEvent
+from contracts.events import SupplierProductImportCompletedEvent
 
 
 TEST_ORDER_ID = uuid4()
@@ -319,7 +319,7 @@ class TestHandleOrderConfirmed:
             create_order_response={"result": True, "code": 200, "data": {}},
         )
 
-        from shared.contracts.events import OrderConfirmedEvent
+        from contracts.events import OrderConfirmedEvent
         event = OrderConfirmedEvent(**_make_order_confirmed_message())
         payload = await consumer._build_cj_order_payload(event)
         with pytest.raises(CJOrderCreationError):
@@ -589,7 +589,7 @@ class TestSandboxOrdersAreRecorded:
 
     @pytest.mark.parametrize(("payload", "expected"), [({"isSandbox": 1}, True), ({}, False)])
     async def test_the_sent_payload_decides(self, monkeypatch, payload: dict, expected: bool) -> None:
-        from shared.contracts.events import OrderConfirmedEvent
+        from contracts.events import OrderConfirmedEvent
 
         # The setting says the opposite: only the payload counts.
         settings = get_settings().model_copy(update={"CJ_DROPSHIPPING_SANDBOX": not expected})

@@ -5,7 +5,7 @@ from uuid import uuid4
 import pytest
 
 from events_consumer.payment_event_consumer import PaymentEventConsumer
-from shared.contracts.events import PaymentCaptureRequested, PaymentReleaseRequested
+from contracts.events import PaymentCaptureRequested, PaymentReleaseRequested
 from enums.status_enums import PaymentStatus
 
 

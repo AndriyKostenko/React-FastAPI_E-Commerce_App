@@ -10,8 +10,8 @@ from exceptions.cj_order_exceptions import CJAddressValidationError
 from service_layer.cj_address_validator import CJShippingAddressValidator
 from service_layer.cj_inventory_verifier import StockVerificationResult
 from service_layer.cj_order_payload_builder import CJOrderPayloadBuilder
-from shared.contracts.events import OrderConfirmedEvent
-from shared.contracts.order import ConfirmedOrderAddress, ConfirmedOrderItem
+from contracts.events import OrderConfirmedEvent
+from contracts.order import ConfirmedOrderAddress, ConfirmedOrderItem
 from settings import get_settings
 
 

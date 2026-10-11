@@ -10,8 +10,8 @@ from events_consumer.runtime import (
     create_shipping_consumer_resources,
 )
 from events_consumer.shipping_event_consumer import ShippingEventConsumer
-from shared.enums.event_enums import ShippingEventsQueue
-from shared.messaging import ConsumerTopology
+from contracts.event_enums import ShippingEventsQueue
+from infrastructure.messaging import ConsumerTopology
 
 
 rabbitmq_broker = RabbitBroker(url=settings.RABBITMQ_BROKER_URL)

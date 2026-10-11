@@ -4,7 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.wishlist_models import Wishlist, WishlistItem
-from shared.database_layer.database_layer import BaseRepository
+from infrastructure.database_layer.database_layer import BaseRepository
 
 
 class WishlistRepository(BaseRepository[Wishlist]):

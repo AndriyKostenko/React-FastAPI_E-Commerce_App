@@ -8,7 +8,7 @@ from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from models.base import Base
-from shared.utils.models_mixins import TimestampMixin
+from infrastructure.utils.models_mixins import TimestampMixin
 
 
 class CJOrderAttempt(Base, TimestampMixin):

@@ -1529,6 +1529,7 @@ dependencies = [
     { name = "orjson" },
     { name = "packaging" },
     { name = "passlib" },
+    { name = "prometheus-client" },
     { name = "prometheus-fastapi-instrumentator" },
     { name = "propcache" },
     { name = "pyasn1" },
@@ -1558,6 +1559,7 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "aio-pika" },
     { name = "greenlet" },
     { name = "httpx" },
     { name = "pytest" },
@@ -1609,6 +1611,7 @@ requires-dist = [
     { name = "orjson", specifier = ">=3.11.1" },
     { name = "packaging", specifier = "==25.0" },
     { name = "passlib", specifier = "==1.7.4" },
+    { name = "prometheus-client", specifier = ">=0.21.0" },
     { name = "prometheus-fastapi-instrumentator", specifier = ">=7.1.0" },
     { name = "propcache", specifier = "==0.3.2" },
     { name = "pyasn1", specifier = "==0.6.1" },
@@ -1638,6 +1641,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "aio-pika", specifier = ">=9.5" },
     { name = "greenlet", specifier = ">=3.0" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "pytest", specifier = ">=9.0.3" },

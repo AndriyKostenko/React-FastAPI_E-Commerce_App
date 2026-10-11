@@ -14,11 +14,11 @@ from models.order_item_models import OrderItem
 from models.order_models import Order
 from models.order_saga_models import OrderSagaState
 from models.outbox_models import OutboxEvent
-from shared.enums.event_enums import OrderEvents
+from contracts.event_enums import OrderEvents
 from saga_timeout_worker import cancel_stalled_supplier_orders, expire_once
 from config import settings
-from shared.contracts.artwork import GeneratedArtworkAsset, sign_artwork_asset
-from shared.managers.test_database_session_manager import TestDatabaseSessionManager
+from contracts.artwork import GeneratedArtworkAsset, sign_artwork_asset
+from infrastructure.managers.test_database_session_manager import TestDatabaseSessionManager
 from enums.status_enums import OrderStatus, OrderDeliveryStatus
 from tests.constants import (
     TEST_USER_ID, TEST_EMAIL, TEST_AMOUNT, TEST_CURRENCY,

@@ -14,7 +14,7 @@ from service_layer.cj_order_tracking_service import (
     CJRemoteOrderStatusMapper,
     TrackedOrder,
 )
-from shared.enums.event_enums import OrderEvents
+from contracts.event_enums import OrderEvents
 from settings import get_settings
 
 

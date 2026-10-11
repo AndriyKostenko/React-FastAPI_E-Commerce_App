@@ -12,7 +12,7 @@ from sqlalchemy import select
 
 from database_layer.cart_repository import CartRepository
 from models.cart_models import Cart, CartItem
-from shared.managers.test_database_session_manager import TestDatabaseSessionManager
+from infrastructure.managers.test_database_session_manager import TestDatabaseSessionManager
 
 
 async def test_concurrent_adds_of_the_same_product_are_not_lost(

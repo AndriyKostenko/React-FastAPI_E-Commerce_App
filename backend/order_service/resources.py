@@ -11,8 +11,8 @@ from starlette.requests import HTTPConnection
 from config import logger, settings
 from events_publisher.order_event_publisher import OrderEventPublisher
 from messaging import create_rabbitmq_broker
-from shared.idempotency.idempotency_service import IdempotencyEventService
-from shared.managers.database_session_manager import DatabaseSessionManager
+from infrastructure.idempotency.idempotency_service import IdempotencyEventService
+from infrastructure.managers.database_session_manager import DatabaseSessionManager
 from settings import Settings
 from service_layer.artwork_asset_client import ArtworkAssetClient
 from service_layer.order_pricing_service import CatalogQuoteClient, FreightQuoteClient, TaxQuoteClient

@@ -72,25 +72,21 @@ dependencies = [
     "opentelemetry-instrumentation-redis>=0.50b0",
     "httpx>=0.28.1",
     "pyjwt[crypto]>=2.10",
+    "prometheus-client>=0.21.0",
 ]
-
-[tool.uv.sources]
-shared = { path = "../shared", editable = true }
-
-[tool.pyright]
-extraPaths = [".."]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "session"
 testpaths = ["tests"]
-pythonpath = [".", ".."]
+pythonpath = ["."]
 filterwarnings = [
     "ignore::DeprecationWarning:passlib",
 ]
 
 [dependency-groups]
 dev = [
+    "aio-pika>=9.5",
     "greenlet>=3.0",
     "httpx>=0.28.1",
     "pytest>=9.0.3",

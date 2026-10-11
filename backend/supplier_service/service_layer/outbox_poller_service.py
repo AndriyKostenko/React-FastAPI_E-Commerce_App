@@ -1,7 +1,7 @@
 from typing import Any
 
-from shared.outbox import OutboxRelay
-from shared.enums.event_enums import SupplierEvents, OrderEvents
+from infrastructure.outbox import OutboxRelay
+from contracts.event_enums import SupplierEvents, OrderEvents
 from models.outbox_models import OutboxEvent
 from resources import SupplierOutboxResources
 

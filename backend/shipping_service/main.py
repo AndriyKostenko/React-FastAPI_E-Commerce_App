@@ -1,7 +1,7 @@
 """shipping-service ASGI entrypoint.
 
 Assembly — middleware order, health probes, the Prometheus endpoint and the
-exception contract — lives in ``shared.app``; this module only states what is
+exception contract — lives in ``infrastructure.app``; this module only states what is
 specific to shipping-service.
 """
 
@@ -12,7 +12,7 @@ from resources import ShippingApiResources
 from service_config import logger, settings
 from routes.shipping_routes import shipping_routes
 from routes.admin_routes import admin_routes
-from shared.app import DatabaseEngineProbe, ServiceAppBuilder
+from infrastructure.app import DatabaseEngineProbe, ServiceAppBuilder
 
 app = (
     ServiceAppBuilder[ShippingApiResources](DESCRIPTOR, settings=settings, logger=logger)

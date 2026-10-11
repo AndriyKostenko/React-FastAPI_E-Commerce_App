@@ -1,6 +1,6 @@
 """The freight-quote route is order-service's alone: its guard is attached."""
 
-from shared.auth.service_assertion import ServiceCallerGuard
+from infrastructure.auth.service_assertion import ServiceCallerGuard
 from routes.supplier_routes import supplier_routes
 
 

@@ -7,9 +7,9 @@ import pytest
 
 from schemas.order_schemas import AddressType, CreateOrder, OrderProductItem
 from service_layer.order_pricing_service import OrderPricingService, OrderQuoteError
-from shared.contracts.tax import TaxCalculationResult
-from shared.contracts.artwork import GeneratedArtworkAsset, sign_artwork_asset
-from shared.contracts.order import CustomTshirtSpecification
+from contracts.tax import TaxCalculationResult
+from contracts.artwork import GeneratedArtworkAsset, sign_artwork_asset
+from contracts.order import CustomTshirtSpecification
 
 
 _SECRET = "test-artwork-signing-secret"

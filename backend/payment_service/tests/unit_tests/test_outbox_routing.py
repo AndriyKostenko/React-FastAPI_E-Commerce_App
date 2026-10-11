@@ -16,9 +16,9 @@ import pytest
 
 from events_publisher.payment_event_publisher import PaymentEventPublisher
 from service_layer.outbox_poller_service import route_payment_event
-from shared.contracts.events import PaymentRefundFailedEvent
-from shared.enums import event_enums
-from shared.enums.event_enums import PaymentEvents
+from contracts.events import PaymentRefundFailedEvent
+from contracts import event_enums
+from contracts.event_enums import PaymentEvents
 
 SERVICE_ROOT = Path(__file__).resolve().parents[2]
 WRITTEN = re.compile(r"add_outbox_event\(\s*event_type=(\w+)\.(\w+)")

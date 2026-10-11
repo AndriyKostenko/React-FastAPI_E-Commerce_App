@@ -20,7 +20,7 @@ from service_layer.image_generation_quota import GenerationQuotaService
 from service_layer.image_job_store import ImageJobStore
 from service_layer.openrouter_client import OpenRouterClient
 from service_layer.image_storage_service import ImageStorageService, StoredImage
-from shared.contracts.artwork import GeneratedArtworkAsset
+from contracts.artwork import GeneratedArtworkAsset
 from storage.object_store import LocalObjectStore
 
 

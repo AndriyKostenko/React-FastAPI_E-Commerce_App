@@ -4,8 +4,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.order_return_models import ReturnRequest
-from shared.contracts.returns import ReturnStatus
-from shared.database_layer.database_layer import BaseRepository
+from contracts.returns import ReturnStatus
+from infrastructure.database_layer.database_layer import BaseRepository
 
 
 class ReturnRequestRepository(BaseRepository[ReturnRequest]):

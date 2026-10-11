@@ -1,7 +1,7 @@
 """product-service ASGI entrypoint.
 
 Assembly — middleware order, health probes, the Prometheus endpoint and the
-exception contract — lives in ``shared.app``; this module only states what is
+exception contract — lives in ``infrastructure.app``; this module only states what is
 specific to product-service.
 """
 
@@ -18,7 +18,7 @@ from routes.category_routes import category_routes
 from routes.product_image_routes import product_images_routes
 from routes.product_routes import product_routes
 from routes.review_routes import review_routes
-from shared.app import DatabaseEngineProbe, RedisPingProbe, ServiceAppBuilder
+from infrastructure.app import DatabaseEngineProbe, RedisPingProbe, ServiceAppBuilder
 
 app = (
     ServiceAppBuilder[ProductApiResources](DESCRIPTOR, settings=settings, logger=logger)

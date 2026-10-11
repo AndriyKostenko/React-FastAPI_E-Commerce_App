@@ -18,7 +18,7 @@ from alembic import op
 import sqlalchemy as sa
 
 from settings import get_settings
-from shared.utils.supplier_pricing import SupplierRetailPricing
+from utils.supplier_pricing import SupplierRetailPricing
 
 
 revision: str = "7c3e9a51d2f4"

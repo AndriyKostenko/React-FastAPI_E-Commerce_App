@@ -1,6 +1,6 @@
 from logging import Logger
 
-from shared.managers.logger_manager import setup_logger
+from infrastructure.managers.logger_manager import setup_logger
 from settings import Settings, get_settings
 
 

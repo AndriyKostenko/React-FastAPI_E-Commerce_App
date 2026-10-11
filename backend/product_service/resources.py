@@ -10,10 +10,10 @@ from faststream.rabbit import ExchangeType, RabbitBroker, RabbitExchange
 from starlette.requests import HTTPConnection
 
 from event_publisher.event_publisher import ProductEventPublisher
-from shared.idempotency.idempotency_service import IdempotencyEventService
-from shared.managers.cache_manager import CacheManager
-from shared.managers.database_session_manager import DatabaseSessionManager
-from shared.managers.logger_manager import setup_logger
+from infrastructure.idempotency.idempotency_service import IdempotencyEventService
+from infrastructure.managers.cache_manager import CacheManager
+from infrastructure.managers.database_session_manager import DatabaseSessionManager
+from infrastructure.managers.logger_manager import setup_logger
 from settings import Settings, get_settings
 
 

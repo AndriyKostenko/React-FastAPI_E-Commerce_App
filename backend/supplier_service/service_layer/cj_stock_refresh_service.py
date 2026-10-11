@@ -26,10 +26,10 @@ from models.outbox_models import OutboxEvent
 from service_layer.outbox_event_service import OutboxEventService
 from service_layer.product_service_client import ProductServiceClient
 from service_layer.supplier_provider import SupplierProvider
-from shared.contracts.events import SupplierStockUpdatedEvent
-from shared.contracts.supplier import SupplierStockKey, SupplierStockLevel
-from shared.database_layer.outbox_repository import OutboxRepository
-from shared.managers.database_session_manager import DatabaseSessionManager
+from contracts.events import SupplierStockUpdatedEvent
+from contracts.supplier import SupplierStockKey, SupplierStockLevel
+from infrastructure.database_layer.outbox_repository import OutboxRepository
+from infrastructure.managers.database_session_manager import DatabaseSessionManager
 from settings import Settings
 
 # pg_try_advisory_lock key: "stock" as ASCII. One refresh at a time, across

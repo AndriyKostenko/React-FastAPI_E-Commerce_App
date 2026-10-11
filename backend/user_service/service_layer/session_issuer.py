@@ -5,9 +5,9 @@ from datetime import timedelta
 from uuid import UUID
 
 from models.user_models import User
-from shared.contracts.auth import AuthMethod
-from shared.managers.cache_manager import CacheManager
-from shared.managers.token_manager import TokenManager
+from contracts.auth import AuthMethod
+from infrastructure.managers.cache_manager import CacheManager
+from infrastructure.managers.token_manager import TokenManager
 from settings import Settings
 
 

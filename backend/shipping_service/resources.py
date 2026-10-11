@@ -7,7 +7,7 @@ from faststream.rabbit import ExchangeType, RabbitBroker, RabbitExchange
 from starlette.requests import HTTPConnection
 
 from events_publisher.shipping_event_publisher import ShippingEventPublisher
-from shared.managers.database_session_manager import DatabaseSessionManager
+from infrastructure.managers.database_session_manager import DatabaseSessionManager
 from settings import Settings
 
 from service_config import logger, settings

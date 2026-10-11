@@ -80,6 +80,7 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "asyncpg" },
+    { name = "cryptography" },
     { name = "fastapi" },
     { name = "fastapi-mail" },
     { name = "faststream", extra = ["cli", "rabbit"] },
@@ -94,6 +95,7 @@ dependencies = [
     { name = "opentelemetry-sdk" },
     { name = "orjson" },
     { name = "passlib" },
+    { name = "prometheus-client" },
     { name = "prometheus-fastapi-instrumentator" },
     { name = "pydantic", extra = ["email"] },
     { name = "pydantic-settings" },
@@ -117,6 +119,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "asyncpg", specifier = ">=0.30.0" },
+    { name = "cryptography", specifier = ">=45.0" },
     { name = "fastapi", specifier = ">=0.136.3" },
     { name = "fastapi-mail", specifier = ">=1.5.0" },
     { name = "faststream", extras = ["cli", "rabbit"], specifier = ">=0.5.48" },
@@ -131,6 +134,7 @@ requires-dist = [
     { name = "opentelemetry-sdk", specifier = ">=1.29.0" },
     { name = "orjson", specifier = ">=3.11.1" },
     { name = "passlib", specifier = ">=1.7.4" },
+    { name = "prometheus-client", specifier = ">=0.21.0" },
     { name = "prometheus-fastapi-instrumentator", specifier = ">=7.1.0" },
     { name = "pydantic", extras = ["email"], specifier = ">=2.13.4" },
     { name = "pydantic-settings", specifier = ">=2.10.1" },

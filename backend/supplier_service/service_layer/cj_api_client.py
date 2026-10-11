@@ -7,7 +7,7 @@ from logging import Logger, getLogger
 from httpx import AsyncClient, HTTPStatusError, RequestError, Response
 
 from schemas.cj_webhook_schemas import CJProductSubscriptionResult, CJWebhookSettingsRequest
-from shared.resilience import CircuitBreaker, CircuitOpenError, RetryableError, RetryPolicy
+from infrastructure.resilience import CircuitBreaker, CircuitOpenError, RetryableError, RetryPolicy
 from settings import Settings
 
 

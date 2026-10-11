@@ -8,7 +8,7 @@ from fastapi.responses import JSONResponse
 
 from resources import get_supplier_api_resources, logger, settings, supplier_api_runtime
 from service_layer.cj_api_client import CJDropshippingAPIError
-from shared.app import ExceptionHandlerRegistry, ServiceDescriptor, utc_timestamp
+from infrastructure.app import ExceptionHandlerRegistry, ServiceDescriptor, utc_timestamp
 from utils.seed_database import seed_default_supplier_config
 
 DESCRIPTOR = ServiceDescriptor(

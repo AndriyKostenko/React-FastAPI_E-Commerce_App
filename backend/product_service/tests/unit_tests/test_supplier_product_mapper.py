@@ -5,8 +5,8 @@ from uuid import uuid4
 import pytest
 
 from service_layer.supplier_product_mapper import SupplierProductMapper
-from shared.contracts.supplier import GenericSupplierProduct, SupplierProductVariant
-from shared.utils.supplier_pricing import SupplierRetailPricing
+from contracts.supplier import GenericSupplierProduct, SupplierProductVariant
+from utils.supplier_pricing import SupplierRetailPricing
 from schemas.product_schemas import CreateProduct
 
 

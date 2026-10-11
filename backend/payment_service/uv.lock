@@ -1113,6 +1113,7 @@ dependencies = [
     { name = "aiocache" },
     { name = "alembic" },
     { name = "asyncpg" },
+    { name = "cryptography" },
     { name = "email-validator" },
     { name = "fastapi" },
     { name = "fastapi-mail" },
@@ -1129,6 +1130,7 @@ dependencies = [
     { name = "opentelemetry-sdk" },
     { name = "orjson" },
     { name = "passlib" },
+    { name = "prometheus-client" },
     { name = "prometheus-fastapi-instrumentator" },
     { name = "psycopg2-binary" },
     { name = "pydantic" },
@@ -1145,6 +1147,7 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "aio-pika" },
     { name = "greenlet" },
     { name = "httpx" },
     { name = "pytest" },
@@ -1157,6 +1160,7 @@ requires-dist = [
     { name = "aiocache", specifier = ">=0.12.3" },
     { name = "alembic", specifier = ">=1.17.1" },
     { name = "asyncpg", specifier = ">=0.30.0" },
+    { name = "cryptography", specifier = ">=45.0" },
     { name = "email-validator", specifier = ">=2.2.0" },
     { name = "fastapi", specifier = ">=0.136.3" },
     { name = "fastapi-mail", specifier = ">=1.5.0" },
@@ -1173,6 +1177,7 @@ requires-dist = [
     { name = "opentelemetry-sdk", specifier = ">=1.29.0" },
     { name = "orjson", specifier = ">=3.11.1" },
     { name = "passlib", specifier = ">=1.7.4" },
+    { name = "prometheus-client", specifier = ">=0.21.0" },
     { name = "prometheus-fastapi-instrumentator", specifier = ">=7.1.0" },
     { name = "psycopg2-binary", specifier = ">=2.9.10" },
     { name = "pydantic", specifier = ">=2.13.4" },
@@ -1189,6 +1194,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "aio-pika", specifier = ">=9.5" },
     { name = "greenlet", specifier = ">=3.0" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "pytest", specifier = ">=8.3.5" },

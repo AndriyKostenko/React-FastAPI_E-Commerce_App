@@ -12,8 +12,8 @@ import service_layer.cj_order_payment_service as payment_module
 from enums.cj_order_enums import CJOrderAttemptStatus
 from service_layer.cj_api_client import CJDropshippingAPIError
 from service_layer.cj_order_payment_service import CJOrderPaymentService, CJPaymentPending
-from shared.contracts.events import OrderConfirmedEvent
-from shared.enums.event_enums import OrderEvents
+from contracts.events import OrderConfirmedEvent
+from contracts.event_enums import OrderEvents
 
 
 CJ_ORDER = "CJ-2607"

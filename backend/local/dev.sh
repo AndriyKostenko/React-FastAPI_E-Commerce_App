@@ -131,7 +131,6 @@ wishlist-service|wishlist_service
 shipping-service|shipping_service
 notification-service|notification_service
 admin-js|admin-js-service
-shared-tests|shared
 EOF
 }
 
@@ -448,7 +447,7 @@ vault_identity_for_dir() {
 }
 
 # Point a Python process at its own Vault identity (call inside its subshell).
-# Settings read the secrets themselves (shared.vault.VaultSettingsSource).
+# Settings read the secrets themselves (each service's infrastructure.vault.VaultSettingsSource).
 export_vault_identity() {
   local name; name="$(vault_identity_for_dir "$1")"
   [ -n "$name" ] || return 0
@@ -682,7 +681,6 @@ service_env() {
   # Exported for every child: these two are read via os.getenv, not from .env.
   export OTEL_TRACES_DISABLED=true
   unset PROMETHEUS_MULTIPROC_DIR || true
-  export PYTHONPATH="$BACKEND_DIR${PYTHONPATH:+:$PYTHONPATH}"
   export PYTHONUNBUFFERED=1
   # Set here rather than in .env: a relative path would resolve against each
   # service's own cwd.
@@ -884,9 +882,9 @@ cmd_dlq() {
     replay)
       shift
       [ -n "${1:-}" ] || die "dlq replay: queue name required (see: dlq list)"
-      # Any service venv has aio-pika and the shared package; order-service's is used.
+      # The replay CLI lives in order-service (infrastructure/messaging/dead_letter_replay.py).
       (export_vault_identity order_service; cd "$BACKEND_DIR/order_service" && \
-        PYTHONPATH="$BACKEND_DIR" .venv/bin/python -m shared.messaging.dead_letter_replay "$@")
+        .venv/bin/python -m infrastructure.messaging.dead_letter_replay "$@")
       ;;
     *) die "dlq: list | replay <queue> [--to <queue>] [--limit N]" ;;
   esac

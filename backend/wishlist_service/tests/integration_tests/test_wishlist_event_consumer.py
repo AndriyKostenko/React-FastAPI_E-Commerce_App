@@ -3,7 +3,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from shared.enums.event_enums import UserEvents
+from contracts.event_enums import UserEvents
 from events_consumer.wishlist_event_consumer import WishlistEventConsumer
 from service_config import settings
 

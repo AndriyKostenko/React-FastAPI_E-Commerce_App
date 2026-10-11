@@ -27,11 +27,11 @@ from models.base import Base
 from models.cart_models import Cart, CartItem
 from service_layer.cart_services import CartService
 from schemas.cart_schemas import CartSchema, CartItemSchema, CartSummary
-from shared.managers.test_database_session_manager import TestDatabaseSessionManager
-from shared.testing.helpers import allow_testserver_host
+from infrastructure.managers.test_database_session_manager import TestDatabaseSessionManager
+from infrastructure.testing.helpers import allow_testserver_host
 from service_test_config import test_settings
 from settings import get_settings
-from shared.testing.signing_keys import EphemeralSigningKeys
+from infrastructure.testing.signing_keys import EphemeralSigningKeys
 
 # Throwaway gateway keys: the test clients' apps trust assertions signed
 # with these, exactly as a deployed service trusts the gateway's.

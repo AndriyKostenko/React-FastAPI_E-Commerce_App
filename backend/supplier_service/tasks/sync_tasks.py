@@ -7,7 +7,7 @@ from database_layer.supplier_sync_state_repository import SupplierSyncStateRepos
 from models.supplier_config_models import SupplierConfig
 from service_layer.outbox_event_service import OutboxEventService
 from service_layer.sync_orchestrator_service import SupplierSyncOrchestrator
-from shared.database_layer.outbox_repository import OutboxRepository
+from infrastructure.database_layer.outbox_repository import OutboxRepository
 from models.outbox_models import OutboxEvent
 from schemas.dropshipping_schemas import CJProductsFilterParams
 from resources import create_database_manager, logger, settings

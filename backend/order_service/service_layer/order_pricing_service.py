@@ -1,6 +1,6 @@
 from logging import getLogger
 
-from shared.auth.service_assertion import ServiceAssertionAuth
+from infrastructure.auth.service_assertion import ServiceAssertionAuth
 from decimal import Decimal, ROUND_HALF_UP
 from types import TracebackType
 from typing import Any, Self
@@ -10,18 +10,18 @@ from httpx import AsyncClient, HTTPStatusError, RequestError
 from pydantic import BaseModel
 
 from schemas.order_schemas import CreateOrder, ShippingOption
-from shared.contracts.order import CustomTshirtSpecification, FulfillmentType
-from shared.contracts.artwork import verify_artwork_asset
-from shared.contracts.tax import (
+from contracts.order import CustomTshirtSpecification, FulfillmentType
+from contracts.artwork import verify_artwork_asset
+from contracts.tax import (
     TaxAddress,
     TaxCalculationRequest,
     TaxCalculationResult,
     TaxLine,
 )
 from settings import Settings
-from shared.exceptions.base_exceptions import BaseAPIException
-from shared.utils.money import CENT, from_cents, to_cents
-from shared.utils.supplier_pricing import SupplierRetailPricing
+from infrastructure.exceptions.base_exceptions import BaseAPIException
+from utils.money import CENT, from_cents, to_cents
+from utils.supplier_pricing import SupplierRetailPricing
 
 _logger = getLogger("order-service.pricing")
 

@@ -1,5 +1,5 @@
 from models.base import Base
-from shared.models.outbox_events import OutboxEventMixin
+from infrastructure.models.outbox_events import OutboxEventMixin
 
 
 class OutboxEvent(OutboxEventMixin, Base):

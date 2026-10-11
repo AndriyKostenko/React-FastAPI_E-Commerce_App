@@ -38,19 +38,15 @@ dependencies = [
     "opentelemetry-instrumentation-redis>=0.50b0",
     "pyjwt[crypto]>=2.10",
     "webauthn>=2.7",
+    "prometheus-client>=0.21.0",
+    "cryptography>=45.0",
 ]
-
-[tool.uv.sources]
-shared = { path = "../shared", editable = true }
-
-[tool.pyright]
-extraPaths = [".."]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "session"
 testpaths = ["tests"]
-pythonpath = [".", ".."]
+pythonpath = ["."]
 filterwarnings = [
     "ignore::DeprecationWarning:passlib",
 ]

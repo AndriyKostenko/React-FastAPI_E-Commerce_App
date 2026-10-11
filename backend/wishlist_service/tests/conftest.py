@@ -30,13 +30,13 @@ from dependencies.dependencies import (
 from models.base import Base
 from models.wishlist_models import Wishlist, WishlistItem
 from service_layer.wishlist_service import WishlistService
-from shared.managers.test_database_session_manager import TestDatabaseSessionManager
+from infrastructure.managers.test_database_session_manager import TestDatabaseSessionManager
 from schemas.wishlist_schemas import WishlistSchema, WishlistItemSchema
-from shared.testing.helpers import allow_testserver_host
-from shared.utils.authenticated_caller import AuthenticatedCaller
+from infrastructure.testing.helpers import allow_testserver_host
+from infrastructure.utils.authenticated_caller import AuthenticatedCaller
 from service_test_config import test_settings
 from settings import get_settings
-from shared.testing.signing_keys import EphemeralSigningKeys
+from infrastructure.testing.signing_keys import EphemeralSigningKeys
 
 # Throwaway gateway keys: the test clients' apps trust assertions signed
 # with these, exactly as a deployed service trusts the gateway's.

@@ -1,5 +1,5 @@
 """
-The back office's read-only tables (shared.admin.admin_tables), exercised on
+The back office's read-only tables (infrastructure.admin.admin_tables), exercised on
 payment-service's disputes against the real test database: paging, newest
 first, declared filters only, detail, field schema, and the admin guard.
 """
@@ -11,8 +11,8 @@ import pytest
 from httpx import AsyncClient
 
 from models.payment_models import PaymentDispute
-from shared.managers.test_database_session_manager import TestDatabaseSessionManager
-from shared.testing.signing_keys import ANONYMOUS
+from infrastructure.managers.test_database_session_manager import TestDatabaseSessionManager
+from infrastructure.testing.signing_keys import ANONYMOUS
 from tests.conftest import SIGNING_KEYS
 from tests.constants import TEST_API
 

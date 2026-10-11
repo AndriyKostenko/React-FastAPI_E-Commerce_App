@@ -13,8 +13,8 @@ from messaging import (
     shipping_exchange,
 )
 from resources import OrderConsumerResources, create_consumer_resources
-from shared.enums.event_enums import OrderSagaResponseQueue
-from shared.messaging import ConsumerTopology
+from contracts.event_enums import OrderSagaResponseQueue
+from infrastructure.messaging import ConsumerTopology
 
 
 # Create the FastStream app

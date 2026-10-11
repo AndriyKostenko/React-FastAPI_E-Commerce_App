@@ -1,7 +1,7 @@
 """wishlist-service ASGI entrypoint.
 
 Assembly — middleware order, health probes, the Prometheus endpoint and the
-exception contract — lives in ``shared.app``; this module only states what is
+exception contract — lives in ``infrastructure.app``; this module only states what is
 specific to wishlist-service.
 """
 
@@ -11,7 +11,7 @@ from app_config import DESCRIPTOR, resolve_resources, wishlist_service_lifespan
 from resources import WishlistApiResources
 from service_config import logger, settings
 from routes.wishlist_routes import wishlist_routes
-from shared.app import DatabaseEngineProbe, ServiceAppBuilder
+from infrastructure.app import DatabaseEngineProbe, ServiceAppBuilder
 
 app = (
     ServiceAppBuilder[WishlistApiResources](DESCRIPTOR, settings=settings, logger=logger)

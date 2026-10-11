@@ -10,7 +10,7 @@ from database_layer.order_fulfillment_repository import (
     OrderLineFulfillmentRepository,
 )
 from database_layer.order_item_repository import OrderItemRepository
-from shared.database_layer.outbox_repository import OutboxRepository
+from infrastructure.database_layer.outbox_repository import OutboxRepository
 from service_layer.order_service import OrderService
 from service_layer.order_item_service import OrderItemService
 from service_layer.order_address_service import OrderAddressService
@@ -24,7 +24,7 @@ from models.outbox_models import OutboxEvent
 from database_layer.order_repository import OrderRepository
 from config import settings
 from resources import OrderApiResources, get_order_api_resources
-from shared.utils.authenticated_caller import AuthenticatedCaller
+from infrastructure.utils.authenticated_caller import AuthenticatedCaller
 from database_layer.order_refund_repository import OrderRefundRepository
 from service_layer.order_refund_service import OrderRefundService
 from database_layer.order_saga_repository import OrderSagaRepository

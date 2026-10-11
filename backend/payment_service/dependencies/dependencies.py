@@ -5,12 +5,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import Depends, Request
 
 from database_layer.payment_repository import PaymentRepository
-from shared.database_layer.outbox_repository import OutboxRepository
+from infrastructure.database_layer.outbox_repository import OutboxRepository
 from service_layer.payment_service import PaymentService
 from service_layer.outbox_event_service import OutboxEventService
 from models.outbox_models import OutboxEvent
 from resources import PaymentApiResources, get_payment_api_resources
-from shared.idempotency.idempotency_service import IdempotencyEventService
+from infrastructure.idempotency.idempotency_service import IdempotencyEventService
 from database_layer.payment_repository import PaymentDisputeRepository, PaymentRefundRepository
 from service_layer.payment_dispute_service import PaymentDisputeService
 from service_layer.stripe_refund_webhook_service import StripeRefundWebhookService
