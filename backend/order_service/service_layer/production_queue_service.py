@@ -20,15 +20,15 @@ from service_layer.artwork_asset_client import ArtworkAssetClient, ArtworkDownlo
 from service_layer.order_fulfillment_status_service import OrderFulfillmentStatusService
 from service_layer.outbox_event_service import OutboxEventService
 from service_layer.packing_slip_service import PackingSlipBuilder
-from shared.contracts.events import (
+from contracts.events import (
     ProductionJobCancelledEvent,
     ProductionJobDeliveredEvent,
     ProductionJobPrintedEvent,
     ProductionJobShippedEvent,
     ProductionJobStartedEvent,
 )
-from shared.enums.event_enums import ProductionEvents
-from shared.enums.services_enums import Services
+from contracts.event_enums import ProductionEvents
+from contracts.services_enums import Services
 from enums.status_enums import LineFulfillmentStatus, ProductionJobStatus
 from exceptions.order_exceptions import InvalidOrderRefundError, OrderRefundNotAllowedError
 from schemas.order_refund_schemas import OrderRefundSchema, RefundLineRequest, RefundRequest

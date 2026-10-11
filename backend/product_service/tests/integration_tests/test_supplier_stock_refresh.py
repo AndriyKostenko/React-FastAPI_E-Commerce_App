@@ -17,8 +17,8 @@ from sqlalchemy.orm import selectinload
 from event_consumer.product_event_consumer import ProductEventConsumer
 from models.product_models import Product
 from resources import settings
-from shared.contracts.events import SupplierProductsFetchedEvent, SupplierStockUpdatedEvent
-from shared.contracts.supplier import GenericSupplierProduct, SupplierProductVariant, SupplierStockLevel
+from contracts.events import SupplierProductsFetchedEvent, SupplierStockUpdatedEvent
+from contracts.supplier import GenericSupplierProduct, SupplierProductVariant, SupplierStockLevel
 from shared.testing.signing_keys import ANONYMOUS, EphemeralSigningKeys
 from tests.conftest import DEFAULT_CALLER, SIGNING_KEYS, TEST_API
 

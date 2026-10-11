@@ -6,8 +6,8 @@ from service_layer.cj_inventory_verifier import CJDropshippingInventoryVerifier,
 from service_layer.cj_to_supplier_mapper import CJToSupplierMapper
 from service_layer.supplier_provider import SupplierProvider, WarehouseStock
 from schemas.dropshipping_schemas import CJProductsFilterParams
-from shared.contracts.shipping_region import CJ_WAREHOUSE_COUNTRY_CODE
-from shared.contracts.supplier import GenericSupplierProduct
+from contracts.shipping_region import CJ_WAREHOUSE_COUNTRY_CODE
+from contracts.supplier import GenericSupplierProduct
 from schemas.supplier_schemas import SupplierProductsPage
 from settings import Settings
 

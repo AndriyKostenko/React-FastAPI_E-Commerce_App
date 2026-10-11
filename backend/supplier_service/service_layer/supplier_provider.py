@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from schemas.dropshipping_schemas import CJProductsFilterParams
-from shared.contracts.supplier import GenericSupplierProduct
+from contracts.supplier import GenericSupplierProduct
 from schemas.supplier_schemas import SupplierProductsPage
 
 

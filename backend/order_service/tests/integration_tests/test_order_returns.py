@@ -20,7 +20,7 @@ from main import app
 from models.order_refund_models import OrderRefund
 from models.outbox_models import OutboxEvent
 from service_layer.order_fulfillment_status_service import OrderFulfillmentStatusService
-from shared.enums.event_enums import OrderEvents, PaymentCommands
+from contracts.event_enums import OrderEvents, PaymentCommands
 from enums.status_enums import LineFulfillmentStatus
 from shared.managers.test_database_session_manager import TestDatabaseSessionManager
 from shared.testing.signing_keys import ANONYMOUS

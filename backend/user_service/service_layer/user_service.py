@@ -21,7 +21,7 @@ from schemas.user_schemas import (
     UserBasicUpdate,
     UsersFilterParams,
 )
-from shared.contracts.events import (
+from contracts.events import (
     UserRegisteredEvent,
     UserLoginEvent,
     PasswordResetRequestedEvent,
@@ -32,7 +32,7 @@ from shared.contracts.events import (
 from shared.contracts.auth import AuthMethod
 from settings import Settings
 from shared.managers.cache_manager import CacheManager
-from shared.enums.event_enums import UserEvents
+from contracts.event_enums import UserEvents
 from exceptions.user_exceptions import (
     UserAlreadyExistsError,
     UserNotFoundError,

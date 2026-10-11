@@ -10,8 +10,8 @@ from models.outbox_models import OutboxEvent
 from models.product_models import Product
 from models.supplier_import_models import SupplierImportBatch
 from resources import settings
-from shared.contracts.events import SupplierProductsFetchedEvent
-from shared.contracts.supplier import GenericSupplierProduct, SupplierProductVariant
+from contracts.events import SupplierProductsFetchedEvent
+from contracts.supplier import GenericSupplierProduct, SupplierProductVariant
 
 
 async def test_supplier_batch_is_atomic_idempotent_and_reconciles_children(

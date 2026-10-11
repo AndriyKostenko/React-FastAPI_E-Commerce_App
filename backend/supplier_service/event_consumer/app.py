@@ -4,7 +4,7 @@ from faststream import FastStream
 from faststream.rabbit import ExchangeType, RabbitBroker, RabbitExchange
 from faststream.rabbit.annotations import RabbitMessage
 
-from shared.enums.event_enums import OrderEvents, ProductSupplierEventsQueue
+from contracts.event_enums import OrderEvents, ProductSupplierEventsQueue
 from shared.messaging import ConsumerTopology
 from event_consumer.supplier_event_consumer import SupplierEventConsumer
 from resources import (

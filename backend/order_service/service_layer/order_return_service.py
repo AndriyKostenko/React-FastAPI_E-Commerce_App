@@ -35,14 +35,14 @@ from service_layer.return_evidence_storage import (
 )
 from service_layer.return_policy import ReturnPolicies
 from shared.auth.route_guards import ensure_owner_or_admin
-from shared.contracts.events import OrderReturnEvent
-from shared.contracts.returns import (
+from contracts.events import OrderReturnEvent
+from contracts.returns import (
     ReturnFault,
     ReturnLineSummary,
     ReturnReason,
     ReturnStatus,
 )
-from shared.enums.event_enums import OrderEvents
+from contracts.event_enums import OrderEvents
 from enums.status_enums import LineFulfillmentStatus, OrderStatus
 from settings import Settings
 from shared.utils.authenticated_caller import AuthenticatedCaller

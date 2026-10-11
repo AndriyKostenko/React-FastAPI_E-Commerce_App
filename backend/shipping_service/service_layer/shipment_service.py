@@ -7,13 +7,13 @@ from sqlalchemy.exc import IntegrityError
 from database_layer.shipping_repository import ShipmentRepository, ShippingMethodRepository
 from events_publisher.shipping_event_publisher import ShippingEventPublisher
 from service_layer.outbox_event_service import OutboxEventService
-from shared.contracts.events import (
+from contracts.events import (
     ShipmentCancelledEvent,
     ShipmentCreatedEvent,
     ShipmentDeliveredEvent,
     ShipmentShippedEvent,
 )
-from shared.enums.event_enums import ShippingEvents
+from contracts.event_enums import ShippingEvents
 from exceptions.shipping_exceptions import (
     DuplicateShipmentError,
     InvalidShipmentStatusError,

@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 
-from shared.contracts.artwork import GeneratedArtworkAsset
+from contracts.artwork import GeneratedArtworkAsset
 
 
 class ArtworkDownloadRequest(BaseModel):

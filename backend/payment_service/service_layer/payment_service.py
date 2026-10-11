@@ -23,16 +23,16 @@ from exceptions.payment_exceptions import (
     PaymentCaptureError,
     PaymentDataIsNotProvided
 )
-from shared.contracts.events import (
+from contracts.events import (
     PaymentAuthorizedEvent,
     PaymentSucceededEvent,
     PaymentRefundedEvent,
     PaymentCancelledEvent,
     RefundScope,
 )
-from shared.enums.event_enums import PaymentEvents
+from contracts.event_enums import PaymentEvents
 from enums.status_enums import PaymentStatus
-from shared.enums.services_enums import Services
+from contracts.services_enums import Services
 from schemas.payment_schemas import PaymentResponse
 from settings import Settings
 

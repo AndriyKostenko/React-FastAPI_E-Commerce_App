@@ -5,7 +5,7 @@ from uuid import uuid4
 import pytest
 
 from events_consumer.order_event_consumer import OrderEventConsumer
-from shared.enums.event_enums import OrderEvents
+from contracts.event_enums import OrderEvents
 from enums.status_enums import OrderStatus
 
 
@@ -108,7 +108,7 @@ def _payment_message(event_cls, **overrides) -> dict:
 class TestPaymentHeldWithoutOrder:
     async def test_authorization_for_unknown_order_requests_release(self):
         from exceptions.order_exceptions import OrderNotFoundError
-        from shared.contracts.events import PaymentAuthorizedEvent
+        from contracts.events import PaymentAuthorizedEvent
 
         consumer, order_service = _make_consumer()
         order_service.record_payment_authorized = AsyncMock(
@@ -128,7 +128,7 @@ class TestPaymentHeldWithoutOrder:
 
     async def test_capture_for_unknown_order_requests_release(self):
         from exceptions.order_exceptions import OrderNotFoundError
-        from shared.contracts.events import PaymentSucceededEvent
+        from contracts.events import PaymentSucceededEvent
 
         consumer, order_service = _make_consumer()
         order_service.record_payment_captured = AsyncMock(
@@ -143,7 +143,7 @@ class TestPaymentHeldWithoutOrder:
 
 class TestCJOrderPaid:
     async def test_routes_cj_order_paid_to_saga(self):
-        from shared.contracts.events import CJOrderPaidEvent
+        from contracts.events import CJOrderPaidEvent
 
         consumer, order_service = _make_consumer()
         order_service.record_cj_order_paid = AsyncMock()

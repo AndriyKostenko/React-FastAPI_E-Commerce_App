@@ -10,9 +10,9 @@ from models.supplier_sync_state_models import SupplierSyncState
 from service_layer.outbox_event_service import OutboxEventService
 from service_layer.supplier_provider import SupplierProvider
 from schemas.dropshipping_schemas import CJProductsFilterParams
-from shared.contracts.shipping_region import CJ_WAREHOUSE_COUNTRY_CODE
-from shared.contracts.events import SupplierProductsFetchedEvent
-from shared.contracts.supplier import GenericSupplierProduct
+from contracts.shipping_region import CJ_WAREHOUSE_COUNTRY_CODE
+from contracts.events import SupplierProductsFetchedEvent
+from contracts.supplier import GenericSupplierProduct
 from settings import Settings
 from exceptions.cj_order_exceptions import (
     ProviderNotFoundError,

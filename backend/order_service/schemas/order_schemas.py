@@ -5,9 +5,9 @@ from typing import Any, Optional
 
 from pydantic import BaseModel, PositiveFloat, PositiveInt, ConfigDict, EmailStr, Field, computed_field, model_validator
 
-from shared.contracts.order import CustomTshirtSpecification, FulfillmentType
-from shared.contracts.shipping_region import CanadianAddress, NotShippableError
-from shared.utils.money import to_cents
+from contracts.order import CustomTshirtSpecification, FulfillmentType
+from contracts.shipping_region import CanadianAddress, NotShippableError
+from utils.money import to_cents
 
 
 class ShippingOption(BaseModel):

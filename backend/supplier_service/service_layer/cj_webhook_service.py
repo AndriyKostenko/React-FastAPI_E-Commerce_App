@@ -27,9 +27,9 @@ from schemas.cj_webhook_schemas import CJStockParams, CJStockRow, CJWebhookMessa
 from service_layer.cj_webhook_signature import CJWebhookSignature, InvalidCJWebhookSignature
 from service_layer.outbox_event_service import OutboxEventService
 from service_layer.supplier_provider import WarehouseStock
-from shared.contracts.events import SupplierStockUpdatedEvent
-from shared.contracts.shipping_region import CJ_WAREHOUSE_COUNTRY_CODE
-from shared.contracts.supplier import SupplierStockLevel
+from contracts.events import SupplierStockUpdatedEvent
+from contracts.shipping_region import CJ_WAREHOUSE_COUNTRY_CODE
+from contracts.supplier import SupplierStockLevel
 from settings import Settings
 
 

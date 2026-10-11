@@ -4,7 +4,7 @@ from uuid import UUID
 from sqlalchemy.exc import IntegrityError
 
 from config import logger
-from shared.utils.money import to_cents
+from utils.money import to_cents
 
 from database_layer.order_fulfillment_repository import (
     CustomProductionJobRepository,
@@ -39,7 +39,7 @@ from service_layer.order_pricing_service import (
     OrderQuoteError,
 )
 from service_layer.outbox_event_service import OutboxEventService
-from shared.contracts.events import (
+from contracts.events import (
     ArtworkReleasedEvent,
     ArtworkRetainedEvent,
     InventoryReleaseRequested,
@@ -50,13 +50,13 @@ from shared.contracts.events import (
     PaymentCaptureRequested,
     PaymentReleaseRequested,
 )
-from shared.enums.event_enums import (
+from contracts.event_enums import (
     ArtworkEvents,
     InventoryEvents,
     OrderEvents,
     PaymentCommands,
 )
-from shared.enums.services_enums import Services
+from contracts.services_enums import Services
 from enums.status_enums import (
     LineFulfillmentStatus,
     OrderDeliveryStatus,

@@ -17,7 +17,7 @@ from httpx import AsyncClient
 from fastapi import status
 
 from settings import get_test_settings
-from shared.enums.event_enums import UserEvents
+from contracts.event_enums import UserEvents
 from tests.conftest import SIGNING_KEYS, as_gateway
 from shared.testing.signing_keys import EphemeralSigningKeys
 

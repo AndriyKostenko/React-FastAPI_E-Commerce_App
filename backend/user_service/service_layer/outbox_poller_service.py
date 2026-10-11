@@ -1,7 +1,7 @@
 from typing import Any
 
 from shared.outbox import OutboxRelay
-from shared.enums.event_enums import UserEvents
+from contracts.event_enums import UserEvents
 from events_publisher.user_events_publisher import UserEventPublisher
 from models.outbox_models import OutboxEvent
 from managers import UserOutboxResources

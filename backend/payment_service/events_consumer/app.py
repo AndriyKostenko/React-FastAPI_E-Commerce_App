@@ -7,7 +7,7 @@ from config import logger, settings
 from events_consumer.payment_event_consumer import PaymentEventConsumer
 from messaging import create_rabbitmq_broker, order_exchange
 from resources import PaymentConsumerResources, create_consumer_resources
-from shared.enums.event_enums import OrderEvents
+from contracts.event_enums import OrderEvents
 from shared.messaging import ConsumerTopology
 
 

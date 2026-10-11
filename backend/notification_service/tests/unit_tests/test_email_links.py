@@ -10,7 +10,7 @@ from uuid import uuid4
 
 import pytest
 
-from shared.contracts.events import (
+from contracts.events import (
     EmailVerificationEvent,
     OrderCreatedEvent,
     OrderDeliveredBaseEvent,

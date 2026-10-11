@@ -10,7 +10,7 @@ from jinja2 import Environment, FileSystemLoader, TemplateNotFound, select_autoe
 from email_service.email_links import EmailLinks
 from shared.exceptions.base_exceptions import EmailServiceError
 from settings import Settings
-from shared.contracts.events import (
+from contracts.events import (
     PaymentDisputeEvent,
     EmailVerificationEvent,
     UserRegisteredEvent,
@@ -25,7 +25,7 @@ from shared.contracts.events import (
     OrderReturnEvent,
     ProductionJobCancelledEvent,
 )
-from shared.enums.event_enums import OrderEvents
+from contracts.event_enums import OrderEvents
 
 # The email templates ship with this service, next to the code that renders them.
 TEMPLATES_DIR: Path = Path(__file__).parent / "templates"

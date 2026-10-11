@@ -18,7 +18,7 @@ from dependencies.dependencies import (
 )
 from shared.auth.route_guards import AdminDep, CallerDep, ensure_owner_or_admin
 from shared.auth.service_assertion import require_service
-from shared.contracts.tax import TaxCalculationRequest, TaxCalculationResult
+from contracts.tax import TaxCalculationRequest, TaxCalculationResult
 
 # Called by order-service directly while it prices an order; only a request
 # order-service signed with its own key is accepted.

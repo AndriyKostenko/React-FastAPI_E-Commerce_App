@@ -10,7 +10,7 @@ from decimal import ROUND_CEILING, ROUND_HALF_UP, Decimal
 from logging import Logger
 from typing import Protocol, Self
 
-from shared.utils.exchange_rates import usd_cad_rate
+from utils.exchange_rates import usd_cad_rate
 
 
 CENT = Decimal("0.01")
@@ -43,7 +43,7 @@ class SupplierRetailPricing:
 
     @classmethod
     async def live(cls, settings: _PricingSettings, logger: Logger) -> Self:
-        """Pricing at today's USD/CAD rate (see ``shared.utils.exchange_rates``)."""
+        """Pricing at today's USD/CAD rate (see ``utils.exchange_rates``)."""
         rate = await usd_cad_rate(logger).current(
             fallback=settings.CJ_USD_TO_CAD_RATE,
             source=settings.CJ_FX_SOURCE,  # type: ignore[arg-type]

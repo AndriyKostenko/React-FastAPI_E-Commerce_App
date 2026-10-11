@@ -26,7 +26,7 @@ from models.product_variant_models import ProductVariant
 from models.inventory_reservation_models import InventoryReservation
 from service_layer.category_service import CategoryService
 from service_layer.product_image_service import ProductImageService
-from shared.contracts.order import OrderItem as OrderItemBase
+from contracts.order import OrderItem as OrderItemBase
 from schemas.product_schemas import (
     CreateProduct,
     CreateProductVariant,

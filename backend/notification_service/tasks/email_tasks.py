@@ -2,7 +2,7 @@ from typing import Any
 
 from resources import logger, settings
 from email_service.email_service import AdminAlerts, OrderRelatedNotifications, UserRelatedNotifications
-from shared.contracts.events import (
+from contracts.events import (
     PaymentDisputeEvent,
     OrderReturnEvent,
     UserRegisteredEvent,
@@ -20,7 +20,7 @@ from shared.contracts.events import (
     ProductionJobDeliveredEvent,
     ProductionJobShippedEvent,
 )
-from shared.enums.event_enums import ProductionEvents
+from contracts.event_enums import ProductionEvents
 from .broker import taskiq_broker
 
 

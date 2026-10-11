@@ -3,7 +3,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, PositiveInt, model_validator
 
-from shared.contracts.returns import ReturnFault, ReturnReason, ReturnStatus
+from contracts.returns import ReturnFault, ReturnReason, ReturnStatus
 
 
 class ReturnLineRequest(BaseModel):

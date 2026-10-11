@@ -11,7 +11,7 @@ from service_layer.order_address_service import OrderAddressService
 from service_layer.order_fulfillment_status_service import OrderFulfillmentStatusService
 from service_layer.order_item_service import OrderItemService
 from schemas.order_schemas import UpdateOrder
-from shared.contracts.events import (
+from contracts.events import (
     CJOrderCreatedEvent,
     CJOrderDeliveredEvent,
     CJOrderFailedEvent,
@@ -37,7 +37,7 @@ from service_layer.outbox_event_service import OutboxEventService
 from models.outbox_models import OutboxEvent
 from shared.idempotency.idempotency_service import IdempotencyEventService
 from shared.managers.database_session_manager import DatabaseSessionManager
-from shared.enums.event_enums import InventoryEvents, OrderEvents, PaymentEvents, ShippingEvents
+from contracts.event_enums import InventoryEvents, OrderEvents, PaymentEvents, ShippingEvents
 from exceptions.order_exceptions import OrderNotFoundError, OrderNotCancellableError
 from database_layer.order_refund_repository import OrderRefundRepository
 from service_layer.order_refund_service import OrderRefundService

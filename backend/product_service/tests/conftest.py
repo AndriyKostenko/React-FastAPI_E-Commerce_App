@@ -75,7 +75,7 @@ from schemas.category_schema import CategorySchema
 from schemas.review_schemas import ReviewSchema
 from schemas.product_image_schema import ImageType
 from schemas.image_generation_schema import GenerateImageResponse, ImageGenerationJobStatusResponse
-from shared.contracts.artwork import GeneratedArtworkAsset
+from contracts.artwork import GeneratedArtworkAsset
 
 
 from shared.testing.helpers import allow_testserver_host

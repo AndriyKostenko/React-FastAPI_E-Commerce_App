@@ -6,14 +6,14 @@ from faststream.rabbit import RabbitBroker, RabbitExchange
 
 from shared.events.event_publisher import BaseEventPublisher
 from settings import Settings
-from shared.contracts.events import (
+from contracts.events import (
     InventoryReserveSucceeded,
     InventoryReserveFailed,
     SupplierProductImportCompletedEvent,
     SupplierProductImportFailedEvent,
 )
-from shared.contracts.order import OrderItem as OrderItemBase
-from shared.enums.event_enums import SupplierEvents
+from contracts.order import OrderItem as OrderItemBase
+from contracts.event_enums import SupplierEvents
 
 
 class ProductEventPublisher(BaseEventPublisher):

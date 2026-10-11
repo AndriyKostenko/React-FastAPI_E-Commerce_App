@@ -22,8 +22,8 @@ from service_layer.outbox_event_service import OutboxEventService
 from service_layer.payment_refund_service import PaymentRefundService, RefundStatus
 from service_layer.payment_service import PaymentService
 from service_layer.tax_service import TaxCalculationService, TaxLocationInvalidError
-from shared.contracts.events import PaymentRefundRequested
-from shared.contracts.tax import TaxAddress, TaxCalculationRequest, TaxLine
+from contracts.events import PaymentRefundRequested
+from contracts.tax import TaxAddress, TaxCalculationRequest, TaxLine
 from shared.database_layer.outbox_repository import OutboxRepository
 from enums.status_enums import PaymentStatus
 from shared.managers.test_database_session_manager import TestDatabaseSessionManager

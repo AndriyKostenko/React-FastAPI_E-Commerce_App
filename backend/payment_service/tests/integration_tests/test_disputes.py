@@ -14,7 +14,7 @@ from models.payment_models import Payment, PaymentDispute
 from service_layer.outbox_event_service import OutboxEventService
 from service_layer.payment_dispute_service import PaymentDisputeService
 from shared.database_layer.outbox_repository import OutboxRepository
-from shared.enums.event_enums import PaymentEvents
+from contracts.event_enums import PaymentEvents
 from enums.status_enums import PaymentStatus
 from shared.managers.test_database_session_manager import TestDatabaseSessionManager
 

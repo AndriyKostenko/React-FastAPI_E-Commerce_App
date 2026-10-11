@@ -3,7 +3,7 @@ import pytest
 
 from exceptions.cj_order_exceptions import CJAddressValidationError
 from service_layer.cj_address_validator import CJShippingAddressValidator
-from shared.contracts.order import ConfirmedOrderAddress
+from contracts.order import ConfirmedOrderAddress
 from settings import get_settings
 
 

@@ -17,9 +17,12 @@ stocks and ships every CJ product by ``CJ_WAREHOUSE_COUNTRY_CODE``.
 import re
 from dataclasses import dataclass
 
+
 SHIPPING_COUNTRY_CODE = "CA"
+
+
 SHIPPING_COUNTRY_NAME = "Canada"
-CJ_WAREHOUSE_COUNTRY_CODE = "CN"
+
 
 # ISO 3166-2:CA codes. The names are matched case-insensitively, with the
 # French names Quebec is commonly written with.
@@ -38,6 +41,8 @@ PROVINCES: dict[str, str] = {
     "SK": "Saskatchewan",
     "YT": "Yukon",
 }
+
+
 _PROVINCE_ALIASES: dict[str, str] = {
     **{name.lower(): code for code, name in PROVINCES.items()},
     "québec": "QC",
@@ -45,7 +50,10 @@ _PROVINCE_ALIASES: dict[str, str] = {
     "yukon territory": "YT",
     "pei": "PE",
 }
+
+
 _COUNTRY_NAMES = {"canada", "ca", "can"}
+
 
 # A1A 1A1. D, F, I, O, Q and U never appear, and W and Z never lead.
 _POSTAL_CODE = re.compile(r"^([ABCEGHJ-NPRSTVXY]\d[ABCEGHJ-NPRSTV-Z])\s?-?\s?(\d[ABCEGHJ-NPRSTV-Z]\d)$")

@@ -5,7 +5,7 @@ from faststream.rabbit import RabbitBroker, RabbitExchange
 
 from settings import Settings
 from shared.events.event_publisher import BaseEventPublisher
-from shared.contracts.events import (
+from contracts.events import (
     ShipmentCreatedEvent,
     ShipmentShippedEvent,
     ShipmentDeliveredEvent,

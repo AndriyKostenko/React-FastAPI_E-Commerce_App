@@ -4,8 +4,8 @@ from logging import Logger
 
 from shared.idempotency.idempotency_service import IdempotencyEventService
 from shared.managers.database_session_manager import DatabaseSessionManager
-from shared.enums.event_enums import OrderEvents, PaymentCommands
-from shared.contracts.events import (
+from contracts.event_enums import OrderEvents, PaymentCommands
+from contracts.events import (
     PaymentRefundRequested,
     OrderCancelledEvent,
     PaymentCaptureRequested,

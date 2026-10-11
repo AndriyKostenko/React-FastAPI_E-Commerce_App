@@ -11,14 +11,14 @@ import pytest
 
 from event_publisher.supplier_event_publisher import SupplierEventPublisher
 from service_layer.outbox_poller_service import build_outbox_relay
-from shared.contracts.events import (
+from contracts.events import (
     CJOrderCreatedEvent,
     CJOrderDeliveredEvent,
     CJOrderFailedEvent,
     CJOrderPaidEvent,
     CJOrderShippedEvent,
 )
-from shared.enums.event_enums import OrderEvents, SupplierEvents
+from contracts.event_enums import OrderEvents, SupplierEvents
 from settings import get_settings
 
 
@@ -130,8 +130,8 @@ class TestOutboxRoundTrip:
         """The hourly refresh's batch rebuilds from its stored row and ships on the supplier exchange."""
         from datetime import datetime, timezone
 
-        from shared.contracts.events import SupplierStockUpdatedEvent
-        from shared.contracts.supplier import SupplierStockLevel
+        from contracts.events import SupplierStockUpdatedEvent
+        from contracts.supplier import SupplierStockLevel
 
         publisher = _make_publisher()
         event = SupplierStockUpdatedEvent(

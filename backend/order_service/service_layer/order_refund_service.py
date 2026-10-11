@@ -14,11 +14,11 @@ from models.order_models import Order
 from models.order_refund_models import OrderRefund
 from schemas.order_refund_schemas import OrderRefundSchema, RefundLineRequest, RefundRequest
 from service_layer.outbox_event_service import OutboxEventService
-from shared.contracts.events import PaymentRefundRequested
-from shared.enums.event_enums import PaymentCommands
-from shared.enums.services_enums import Services
+from contracts.events import PaymentRefundRequested
+from contracts.event_enums import PaymentCommands
+from contracts.services_enums import Services
 from enums.status_enums import OrderStatus
-from shared.utils.money import CENT, to_cents
+from utils.money import CENT, to_cents
 
 
 class RefundState(StrEnum):

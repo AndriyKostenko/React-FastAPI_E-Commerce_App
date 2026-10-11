@@ -5,7 +5,7 @@ from dependencies.auth_dependencies import (get_current_user,
                                             require_user_or_admin)
 from resources import api_gateway_manager
 from shared.utils.customized_json_response import JSONResponse
-from shared.enums.services_enums import Services
+from contracts.services_enums import Services
 from shared.contracts.auth import TokenClaims as CurrentUserInfo
 
 

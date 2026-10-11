@@ -5,7 +5,7 @@ from httpx import AsyncClient, HTTPStatusError, RequestError
 
 from shared.auth.service_assertion import ServiceAssertionAuth
 from schemas.product_catalogue_schemas import ProductWithVariants
-from shared.contracts.supplier import SupplierStockKey
+from contracts.supplier import SupplierStockKey
 from settings import Settings
 
 

@@ -29,8 +29,8 @@ from service_layer.cj_inventory_verifier import CJDropshippingInventoryVerifier
 from service_layer.cj_order_payload_builder import CJOrderPayloadBuilder
 from service_layer.outbox_event_service import OutboxEventService
 from service_layer.product_service_client import ProductServiceClient
-from shared.enums.event_enums import OrderEvents, SupplierEvents
-from shared.contracts.events import (
+from contracts.event_enums import OrderEvents, SupplierEvents
+from contracts.events import (
     CJOrderCreatedEvent,
     CJOrderFailedEvent,
     OrderCancelledEvent,
@@ -41,7 +41,7 @@ from shared.contracts.events import (
 from shared.idempotency.idempotency_service import IdempotencyEventService
 from shared.managers.database_session_manager import DatabaseSessionManager
 from settings import Settings
-from shared.utils.supplier_pricing import SupplierRetailPricing
+from utils.supplier_pricing import SupplierRetailPricing
 
 
 class SupplierEventConsumer:

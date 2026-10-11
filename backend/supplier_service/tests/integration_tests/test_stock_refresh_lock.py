@@ -15,7 +15,7 @@ import pytest
 
 from service_layer.cj_api_client import CJDropshippingAPIError
 from service_layer.cj_stock_refresh_service import CJStockRefreshService
-from shared.contracts.supplier import SupplierStockKey
+from contracts.supplier import SupplierStockKey
 from shared.managers.test_database_session_manager import TestDatabaseSessionManager
 from settings import get_settings
 

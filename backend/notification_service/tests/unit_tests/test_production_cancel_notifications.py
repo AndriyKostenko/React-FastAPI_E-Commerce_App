@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 from events_consumer.event_handlers import ProductionEventHandler
-from shared.contracts.events import ProductionJobCancelledEvent
+from contracts.events import ProductionJobCancelledEvent
 from email_service.email_service import OrderRelatedNotifications
 from settings import get_settings
 from tests.unit_tests.test_event_handlers import _make_handler

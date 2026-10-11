@@ -3,7 +3,7 @@ from decimal import Decimal
 
 import pytest
 
-from shared.utils.supplier_pricing import SupplierRetailPricing
+from utils.supplier_pricing import SupplierRetailPricing
 
 
 @pytest.fixture

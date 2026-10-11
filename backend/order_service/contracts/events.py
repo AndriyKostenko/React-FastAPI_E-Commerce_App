@@ -5,11 +5,10 @@ from enum import StrEnum
 
 from pydantic import BaseModel, EmailStr, PositiveFloat, PositiveInt, Field, model_validator
 
-from shared.contracts.order import ConfirmedOrderAddress, ConfirmedOrderItem, OrderItem
-from shared.contracts.returns import ReturnFault, ReturnLineSummary, ReturnReason
-from shared.contracts.supplier import GenericSupplierProduct, SupplierStockLevel
-from shared.enums.services_enums import Services
-from shared.enums.event_enums import (
+from contracts.order import ConfirmedOrderAddress, ConfirmedOrderItem, OrderItem
+from contracts.returns import ReturnFault, ReturnLineSummary, ReturnReason
+from contracts.services_enums import Services
+from contracts.event_enums import (
     ArtworkEvents,
     InventoryEvents,
     OrderEvents,
@@ -17,10 +16,8 @@ from shared.enums.event_enums import (
     PaymentEvents,
     ProductionEvents,
     ShippingEvents,
-    SupplierEvents,
-    UserEvents,
-    WishlistEvents,
 )
+
 
 class BaseEvent(BaseModel):
     """Base class for all events"""
@@ -31,49 +28,6 @@ class BaseEvent(BaseModel):
     schema_version: int = 1
     correlation_id: UUID = Field(default_factory=uuid4)
 
-# ============== USER SAGA EVENTS ==============
-class UserBaseEvent(BaseEvent):
-    service: str = Field(default_factory=lambda: Services.USER_SERVICE)
-    user_email: EmailStr
-    user_id: UUID | None = None
-
-class UserRegisteredEvent(UserBaseEvent):
-    """Event published when a user registers"""
-    event_type: str = Field(default_factory=lambda: UserEvents.USER_REGISTERED)
-    token: str
-
-class UserRegistrationFailedEvent(UserBaseEvent):
-    """Event published when a user registration failed"""
-    event_type: str = Field(default_factory=lambda: UserEvents.USER_REGISTRATION_FAILED)
-
-
-class UserLoginEvent(UserBaseEvent):
-    """Event published when a user logs in"""
-    event_type: str = Field(default_factory=lambda: UserEvents.USER_LOGGED_IN)
-
-class PasswordResetRequestedEvent(UserBaseEvent):
-    """Event published when password reset is requested"""
-    event_type: str = Field(default_factory=lambda: UserEvents.USER_PASSWORD_RESET_REQUEST)
-    reset_token: str
-
-class PasswordResetSuccessEvent(UserBaseEvent):
-    """Event published when pussword reset success"""
-    event_type: str = Field(default_factory=lambda: UserEvents.USER_PASSWORD_RESET_SUCCESS)
-
-class EmailVerificationRequestedEvent(UserBaseEvent):
-    """Event published when email verification is requested"""
-    event_type: str = Field(default_factory=lambda: UserEvents.USER_EMAIL_VERIFICATION_REQUEST)
-    verification_token: str | None = None
-
-class EmailVerificationEvent(UserBaseEvent):
-    """Event published when email verification is proceeded"""
-    event_type: str = Field(default_factory=lambda: UserEvents.USER_EMAIL_VERIFIED)
-
-
-class UserDeletedEvent(UserBaseEvent):
-    """Event published when a user account is deleted"""
-    event_type: str = Field(default_factory=lambda: UserEvents.USER_DELETED)
-
 
 # ============== ORDER SAGA EVENTS ==============
 class OrderBaseEvent(BaseEvent):
@@ -81,6 +35,7 @@ class OrderBaseEvent(BaseEvent):
     user_id: UUID
     user_email: EmailStr
     service: str = Field(default_factory=lambda: Services.ORDER_SERVICE)
+
 
 class OrderCreatedEvent(OrderBaseEvent):
     """Event published when an order is created (start of SAGA)"""
@@ -138,6 +93,7 @@ class InventoryReleaseRequested(OrderBaseEvent):
     event_type: str = Field(default_factory=lambda: InventoryEvents.INVENTORY_RELEASE_REQUESTED)
     items: list[OrderItem]
     reason: str
+
 
 # ============== PRODUCT SAGA EVENTS ==============
 class InventoryReserveSucceeded(OrderBaseEvent):
@@ -445,78 +401,3 @@ class ArtworkReleasedEvent(ArtworkRetentionBaseEvent):
     """Event published when an order is cancelled and its hold can be dropped."""
     event_type: str = Field(default_factory=lambda: ArtworkEvents.ARTWORK_RELEASED)
     reason: str = ""
-
-
-# ============== WISHLIST EVENTS ==============
-class WishlistItemBaseEvent(BaseEvent):
-    service: str = Field(default_factory=lambda: Services.WISHLIST_SERVICE)
-    user_id: UUID
-    wishlist_id: UUID
-    product_id: UUID
-
-
-class WishlistItemAddedEvent(WishlistItemBaseEvent):
-    """Event published when an item is added to a wishlist"""
-    event_type: str = Field(default_factory=lambda: WishlistEvents.WISHLIST_ITEM_ADDED)
-
-
-class WishlistItemRemovedEvent(WishlistItemBaseEvent):
-    """Event published when an item is removed from a wishlist"""
-    event_type: str = Field(default_factory=lambda: WishlistEvents.WISHLIST_ITEM_REMOVED)
-
-
-# ============== SUPPLIER EVENTS ==============
-class SupplierBaseEvent(BaseEvent):
-    """Base class for supplier-related events."""
-    service: str = Field(default_factory=lambda: Services.SUPPLIER_SERVICE)
-    supplier_id: str
-
-
-class SupplierStockUpdatedEvent(SupplierBaseEvent):
-    """
-    Current sellable stock for a batch of the supplier products we sell.
-
-    ``measured_at`` is when the supplier was asked: a level older than the one
-    a product already carries (a redelivered or retried message) is ignored,
-    so stock never moves backwards in time.
-    """
-    event_type: str = Field(default_factory=lambda: SupplierEvents.SUPPLIER_STOCK_UPDATED)
-    measured_at: datetime
-    levels: list[SupplierStockLevel]
-
-
-class SupplierProductsFetchedEvent(SupplierBaseEvent):
-    """Event published when supplier_service fetches products from a supplier."""
-    event_type: str = Field(default_factory=lambda: SupplierEvents.SUPPLIER_PRODUCTS_FETCHED)
-    fetch_id: UUID
-    batch_id: UUID = Field(default_factory=uuid4)
-    batch_number: int = Field(ge=1)
-    total_batches: int = Field(ge=1)
-    products: list["GenericSupplierProduct"]
-
-
-class SupplierProductImportCompletedEvent(BaseEvent):
-    """Event published after a batch commits, including any item rejections."""
-    service: str = Field(default_factory=lambda: Services.PRODUCT_SERVICE)
-    event_type: str = Field(default_factory=lambda: SupplierEvents.SUPPLIER_PRODUCT_IMPORT_COMPLETED)
-    supplier_id: str
-    fetch_id: UUID
-    batch_id: UUID
-    batch_number: int = Field(ge=1)
-    total_batches: int = Field(ge=1)
-    imported: int
-    updated: int
-    failed: int
-    errors: list[str] = Field(default_factory=list)
-
-
-class SupplierProductImportFailedEvent(BaseEvent):
-    """Event published by product_service when supplier product import failed."""
-    service: str = Field(default_factory=lambda: Services.PRODUCT_SERVICE)
-    event_type: str = Field(default_factory=lambda: SupplierEvents.SUPPLIER_PRODUCT_IMPORT_FAILED)
-    supplier_id: str
-    fetch_id: UUID
-    batch_id: UUID
-    batch_number: int = Field(ge=1)
-    total_batches: int = Field(ge=1)
-    reason: str

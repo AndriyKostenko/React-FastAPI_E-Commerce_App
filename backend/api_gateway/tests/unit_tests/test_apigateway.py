@@ -322,7 +322,7 @@ class TestServiceRegistry:
     def test_every_known_service_is_routable(self):
         # cart-service was missing, so every cart route answered 404
         # "Service not found" while the service itself was healthy.
-        from shared.enums.services_enums import Services
+        from contracts.services_enums import Services
 
         assert set(Services) <= set(_make_gateway().config.services)
 

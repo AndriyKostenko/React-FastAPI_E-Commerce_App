@@ -3,8 +3,8 @@
 from dataclasses import dataclass
 
 from database_layer.product_repository import ProductRepository
-from shared.contracts.events import SupplierStockUpdatedEvent
-from shared.contracts.supplier import SupplierStockKey, SupplierStockLevel
+from contracts.events import SupplierStockUpdatedEvent
+from contracts.supplier import SupplierStockKey, SupplierStockLevel
 from models.product_models import Product
 
 

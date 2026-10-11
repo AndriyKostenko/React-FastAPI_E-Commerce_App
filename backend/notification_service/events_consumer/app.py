@@ -11,7 +11,7 @@ from .event_handlers import (
     ProductionEventHandler,
     UserEventHandler,
 )
-from shared.enums.event_enums import (
+from contracts.event_enums import (
     OrderEventsQueue,
     PaymentEventsQueue,
     ProductionEventsQueue,

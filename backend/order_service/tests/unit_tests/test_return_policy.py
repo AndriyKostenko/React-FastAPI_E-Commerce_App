@@ -6,7 +6,7 @@ import pytest
 
 from service_layer.return_evidence_storage import EvidencePhotoSniffer, LocalReturnEvidenceStorage
 from service_layer.return_policy import ReturnPolicies
-from shared.contracts.returns import ReturnFault, ReturnReason
+from contracts.returns import ReturnFault, ReturnReason
 
 SELLER, CUSTOMER = ReturnFault.SELLER, ReturnFault.CUSTOMER
 

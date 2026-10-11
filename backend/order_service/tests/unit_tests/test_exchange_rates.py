@@ -5,7 +5,7 @@ from logging import getLogger
 
 import httpx
 
-from shared.utils.exchange_rates import UsdCadRate
+from utils.exchange_rates import UsdCadRate
 
 
 FALLBACK = Decimal("1.38")

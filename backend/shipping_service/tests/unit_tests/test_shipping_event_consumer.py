@@ -4,7 +4,7 @@ from uuid import uuid4
 import pytest
 
 from events_consumer.shipping_event_consumer import ShippingEventConsumer
-from shared.enums.event_enums import OrderEvents
+from contracts.event_enums import OrderEvents
 
 
 @pytest.mark.parametrize("fulfillment_type", ["cj", "custom"])

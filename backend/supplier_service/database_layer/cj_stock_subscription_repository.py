@@ -6,7 +6,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.cj_stock_subscription_models import CJStockSubscription, CJStockSubscriptionVariant
-from shared.contracts.supplier import SupplierStockKey
+from contracts.supplier import SupplierStockKey
 from shared.database_layer.database_layer import BaseRepository
 
 

@@ -21,9 +21,9 @@ from models.payment_models import Payment, PaymentRefund
 from service_layer.outbox_event_service import OutboxEventService
 from service_layer.payment_refund_service import PaymentRefundService, RefundStatus
 from service_layer.stripe_refund_webhook_service import StripeRefundWebhookService
-from shared.contracts.events import PaymentRefundRequested
+from contracts.events import PaymentRefundRequested
 from shared.database_layer.outbox_repository import OutboxRepository
-from shared.enums.event_enums import PaymentEvents
+from contracts.event_enums import PaymentEvents
 from enums.status_enums import PaymentStatus
 from shared.managers.test_database_session_manager import TestDatabaseSessionManager
 

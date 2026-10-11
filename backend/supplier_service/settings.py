@@ -242,7 +242,7 @@ class Settings(BaseSettings):
     )
     CJ_DROPSHIPPING_DEFAULT_LOGISTIC_NAME: str = "CJPacket"
     # Where CJ goods ship from (China warehouses only) and where the store sells
-    # (Canada only) are fixed in shared.contracts.shipping_region, not here:
+    # (Canada only) are fixed in contracts.shipping_region, not here:
     # the old CJ_DROPSHIPPING_DEFAULT_FROM_COUNTRY_CODE and
     # CJ_DROPSHIPPING_SUPPORTED_COUNTRY_CODES are no longer read.
     # 3 = create only. Confirmation and balance payment then run as separate,

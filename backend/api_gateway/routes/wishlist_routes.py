@@ -3,7 +3,7 @@ from fastapi import APIRouter, Request, Depends
 from resources import api_gateway_manager, rate_limited
 from dependencies.auth_dependencies import get_current_user
 from shared.contracts.auth import TokenClaims as CurrentUserInfo
-from shared.enums.services_enums import Services
+from contracts.services_enums import Services
 
 
 wishlist_proxy = APIRouter(tags=["Wishlist Service Proxy"])

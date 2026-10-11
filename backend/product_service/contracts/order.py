@@ -1,12 +1,11 @@
 """Order payload fragments embedded in cross-service events."""
 
 from uuid import UUID
-
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, PositiveFloat, PositiveInt
 
-from shared.contracts.artwork import GeneratedArtworkAsset
+from contracts.artwork import GeneratedArtworkAsset
 
 
 FulfillmentType = Literal["catalog", "cj", "custom"]
@@ -48,31 +47,5 @@ class OrderItem(BaseModel):
     product_name: str | None = None
     customization: CustomTshirtSpecification | None = None
     variant_snapshot: dict[str, Any] | None = None
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-class ConfirmedOrderItem(BaseModel):
-    product_id: UUID
-    variant_id: UUID | None = None
-    quantity: int
-    price: PositiveFloat
-    fulfillment_type: FulfillmentType = "catalog"
-    product_name: str | None = None
-    customization: CustomTshirtSpecification | None = None
-    variant_snapshot: dict[str, Any] | None = None
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-class ConfirmedOrderAddress(BaseModel):
-    street: str
-    city: str
-    province: str
-    postal_code: str
-    country: str | None = None
-    country_code: str | None = None
-    name: str | None = None
-    phone: str | None = None
 
     model_config = ConfigDict(from_attributes=True)

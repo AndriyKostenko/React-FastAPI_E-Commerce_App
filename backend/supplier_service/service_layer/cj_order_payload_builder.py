@@ -23,8 +23,8 @@ from service_layer.product_service_client import (
     ProductServiceClient,
     ProductServiceError,
 )
-from shared.contracts.events import OrderConfirmedEvent
-from shared.contracts.shipping_region import CJ_WAREHOUSE_COUNTRY_CODE
+from contracts.events import OrderConfirmedEvent
+from contracts.shipping_region import CJ_WAREHOUSE_COUNTRY_CODE
 from settings import Settings
 
 

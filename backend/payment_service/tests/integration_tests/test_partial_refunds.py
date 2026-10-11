@@ -19,8 +19,8 @@ from models.outbox_models import OutboxEvent
 from models.payment_models import Payment, PaymentRefund
 from service_layer.payment_refund_service import PaymentRefundService, RefundStatus
 from service_layer.refund_metadata import AppRefundMetadata
-from shared.contracts.events import PaymentRefundRequested
-from shared.enums.event_enums import PaymentEvents
+from contracts.events import PaymentRefundRequested
+from contracts.event_enums import PaymentEvents
 from enums.status_enums import PaymentStatus
 from shared.managers.test_database_session_manager import TestDatabaseSessionManager
 

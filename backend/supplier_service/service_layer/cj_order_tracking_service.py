@@ -18,13 +18,13 @@ from models.cj_order_attempt_models import CJOrderAttempt
 from models.outbox_models import OutboxEvent
 from service_layer.cj_api_client import CJDropshippingAPIClient, CJDropshippingAPIError
 from service_layer.outbox_event_service import OutboxEventService
-from shared.contracts.events import (
+from contracts.events import (
     CJOrderDeliveredEvent,
     CJOrderFailedEvent,
     CJOrderShippedEvent,
 )
 from shared.database_layer.outbox_repository import OutboxRepository
-from shared.enums.event_enums import OrderEvents
+from contracts.event_enums import OrderEvents
 from shared.managers.database_session_manager import DatabaseSessionManager
 from settings import Settings
 

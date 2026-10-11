@@ -2,9 +2,9 @@ from typing import Any
 
 from models.outbox_models import OutboxEvent
 from resources import ProductOutboxResources
-from shared.enums.event_enums import InventoryEvents, SupplierEvents
+from contracts.event_enums import InventoryEvents, SupplierEvents
 from shared.outbox import OutboxRelay
-from shared.contracts.events import InventoryReserveFailed, InventoryReserveSucceeded
+from contracts.events import InventoryReserveFailed, InventoryReserveSucceeded
 
 
 def build_outbox_relay(resources: ProductOutboxResources) -> OutboxRelay:
@@ -34,14 +34,14 @@ def build_outbox_relay(resources: ProductOutboxResources) -> OutboxRelay:
             )
             return
         if event_type == SupplierEvents.SUPPLIER_PRODUCT_IMPORT_COMPLETED:
-            from shared.contracts.events import SupplierProductImportCompletedEvent
+            from contracts.events import SupplierProductImportCompletedEvent
 
             await publisher.publish_supplier_product_import_completed(
                 SupplierProductImportCompletedEvent(**payload)
             )
             return
         if event_type == SupplierEvents.SUPPLIER_PRODUCT_IMPORT_FAILED:
-            from shared.contracts.events import SupplierProductImportFailedEvent
+            from contracts.events import SupplierProductImportFailedEvent
 
             await publisher.publish_supplier_product_import_failed(
                 SupplierProductImportFailedEvent(**payload)

@@ -1,6 +1,7 @@
 """Supplier-product payload fragments embedded in cross-service events."""
 
 from decimal import Decimal
+
 from pydantic import BaseModel, Field, field_validator
 
 

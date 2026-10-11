@@ -4,7 +4,7 @@ from decimal import Decimal, ROUND_HALF_UP
 from typing import Any
 
 from schemas.dropshipping_schemas import CJProductsFilterParams
-from shared.contracts.supplier import GenericSupplierProduct, SupplierProductVariant
+from contracts.supplier import GenericSupplierProduct, SupplierProductVariant
 from schemas.supplier_schemas import SupplierProductsPage
 from service_layer.cj_api_client import CJDropshippingAPIError
 
