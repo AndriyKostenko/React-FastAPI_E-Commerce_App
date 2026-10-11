@@ -69,7 +69,7 @@ from service_layer.image_generation_service import ImageGenerationService
 from resources import ProductApiResources, logger
 from shared.managers.logger_manager import setup_logger
 from shared.managers.test_database_session_manager import TestDatabaseSessionManager
-from shared.settings import get_settings, get_test_settings
+from settings import get_settings, get_test_settings
 from schemas.product_schemas import ProductBase, ProductSchema
 from schemas.category_schema import CategorySchema
 from schemas.review_schemas import ReviewSchema

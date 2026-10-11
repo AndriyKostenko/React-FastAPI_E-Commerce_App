@@ -2,7 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from database_layer.supplier_config_repository import SupplierConfigRepository
 from models.supplier_config_models import SupplierConfig
-from shared.settings import Settings
+from settings import Settings
 
 
 async def seed_default_supplier_config(session: AsyncSession, settings: Settings) -> None:

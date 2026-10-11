@@ -8,7 +8,7 @@ from uuid import uuid4
 import pytest
 from httpx import AsyncClient
 
-from shared.settings import get_test_settings
+from settings import get_test_settings
 from shared.testing.authorization import Callers, RouteCase, assert_allowed, assert_denied
 from tests.conftest import SIGNING_KEYS
 

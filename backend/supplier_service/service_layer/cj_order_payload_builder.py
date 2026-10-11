@@ -25,7 +25,7 @@ from service_layer.product_service_client import (
 )
 from shared.contracts.events import OrderConfirmedEvent
 from shared.contracts.shipping_region import CJ_WAREHOUSE_COUNTRY_CODE
-from shared.settings import Settings
+from settings import Settings
 
 
 class CJOrderPayloadBuilder:

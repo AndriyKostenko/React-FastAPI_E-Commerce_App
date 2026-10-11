@@ -19,7 +19,7 @@ from shared.contracts.events import (
     CJOrderShippedEvent,
 )
 from shared.enums.event_enums import OrderEvents, SupplierEvents
-from shared.settings import get_settings
+from settings import get_settings
 
 
 TEST_ORDER_ID = uuid4()

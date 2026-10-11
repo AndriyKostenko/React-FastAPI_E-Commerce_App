@@ -21,7 +21,7 @@ for p in (_SERVICE_ROOT, _BACKEND_ROOT):
 from models.base import Base  # noqa: E402
 from models.outbox_models import OutboxEvent  # noqa: E402, F401
 from models.payment_models import Payment  # noqa: E402, F401
-from shared.settings import get_settings  # noqa: E402
+from settings import get_settings  # noqa: E402
 
 _settings = get_settings()
 

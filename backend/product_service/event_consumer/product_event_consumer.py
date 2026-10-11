@@ -36,7 +36,7 @@ from shared.idempotency.idempotency_service import IdempotencyEventService
 from shared.enums.event_enums import ArtworkEvents, InventoryEvents, SupplierEvents
 from service_layer.supplier_product_mapper import SupplierProductMapper
 from shared.utils.supplier_pricing import SupplierRetailPricing
-from shared.settings import Settings
+from settings import Settings
 
 """
 Product Event Consumer - SAGA Orchestrator

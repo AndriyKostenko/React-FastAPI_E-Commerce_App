@@ -7,7 +7,7 @@ from uuid import uuid4
 
 from shared.contracts.events import PaymentDisputeEvent
 from email_service.email_service import AdminAlerts
-from shared.settings import get_settings
+from settings import get_settings
 
 
 def _event() -> PaymentDisputeEvent:

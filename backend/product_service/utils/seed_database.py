@@ -27,7 +27,7 @@ for _path in _IMPORT_ROOTS:
 
 from shared.managers.database_session_manager import DatabaseSessionManager
 from shared.managers.logger_manager import setup_logger
-from shared.settings import get_settings
+from settings import get_settings
 from models.category_models import ProductCategory
 from models.product_models import Product
 from models.review_models import ProductReview

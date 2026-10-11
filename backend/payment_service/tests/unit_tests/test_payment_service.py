@@ -25,7 +25,7 @@ from exceptions.payment_exceptions import (
 )
 from models.payment_models import Payment
 from service_layer.refund_metadata import AppRefundMetadata
-from shared.enums.status_enums import PaymentStatus
+from enums.status_enums import PaymentStatus
 import shared.outbox.relay as relay_module
 from shared.outbox.relay import OutboxRelay
 

@@ -114,7 +114,7 @@ def main() -> None:
     parser.add_argument("--limit", type=int, help="replay at most this many")
     args = parser.parse_args()
 
-    from shared.settings import get_settings  # deferred: only the CLI needs settings
+    from settings import get_settings  # deferred: only the CLI needs settings
 
     basicConfig(level="INFO", format="%(message)s")
     replayer = DeadLetterReplayer(get_settings().RABBITMQ_BROKER_URL, getLogger("dlq-replay"))

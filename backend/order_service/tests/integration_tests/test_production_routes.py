@@ -31,7 +31,7 @@ from service_layer.outbox_event_service import OutboxEventService
 from shared.contracts.artwork import GeneratedArtworkAsset, sign_artwork_asset
 from shared.database_layer.outbox_repository import OutboxRepository
 from shared.enums.event_enums import ArtworkEvents, OrderEvents, ProductionEvents
-from shared.enums.status_enums import (
+from enums.status_enums import (
     LineFulfillmentStatus,
     OrderDeliveryStatus,
     OrderStatus,

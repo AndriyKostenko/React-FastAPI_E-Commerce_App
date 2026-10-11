@@ -14,20 +14,6 @@ class OrderDeliveryStatus(StrEnum):
     CANCELLED = "cancelled"
 
 
-class PaymentStatus(StrEnum):
-    PENDING = "pending"
-    AUTHORIZED = "authorized"
-    SUCCEEDED = "succeeded"
-    FAILED = "failed"
-    CANCELLED = "cancelled"
-    REFUNDED = "refunded"
-
-class SyncStatus(StrEnum):
-	RUNNING = "running"
-	COMPLETED = "completed"
-	FAILED = "failed"
-
-
 class LineFulfillmentStatus(StrEnum):
     """Progress of one order line, aggregated into ``Order.delivery_status``.
 

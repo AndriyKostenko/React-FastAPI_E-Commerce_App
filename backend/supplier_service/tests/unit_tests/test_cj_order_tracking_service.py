@@ -15,7 +15,7 @@ from service_layer.cj_order_tracking_service import (
     TrackedOrder,
 )
 from shared.enums.event_enums import OrderEvents
-from shared.settings import get_settings
+from settings import get_settings
 
 
 TEST_ORDER_ID = uuid4()

@@ -9,7 +9,7 @@ from jinja2 import Environment, FileSystemLoader, TemplateNotFound, select_autoe
 
 from email_service.email_links import EmailLinks
 from shared.exceptions.base_exceptions import EmailServiceError
-from shared.settings import Settings
+from settings import Settings
 from shared.contracts.events import (
     PaymentDisputeEvent,
     EmailVerificationEvent,

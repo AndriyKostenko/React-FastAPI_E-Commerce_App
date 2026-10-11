@@ -17,7 +17,7 @@ from service_layer.cj_api_client import (
     CJDropshippingUnavailableError,
 )
 from shared.resilience import CircuitBreaker, CircuitState, RetryPolicy
-from shared.settings import Settings
+from settings import Settings
 
 
 LOGGER = getLogger("test.cj-resilience")

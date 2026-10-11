@@ -37,7 +37,8 @@ shared = { path = "../shared", editable = true }
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "session"
 testpaths = ["tests"]
-pythonpath = [".", ".."]
+# tests/ holds the stand-in for the service-provided settings module.
+pythonpath = [".", "..", "tests"]
 
 [tool.pyright]
 extraPaths = [".."]

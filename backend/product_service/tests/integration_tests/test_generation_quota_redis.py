@@ -6,7 +6,7 @@ import pytest
 
 from resources import create_cache_manager
 from service_layer.image_generation_quota import GenerationQuotaService
-from shared.settings import get_settings
+from settings import get_settings
 
 # Fixtures run on the session loop (asyncio_default_fixture_loop_scope); the
 # Redis connection is bound to it, so the tests must share that loop.

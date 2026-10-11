@@ -28,7 +28,7 @@ from models.catalogue_image_mirror_models import CatalogueImageMirror, MirrorSta
 from service_layer.catalogue_image_fetcher import CatalogueImageFetchError, CatalogueImageFetcher, FetchedImage
 from shared.managers.cache_manager import CacheManager
 from shared.managers.database_session_manager import DatabaseSessionManager
-from shared.settings import Settings
+from settings import Settings
 from storage.object_store import ObjectStorageError, ObjectStore, ObjectWrite
 
 # pg_try_advisory_lock key: "cimirror" as ASCII. One run at a time, across

@@ -5,7 +5,7 @@ from typing import Any
 
 from aiohttp import ClientError, ClientSession
 
-from shared.settings import Settings
+from settings import Settings
 from exceptions.image_generation_exceptions import (
     ImageGenerationConfigurationError,
     ImageGenerationProviderError,

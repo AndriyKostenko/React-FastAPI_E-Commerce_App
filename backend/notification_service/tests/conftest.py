@@ -25,7 +25,7 @@ from models.notification_models import Notification
 from service_layer.notification_service import NotificationService
 from shared.managers.logger_manager import setup_logger
 from shared.managers.test_database_session_manager import TestDatabaseSessionManager
-from shared.settings import get_settings, get_test_settings
+from settings import get_settings, get_test_settings
 from schemas.notifications_schemas import NotificationInfo
 from tests.constants import (
     TEST_NOTIFICATION_ID,

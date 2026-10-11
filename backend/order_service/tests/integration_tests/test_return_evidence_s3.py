@@ -12,7 +12,7 @@ from service_layer.return_evidence_storage import (
     ReturnEvidenceStorageError,
     S3ReturnEvidenceStorage,
 )
-from shared.settings import get_settings
+from settings import get_settings
 
 PHOTO = EvidencePhoto(content=b"\xff\xd8\xff\xe0" + b"\x00" * 64, content_type="image/jpeg", extension="jpg")
 

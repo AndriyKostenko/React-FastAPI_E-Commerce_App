@@ -9,7 +9,7 @@ from exceptions.image_generation_exceptions import (
     ImageGenerationLimitExceededError,
 )
 from tests.conftest import TEST_API
-from shared.settings import get_settings
+from settings import get_settings
 from tests.conftest import SIGNING_KEYS
 from shared.testing.signing_keys import ANONYMOUS
 

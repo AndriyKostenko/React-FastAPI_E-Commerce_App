@@ -26,7 +26,7 @@ from shared.messaging import (
     RetrySchedule,
 )
 from shared.messaging.dead_letter_replay import DeadLetterReplayer
-from shared.settings import get_settings
+from settings import get_settings
 
 
 

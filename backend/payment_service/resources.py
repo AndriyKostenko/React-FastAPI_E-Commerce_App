@@ -14,7 +14,7 @@ from events_publisher.payment_event_publisher import PaymentEventPublisher
 from messaging import create_rabbitmq_broker
 from shared.idempotency.idempotency_service import IdempotencyEventService
 from shared.managers.database_session_manager import DatabaseSessionManager
-from shared.settings import Settings
+from settings import Settings
 
 
 def create_stripe_client(

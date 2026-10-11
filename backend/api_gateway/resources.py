@@ -19,7 +19,7 @@ from shared.managers.ratelimit_manager import RateLimitManager
 from shared.auth.caller_assertion import CallerAssertionSigner
 from shared.auth.user_tokens import UserTokenVerifier
 from shared.managers.session_registry import SessionRegistry
-from shared.settings import Settings, get_settings
+from settings import Settings, get_settings
 
 
 settings: Settings = get_settings()

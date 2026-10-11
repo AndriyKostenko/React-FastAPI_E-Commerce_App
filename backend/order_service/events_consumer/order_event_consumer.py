@@ -32,7 +32,7 @@ from shared.contracts.events import (
     ShipmentCancelledEvent,
 )
 from service_layer.order_service import OrderService
-from shared.enums.status_enums import LineFulfillmentStatus, OrderStatus
+from enums.status_enums import LineFulfillmentStatus, OrderStatus
 from service_layer.outbox_event_service import OutboxEventService
 from models.outbox_models import OutboxEvent
 from shared.idempotency.idempotency_service import IdempotencyEventService

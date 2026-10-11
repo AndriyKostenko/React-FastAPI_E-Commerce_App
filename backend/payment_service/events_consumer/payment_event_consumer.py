@@ -16,7 +16,7 @@ from shared.database_layer.outbox_repository import OutboxRepository
 from service_layer.payment_service import PaymentService
 from service_layer.outbox_event_service import OutboxEventService
 from models.outbox_models import OutboxEvent
-from shared.settings import Settings
+from settings import Settings
 from service_layer.payment_refund_service import PaymentRefundService
 
 

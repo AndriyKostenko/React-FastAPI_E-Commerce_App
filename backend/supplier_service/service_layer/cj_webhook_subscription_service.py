@@ -24,7 +24,7 @@ from schemas.cj_webhook_schemas import CJWebhookSettingsRequest, CJWebhookSwitch
 from service_layer.cj_api_client import CJDropshippingAPIClient, CJDropshippingWebhookNotEnabledError
 from service_layer.product_service_client import ProductServiceClient
 from shared.managers.database_session_manager import DatabaseSessionManager
-from shared.settings import Settings
+from settings import Settings
 
 # CJ allows about one request per second per account.
 _CJ_CALL_SPACING_SECONDS = 1.1

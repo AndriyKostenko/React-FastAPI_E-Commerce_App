@@ -1,5 +1,5 @@
 """Test constants for order_service — sourced without runtime infrastructure."""
-from shared.settings import get_test_settings
+from settings import get_test_settings
 
 
 test_settings = get_test_settings()

@@ -10,7 +10,7 @@ from database_layer.retained_artwork_repository import RetainedArtworkRepository
 from exceptions.image_generation_exceptions import ImageGenerationProviderError
 from models.retained_artwork_models import RetainedArtwork
 from shared.contracts.artwork import GeneratedArtworkAsset, verify_artwork_asset
-from shared.settings import Settings
+from settings import Settings
 from storage.object_store import ObjectMissingError, ObjectStore
 
 

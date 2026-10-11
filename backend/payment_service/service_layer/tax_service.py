@@ -24,7 +24,7 @@ from stripe import StripeClient, StripeError
 from models.payment_models import Payment
 from shared.contracts.tax import TaxCalculationRequest, TaxCalculationResult
 from shared.exceptions.base_exceptions import BaseAPIException
-from shared.settings import Settings
+from settings import Settings
 
 
 class TaxLocationInvalidError(BaseAPIException):

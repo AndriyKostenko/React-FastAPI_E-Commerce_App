@@ -1,6 +1,6 @@
 """Test helpers that avoid duplication across service conftest files."""
 
-from shared.settings import get_settings
+from settings import get_settings
 
 
 def allow_testserver_host() -> None:

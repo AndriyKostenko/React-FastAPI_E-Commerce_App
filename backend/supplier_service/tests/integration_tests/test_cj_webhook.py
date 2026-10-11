@@ -30,7 +30,7 @@ from shared.contracts.supplier import SupplierStockKey
 from shared.database_layer.outbox_repository import OutboxRepository
 from shared.enums.event_enums import SupplierEvents
 from shared.managers.test_database_session_manager import TestDatabaseSessionManager
-from shared.settings import get_settings
+from settings import get_settings
 
 pytestmark = pytest.mark.asyncio(loop_scope="session")
 

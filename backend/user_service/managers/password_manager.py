@@ -1,6 +1,6 @@
 from passlib.context import CryptContext
 
-from shared.settings import Settings
+from settings import Settings
 
 
 class PasswordManager:

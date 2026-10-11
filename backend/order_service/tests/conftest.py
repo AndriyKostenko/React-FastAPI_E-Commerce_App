@@ -66,7 +66,7 @@ from models.order_models import Order
 from models.outbox_models import OutboxEvent
 from config import logger, settings
 from shared.managers.test_database_session_manager import TestDatabaseSessionManager
-from shared.enums.status_enums import OrderStatus, OrderDeliveryStatus
+from enums.status_enums import OrderStatus, OrderDeliveryStatus
 from tests.constants import (
     TEST_ORDER_ID,
     TEST_ORDER_ITEM_ID,
@@ -83,7 +83,7 @@ from tests.constants import (
 
 
 from shared.testing.helpers import allow_testserver_host
-from shared.settings import get_settings
+from settings import get_settings
 from schemas.order_schemas import OrderSchema
 from shared.testing.signing_keys import EphemeralSigningKeys
 from database_layer.order_refund_repository import OrderRefundRepository

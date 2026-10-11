@@ -15,7 +15,7 @@ from fastapi import HTTPException, status
 
 from shared.auth.signing_keys import Ed25519KeyLoader
 from shared.contracts.auth import TokenClaims
-from shared.settings import Settings
+from settings import Settings
 
 
 ALGORITHM = "EdDSA"

@@ -1,5 +1,5 @@
 """Test constants for api_gateway — sourced from shared TestSettings."""
-from shared.settings import get_test_settings
+from settings import get_test_settings
 
 test_settings = get_test_settings()
 

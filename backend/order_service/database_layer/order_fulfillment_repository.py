@@ -8,7 +8,7 @@ from models.order_fulfillment_models import CustomProductionJob, OrderLineFulfil
 from models.order_item_models import OrderItem
 from models.order_models import Order
 from shared.database_layer.database_layer import BaseRepository
-from shared.enums.status_enums import ProductionJobStatus
+from enums.status_enums import ProductionJobStatus
 
 
 class OrderLineFulfillmentRepository(BaseRepository[OrderLineFulfillment]):

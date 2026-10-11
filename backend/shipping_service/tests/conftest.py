@@ -26,7 +26,7 @@ from shared.managers.test_database_session_manager import TestDatabaseSessionMan
 from schemas.shipping_schemas import ShippingMethodSchema, ShipmentSchema
 from shared.testing.helpers import allow_testserver_host
 from service_test_config import test_settings
-from shared.settings import get_settings
+from settings import get_settings
 from shared.testing.signing_keys import EphemeralSigningKeys
 
 # Throwaway gateway keys: the test clients' apps trust assertions signed

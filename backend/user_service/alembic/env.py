@@ -11,7 +11,7 @@ from alembic import context
 from models.base import Base
 from models.outbox_models import OutboxEvent
 from models.user_models import User
-from shared.settings import get_settings
+from settings import get_settings
 
 settings = get_settings()
 

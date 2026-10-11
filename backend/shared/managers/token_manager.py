@@ -12,7 +12,7 @@ from shared.auth.user_tokens import (
     UserTokenVerifier,
 )
 from shared.contracts.auth import TokenClaims
-from shared.settings import Settings
+from settings import Settings
 
 
 class TokenManager:

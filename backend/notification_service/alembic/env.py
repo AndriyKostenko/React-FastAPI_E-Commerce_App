@@ -9,7 +9,7 @@ from alembic import context # type: ignore
 
 from models.base import Base
 from models.notification_models import Notification
-from shared.settings import get_settings
+from settings import get_settings
 
 settings = get_settings()
 

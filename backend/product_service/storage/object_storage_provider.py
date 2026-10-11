@@ -7,7 +7,7 @@ from typing import cast
 import boto3
 from botocore.config import Config
 
-from shared.settings import Settings, get_settings
+from settings import Settings, get_settings
 from storage.object_store import (
     LocalObjectStore,
     ObjectStorageNotConfiguredError,
