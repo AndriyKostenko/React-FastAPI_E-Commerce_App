@@ -3,9 +3,9 @@ from fastapi import Request, HTTPException, Response
 from fastapi.responses import JSONResponse
 
 from settings import Settings
-from shared.managers.session_registry import SessionRegistry
-from shared.auth.user_tokens import UserTokenVerifier
-from shared.contracts.auth import TokenClaims
+from infrastructure.managers.session_registry import SessionRegistry
+from infrastructure.auth.user_tokens import UserTokenVerifier
+from contracts.auth import TokenClaims
 from enums.auth_enums import AuthCookies
 from middleware.public_routes import PublicRouteRegistry
 

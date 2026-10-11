@@ -12,7 +12,7 @@ from schemas.shipping_schemas import (
     UpdateShipment,
     UpdateShippingMethod,
 )
-from shared.auth.route_guards import AdminDep, CallerDep, ensure_owner_or_admin
+from infrastructure.auth.route_guards import AdminDep, CallerDep, ensure_owner_or_admin
 
 shipping_routes = APIRouter(tags=["Shipping"])
 

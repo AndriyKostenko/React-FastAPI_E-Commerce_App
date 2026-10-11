@@ -11,8 +11,9 @@ from uuid import uuid4
 
 from middleware.auth_middleware import AuthMiddleware
 from resources import settings
-from shared.contracts.auth import TokenClaims
-from shared.testing.signing_keys import EphemeralSigningKeys
+from contracts.auth import TokenClaims
+from infrastructure.auth.user_tokens import TokenPurpose
+from infrastructure.testing.signing_keys import EphemeralSigningKeys
 
 
 # Real Ed25519 keys: the gateway's check is exercised, not stubbed out.
@@ -20,12 +21,12 @@ KEYS = EphemeralSigningKeys()
 
 
 def _access_token(keys: EphemeralSigningKeys = KEYS, purpose: str = "access") -> str:
-    token, _ = keys.token_manager(settings).create_access_token(
+    token, _ = keys.user_token_issuer().issue(
         email="user@example.com",
         user_id=uuid4(),
         role="user",
         expires_delta=timedelta(minutes=5),
-        purpose=purpose,
+        purpose=TokenPurpose(purpose),
     )
     return token
 
@@ -215,10 +216,11 @@ class TestMiddlewareAuth:
 
 
 def _admin_token(amr: list[str]) -> str:
-    token, _ = KEYS.token_manager(settings).create_access_token(
+    token, _ = KEYS.user_token_issuer().issue(
         email="owner@example.com",
         user_id=uuid4(),
         role=settings.SECRET_ROLE,
+        purpose=TokenPurpose.ACCESS,
         expires_delta=timedelta(minutes=5),
         extra_claims={"amr": amr},
     )

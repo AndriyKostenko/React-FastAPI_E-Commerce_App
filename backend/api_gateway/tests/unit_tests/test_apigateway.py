@@ -13,9 +13,9 @@ from urllib.parse import urlparse
 
 from gateway.apigateway import ApiGateway
 from resources import logger, settings
-from shared.auth.caller_assertion import CALLER_ASSERTION_HEADER, RequestTarget
-from shared.contracts.auth import TokenClaims
-from shared.testing.signing_keys import EphemeralSigningKeys
+from infrastructure.auth.caller_assertion import CALLER_ASSERTION_HEADER, RequestTarget
+from contracts.auth import TokenClaims
+from infrastructure.testing.signing_keys import EphemeralSigningKeys
 
 
 KEYS = EphemeralSigningKeys()

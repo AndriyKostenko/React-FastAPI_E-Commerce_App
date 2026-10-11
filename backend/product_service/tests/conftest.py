@@ -67,8 +67,8 @@ from service_layer.review_service import ReviewService
 from service_layer.product_image_service import ProductImageService
 from service_layer.image_generation_service import ImageGenerationService
 from resources import ProductApiResources, logger
-from shared.managers.logger_manager import setup_logger
-from shared.managers.test_database_session_manager import TestDatabaseSessionManager
+from infrastructure.managers.logger_manager import setup_logger
+from infrastructure.managers.test_database_session_manager import TestDatabaseSessionManager
 from settings import get_settings, get_test_settings
 from schemas.product_schemas import ProductBase, ProductSchema
 from schemas.category_schema import CategorySchema
@@ -78,8 +78,8 @@ from schemas.image_generation_schema import GenerateImageResponse, ImageGenerati
 from contracts.artwork import GeneratedArtworkAsset
 
 
-from shared.testing.helpers import allow_testserver_host
-from shared.testing.signing_keys import EphemeralSigningKeys
+from infrastructure.testing.helpers import allow_testserver_host
+from infrastructure.testing.signing_keys import EphemeralSigningKeys
 
 # Throwaway gateway keys: the test clients' apps trust assertions signed
 # with these, exactly as a deployed service trusts the gateway's.

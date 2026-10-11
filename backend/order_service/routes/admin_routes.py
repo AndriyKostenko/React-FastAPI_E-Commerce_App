@@ -3,7 +3,7 @@ from models.order_item_models import OrderItem
 from models.order_models import Order
 from models.order_refund_models import OrderRefund
 from schemas.admin_schemas import OrderAdminSchema, OrderItemAdminSchema, OrderRefundAdminSchema
-from shared.admin.admin_tables import AdminTable, AdminTableRouter
+from infrastructure.admin.admin_tables import AdminTable, AdminTableRouter
 
 # Read-only: a refund is made with POST /admin/orders/{id}/refunds, which
 # applies the caps and sends it to payment-service.

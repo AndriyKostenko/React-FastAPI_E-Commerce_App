@@ -2,14 +2,14 @@ from logging import Logger
 from typing import Any
 
 from events_publisher.shipping_event_publisher import ShippingEventPublisher
-from shared.idempotency.idempotency_service import IdempotencyEventService
-from shared.managers.database_session_manager import DatabaseSessionManager
+from infrastructure.idempotency.idempotency_service import IdempotencyEventService
+from infrastructure.managers.database_session_manager import DatabaseSessionManager
 from contracts.event_enums import OrderEvents
 from contracts.events import OrderConfirmedEvent, OrderCancelledEvent
 from database_layer.shipping_repository import ShipmentRepository, ShippingMethodRepository
 from service_layer.shipment_service import ShipmentService
 from service_layer.outbox_event_service import OutboxEventService
-from shared.database_layer.outbox_repository import OutboxRepository
+from infrastructure.database_layer.outbox_repository import OutboxRepository
 from models.outbox_models import OutboxEvent
 
 

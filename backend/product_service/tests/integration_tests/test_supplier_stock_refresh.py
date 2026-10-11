@@ -19,7 +19,7 @@ from models.product_models import Product
 from resources import settings
 from contracts.events import SupplierProductsFetchedEvent, SupplierStockUpdatedEvent
 from contracts.supplier import GenericSupplierProduct, SupplierProductVariant, SupplierStockLevel
-from shared.testing.signing_keys import ANONYMOUS, EphemeralSigningKeys
+from infrastructure.testing.signing_keys import ANONYMOUS, EphemeralSigningKeys
 from tests.conftest import DEFAULT_CALLER, SIGNING_KEYS, TEST_API
 
 T0 = datetime(2026, 9, 29, 12, 0, tzinfo=timezone.utc)

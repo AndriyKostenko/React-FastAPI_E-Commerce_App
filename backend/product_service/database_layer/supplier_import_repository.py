@@ -3,7 +3,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.supplier_import_models import SupplierImportBatch
-from shared.database_layer.database_layer import BaseRepository
+from infrastructure.database_layer.database_layer import BaseRepository
 
 
 class SupplierImportBatchRepository(BaseRepository[SupplierImportBatch]):

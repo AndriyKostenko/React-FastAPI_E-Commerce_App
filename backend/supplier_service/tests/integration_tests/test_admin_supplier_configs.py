@@ -17,10 +17,10 @@ from dependencies.dependencies import get_db_session
 from models.base import Base
 from models.supplier_config_models import SupplierConfig
 from routes.admin_routes import admin_routes, supplier_config_admin_routes
-from shared.managers.test_database_session_manager import TestDatabaseSessionManager
-from shared.middleware.caller_assertion_middleware import CallerAssertionMiddleware
+from infrastructure.managers.test_database_session_manager import TestDatabaseSessionManager
+from infrastructure.middleware.caller_assertion_middleware import CallerAssertionMiddleware
 from settings import get_settings
-from shared.testing.signing_keys import ANONYMOUS, EphemeralSigningKeys
+from infrastructure.testing.signing_keys import ANONYMOUS, EphemeralSigningKeys
 
 KEYS = EphemeralSigningKeys()
 CONFIGS = "/api/v1/admin/supplier-configs"
@@ -40,7 +40,7 @@ async def db() -> AsyncGenerator[TestDatabaseSessionManager, None]:
 @pytest.fixture
 async def client(db: TestDatabaseSessionManager) -> AsyncGenerator[AsyncClient, None]:
     app = FastAPI()
-    # What every service app has (shared.app): the gateway's assertion becomes the caller.
+    # What every service app has (infrastructure.app): the gateway's assertion becomes the caller.
     app.add_middleware(CallerAssertionMiddleware, logger=getLogger("test"))
     app.include_router(admin_routes, prefix="/api/v1")
     app.include_router(supplier_config_admin_routes, prefix="/api/v1")

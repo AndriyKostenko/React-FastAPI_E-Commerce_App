@@ -25,7 +25,7 @@ from schemas.user_schemas import (
     UsersFilterParams,
 )
 # What TokenManager.decode_token returns.
-from shared.contracts.auth import TokenClaims
+from contracts.auth import TokenClaims
 
 
 # ---------------------------------------------------------------------------

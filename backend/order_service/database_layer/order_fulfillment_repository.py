@@ -7,7 +7,7 @@ from sqlalchemy.orm import selectinload
 from models.order_fulfillment_models import CustomProductionJob, OrderLineFulfillment
 from models.order_item_models import OrderItem
 from models.order_models import Order
-from shared.database_layer.database_layer import BaseRepository
+from infrastructure.database_layer.database_layer import BaseRepository
 from enums.status_enums import ProductionJobStatus
 
 

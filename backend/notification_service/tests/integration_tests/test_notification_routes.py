@@ -14,14 +14,14 @@ from uuid import uuid4
 import pytest
 from httpx import AsyncClient
 
-from shared.managers.test_database_session_manager import (
+from infrastructure.managers.test_database_session_manager import (
     TestDatabaseSessionManager as DatabaseTestManager,
 )
 from service_layer.notification_service import NotificationService
 from database_layer.notification_repository import NotificationRepository
 from schemas.notifications_schemas import NotificationInfo
 from tests.constants import TEST_USER_ID, TEST_MESSAGE, TEST_NOTIFICATION_TYPE, TEST_API
-from shared.testing.signing_keys import GatewayCallerAuth
+from infrastructure.testing.signing_keys import GatewayCallerAuth
 from tests.conftest import SIGNING_KEYS
 
 

@@ -10,14 +10,14 @@ import orjson
 from fastapi import HTTPException, Request, Response
 from httpx import AsyncClient, HTTPStatusError, Limits, RequestError, Timeout, TimeoutException
 from httpx import Response as HttpxResponse
-from shared.utils.customized_json_response import JSONResponse
+from infrastructure.utils.customized_json_response import JSONResponse
 
-from shared.auth.caller_assertion import CALLER_ASSERTION_HEADER, CallerAssertionSigner, RequestTarget
-from shared.contracts.auth import TokenClaims
-from shared.resilience import CircuitBreaker, CircuitOpenError
+from infrastructure.auth.caller_assertion import CALLER_ASSERTION_HEADER, CallerAssertionSigner, RequestTarget
+from contracts.auth import TokenClaims
+from infrastructure.resilience import CircuitBreaker, CircuitOpenError
 from settings import Settings
-from shared.utils.authenticated_caller import LEGACY_IDENTITY_HEADERS
-from shared.utils.client_ip import ClientIPResolver
+from infrastructure.utils.authenticated_caller import LEGACY_IDENTITY_HEADERS
+from infrastructure.utils.client_ip import ClientIPResolver
 from schemas.gateway_schemas import GatewayConfig, ServiceConfig
 from starlette.datastructures import FormData, UploadFile
 

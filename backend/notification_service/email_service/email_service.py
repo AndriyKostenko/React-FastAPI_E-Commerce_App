@@ -8,7 +8,7 @@ from pydantic import ValidationError
 from jinja2 import Environment, FileSystemLoader, TemplateNotFound, select_autoescape
 
 from email_service.email_links import EmailLinks
-from shared.exceptions.base_exceptions import EmailServiceError
+from infrastructure.exceptions.base_exceptions import EmailServiceError
 from settings import Settings
 from contracts.events import (
     PaymentDisputeEvent,

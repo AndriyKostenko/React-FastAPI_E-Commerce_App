@@ -17,7 +17,7 @@ from contracts.event_enums import (
     ProductionEventsQueue,
     UserEventsQueue,
 )
-from shared.messaging import ConsumerTopology
+from infrastructure.messaging import ConsumerTopology
 from resources import (
     NotificationConsumerResources,
     create_notification_consumer_resources,

@@ -23,7 +23,7 @@ from database_layer.cj_stock_subscription_repository import CJStockSubscriptionR
 from schemas.cj_webhook_schemas import CJWebhookSettingsRequest, CJWebhookSwitch
 from service_layer.cj_api_client import CJDropshippingAPIClient, CJDropshippingWebhookNotEnabledError
 from service_layer.product_service_client import ProductServiceClient
-from shared.managers.database_session_manager import DatabaseSessionManager
+from infrastructure.managers.database_session_manager import DatabaseSessionManager
 from settings import Settings
 
 # CJ allows about one request per second per account.

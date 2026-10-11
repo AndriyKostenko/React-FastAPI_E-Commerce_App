@@ -2,7 +2,7 @@
 
 from starlette.requests import HTTPConnection
 
-from shared.utils.client_ip import UNKNOWN_CLIENT, ClientIPResolver
+from infrastructure.utils.client_ip import UNKNOWN_CLIENT, ClientIPResolver
 
 
 TRUSTED = ["172.16.0.0/12", "10.0.0.0/8"]

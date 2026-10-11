@@ -1,7 +1,7 @@
 """How order-service fills in the shared application builder.
 
 Everything here is specific to this service: who it is, and how its resource
-container is opened.  The generic assembly lives in ``shared.app``.
+container is opened.  The generic assembly lives in ``infrastructure.app``.
 """
 
 from collections.abc import AsyncIterator
@@ -11,7 +11,7 @@ from fastapi import FastAPI
 
 from resources import order_api_runtime, get_order_api_resources
 from config import logger, settings
-from shared.app import ServiceDescriptor
+from infrastructure.app import ServiceDescriptor
 
 DESCRIPTOR = ServiceDescriptor(
     name="order-service",

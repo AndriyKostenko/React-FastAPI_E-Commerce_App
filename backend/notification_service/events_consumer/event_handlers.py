@@ -2,8 +2,8 @@ from logging import Logger
 from typing import Any
 from uuid import UUID
 
-from shared.idempotency.idempotency_service import IdempotencyEventService
-from shared.managers.database_session_manager import DatabaseSessionManager
+from infrastructure.idempotency.idempotency_service import IdempotencyEventService
+from infrastructure.managers.database_session_manager import DatabaseSessionManager
 from taskiq import AsyncTaskiqDecoratedTask
 from contracts.events import (
     PaymentDisputeEvent,

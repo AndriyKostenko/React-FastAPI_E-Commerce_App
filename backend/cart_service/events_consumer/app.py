@@ -8,7 +8,7 @@ from service_config import logger, settings
 from events_consumer.cart_event_consumer import CartEventConsumer
 from events_consumer.runtime import CartConsumerResources, create_cart_consumer_resources
 from contracts.event_enums import CartEventsQueue
-from shared.messaging import ConsumerTopology
+from infrastructure.messaging import ConsumerTopology
 
 
 rabbitmq_broker = RabbitBroker(url=settings.RABBITMQ_BROKER_URL)

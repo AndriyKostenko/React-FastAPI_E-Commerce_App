@@ -11,7 +11,7 @@ from uuid import UUID, uuid4
 from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
 
-from shared.vault import VaultSettingsSource
+from infrastructure.vault import VaultSettingsSource
 
 # Resolve the single .env that lives one level above this file (backend/.env).
 # It is the one source of configuration; real environment variables (compose's

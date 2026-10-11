@@ -25,8 +25,8 @@ for _path in _IMPORT_ROOTS:
     if _path_str not in sys.path:
         sys.path.insert(0, _path_str)
 
-from shared.managers.database_session_manager import DatabaseSessionManager
-from shared.managers.logger_manager import setup_logger
+from infrastructure.managers.database_session_manager import DatabaseSessionManager
+from infrastructure.managers.logger_manager import setup_logger
 from settings import get_settings
 from models.category_models import ProductCategory
 from models.product_models import Product

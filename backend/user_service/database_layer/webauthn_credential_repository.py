@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.webauthn_credential_models import WebAuthnCredential
-from shared.database_layer.database_layer import BaseRepository
+from infrastructure.database_layer.database_layer import BaseRepository
 
 
 class WebAuthnCredentialRepository(BaseRepository[WebAuthnCredential]):

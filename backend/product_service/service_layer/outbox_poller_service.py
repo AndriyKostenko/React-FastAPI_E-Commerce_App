@@ -3,7 +3,7 @@ from typing import Any
 from models.outbox_models import OutboxEvent
 from resources import ProductOutboxResources
 from contracts.event_enums import InventoryEvents, SupplierEvents
-from shared.outbox import OutboxRelay
+from infrastructure.outbox import OutboxRelay
 from contracts.events import InventoryReserveFailed, InventoryReserveSucceeded
 
 

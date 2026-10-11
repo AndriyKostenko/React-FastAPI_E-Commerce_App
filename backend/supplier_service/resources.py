@@ -12,9 +12,9 @@ from event_publisher.supplier_event_publisher import SupplierEventPublisher
 from service_layer.cj_api_client import CJDropshippingAPIClient
 from service_layer.cj_freight_service import FreightQuoteCache
 from service_layer.product_service_client import ProductServiceClient
-from shared.idempotency.idempotency_service import IdempotencyEventService
-from shared.managers.database_session_manager import DatabaseSessionManager
-from shared.managers.logger_manager import setup_logger
+from infrastructure.idempotency.idempotency_service import IdempotencyEventService
+from infrastructure.managers.database_session_manager import DatabaseSessionManager
+from infrastructure.managers.logger_manager import setup_logger
 from settings import Settings, get_settings
 
 

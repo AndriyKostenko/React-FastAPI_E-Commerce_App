@@ -10,7 +10,7 @@ from contracts.event_enums import (
     ProductSupplierEventsQueue,
     SupplierEvents,
 )
-from shared.messaging import ConsumerTopology
+from infrastructure.messaging import ConsumerTopology
 from event_consumer.product_event_consumer import ProductEventConsumer
 from resources import (
     ProductConsumerResources,

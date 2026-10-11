@@ -10,7 +10,7 @@ from dependencies.dependencies import (
     review_service_dependency,
 )
 from models.review_models import ProductReview
-from shared.auth.route_guards import SelfOrAdminDep
+from infrastructure.auth.route_guards import SelfOrAdminDep
 
 
 review_routes = APIRouter(

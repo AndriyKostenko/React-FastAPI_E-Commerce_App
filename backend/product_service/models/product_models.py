@@ -8,7 +8,7 @@ from sqlalchemy import DateTime, ForeignKey, Index, inspect, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 
 from models.base import Base
-from shared.utils.models_mixins import TimestampMixin
+from infrastructure.utils.models_mixins import TimestampMixin
 
 
 class Product(Base, TimestampMixin):

@@ -18,7 +18,7 @@ from schemas.image_generation_schema import (
 )
 from schemas.product_image_schema import ProductImageSchema
 from tasks.image_tasks import generate_image_task
-from shared.auth.route_guards import AdminDep
+from infrastructure.auth.route_guards import AdminDep
 
 
 product_images_routes = APIRouter(tags=["product_images"])

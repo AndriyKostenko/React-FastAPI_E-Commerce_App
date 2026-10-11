@@ -7,9 +7,9 @@ from httpx import AsyncClient, HTTPStatusError, RequestError
 from pydantic import BaseModel
 
 from contracts.artwork import GeneratedArtworkAsset
-from shared.exceptions.base_exceptions import BaseAPIException
+from infrastructure.exceptions.base_exceptions import BaseAPIException
 from settings import Settings
-from shared.auth.service_assertion import ServiceAssertionAuth
+from infrastructure.auth.service_assertion import ServiceAssertionAuth
 
 
 class ArtworkDownloadError(BaseAPIException):

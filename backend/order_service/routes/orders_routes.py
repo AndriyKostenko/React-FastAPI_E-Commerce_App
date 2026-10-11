@@ -11,7 +11,7 @@ from schemas.order_schemas import (
     QuoteOrderResponse,
 )
 from dependencies.dependencies import order_service_dependency
-from shared.auth.route_guards import AdminDep, CallerDep, SelfOrAdminDep, ensure_owner_or_admin
+from infrastructure.auth.route_guards import AdminDep, CallerDep, SelfOrAdminDep, ensure_owner_or_admin
 
 order_routes = APIRouter(tags=["orders"])
 

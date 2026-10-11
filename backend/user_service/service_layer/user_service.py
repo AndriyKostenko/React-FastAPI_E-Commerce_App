@@ -29,9 +29,9 @@ from contracts.events import (
     EmailVerificationEvent,
     UserDeletedEvent,
 )
-from shared.contracts.auth import AuthMethod
+from contracts.auth import AuthMethod
 from settings import Settings
-from shared.managers.cache_manager import CacheManager
+from infrastructure.managers.cache_manager import CacheManager
 from contracts.event_enums import UserEvents
 from exceptions.user_exceptions import (
     UserAlreadyExistsError,
@@ -40,8 +40,8 @@ from exceptions.user_exceptions import (
 )
 from database_layer.user_repository import UserRepository
 from managers.password_manager import PasswordManager
-from shared.managers.session_registry import SessionRegistry
-from shared.managers.token_manager import TokenManager
+from infrastructure.managers.session_registry import SessionRegistry
+from infrastructure.managers.token_manager import TokenManager
 from service_layer.outbox_event_service import OutboxEventService
 from service_layer.session_issuer import IssuedSession, SessionIssuer
 

@@ -1,6 +1,6 @@
 from typing import Any
 
-from shared.outbox import OutboxRelay
+from infrastructure.outbox import OutboxRelay
 from contracts.event_enums import PaymentEvents
 from events_publisher.payment_event_publisher import PaymentEventPublisher
 from models.outbox_models import OutboxEvent

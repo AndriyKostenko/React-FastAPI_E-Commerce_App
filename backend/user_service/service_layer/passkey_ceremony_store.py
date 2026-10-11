@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from uuid import UUID
 
-from shared.managers.cache_manager import CacheManager
+from infrastructure.managers.cache_manager import CacheManager
 from webauthn.helpers import base64url_to_bytes, bytes_to_base64url
 
 

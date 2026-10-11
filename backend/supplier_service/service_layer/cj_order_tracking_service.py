@@ -23,9 +23,9 @@ from contracts.events import (
     CJOrderFailedEvent,
     CJOrderShippedEvent,
 )
-from shared.database_layer.outbox_repository import OutboxRepository
+from infrastructure.database_layer.outbox_repository import OutboxRepository
 from contracts.event_enums import OrderEvents
-from shared.managers.database_session_manager import DatabaseSessionManager
+from infrastructure.managers.database_session_manager import DatabaseSessionManager
 from settings import Settings
 
 

@@ -1,7 +1,7 @@
 """cart-service ASGI entrypoint.
 
 Assembly — middleware order, health probes, the Prometheus endpoint and the
-exception contract — lives in ``shared.app``; this module only states what is
+exception contract — lives in ``infrastructure.app``; this module only states what is
 specific to cart-service.
 """
 
@@ -11,7 +11,7 @@ from app_config import DESCRIPTOR, resolve_resources, cart_service_lifespan
 from resources import CartApiResources
 from service_config import logger, settings
 from routes.cart_routes import cart_routes
-from shared.app import DatabaseEngineProbe, ServiceAppBuilder
+from infrastructure.app import DatabaseEngineProbe, ServiceAppBuilder
 
 app = (
     ServiceAppBuilder[CartApiResources](DESCRIPTOR, settings=settings, logger=logger)

@@ -30,7 +30,7 @@ from service_layer.cj_api_client import (
     CJDropshippingUnavailableError,
 )
 from contracts.event_enums import OrderEvents
-from shared.managers.test_database_session_manager import TestDatabaseSessionManager
+from infrastructure.managers.test_database_session_manager import TestDatabaseSessionManager
 from settings import Settings, get_settings
 from utils.supplier_pricing import SupplierRetailPricing
 

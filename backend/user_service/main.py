@@ -1,7 +1,7 @@
 """user-service ASGI entrypoint.
 
 Assembly — middleware order, health probes, the Prometheus endpoint and the
-exception contract — lives in ``shared.app``; this module only states what is
+exception contract — lives in ``infrastructure.app``; this module only states what is
 specific to user-service.
 """
 
@@ -12,7 +12,7 @@ from app_config import DESCRIPTOR, resolve_resources, user_service_lifespan
 from managers import UserApiResources, logger, settings
 from routes.passkey_routes import passkey_routes
 from routes.user_routes import user_routes
-from shared.app import DatabaseEngineProbe, RedisPingProbe, ServiceAppBuilder
+from infrastructure.app import DatabaseEngineProbe, RedisPingProbe, ServiceAppBuilder
 
 app = (
     ServiceAppBuilder[UserApiResources](DESCRIPTOR, settings=settings, logger=logger)

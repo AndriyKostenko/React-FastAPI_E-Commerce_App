@@ -19,7 +19,7 @@ from fastapi import status
 from settings import get_test_settings
 from contracts.event_enums import UserEvents
 from tests.conftest import SIGNING_KEYS, as_gateway
-from shared.testing.signing_keys import EphemeralSigningKeys
+from infrastructure.testing.signing_keys import EphemeralSigningKeys
 
 test_settings = get_test_settings()
 

@@ -9,7 +9,7 @@ from fastapi import HTTPException
 from starlette.requests import Request
 
 from dependencies.dependencies import get_current_user
-from shared.utils.authenticated_caller import CALLER_STATE_KEY, AuthenticatedCaller
+from infrastructure.utils.authenticated_caller import CALLER_STATE_KEY, AuthenticatedCaller
 
 
 def _request(headers: dict[str, str] | None = None, caller: AuthenticatedCaller | None = None) -> Request:

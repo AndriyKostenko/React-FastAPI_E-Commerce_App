@@ -1,6 +1,6 @@
 from typing import Any
 
-from shared.outbox import OutboxRelay
+from infrastructure.outbox import OutboxRelay
 from contracts.event_enums import (
     ArtworkEvents,
     InventoryEvents,

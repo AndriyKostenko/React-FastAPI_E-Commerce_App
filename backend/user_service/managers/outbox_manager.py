@@ -15,7 +15,7 @@ from faststream.rabbit import ExchangeType, RabbitBroker, RabbitExchange
 
 from events_publisher.user_events_publisher import UserEventPublisher
 from managers.resources_manager import build_database, logger, settings
-from shared.managers.database_session_manager import DatabaseSessionManager
+from infrastructure.managers.database_session_manager import DatabaseSessionManager
 from settings import Settings
 
 
@@ -34,7 +34,7 @@ class UserOutboxResources:
 class OutboxManager:
     """Builds and owns the resources of one user-service outbox process.
 
-    The class itself satisfies ``shared.outbox``'s ``RuntimeFactory``: calling
+    The class itself satisfies ``infrastructure.outbox``'s ``RuntimeFactory``: calling
     it yields an async context manager whose entered value is the container.
     """
 

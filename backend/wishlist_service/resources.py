@@ -6,7 +6,7 @@ from logging import Logger
 from aiohttp import ClientSession
 from starlette.requests import HTTPConnection
 
-from shared.managers.database_session_manager import DatabaseSessionManager
+from infrastructure.managers.database_session_manager import DatabaseSessionManager
 from settings import Settings
 
 from service_config import logger, settings

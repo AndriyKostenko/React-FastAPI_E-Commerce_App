@@ -1,7 +1,7 @@
 """How user-service fills in the shared application builder.
 
 Everything here is specific to this service: who it is, and how its resource
-container is opened and resolved.  The generic assembly lives in ``shared.app``.
+container is opened and resolved.  The generic assembly lives in ``infrastructure.app``.
 """
 
 from collections.abc import AsyncIterator
@@ -10,7 +10,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 
 from managers import SERVICE_NAME, ResourceManager, UserApiResources, logger, settings
-from shared.app import ServiceDescriptor
+from infrastructure.app import ServiceDescriptor
 
 DESCRIPTOR = ServiceDescriptor(
     name=SERVICE_NAME,

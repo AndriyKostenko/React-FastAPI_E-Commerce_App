@@ -2,7 +2,7 @@ from fastapi import APIRouter, Request, status
 
 from dependencies.dependencies import artwork_asset_service_dependency
 from schemas.artwork_schema import ArtworkDownloadRequest, ArtworkDownloadResponse
-from shared.auth.service_assertion import require_service
+from infrastructure.auth.service_assertion import require_service
 from typing import Annotated
 from fastapi import Depends
 

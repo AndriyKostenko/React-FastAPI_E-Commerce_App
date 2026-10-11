@@ -27,9 +27,9 @@ from service_layer.cj_webhook_service import CJWebhookService
 from service_layer.cj_webhook_signature import CJWebhookSignature
 from service_layer.outbox_event_service import OutboxEventService
 from contracts.supplier import SupplierStockKey
-from shared.database_layer.outbox_repository import OutboxRepository
+from infrastructure.database_layer.outbox_repository import OutboxRepository
 from contracts.event_enums import SupplierEvents
-from shared.managers.test_database_session_manager import TestDatabaseSessionManager
+from infrastructure.managers.test_database_session_manager import TestDatabaseSessionManager
 from settings import get_settings
 
 pytestmark = pytest.mark.asyncio(loop_scope="session")

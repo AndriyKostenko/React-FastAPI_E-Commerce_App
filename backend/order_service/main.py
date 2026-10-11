@@ -1,7 +1,7 @@
 """order-service ASGI entrypoint.
 
 Assembly — middleware order, health probes, the Prometheus endpoint and the
-exception contract — lives in ``shared.app``; this module only states what is
+exception contract — lives in ``infrastructure.app``; this module only states what is
 specific to order-service.
 """
 
@@ -15,7 +15,7 @@ from routes.production_routes import production_routes
 from routes.refund_routes import refund_routes
 from routes.return_routes import admin_return_routes, return_routes
 from routes.admin_routes import admin_routes
-from shared.app import DatabaseEngineProbe, ServiceAppBuilder
+from infrastructure.app import DatabaseEngineProbe, ServiceAppBuilder
 
 app = (
     ServiceAppBuilder[OrderApiResources](DESCRIPTOR, settings=settings, logger=logger)

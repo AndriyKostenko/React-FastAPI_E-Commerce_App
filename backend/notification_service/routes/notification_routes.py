@@ -1,5 +1,5 @@
 from uuid import UUID
-from shared.utils.authenticated_caller import AuthenticatedCaller
+from infrastructure.utils.authenticated_caller import AuthenticatedCaller
 
 from fastapi import APIRouter, status, Request, Query
 
@@ -10,7 +10,7 @@ from schemas.notifications_schemas import (
     UnreadCountResponse,
 )
 from dependencies.dependencies import notification_service_dependency
-from shared.auth.route_guards import SelfOrAdminDep
+from infrastructure.auth.route_guards import SelfOrAdminDep
 
 
 notification_routes = APIRouter(tags=["notification-service"])

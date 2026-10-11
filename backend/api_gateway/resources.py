@@ -13,12 +13,12 @@ from starlette.requests import HTTPConnection
 from gateway.apigateway import ApiGateway
 from middleware.auth_middleware import AuthMiddleware
 from middleware.cache_middleware import GatewayRequestMiddleware
-from shared.managers.cache_manager import CacheManager
-from shared.managers.logger_manager import setup_logger
-from shared.managers.ratelimit_manager import RateLimitManager
-from shared.auth.caller_assertion import CallerAssertionSigner
-from shared.auth.user_tokens import UserTokenVerifier
-from shared.managers.session_registry import SessionRegistry
+from infrastructure.managers.cache_manager import CacheManager
+from infrastructure.managers.logger_manager import setup_logger
+from infrastructure.managers.ratelimit_manager import RateLimitManager
+from infrastructure.auth.caller_assertion import CallerAssertionSigner
+from infrastructure.auth.user_tokens import UserTokenVerifier
+from infrastructure.managers.session_registry import SessionRegistry
 from settings import Settings, get_settings
 
 

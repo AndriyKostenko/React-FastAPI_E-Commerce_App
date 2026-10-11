@@ -1,7 +1,7 @@
 from pydantic import BaseModel
 
 from models.outbox_models import OutboxEvent
-from shared.database_layer.outbox_repository import OutboxRepository
+from infrastructure.database_layer.outbox_repository import OutboxRepository
 
 
 class OutboxEventService:

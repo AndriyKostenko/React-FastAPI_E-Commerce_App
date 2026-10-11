@@ -5,7 +5,7 @@ from database_layer.order_address_repository import OrderAddressRepository
 from database_layer.order_fulfillment_repository import OrderLineFulfillmentRepository
 from database_layer.order_item_repository import OrderItemRepository
 from database_layer.order_repository import OrderRepository
-from shared.database_layer.outbox_repository import OutboxRepository
+from infrastructure.database_layer.outbox_repository import OutboxRepository
 from events_publisher.order_event_publisher import OrderEventPublisher
 from service_layer.order_address_service import OrderAddressService
 from service_layer.order_fulfillment_status_service import OrderFulfillmentStatusService
@@ -35,8 +35,8 @@ from service_layer.order_service import OrderService
 from enums.status_enums import LineFulfillmentStatus, OrderStatus
 from service_layer.outbox_event_service import OutboxEventService
 from models.outbox_models import OutboxEvent
-from shared.idempotency.idempotency_service import IdempotencyEventService
-from shared.managers.database_session_manager import DatabaseSessionManager
+from infrastructure.idempotency.idempotency_service import IdempotencyEventService
+from infrastructure.managers.database_session_manager import DatabaseSessionManager
 from contracts.event_enums import InventoryEvents, OrderEvents, PaymentEvents, ShippingEvents
 from exceptions.order_exceptions import OrderNotFoundError, OrderNotCancellableError
 from database_layer.order_refund_repository import OrderRefundRepository

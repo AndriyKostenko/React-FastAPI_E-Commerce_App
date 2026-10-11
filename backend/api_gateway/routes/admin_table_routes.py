@@ -1,5 +1,5 @@
 """
-The back office's read-only tables (shared.admin.admin_tables), proxied.
+The back office's read-only tables (infrastructure.admin.admin_tables), proxied.
 
 Each service builds GET /admin/<table>, /admin/<table>/{id} and
 /admin/schema/<table> for its own tables; this maps every table to its

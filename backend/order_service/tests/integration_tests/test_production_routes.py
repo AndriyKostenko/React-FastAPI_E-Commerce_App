@@ -29,7 +29,7 @@ from service_layer.order_item_service import OrderItemService
 from service_layer.order_service import OrderService
 from service_layer.outbox_event_service import OutboxEventService
 from contracts.artwork import GeneratedArtworkAsset, sign_artwork_asset
-from shared.database_layer.outbox_repository import OutboxRepository
+from infrastructure.database_layer.outbox_repository import OutboxRepository
 from contracts.event_enums import ArtworkEvents, OrderEvents, ProductionEvents
 from enums.status_enums import (
     LineFulfillmentStatus,
@@ -37,7 +37,7 @@ from enums.status_enums import (
     OrderStatus,
     ProductionJobStatus,
 )
-from shared.managers.test_database_session_manager import TestDatabaseSessionManager
+from infrastructure.managers.test_database_session_manager import TestDatabaseSessionManager
 from tests.constants import TEST_API, TEST_EMAIL, TEST_PRODUCT_ID, TEST_USER_ID
 from sqlalchemy import text
 

@@ -21,8 +21,8 @@ from schemas.product_schemas import (
     OrderQuoteRequest,
     OrderQuoteResponse,
 )
-from shared.auth.route_guards import AdminDep
-from shared.auth.service_assertion import require_service
+from infrastructure.auth.route_guards import AdminDep
+from infrastructure.auth.service_assertion import require_service
 from contracts.supplier import SupplierStockKey
 
 # Called by order-service directly, never through the gateway: only a request

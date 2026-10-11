@@ -2,7 +2,7 @@ from uuid import UUID
 
 from fastapi import status
 
-from shared.exceptions.base_exceptions import BaseAPIException
+from infrastructure.exceptions.base_exceptions import BaseAPIException
 
 
 

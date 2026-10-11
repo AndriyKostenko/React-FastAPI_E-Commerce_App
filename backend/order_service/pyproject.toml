@@ -37,6 +37,9 @@ dependencies = [
     "httpx >= 0.28.1",
     "pyjwt[crypto]>=2.10",
     "boto3>=1.40.0,<2",
+    "prometheus-client>=0.21.0",
+    "cryptography>=45.0",
+    "aio-pika>=9.5",
 ]
 
 [tool.uv.sources]

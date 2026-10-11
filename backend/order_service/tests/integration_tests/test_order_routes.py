@@ -18,7 +18,7 @@ from contracts.event_enums import OrderEvents
 from saga_timeout_worker import cancel_stalled_supplier_orders, expire_once
 from config import settings
 from contracts.artwork import GeneratedArtworkAsset, sign_artwork_asset
-from shared.managers.test_database_session_manager import TestDatabaseSessionManager
+from infrastructure.managers.test_database_session_manager import TestDatabaseSessionManager
 from enums.status_enums import OrderStatus, OrderDeliveryStatus
 from tests.constants import (
     TEST_USER_ID, TEST_EMAIL, TEST_AMOUNT, TEST_CURRENCY,

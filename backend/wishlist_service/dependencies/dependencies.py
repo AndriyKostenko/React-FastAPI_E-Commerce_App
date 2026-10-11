@@ -6,7 +6,7 @@ from fastapi import Depends, Request
 from starlette.requests import HTTPConnection
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from shared.utils.authenticated_caller import AuthenticatedCaller
+from infrastructure.utils.authenticated_caller import AuthenticatedCaller
 
 from resources import WishlistApiResources, get_wishlist_api_resources
 from service_layer.wishlist_service import WishlistService

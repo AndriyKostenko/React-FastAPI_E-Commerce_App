@@ -19,11 +19,11 @@ from contracts.events import (
     PaymentRefundRequested,
     RefundScope,
 )
-from shared.database_layer.outbox_repository import OutboxRepository
+from infrastructure.database_layer.outbox_repository import OutboxRepository
 from contracts.event_enums import PaymentEvents
 from contracts.services_enums import Services
 from enums.status_enums import PaymentStatus
-from shared.managers.database_session_manager import DatabaseSessionManager
+from infrastructure.managers.database_session_manager import DatabaseSessionManager
 
 
 class RefundStatus(StrEnum):

@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.cj_stock_subscription_models import CJStockSubscription, CJStockSubscriptionVariant
 from contracts.supplier import SupplierStockKey
-from shared.database_layer.database_layer import BaseRepository
+from infrastructure.database_layer.database_layer import BaseRepository
 
 
 class CJStockSubscriptionRepository(BaseRepository[CJStockSubscription]):

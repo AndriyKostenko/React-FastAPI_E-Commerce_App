@@ -4,7 +4,7 @@ from uuid import UUID
 from pydantic import EmailStr
 from faststream.rabbit import RabbitBroker, RabbitExchange
 
-from shared.events.event_publisher import BaseEventPublisher
+from infrastructure.events.event_publisher import BaseEventPublisher
 from settings import Settings
 from contracts.events import (
     InventoryReserveSucceeded,

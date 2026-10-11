@@ -3,7 +3,7 @@ from logging import Logger
 
 from faststream.rabbit import RabbitBroker, RabbitExchange
 
-from shared.events.event_publisher import BaseEventPublisher
+from infrastructure.events.event_publisher import BaseEventPublisher
 from contracts.events import (
     PasswordResetRequestedEvent,
     PasswordResetSuccessEvent,

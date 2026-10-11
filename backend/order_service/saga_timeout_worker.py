@@ -15,7 +15,7 @@ from service_layer.order_address_service import OrderAddressService
 from service_layer.order_item_service import OrderItemService
 from service_layer.order_service import OrderService
 from service_layer.outbox_event_service import OutboxEventService
-from shared.database_layer.outbox_repository import OutboxRepository
+from infrastructure.database_layer.outbox_repository import OutboxRepository
 
 
 async def expire_once(resources) -> int:

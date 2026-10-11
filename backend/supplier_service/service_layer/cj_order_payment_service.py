@@ -40,9 +40,9 @@ from contracts.events import (
     CJOrderPaidEvent,
     OrderConfirmedEvent,
 )
-from shared.database_layer.outbox_repository import OutboxRepository
+from infrastructure.database_layer.outbox_repository import OutboxRepository
 from contracts.event_enums import OrderEvents
-from shared.managers.database_session_manager import DatabaseSessionManager
+from infrastructure.managers.database_session_manager import DatabaseSessionManager
 from settings import Settings
 from utils.money import CENT
 from utils.supplier_pricing import SupplierRetailPricing

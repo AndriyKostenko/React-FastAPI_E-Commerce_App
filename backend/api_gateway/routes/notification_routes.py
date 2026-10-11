@@ -4,9 +4,9 @@ from fastapi import APIRouter, Request, Depends
 
 from resources import api_gateway_manager
 from dependencies.auth_dependencies import get_current_user, path_user_or_admin
-from shared.utils.customized_json_response import JSONResponse
+from infrastructure.utils.customized_json_response import JSONResponse
 from contracts.services_enums import Services
-from shared.contracts.auth import TokenClaims as CurrentUserInfo
+from contracts.auth import TokenClaims as CurrentUserInfo
 
 
 notification_proxy = APIRouter(tags=["Notification Service Proxy"])

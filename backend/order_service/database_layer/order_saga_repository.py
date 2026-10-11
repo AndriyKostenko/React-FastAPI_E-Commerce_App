@@ -10,7 +10,7 @@ from models.order_fulfillment_models import OrderLineFulfillment
 from models.order_item_models import OrderItem
 from models.order_models import Order
 from enums.status_enums import LineFulfillmentStatus, OrderStatus
-from shared.database_layer.database_layer import BaseRepository
+from infrastructure.database_layer.database_layer import BaseRepository
 
 
 class OrderSagaRepository(BaseRepository[OrderSagaState]):

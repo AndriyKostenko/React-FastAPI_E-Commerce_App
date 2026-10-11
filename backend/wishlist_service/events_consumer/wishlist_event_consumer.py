@@ -1,8 +1,8 @@
 from logging import Logger
 from typing import Any
 
-from shared.idempotency.idempotency_service import IdempotencyEventService
-from shared.managers.database_session_manager import DatabaseSessionManager
+from infrastructure.idempotency.idempotency_service import IdempotencyEventService
+from infrastructure.managers.database_session_manager import DatabaseSessionManager
 from settings import Settings
 from contracts.event_enums import UserEvents
 from contracts.events import UserDeletedEvent

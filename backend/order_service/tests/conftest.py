@@ -58,14 +58,14 @@ from database_layer.order_fulfillment_repository import (
     CustomProductionJobRepository,
     OrderLineFulfillmentRepository,
 )
-from shared.database_layer.outbox_repository import OutboxRepository
+from infrastructure.database_layer.outbox_repository import OutboxRepository
 from models.base import Base
 from models.order_address_models import OrderAddress
 from models.order_item_models import OrderItem
 from models.order_models import Order
 from models.outbox_models import OutboxEvent
 from config import logger, settings
-from shared.managers.test_database_session_manager import TestDatabaseSessionManager
+from infrastructure.managers.test_database_session_manager import TestDatabaseSessionManager
 from enums.status_enums import OrderStatus, OrderDeliveryStatus
 from tests.constants import (
     TEST_ORDER_ID,
@@ -82,10 +82,10 @@ from tests.constants import (
 )
 
 
-from shared.testing.helpers import allow_testserver_host
+from infrastructure.testing.helpers import allow_testserver_host
 from settings import get_settings
 from schemas.order_schemas import OrderSchema
-from shared.testing.signing_keys import EphemeralSigningKeys
+from infrastructure.testing.signing_keys import EphemeralSigningKeys
 from database_layer.order_refund_repository import OrderRefundRepository
 from service_layer.order_refund_service import OrderRefundService
 from database_layer.order_saga_repository import OrderSagaRepository

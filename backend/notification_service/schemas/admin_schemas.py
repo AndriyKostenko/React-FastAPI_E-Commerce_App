@@ -1,4 +1,4 @@
-"""What the back office sees of notification-service's tables (see shared.admin.admin_tables)."""
+"""What the back office sees of notification-service's tables (see infrastructure.admin.admin_tables)."""
 
 from datetime import datetime
 from uuid import UUID

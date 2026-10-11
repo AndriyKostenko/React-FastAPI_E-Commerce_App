@@ -2,7 +2,7 @@
 
 from resources import logger, supplier_outbox_resources
 from service_layer.outbox_poller_service import build_outbox_relay
-from shared.outbox import run_outbox_worker
+from infrastructure.outbox import run_outbox_worker
 
 
 if __name__ == "__main__":

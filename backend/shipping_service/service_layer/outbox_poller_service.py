@@ -3,7 +3,7 @@ from typing import Any
 from models.outbox_models import OutboxEvent
 from resources import ShippingOutboxResources
 from contracts.event_enums import ShippingEvents
-from shared.outbox import OutboxRelay
+from infrastructure.outbox import OutboxRelay
 
 
 def build_outbox_relay(resources: ShippingOutboxResources) -> OutboxRelay:

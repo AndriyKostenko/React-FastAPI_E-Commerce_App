@@ -8,7 +8,7 @@ from database_layer.cj_order_attempt_repository import CJOrderAttemptRepository
 from enums.cj_order_enums import CJOrderAttemptStatus
 from models.cj_order_attempt_models import CJOrderAttempt
 from models.outbox_models import OutboxEvent
-from shared.database_layer.outbox_repository import OutboxRepository
+from infrastructure.database_layer.outbox_repository import OutboxRepository
 from event_publisher.supplier_event_publisher import SupplierEventPublisher
 from exceptions.cj_order_exceptions import (
     CJOrderCancelledError,
@@ -38,8 +38,8 @@ from contracts.events import (
     SupplierProductImportFailedEvent,
     SupplierProductImportCompletedEvent,
 )
-from shared.idempotency.idempotency_service import IdempotencyEventService
-from shared.managers.database_session_manager import DatabaseSessionManager
+from infrastructure.idempotency.idempotency_service import IdempotencyEventService
+from infrastructure.managers.database_session_manager import DatabaseSessionManager
 from settings import Settings
 from utils.supplier_pricing import SupplierRetailPricing
 

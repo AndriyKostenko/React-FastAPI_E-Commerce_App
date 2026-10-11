@@ -23,7 +23,7 @@ from stripe import StripeClient, StripeError
 
 from models.payment_models import Payment
 from contracts.tax import TaxCalculationRequest, TaxCalculationResult
-from shared.exceptions.base_exceptions import BaseAPIException
+from infrastructure.exceptions.base_exceptions import BaseAPIException
 from settings import Settings
 
 

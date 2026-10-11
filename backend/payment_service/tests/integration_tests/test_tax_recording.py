@@ -24,10 +24,10 @@ from service_layer.payment_service import PaymentService
 from service_layer.tax_service import TaxCalculationService, TaxLocationInvalidError
 from contracts.events import PaymentRefundRequested
 from contracts.tax import TaxAddress, TaxCalculationRequest, TaxLine
-from shared.database_layer.outbox_repository import OutboxRepository
+from infrastructure.database_layer.outbox_repository import OutboxRepository
 from enums.status_enums import PaymentStatus
-from shared.managers.test_database_session_manager import TestDatabaseSessionManager
-from shared.testing.signing_keys import ANONYMOUS, EphemeralSigningKeys
+from infrastructure.managers.test_database_session_manager import TestDatabaseSessionManager
+from infrastructure.testing.signing_keys import ANONYMOUS, EphemeralSigningKeys
 from dependencies.dependencies import get_tax_calculation_service
 from main import app
 from tests.conftest import DEFAULT_CALLER, SIGNING_KEYS

@@ -27,7 +27,7 @@ from service_layer.outbox_event_service import OutboxEventService
 from service_layer.passkey_ceremony_store import PasskeyCeremonyStore
 from service_layer.passkey_service import PasskeyService, RelyingParty
 from service_layer.user_service import UserService
-from shared.database_layer.outbox_repository import OutboxRepository
+from infrastructure.database_layer.outbox_repository import OutboxRepository
 
 
 async def _with_passkey_service(action: Callable[[PasskeyService], Awaitable[int]]) -> int:

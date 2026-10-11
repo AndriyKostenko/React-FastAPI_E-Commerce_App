@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from resources import get_product_api_resources, logger, product_api_runtime, settings
-from shared.app import ServiceDescriptor
+from infrastructure.app import ServiceDescriptor
 from tasks.broker import taskiq_broker
 
 DESCRIPTOR = ServiceDescriptor(

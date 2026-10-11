@@ -31,7 +31,7 @@ from models.cj_order_attempt_models import CJOrderAttempt
 from resources import create_database_manager, logger, settings
 from service_layer.cj_api_client import CJDropshippingAPIClient, CJDropshippingAPIError
 from service_layer.cj_order_tracking_service import CJOrderTrackingService
-from shared.managers.database_session_manager import DatabaseSessionManager
+from infrastructure.managers.database_session_manager import DatabaseSessionManager
 
 # CJ allows one request per second per account; back-to-back calls get a 429.
 CJ_CALL_INTERVAL_SECONDS = 1.1

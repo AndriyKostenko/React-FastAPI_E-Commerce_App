@@ -7,7 +7,7 @@ from sqlalchemy import Boolean, ForeignKey, Index, Numeric, inspect, UniqueConst
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 
 from models.base import Base
-from shared.utils.models_mixins import TimestampMixin
+from infrastructure.utils.models_mixins import TimestampMixin
 
 
 class ProductVariant(Base, TimestampMixin):

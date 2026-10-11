@@ -14,7 +14,7 @@ from schemas.order_return_schemas import (
     ReturnRequestCreate,
     ReturnRequestSchema,
 )
-from shared.auth.route_guards import AdminDep, CallerDep, require_admin
+from infrastructure.auth.route_guards import AdminDep, CallerDep, require_admin
 from contracts.returns import ReturnStatus
 
 

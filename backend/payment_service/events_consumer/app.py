@@ -8,7 +8,7 @@ from events_consumer.payment_event_consumer import PaymentEventConsumer
 from messaging import create_rabbitmq_broker, order_exchange
 from resources import PaymentConsumerResources, create_consumer_resources
 from contracts.event_enums import OrderEvents
-from shared.messaging import ConsumerTopology
+from infrastructure.messaging import ConsumerTopology
 
 
 rabbitmq_broker = create_rabbitmq_broker(settings)
