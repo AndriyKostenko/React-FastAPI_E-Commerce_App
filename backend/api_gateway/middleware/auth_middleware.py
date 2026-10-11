@@ -6,7 +6,7 @@ from shared.settings import Settings
 from shared.managers.session_registry import SessionRegistry
 from shared.auth.user_tokens import UserTokenVerifier
 from shared.contracts.auth import TokenClaims
-from shared.enums.auth_enums import AuthCookies
+from enums.auth_enums import AuthCookies
 from middleware.public_routes import PublicRouteRegistry
 
 class AuthMiddleware:

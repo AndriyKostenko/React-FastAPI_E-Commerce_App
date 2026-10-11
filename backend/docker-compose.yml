@@ -433,7 +433,6 @@ services:
       - backend
     volumes:
       - ./shared:/app/shared:ro
-      - ./shared/templates:/app/templates:ro
       - /tmp/prometheus_multiproc:/tmp/prometheus_multiproc
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
@@ -461,7 +460,6 @@ services:
       - backend
     volumes:
       - ./shared:/app/shared:ro
-      - ./shared/templates:/app/templates:ro
 
   notification-taskiq-worker:
     build:
@@ -481,7 +479,6 @@ services:
       - backend
     volumes:
       - ./shared:/app/shared:ro
-      - ./shared/templates:/app/templates:ro
 
   order-service:
     build:

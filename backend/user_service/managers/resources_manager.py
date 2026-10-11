@@ -26,7 +26,7 @@ from starlette.requests import HTTPConnection
 from shared.managers.cache_manager import CacheManager
 from shared.managers.database_session_manager import DatabaseSessionManager
 from shared.managers.logger_manager import setup_logger
-from shared.managers.password_manager import PasswordManager
+from managers.password_manager import PasswordManager
 from shared.managers.ratelimit_manager import RateLimitManager
 from shared.managers.session_registry import SessionRegistry
 from shared.managers.token_manager import TokenManager

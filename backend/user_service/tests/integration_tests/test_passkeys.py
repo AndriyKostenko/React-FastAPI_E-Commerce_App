@@ -20,7 +20,7 @@ from service_layer.passkey_ceremony_store import PasskeyCeremonyStore
 from service_layer.session_issuer import SessionIssuer
 from shared.contracts.auth import AuthMethod
 from shared.managers.cache_manager import CacheManager
-from shared.managers.password_manager import PasswordManager
+from managers.password_manager import PasswordManager
 from shared.managers.test_database_session_manager import TestDatabaseSessionManager
 from tests.conftest import SIGNING_KEYS
 from tests.software_authenticator import SoftwareAuthenticator

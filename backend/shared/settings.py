@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import ClassVar, Literal
 from uuid import UUID, uuid4
 
-from pydantic import AliasChoices, DirectoryPath, Field, SecretStr
+from pydantic import AliasChoices, Field, SecretStr
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
 from shared.enums.status_enums import OrderDeliveryStatus, OrderStatus
 from sqlalchemy.engine import URL
@@ -288,7 +288,6 @@ class Settings(BaseSettings):
     # the email tells them support will send the address.
     RETURN_ADDRESS: str | None = None
     USE_CREDENTIALS: bool
-    TEMPLATES_DIR: DirectoryPath = Path(__file__).parent / "templates"
     VALIDATE_CERTS: bool
 
     # CORS

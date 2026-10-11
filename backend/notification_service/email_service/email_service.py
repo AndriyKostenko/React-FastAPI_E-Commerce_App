@@ -1,4 +1,5 @@
 from logging import Logger
+from pathlib import Path
 from typing import Any
 
 from fastapi_mail import FastMail, MessageSchema, ConnectionConfig, MessageType
@@ -6,7 +7,7 @@ from fastapi_mail.errors import ConnectionErrors
 from pydantic import ValidationError
 from jinja2 import Environment, FileSystemLoader, TemplateNotFound, select_autoescape
 
-from shared.email_service.email_links import EmailLinks
+from email_service.email_links import EmailLinks
 from shared.exceptions.base_exceptions import EmailServiceError
 from shared.settings import Settings
 from shared.contracts.events import (
@@ -26,6 +27,10 @@ from shared.contracts.events import (
 )
 from shared.enums.event_enums import OrderEvents
 
+# The email templates ship with this service, next to the code that renders them.
+TEMPLATES_DIR: Path = Path(__file__).parent / "templates"
+
+
 class EmailService:
     """Service for sending emails using FastAPI Mail and Jinja2 templates."""
     def __init__(self, settings: Settings, logger: Logger):
@@ -42,13 +47,13 @@ class EmailService:
             MAIL_SSL_TLS=self.settings.MAIL_SSL_TLS,
             USE_CREDENTIALS=self.settings.USE_CREDENTIALS,
             MAIL_DEBUG=self.settings.MAIL_DEBUG,
-            TEMPLATE_FOLDER=self.settings.TEMPLATES_DIR,
+            TEMPLATE_FOLDER=TEMPLATES_DIR,
             VALIDATE_CERTS=self.settings.VALIDATE_CERTS
         )
         # Autoescaped: templates carry text customers wrote (a return's
         # description), which must never become markup in anyone's inbox.
         self.jinja_env: Environment = Environment(
-            loader=FileSystemLoader(self.settings.TEMPLATES_DIR),
+            loader=FileSystemLoader(TEMPLATES_DIR),
             autoescape=select_autoescape(["html"]),
         )
         self.fast_mail: FastMail = FastMail(self.config)

@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock
 from uuid import uuid4
 
 from shared.contracts.events import PaymentDisputeEvent
-from shared.email_service.email_service import AdminAlerts
+from email_service.email_service import AdminAlerts
 from shared.settings import get_settings
 
 

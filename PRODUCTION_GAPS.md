@@ -894,11 +894,70 @@ approach; decisions are recorded here as they are made.
      CSP (AdminJS needs inline scripts); the frontend's `npm run lint` is broken (`next lint` is gone in
      Next 16, and there is no ESLint config).
 5. **Remove `shared/`.** It holds 83 modules, installed into every service as
-   an editable path dependency and imported from about 405 files. Deliverable
-   first: a plan saying where each part moves. Code used by one service goes
-   into that service. Event contracts become a small versioned package, or each
-   consumer keeps its own copy. The infrastructure layers (messaging, outbox,
-   database base classes, settings) are placed case by case.
+   an editable path dependency and imported from 441 files.
+   **Decided (2026-10-10): no shared library of any kind.** Every service
+   carries its own copy of what it uses; nothing is published or installed
+   from a common path.
+   - **Layout in each service.**
+     - `infrastructure/`: copies of the infrastructure modules the service
+       reaches (its own imports plus what those import), under the same
+       sub-paths as in `shared/` (`infrastructure/app/builder.py`,
+       `infrastructure/messaging/…`). `from shared.x` becomes
+       `from infrastructure.x`, and two services' copies compare with a plain
+       `diff -r`. Nesting avoids clashes with the services' own `exceptions/`,
+       `database_layer/`, `managers/`, `utils/`, `models/`.
+     - `contracts/`: only the events the service publishes or consumes (with
+       their base classes), its members of the queue/event enums, and the DTOs
+       it sends or receives. Publishers add fields only; consumers already
+       ignore unknown ones (Pydantic's default), and `schema_version` stays on
+       every event.
+     - `settings.py`: its own `Settings` / `TestSettings` holding only the
+       fields it and its infrastructure read; `config.py` keeps exporting
+       `settings`. Field names do not change, so `backend/.env` and the Vault
+       paths stay as they are.
+   - **Where each part goes.**
+
+     | `shared/` | Goes to | Phase |
+     | --- | --- | --- |
+     | `email_service/` (+ `email_links`), `templates/` | notification-service | 1 |
+     | `messaging/task_dead_letter.py` | notification-service | 1 |
+     | `managers/password_manager.py` | user-service | 1 |
+     | `utils/filter_parser.py` | product-service | 1 |
+     | `contracts/product.py` | supplier-service | 1 |
+     | `enums/auth_enums.py` (`AuthCookies`) | gateway | 1 |
+     | `logs/app.log`, `=0.27.0`, `shared_service_issues.txt`, `enums/supplier_service.py` (unused) | deleted | 1 |
+     | `settings.py` | each service's `settings.py`; the 23 fields nothing reads are dropped | 2 |
+     | `enums/status_enums.py` | order statuses, line fulfilment, production job → order; `PaymentStatus` → payment; `SyncStatus` (unused) dropped. Waits for phase 2 because `settings.py` imports them | 2 |
+     | `contracts/events.py`, `enums/event_enums.py`, `enums/services_enums.py` | `contracts/` of each publisher and consumer, trimmed to its events | 3 |
+     | `contracts/order`, `returns`, `artwork`, `supplier`, `tax`, `auth` | `contracts/` of the services that send or receive them | 3 |
+     | `contracts/shipping_region.py` | order + supplier (both enforce it) | 3 |
+     | `utils/supplier_pricing.py`, `exchange_rates.py`, `money.py` | product + order + supplier. The catalogue price and the order quote must agree, so a change lands in all three copies in one commit | 3 |
+     | `auth/user_tokens.py`, `managers/token_manager.py` | issuer + token manager → user; verifier → gateway. Waits for phase 4 because `testing/signing_keys.py` uses both | 4 |
+     | `app/`, `middleware/`, `auth/` (assertions, guards, keys), `utils/authenticated_caller`, `client_ip`, `customized_json_response`, `models_mixins`, `exceptions/`, `database_layer/`, `managers/` (DB session, test DB session, Redis base, cache, rate limit, session registry, logger), `idempotency/`, `outbox/`, `models/outbox_events.py`, `events/event_publisher.py`, `messaging/`, `resilience/`, `vault/`, `telemetry.py`, `admin/admin_tables.py`, `testing/` | `infrastructure/` of each service that reaches them | 4 |
+     | `messaging/dead_letter_replay.py` (the `dev.sh dlq` CLI) | order-service, whose venv `dev.sh` already runs it from | 4 |
+     | `tests/` | travel with their module into every service that carries it | 4 |
+
+   - **Phases**, one PR each, every suite green after each:
+     1. Code used by one service moves into it; dead files deleted.
+        **Done (2026-10-10).** The email templates now ship inside
+        notification-service (`email_service/templates/`, found by the module
+        itself; the `TEMPLATES_DIR` setting and the compose template mounts
+        are gone). Suites green: notification 119, user 174, product 321,
+        supplier 230, gateway 228, shared 50; affected processes restarted
+        and healthy.
+     2. Per-service settings (and the status enums).
+     3. Per-service contracts.
+     4. Per-service infrastructure; each service's `pyproject.toml` declares
+        the packages it was getting through `shared` (fastapi-mail, passlib,
+        taskiq, OpenTelemetry, …).
+     5. `shared/` deleted: the path dependency and lock entries, the
+        `./shared` mounts in both compose files, Dockerfiles, `dev.sh`
+        (`test shared`, the `shared-tests` Vault identity, `dlq` replay),
+        CLAUDE.md and docs; `uv sync` in every service.
+   - **Cost, accepted:** the same infrastructure code exists in up to ten
+     services (today each service reaches 3.6k–6k lines of `shared/`, less
+     once settings and contracts are trimmed), and a fix to a copied module
+     has to be made in every copy.
 
 ---
 

@@ -1,7 +1,7 @@
 from typing import Any
 
 from resources import logger, settings
-from shared.email_service.email_service import AdminAlerts, OrderRelatedNotifications, UserRelatedNotifications
+from email_service.email_service import AdminAlerts, OrderRelatedNotifications, UserRelatedNotifications
 from shared.contracts.events import (
     PaymentDisputeEvent,
     OrderReturnEvent,

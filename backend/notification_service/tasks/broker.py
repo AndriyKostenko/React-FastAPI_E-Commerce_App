@@ -3,7 +3,7 @@ from aio_pika.abc import ExchangeType as AioPikaExchangeType
 from logging import getLogger
 
 from taskiq_redis import RedisAsyncResultBackend
-from shared.messaging.task_dead_letter import DeadLetteringRetryMiddleware
+from tasks.task_dead_letter import DeadLetteringRetryMiddleware
 from shared.settings import get_settings
 
 settings = get_settings()

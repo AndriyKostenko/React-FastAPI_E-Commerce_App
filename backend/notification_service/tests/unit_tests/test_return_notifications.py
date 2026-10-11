@@ -9,7 +9,7 @@ import pytest
 from events_consumer.event_handlers import OrderEventHandler
 from shared.contracts.events import OrderReturnEvent
 from shared.contracts.returns import ReturnFault, ReturnLineSummary, ReturnReason
-from shared.email_service.email_service import AdminAlerts, OrderRelatedNotifications
+from email_service.email_service import AdminAlerts, OrderRelatedNotifications
 from shared.enums.event_enums import OrderEvents
 from shared.settings import get_settings
 from tests.unit_tests.test_event_handlers import _make_handler

@@ -39,7 +39,7 @@ from exceptions.user_exceptions import (
     UserUpdateError
 )
 from database_layer.user_repository import UserRepository
-from shared.managers.password_manager import PasswordManager
+from managers.password_manager import PasswordManager
 from shared.managers.session_registry import SessionRegistry
 from shared.managers.token_manager import TokenManager
 from service_layer.outbox_event_service import OutboxEventService
