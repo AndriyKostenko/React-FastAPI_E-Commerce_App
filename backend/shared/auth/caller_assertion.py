@@ -21,7 +21,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import (
 
 from shared.auth.signing_keys import Ed25519KeyLoader
 from shared.contracts.auth import TokenClaims
-from shared.settings import Settings
+from settings import Settings
 from shared.utils.authenticated_caller import AuthenticatedCaller
 
 

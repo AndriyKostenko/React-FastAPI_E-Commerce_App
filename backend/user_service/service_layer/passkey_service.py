@@ -31,7 +31,7 @@ from service_layer.passkey_ceremony_store import CeremonyPurpose, PasskeyCeremon
 from service_layer.session_issuer import IssuedSession
 from service_layer.user_service import UserService
 from shared.contracts.auth import AuthMethod
-from shared.settings import Settings
+from settings import Settings
 
 
 @dataclass(frozen=True, slots=True)

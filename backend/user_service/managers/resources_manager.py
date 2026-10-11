@@ -30,7 +30,7 @@ from managers.password_manager import PasswordManager
 from shared.managers.ratelimit_manager import RateLimitManager
 from shared.managers.session_registry import SessionRegistry
 from shared.managers.token_manager import TokenManager
-from shared.settings import Settings, get_settings
+from settings import Settings, get_settings
 
 
 SERVICE_NAME: Final[str] = "user-service"

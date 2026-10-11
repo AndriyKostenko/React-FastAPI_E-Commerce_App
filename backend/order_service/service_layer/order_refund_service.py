@@ -17,7 +17,7 @@ from service_layer.outbox_event_service import OutboxEventService
 from shared.contracts.events import PaymentRefundRequested
 from shared.enums.event_enums import PaymentCommands
 from shared.enums.services_enums import Services
-from shared.enums.status_enums import OrderStatus
+from enums.status_enums import OrderStatus
 from shared.utils.money import CENT, to_cents
 
 

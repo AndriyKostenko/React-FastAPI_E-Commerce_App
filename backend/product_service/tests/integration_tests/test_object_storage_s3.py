@@ -15,7 +15,7 @@ from uuid import uuid4
 
 import pytest
 
-from shared.settings import get_settings
+from settings import get_settings
 from storage.catalogue_url import CatalogueUrlResolver
 from storage.object_storage_provider import ObjectStorageProvider
 from storage.object_store import ObjectStorageError, ObjectWrite, S3ObjectStore

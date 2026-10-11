@@ -33,7 +33,7 @@ from models.base import Base
 from models.outbox_models import OutboxEvent
 from models.user_models import User
 from managers import ResourceManager, UserApiResources, logger, settings
-from shared.settings import get_test_settings
+from settings import get_test_settings
 from shared.managers.test_database_session_manager import TestDatabaseSessionManager
 from shared.managers.token_manager import TokenManager
 from shared.testing.signing_keys import EphemeralSigningKeys

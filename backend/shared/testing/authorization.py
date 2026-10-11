@@ -5,7 +5,7 @@ from uuid import UUID
 
 import httpx
 
-from shared.settings import get_settings
+from settings import get_settings
 from shared.testing.signing_keys import ANONYMOUS, EphemeralSigningKeys
 
 

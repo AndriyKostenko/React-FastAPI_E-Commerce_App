@@ -5,7 +5,7 @@ from typing import Self
 from faststream.rabbit import RabbitBroker, RabbitExchange
 from pydantic import BaseModel
 
-from shared.settings import Settings
+from settings import Settings
 
 
 class BaseEventPublisher:

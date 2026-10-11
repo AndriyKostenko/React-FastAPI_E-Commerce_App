@@ -6,7 +6,7 @@ import pytest
 
 from events_consumer.payment_event_consumer import PaymentEventConsumer
 from shared.contracts.events import PaymentCaptureRequested, PaymentReleaseRequested
-from shared.enums.status_enums import PaymentStatus
+from enums.status_enums import PaymentStatus
 
 
 @pytest.fixture

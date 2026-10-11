@@ -57,7 +57,7 @@ from shared.enums.event_enums import (
     PaymentCommands,
 )
 from shared.enums.services_enums import Services
-from shared.enums.status_enums import (
+from enums.status_enums import (
     LineFulfillmentStatus,
     OrderDeliveryStatus,
     OrderStatus,

@@ -15,7 +15,7 @@ from schemas.production_schemas import (
     StartProductionJobRequest,
 )
 from shared.auth.route_guards import require_admin
-from shared.enums.status_enums import ProductionJobStatus
+from enums.status_enums import ProductionJobStatus
 
 
 # The in-house production queue is admin-only end to end, so the router carries

@@ -3,7 +3,7 @@
 from collections.abc import Iterable
 
 from models.order_fulfillment_models import OrderLineFulfillment
-from shared.enums.status_enums import LineFulfillmentStatus, OrderDeliveryStatus
+from enums.status_enums import LineFulfillmentStatus, OrderDeliveryStatus
 
 
 class OrderDeliveryStatusAggregator:

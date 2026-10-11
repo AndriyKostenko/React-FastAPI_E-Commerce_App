@@ -13,7 +13,7 @@ from PIL import Image, ImageDraw
 
 from exceptions.image_generation_exceptions import ImageBackgroundRemovalError
 from service_layer.background_removal_service import RembgBackgroundRemover
-from shared.settings import get_settings
+from settings import get_settings
 
 
 def _design_on_flat_background(size: int = 1024) -> str:

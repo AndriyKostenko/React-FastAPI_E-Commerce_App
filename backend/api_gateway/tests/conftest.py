@@ -25,7 +25,7 @@ from resources import (
     logger,
     settings,
 )
-from shared.settings import get_test_settings
+from settings import get_test_settings
 from shared.contracts.auth import TokenClaims as CurrentUserInfo
 from tests.constants import (
     TEST_USER_ID,

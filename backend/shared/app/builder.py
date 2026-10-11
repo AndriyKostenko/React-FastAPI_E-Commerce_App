@@ -36,7 +36,7 @@ from shared.middleware.caller_assertion_middleware import (
 )
 from shared.middleware.host_validation_middleware import add_host_validation_middleware
 from shared.middleware.logging_middleware import add_logging_middleware
-from shared.settings import Settings
+from settings import Settings
 from shared.telemetry import setup_tracing
 
 

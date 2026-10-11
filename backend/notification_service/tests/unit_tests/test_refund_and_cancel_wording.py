@@ -9,7 +9,7 @@ import pytest
 from events_consumer.event_handlers import PaymentEventHandler
 from shared.contracts.events import OrderCancelledEvent, PaymentRefundedEvent, RefundScope
 from email_service.email_service import OrderRelatedNotifications
-from shared.settings import get_settings
+from settings import get_settings
 from tests.unit_tests.test_event_handlers import _make_handler
 
 ORDER_ID = uuid4()

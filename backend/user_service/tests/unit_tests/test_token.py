@@ -13,7 +13,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from fastapi import HTTPException
 
 from shared.managers.token_manager import TokenManager
-from shared.settings import get_test_settings
+from settings import get_test_settings
 from shared.testing.signing_keys import TEST_TOKEN_AUDIENCE, TEST_TOKEN_ISSUER, EphemeralSigningKeys
 
 test_settings = get_test_settings()

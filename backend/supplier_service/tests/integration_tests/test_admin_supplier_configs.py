@@ -19,7 +19,7 @@ from models.supplier_config_models import SupplierConfig
 from routes.admin_routes import admin_routes, supplier_config_admin_routes
 from shared.managers.test_database_session_manager import TestDatabaseSessionManager
 from shared.middleware.caller_assertion_middleware import CallerAssertionMiddleware
-from shared.settings import get_settings
+from settings import get_settings
 from shared.testing.signing_keys import ANONYMOUS, EphemeralSigningKeys
 
 KEYS = EphemeralSigningKeys()

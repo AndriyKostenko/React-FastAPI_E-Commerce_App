@@ -28,7 +28,7 @@ from shared.contracts.shipping_region import (
     SHIPPING_COUNTRY_CODE,
     SHIPPING_COUNTRY_NAME,
 )
-from shared.settings import Settings
+from settings import Settings
 
 
 CacheKey = tuple[str, str, tuple[tuple[str, int], ...]]

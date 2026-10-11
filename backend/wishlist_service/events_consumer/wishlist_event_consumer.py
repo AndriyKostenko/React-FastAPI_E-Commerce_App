@@ -3,7 +3,7 @@ from typing import Any
 
 from shared.idempotency.idempotency_service import IdempotencyEventService
 from shared.managers.database_session_manager import DatabaseSessionManager
-from shared.settings import Settings
+from settings import Settings
 from shared.enums.event_enums import UserEvents
 from shared.contracts.events import UserDeletedEvent
 from database_layer.wishlist_repository import WishlistRepository

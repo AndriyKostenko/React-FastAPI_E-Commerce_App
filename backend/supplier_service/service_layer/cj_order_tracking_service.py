@@ -26,7 +26,7 @@ from shared.contracts.events import (
 from shared.database_layer.outbox_repository import OutboxRepository
 from shared.enums.event_enums import OrderEvents
 from shared.managers.database_session_manager import DatabaseSessionManager
-from shared.settings import Settings
+from settings import Settings
 
 
 @dataclass(frozen=True, slots=True)

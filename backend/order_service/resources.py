@@ -13,7 +13,7 @@ from events_publisher.order_event_publisher import OrderEventPublisher
 from messaging import create_rabbitmq_broker
 from shared.idempotency.idempotency_service import IdempotencyEventService
 from shared.managers.database_session_manager import DatabaseSessionManager
-from shared.settings import Settings
+from settings import Settings
 from service_layer.artwork_asset_client import ArtworkAssetClient
 from service_layer.order_pricing_service import CatalogQuoteClient, FreightQuoteClient, TaxQuoteClient
 

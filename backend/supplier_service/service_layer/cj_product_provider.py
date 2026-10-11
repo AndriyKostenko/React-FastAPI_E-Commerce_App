@@ -9,7 +9,7 @@ from schemas.dropshipping_schemas import CJProductsFilterParams
 from shared.contracts.shipping_region import CJ_WAREHOUSE_COUNTRY_CODE
 from shared.contracts.supplier import GenericSupplierProduct
 from schemas.supplier_schemas import SupplierProductsPage
-from shared.settings import Settings
+from settings import Settings
 
 
 class CJDropshippingProductProvider(SupplierProvider):

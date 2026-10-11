@@ -2,7 +2,7 @@ from logging import Logger
 from fastapi import Request, HTTPException, Response
 from fastapi.responses import JSONResponse
 
-from shared.settings import Settings
+from settings import Settings
 from shared.managers.session_registry import SessionRegistry
 from shared.auth.user_tokens import UserTokenVerifier
 from shared.contracts.auth import TokenClaims

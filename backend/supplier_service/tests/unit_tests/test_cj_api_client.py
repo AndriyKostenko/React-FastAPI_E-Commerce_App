@@ -5,7 +5,7 @@ from pydantic import SecretStr
 from httpx import HTTPStatusError, Request
 
 from service_layer.cj_api_client import CJDropshippingAPIClient, CJDropshippingAPIError
-from shared.settings import Settings
+from settings import Settings
 
 
 @pytest.fixture

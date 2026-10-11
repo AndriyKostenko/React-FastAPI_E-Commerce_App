@@ -31,7 +31,7 @@ from service_layer.cj_api_client import (
 )
 from shared.enums.event_enums import OrderEvents
 from shared.managers.test_database_session_manager import TestDatabaseSessionManager
-from shared.settings import Settings, get_settings
+from settings import Settings, get_settings
 from shared.utils.supplier_pricing import SupplierRetailPricing
 
 

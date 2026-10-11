@@ -27,7 +27,7 @@ from shared.auth.caller_assertion import (
     RequestTarget,
 )
 from shared.auth.signing_keys import Ed25519KeyLoader, SigningKeyError
-from shared.settings import Settings, get_settings
+from settings import Settings, get_settings
 
 
 SERVICE_ASSERTION_HEADER = "X-Service-Assertion"

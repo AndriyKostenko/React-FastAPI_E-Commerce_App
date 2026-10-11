@@ -4,7 +4,7 @@ from typing import Any
 from faststream.rabbit import RabbitBroker, RabbitExchange
 
 from shared.events.event_publisher import BaseEventPublisher
-from shared.settings import Settings
+from settings import Settings
 from shared.contracts.events import (
     CJOrderCreatedEvent,
     CJOrderDeliveredEvent,

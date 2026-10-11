@@ -9,7 +9,7 @@ from models.order_saga_models import OrderSagaState
 from models.order_fulfillment_models import OrderLineFulfillment
 from models.order_item_models import OrderItem
 from models.order_models import Order
-from shared.enums.status_enums import LineFulfillmentStatus, OrderStatus
+from enums.status_enums import LineFulfillmentStatus, OrderStatus
 from shared.database_layer.database_layer import BaseRepository
 
 

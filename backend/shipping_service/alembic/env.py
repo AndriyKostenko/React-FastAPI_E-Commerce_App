@@ -8,7 +8,7 @@ from alembic import context  # type: ignore
 
 from models.base import Base
 from models.shipping_models import ShippingMethod, Shipment
-from shared.settings import get_settings
+from settings import get_settings
 
 
 settings = get_settings()

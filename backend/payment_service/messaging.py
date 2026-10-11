@@ -2,7 +2,7 @@
 
 from faststream.rabbit import ExchangeType, RabbitBroker, RabbitExchange
 
-from shared.settings import Settings
+from settings import Settings
 
 
 payment_exchange = RabbitExchange(

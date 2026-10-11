@@ -8,7 +8,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from models.base import Base
 from shared.contracts.artwork import GeneratedArtworkAsset
-from shared.enums.status_enums import LineFulfillmentStatus, ProductionJobStatus
+from enums.status_enums import LineFulfillmentStatus, ProductionJobStatus
 from shared.utils.models_mixins import TimestampMixin
 
 

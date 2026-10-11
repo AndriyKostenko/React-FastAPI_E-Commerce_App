@@ -8,7 +8,7 @@ from database_layer.order_repository import OrderRepository
 from models.order_fulfillment_models import OrderLineFulfillment
 from models.order_models import Order
 from service_layer.order_delivery_status import OrderDeliveryStatusAggregator
-from shared.enums.status_enums import LineFulfillmentStatus, OrderStatus
+from enums.status_enums import LineFulfillmentStatus, OrderStatus
 
 
 class OrderFulfillmentStatusService:

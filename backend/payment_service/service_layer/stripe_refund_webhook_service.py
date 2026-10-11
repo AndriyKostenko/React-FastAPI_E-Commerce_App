@@ -12,7 +12,7 @@ from service_layer.refund_metadata import AppRefundMetadata
 from shared.contracts.events import PaymentRefundedEvent, RefundScope
 from shared.enums.event_enums import PaymentEvents
 from shared.enums.services_enums import Services
-from shared.enums.status_enums import PaymentStatus
+from enums.status_enums import PaymentStatus
 
 
 class StripeRefundWebhookService:

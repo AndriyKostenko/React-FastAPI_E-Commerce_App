@@ -11,7 +11,7 @@ from rembg.sessions.base import BaseSession
 
 from exceptions.image_generation_exceptions import ImageBackgroundRemovalError
 from service_layer.image_payload import decode_image_payload, encode_png_data_url
-from shared.settings import Settings
+from settings import Settings
 
 
 class BackgroundRemover(ABC):

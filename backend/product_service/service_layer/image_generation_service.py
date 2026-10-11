@@ -5,7 +5,7 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
-from shared.settings import Settings
+from settings import Settings
 from schemas.image_generation_schema import GenerateImageResponse
 from exceptions.image_generation_exceptions import (
     ImageBackgroundRemovalError,

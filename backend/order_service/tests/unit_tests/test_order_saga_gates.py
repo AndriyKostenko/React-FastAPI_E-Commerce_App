@@ -1,7 +1,7 @@
 from unittest.mock import AsyncMock, MagicMock
 from types import SimpleNamespace
 
-from shared.enums.status_enums import OrderStatus
+from enums.status_enums import OrderStatus
 from tests.constants import (
     TEST_AMOUNT,
     TEST_ORDER_ID,

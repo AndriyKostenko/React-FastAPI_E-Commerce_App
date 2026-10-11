@@ -20,7 +20,7 @@ from shared.contracts.events import (
 )
 from email_service.email_links import EmailLinks
 from email_service.email_service import OrderRelatedNotifications, UserRelatedNotifications
-from shared.settings import get_settings
+from settings import get_settings
 
 FRONTEND = "http://localhost:30000"
 TOKEN = "tok_" + "a" * 40

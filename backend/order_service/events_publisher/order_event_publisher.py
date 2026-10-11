@@ -3,7 +3,7 @@ from logging import Logger
 
 from faststream.rabbit import RabbitBroker, RabbitExchange
 
-from shared.settings import Settings
+from settings import Settings
 from shared.events.event_publisher import BaseEventPublisher
 from messaging import inventory_exchange, order_exchange
 from shared.contracts.events import (

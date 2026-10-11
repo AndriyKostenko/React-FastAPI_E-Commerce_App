@@ -18,7 +18,7 @@ from shared.contracts.tax import (
     TaxCalculationResult,
     TaxLine,
 )
-from shared.settings import Settings
+from settings import Settings
 from shared.exceptions.base_exceptions import BaseAPIException
 from shared.utils.money import CENT, from_cents, to_cents
 from shared.utils.supplier_pricing import SupplierRetailPricing

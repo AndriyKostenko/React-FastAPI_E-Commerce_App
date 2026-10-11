@@ -13,7 +13,7 @@ from logging import Logger
 from exceptions.cj_order_exceptions import CJAddressValidationError
 from shared.contracts.order import ConfirmedOrderAddress
 from shared.contracts.shipping_region import SHIPPING_COUNTRY_CODE
-from shared.settings import Settings
+from settings import Settings
 
 
 @dataclass(frozen=True, slots=True)

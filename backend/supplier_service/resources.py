@@ -15,7 +15,7 @@ from service_layer.product_service_client import ProductServiceClient
 from shared.idempotency.idempotency_service import IdempotencyEventService
 from shared.managers.database_session_manager import DatabaseSessionManager
 from shared.managers.logger_manager import setup_logger
-from shared.settings import Settings, get_settings
+from settings import Settings, get_settings
 
 
 settings: Settings = get_settings()

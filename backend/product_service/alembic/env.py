@@ -15,7 +15,7 @@ from models.product_variant_models import ProductVariant
 from models.review_models import ProductReview
 from models.outbox_models import OutboxEvent
 from models.supplier_import_models import SupplierImportBatch
-from shared.settings import get_settings
+from settings import get_settings
 
 settings = get_settings()
 

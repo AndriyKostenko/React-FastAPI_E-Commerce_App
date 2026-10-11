@@ -30,7 +30,7 @@ from shared.contracts.events import SupplierStockUpdatedEvent
 from shared.contracts.supplier import SupplierStockKey, SupplierStockLevel
 from shared.database_layer.outbox_repository import OutboxRepository
 from shared.managers.database_session_manager import DatabaseSessionManager
-from shared.settings import Settings
+from settings import Settings
 
 # pg_try_advisory_lock key: "stock" as ASCII. One refresh at a time, across
 # every worker process, without a table to clean up after a crash.

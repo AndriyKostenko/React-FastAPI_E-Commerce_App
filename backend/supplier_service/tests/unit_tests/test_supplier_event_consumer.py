@@ -12,7 +12,7 @@ from exceptions.cj_order_exceptions import CJOrderCreationError, CJOrderAmbiguou
 from service_layer.cj_api_client import CJDropshippingAPIError, CJDropshippingUnavailableError
 from service_layer.product_service_client import ProductServiceError
 from shared.enums.event_enums import InventoryEvents, OrderEvents, SupplierEvents
-from shared.settings import get_settings
+from settings import get_settings
 from shared.contracts.events import SupplierProductImportCompletedEvent
 
 

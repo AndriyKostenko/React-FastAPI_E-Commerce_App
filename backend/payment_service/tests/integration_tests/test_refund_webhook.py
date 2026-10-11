@@ -24,7 +24,7 @@ from service_layer.stripe_refund_webhook_service import StripeRefundWebhookServi
 from shared.contracts.events import PaymentRefundRequested
 from shared.database_layer.outbox_repository import OutboxRepository
 from shared.enums.event_enums import PaymentEvents
-from shared.enums.status_enums import PaymentStatus
+from enums.status_enums import PaymentStatus
 from shared.managers.test_database_session_manager import TestDatabaseSessionManager
 
 

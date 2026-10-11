@@ -11,7 +11,7 @@ from models.base import Base
 from models.supplier_config_models import SupplierConfig
 from models.supplier_sync_state_models import SupplierSyncState
 from models.outbox_models import OutboxEvent
-from shared.settings import get_settings
+from settings import get_settings
 
 settings = get_settings()
 
