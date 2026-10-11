@@ -6,7 +6,7 @@ import pytest
 
 from events_consumer.order_event_consumer import OrderEventConsumer
 from shared.enums.event_enums import OrderEvents
-from shared.enums.status_enums import OrderStatus
+from enums.status_enums import OrderStatus
 
 
 TEST_ORDER_ID = uuid4()

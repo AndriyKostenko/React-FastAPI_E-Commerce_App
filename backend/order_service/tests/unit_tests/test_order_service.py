@@ -10,7 +10,7 @@ from schemas.order_schemas import (
     CreateOrder, UpdateOrder, OrderItemBase, OrderAddressBase, OrderSchema
 )
 from shared.contracts.events import OrderCreatedEvent
-from shared.enums.status_enums import OrderStatus, OrderDeliveryStatus
+from enums.status_enums import OrderStatus, OrderDeliveryStatus
 from exceptions.order_exceptions import (
     OrderNotFoundError, OrdersNotFoundError, DuplicatePaymentIntentError, OrderNotCancellableError
 )

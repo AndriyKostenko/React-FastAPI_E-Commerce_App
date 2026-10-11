@@ -43,8 +43,8 @@ from shared.contracts.returns import (
     ReturnStatus,
 )
 from shared.enums.event_enums import OrderEvents
-from shared.enums.status_enums import LineFulfillmentStatus, OrderStatus
-from shared.settings import Settings
+from enums.status_enums import LineFulfillmentStatus, OrderStatus
+from settings import Settings
 from shared.utils.authenticated_caller import AuthenticatedCaller
 
 

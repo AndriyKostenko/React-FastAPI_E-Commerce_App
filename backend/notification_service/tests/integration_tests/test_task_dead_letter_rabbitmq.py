@@ -24,7 +24,7 @@ from tasks.task_dead_letter import (
     TASK_NAME_HEADER,
     DeadLetteringRetryMiddleware,
 )
-from shared.settings import get_settings
+from settings import get_settings
 
 
 BROKER_URL = get_settings().RABBITMQ_BROKER_URL

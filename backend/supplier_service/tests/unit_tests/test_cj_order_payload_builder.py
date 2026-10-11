@@ -12,7 +12,7 @@ from service_layer.cj_inventory_verifier import StockVerificationResult
 from service_layer.cj_order_payload_builder import CJOrderPayloadBuilder
 from shared.contracts.events import OrderConfirmedEvent
 from shared.contracts.order import ConfirmedOrderAddress, ConfirmedOrderItem
-from shared.settings import get_settings
+from settings import get_settings
 
 
 def _event(**address: str) -> OrderConfirmedEvent:

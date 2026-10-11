@@ -16,7 +16,7 @@ from faststream.rabbit import ExchangeType, RabbitBroker, RabbitExchange
 from events_publisher.user_events_publisher import UserEventPublisher
 from managers.resources_manager import build_database, logger, settings
 from shared.managers.database_session_manager import DatabaseSessionManager
-from shared.settings import Settings
+from settings import Settings
 
 
 @dataclass(slots=True)

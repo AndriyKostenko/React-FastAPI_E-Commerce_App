@@ -15,7 +15,7 @@ from shared.utils.customized_json_response import JSONResponse
 from shared.auth.caller_assertion import CALLER_ASSERTION_HEADER, CallerAssertionSigner, RequestTarget
 from shared.contracts.auth import TokenClaims
 from shared.resilience import CircuitBreaker, CircuitOpenError
-from shared.settings import Settings
+from settings import Settings
 from shared.utils.authenticated_caller import LEGACY_IDENTITY_HEADERS
 from shared.utils.client_ip import ClientIPResolver
 from schemas.gateway_schemas import GatewayConfig, ServiceConfig

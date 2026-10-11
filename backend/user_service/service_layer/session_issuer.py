@@ -8,7 +8,7 @@ from models.user_models import User
 from shared.contracts.auth import AuthMethod
 from shared.managers.cache_manager import CacheManager
 from shared.managers.token_manager import TokenManager
-from shared.settings import Settings
+from settings import Settings
 
 
 @dataclass(frozen=True, slots=True)

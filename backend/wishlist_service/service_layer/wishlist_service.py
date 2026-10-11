@@ -5,7 +5,7 @@ from aiohttp import ClientSession
 
 from database_layer.wishlist_repository import WishlistRepository
 from models.wishlist_models import Wishlist
-from shared.settings import Settings
+from settings import Settings
 from schemas.wishlist_schemas import WishlistSchema, AddWishlistItem
 from exceptions.wishlist_exceptions import (
     WishlistNotFoundError,

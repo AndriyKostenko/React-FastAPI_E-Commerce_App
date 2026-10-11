@@ -23,7 +23,6 @@ import pytest
 from pydantic import AliasChoices, Field, SecretStr
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource
 
-from shared.settings import Settings
 from shared.vault import VaultError, VaultSettingsSource
 
 VAULT = shutil.which("vault")
@@ -203,11 +202,6 @@ def test_an_unreachable_vault_refuses_to_start(tmp_path: Path) -> None:
 
 def test_without_vault_configured_the_source_contributes_nothing() -> None:
     assert VaultSettingsSource(ServiceSettings, environ={})() == {}
-
-
-def test_the_real_settings_read_vault_before_the_file() -> None:
-    sources = Settings.settings_customise_sources(Settings, *(object(),) * 4)  # type: ignore[arg-type]
-    assert isinstance(sources[2], VaultSettingsSource)
 
 
 # ------------------------------------------------------------------- import

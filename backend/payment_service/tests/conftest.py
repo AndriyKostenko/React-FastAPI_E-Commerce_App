@@ -38,7 +38,7 @@ from models.outbox_models import OutboxEvent
 from models.payment_models import Payment
 from config import logger, settings
 from shared.managers.test_database_session_manager import TestDatabaseSessionManager
-from shared.enums.status_enums import PaymentStatus
+from enums.status_enums import PaymentStatus
 from tests.constants import (
     TEST_PAYMENT_ID,
     TEST_ORDER_ID,
@@ -56,7 +56,7 @@ from tests.constants import (
 
 from shared.testing.helpers import allow_testserver_host
 from uuid import UUID
-from shared.settings import get_settings
+from settings import get_settings
 from shared.testing.signing_keys import EphemeralSigningKeys
 
 # Throwaway gateway keys: the test clients' apps trust assertions signed

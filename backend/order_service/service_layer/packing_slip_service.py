@@ -10,7 +10,7 @@ from schemas.production_schemas import (
     PrintSpecification,
 )
 from shared.contracts.order import CustomTshirtSpecification
-from shared.settings import Settings
+from settings import Settings
 
 
 class PackingSlipBuilder:

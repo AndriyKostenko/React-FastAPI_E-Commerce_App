@@ -4,7 +4,7 @@ import pytest
 from exceptions.cj_order_exceptions import CJAddressValidationError
 from service_layer.cj_address_validator import CJShippingAddressValidator
 from shared.contracts.order import ConfirmedOrderAddress
-from shared.settings import get_settings
+from settings import get_settings
 
 
 def _address(**overrides) -> ConfirmedOrderAddress:

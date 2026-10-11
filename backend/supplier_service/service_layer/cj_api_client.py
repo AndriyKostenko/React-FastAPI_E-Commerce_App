@@ -8,7 +8,7 @@ from httpx import AsyncClient, HTTPStatusError, RequestError, Response
 
 from schemas.cj_webhook_schemas import CJProductSubscriptionResult, CJWebhookSettingsRequest
 from shared.resilience import CircuitBreaker, CircuitOpenError, RetryableError, RetryPolicy
-from shared.settings import Settings
+from settings import Settings
 
 
 class CJDropshippingAPIError(Exception):

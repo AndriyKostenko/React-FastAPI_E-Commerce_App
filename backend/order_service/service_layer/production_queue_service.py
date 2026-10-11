@@ -29,7 +29,7 @@ from shared.contracts.events import (
 )
 from shared.enums.event_enums import ProductionEvents
 from shared.enums.services_enums import Services
-from shared.enums.status_enums import LineFulfillmentStatus, ProductionJobStatus
+from enums.status_enums import LineFulfillmentStatus, ProductionJobStatus
 from exceptions.order_exceptions import InvalidOrderRefundError, OrderRefundNotAllowedError
 from schemas.order_refund_schemas import OrderRefundSchema, RefundLineRequest, RefundRequest
 from service_layer.order_refund_service import OrderRefundService, RefundState

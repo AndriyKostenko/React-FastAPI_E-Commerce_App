@@ -21,7 +21,7 @@ import boto3
 from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
 
-from shared.settings import Settings
+from settings import Settings
 
 
 @dataclass(frozen=True)

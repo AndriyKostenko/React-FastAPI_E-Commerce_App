@@ -4,7 +4,7 @@ from logging import getLogger
 
 from taskiq_redis import RedisAsyncResultBackend
 from tasks.task_dead_letter import DeadLetteringRetryMiddleware
-from shared.settings import get_settings
+from settings import get_settings
 
 settings = get_settings()
 

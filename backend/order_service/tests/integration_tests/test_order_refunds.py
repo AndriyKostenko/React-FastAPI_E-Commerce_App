@@ -26,7 +26,7 @@ from service_layer.outbox_event_service import OutboxEventService
 from shared.contracts.events import PaymentDisputeEvent
 from shared.database_layer.outbox_repository import OutboxRepository
 from shared.enums.event_enums import PaymentCommands, PaymentEvents
-from shared.enums.status_enums import OrderStatus
+from enums.status_enums import OrderStatus
 from shared.managers.test_database_session_manager import TestDatabaseSessionManager
 from shared.testing.signing_keys import ANONYMOUS
 from tests.conftest import SIGNING_KEYS

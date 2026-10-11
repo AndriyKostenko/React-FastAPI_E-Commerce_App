@@ -8,7 +8,7 @@ from pydantic import BaseModel
 
 from shared.contracts.artwork import GeneratedArtworkAsset
 from shared.exceptions.base_exceptions import BaseAPIException
-from shared.settings import Settings
+from settings import Settings
 from shared.auth.service_assertion import ServiceAssertionAuth
 
 

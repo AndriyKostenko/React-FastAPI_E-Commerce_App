@@ -13,7 +13,7 @@ from typing import Annotated
 from urllib.parse import quote
 
 from pydantic import AfterValidator
-from shared.settings import Settings, get_settings
+from settings import Settings, get_settings
 
 from storage.object_store import ObjectStorageNotConfiguredError
 

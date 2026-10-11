@@ -13,7 +13,7 @@ from schemas.dropshipping_schemas import CJProductsFilterParams
 from shared.contracts.shipping_region import CJ_WAREHOUSE_COUNTRY_CODE
 from shared.contracts.events import SupplierProductsFetchedEvent
 from shared.contracts.supplier import GenericSupplierProduct
-from shared.settings import Settings
+from settings import Settings
 from exceptions.cj_order_exceptions import (
     ProviderNotFoundError,
     SupplierSyncConfigurationError,

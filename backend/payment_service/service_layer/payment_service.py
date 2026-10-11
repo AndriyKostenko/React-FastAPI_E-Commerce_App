@@ -31,10 +31,10 @@ from shared.contracts.events import (
     RefundScope,
 )
 from shared.enums.event_enums import PaymentEvents
-from shared.enums.status_enums import PaymentStatus
+from enums.status_enums import PaymentStatus
 from shared.enums.services_enums import Services
 from schemas.payment_schemas import PaymentResponse
-from shared.settings import Settings
+from settings import Settings
 
 
 class PaymentService:

@@ -3,7 +3,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, PositiveFloat, PositiveInt
 
-from shared.enums.status_enums import ProductionJobStatus
+from enums.status_enums import ProductionJobStatus
 
 
 class PrintSpecification(BaseModel):

@@ -30,7 +30,7 @@ from service_layer.supplier_provider import WarehouseStock
 from shared.contracts.events import SupplierStockUpdatedEvent
 from shared.contracts.shipping_region import CJ_WAREHOUSE_COUNTRY_CODE
 from shared.contracts.supplier import SupplierStockLevel
-from shared.settings import Settings
+from settings import Settings
 
 
 @dataclass(slots=True)

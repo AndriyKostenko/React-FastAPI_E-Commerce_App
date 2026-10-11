@@ -20,7 +20,7 @@ from service_layer.cj_api_client import CJDropshippingWebhookNotEnabledError
 from service_layer.cj_webhook_subscription_service import CJWebhookSubscriptionService
 from shared.contracts.supplier import SupplierStockKey
 from shared.managers.test_database_session_manager import TestDatabaseSessionManager
-from shared.settings import get_settings
+from settings import get_settings
 
 pytestmark = pytest.mark.asyncio(loop_scope="session")
 

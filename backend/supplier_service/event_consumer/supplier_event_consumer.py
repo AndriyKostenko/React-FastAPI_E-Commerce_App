@@ -40,7 +40,7 @@ from shared.contracts.events import (
 )
 from shared.idempotency.idempotency_service import IdempotencyEventService
 from shared.managers.database_session_manager import DatabaseSessionManager
-from shared.settings import Settings
+from settings import Settings
 from shared.utils.supplier_pricing import SupplierRetailPricing
 
 

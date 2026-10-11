@@ -2,7 +2,7 @@ from taskiq_aio_pika import AioPikaBroker, Exchange, Queue
 from aio_pika.abc import ExchangeType as AioPikaExchangeType
 from taskiq_redis import RedisAsyncResultBackend
 
-from shared.settings import get_settings
+from settings import get_settings
 
 settings = get_settings()
 

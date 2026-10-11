@@ -20,7 +20,7 @@ from uuid import UUID
 
 from fastapi import Depends, HTTPException, Request, status
 
-from shared.settings import get_settings
+from settings import get_settings
 from shared.utils.authenticated_caller import AuthenticatedCaller
 
 

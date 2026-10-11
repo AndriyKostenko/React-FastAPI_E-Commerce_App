@@ -10,7 +10,7 @@ from schemas.dropshipping_schemas import CJFreightQuoteRequest
 from service_layer.cj_api_client import CJDropshippingAPIError
 from service_layer.cj_freight_service import CJFreightQuoteService, FreightQuoteCache
 from service_layer.product_service_client import ProductNotFoundError
-from shared.settings import get_settings
+from settings import get_settings
 
 
 TEST_PRODUCT_ID = uuid4()

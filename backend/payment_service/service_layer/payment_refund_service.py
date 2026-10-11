@@ -22,7 +22,7 @@ from shared.contracts.events import (
 from shared.database_layer.outbox_repository import OutboxRepository
 from shared.enums.event_enums import PaymentEvents
 from shared.enums.services_enums import Services
-from shared.enums.status_enums import PaymentStatus
+from enums.status_enums import PaymentStatus
 from shared.managers.database_session_manager import DatabaseSessionManager
 
 

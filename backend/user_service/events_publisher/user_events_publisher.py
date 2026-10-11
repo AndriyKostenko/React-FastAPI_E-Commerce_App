@@ -12,7 +12,7 @@ from shared.contracts.events import (
     EmailVerificationEvent,
     UserDeletedEvent,
 )
-from shared.settings import Settings
+from settings import Settings
 
 
 class UserEventPublisher(BaseEventPublisher):

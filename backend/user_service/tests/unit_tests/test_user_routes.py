@@ -21,7 +21,7 @@ from exceptions.user_exceptions import (
     UserAuthenticationError,
     UserNotFoundError,
 )
-from shared.settings import get_test_settings
+from settings import get_test_settings
 
 test_settings = get_test_settings()
 

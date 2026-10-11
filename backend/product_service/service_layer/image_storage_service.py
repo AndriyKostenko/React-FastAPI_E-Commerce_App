@@ -12,7 +12,7 @@ from PIL import Image, UnidentifiedImageError
 from exceptions.image_generation_exceptions import ImageGenerationProviderError
 from service_layer.image_payload import decode_image_payload
 from shared.contracts.artwork import GeneratedArtworkAsset, sign_artwork_asset
-from shared.settings import Settings
+from settings import Settings
 from storage.object_store import ObjectStorageError, ObjectStore, ObjectWrite
 
 

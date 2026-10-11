@@ -8,7 +8,7 @@ from starlette.requests import HTTPConnection
 
 from events_publisher.shipping_event_publisher import ShippingEventPublisher
 from shared.managers.database_session_manager import DatabaseSessionManager
-from shared.settings import Settings
+from settings import Settings
 
 from service_config import logger, settings
 

@@ -19,7 +19,7 @@ from shared.auth.user_tokens import UserTokenIssuer, UserTokenVerifier
 from shared.contracts.auth import TokenClaims
 from shared.middleware.caller_assertion_middleware import VERIFIER_STATE_KEY
 from shared.managers.token_manager import TokenManager
-from shared.settings import Settings, TestSettings
+from settings import Settings, TestSettings
 
 
 TEST_TOKEN_ISSUER = "user-service"

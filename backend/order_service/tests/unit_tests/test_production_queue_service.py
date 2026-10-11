@@ -8,7 +8,7 @@ import pytest
 from exceptions.production_exceptions import InvalidProductionTransitionError
 from service_layer.order_delivery_status import OrderDeliveryStatusAggregator
 from service_layer.production_queue_service import ProductionJobStateMachine
-from shared.enums.status_enums import (
+from enums.status_enums import (
     LineFulfillmentStatus,
     OrderDeliveryStatus,
     ProductionJobStatus,

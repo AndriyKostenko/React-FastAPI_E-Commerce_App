@@ -30,7 +30,7 @@ from shared.contracts.events import (
     UserDeletedEvent,
 )
 from shared.contracts.auth import AuthMethod
-from shared.settings import Settings
+from settings import Settings
 from shared.managers.cache_manager import CacheManager
 from shared.enums.event_enums import UserEvents
 from exceptions.user_exceptions import (

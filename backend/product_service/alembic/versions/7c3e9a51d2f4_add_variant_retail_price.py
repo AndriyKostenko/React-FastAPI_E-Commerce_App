@@ -17,7 +17,7 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
-from shared.settings import get_settings
+from settings import get_settings
 from shared.utils.supplier_pricing import SupplierRetailPricing
 
 

@@ -11,7 +11,7 @@ from shared.contracts.events import OrderReturnEvent
 from shared.contracts.returns import ReturnFault, ReturnLineSummary, ReturnReason
 from email_service.email_service import AdminAlerts, OrderRelatedNotifications
 from shared.enums.event_enums import OrderEvents
-from shared.settings import get_settings
+from settings import get_settings
 from tests.unit_tests.test_event_handlers import _make_handler
 
 TASK_MODULE = "events_consumer.event_handlers"

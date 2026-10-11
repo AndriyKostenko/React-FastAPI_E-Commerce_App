@@ -946,6 +946,31 @@ approach; decisions are recorded here as they are made.
         supplier 230, gateway 228, shared 50; affected processes restarted
         and healthy.
      2. Per-service settings (and the status enums).
+        **Done (2026-10-11).** `shared/settings.py` (256 fields) is gone; each
+        service has its own `settings.py` with `Settings`, `TestSettings`,
+        `get_settings()` and `get_test_settings()`, holding only the fields it
+        or the `shared/` modules it uses read (gateway 47, user 51, product 78,
+        supplier 93, order 71, payment 40, cart 33, wishlist 35, shipping 34,
+        notification 49). Each signing key now sits only with the services
+        that sign or verify with it: the user-token private key in
+        user-service, the gateway's in the gateway, each service-assertion
+        private key in its caller, the public halves with the verifiers. The
+        23 members nothing read are dropped (unused `*_REDIS_PREFIX`es,
+        `ALGORITHM`, `TOKEN_URL`, pgAdmin, the notification-consumer URLs, a
+        few CJ URLs, …); names did not change, so `backend/.env` and Vault are
+        as they were. Until phase 4 copies them in, the `shared/` modules
+        import the running service's top-level `settings` module (the same
+        line they will have as `infrastructure/`); `shared/`'s own suite uses
+        a stand-in in `shared/tests/settings.py`. The "Vault before the file"
+        check moved from `shared/` into every service
+        (`tests/unit_tests/test_settings.py`). Status enums:
+        `order_service/enums/status_enums.py` (order, delivery, line
+        fulfilment, production job) and `payment_service/enums/status_enums.py`
+        (`PaymentStatus`); `SyncStatus` dropped. Suites green: gateway 229,
+        user 175, product 322, supplier 231, order 283, payment 135, cart 63,
+        wishlist 28, shipping 45, notification 120, shared 49; every process
+        restarted through `dev.sh up` and healthy, `dlq replay` still loads
+        its settings.
      3. Per-service contracts.
      4. Per-service infrastructure; each service's `pyproject.toml` declares
         the packages it was getting through `shared` (fastapi-mail, passlib,
