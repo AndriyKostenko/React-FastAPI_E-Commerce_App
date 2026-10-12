@@ -8,25 +8,24 @@ from sqlalchemy import MetaData, URL
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker, AsyncEngine
 
 from infrastructure.exceptions.base_exceptions import BaseAPIException, DatabaseConnectionError, DatabaseSessionError
-from infrastructure.database_layer.pool_settings import PoolSettingsCalculator
+from infrastructure.database_layer.pool_settings import PoolSettings
 
 
 class DatabaseSessionManager:
     """
     Manages database sessions and connections for the application.
 
-    Accepts PostgreSQL capacity figures and delegates pool-size calculation to
-    PoolSettingsCalculator — callers never need to instantiate it directly.
+    The pool is sized by the caller (the service's DB_POOL_SIZE / DB_MAX_OVERFLOW
+    settings, set per process); see PoolSettings.
     """
     def __init__(
         self,
         database_url: str | URL,
         logger: Logger,
         *,
+        pool_size: int,
+        max_overflow: int,
         echo: bool = False,
-        pg_max_connections: int = 100,
-        reserved_connections: int = 5,
-        num_db_services: int = 5,
         pool_timeout: int = 5,
         pool_recycle: int = 1800,
     ) -> None:
@@ -35,16 +34,16 @@ class DatabaseSessionManager:
         self.async_engine: AsyncEngine | None = None
         self.async_session: async_sessionmaker[AsyncSession] | None = None
 
-        pool = PoolSettingsCalculator(
-            pg_max_connections=pg_max_connections,
-            reserved_connections=reserved_connections,
-            num_db_services=num_db_services,
+        pool = PoolSettings(
+            pool_size=pool_size,
+            max_overflow=max_overflow,
             pool_timeout=pool_timeout,
             pool_recycle=pool_recycle,
-        ).calculate()
-        self.engine_settings: dict[str ,str|int] = pool.as_dict(echo=echo)
+        )
+        self.engine_settings: dict[str, bool | int] = pool.as_dict(echo=echo)
 
         self._initialize_engine()
+        self.logger.info("Database pool: %s", pool.describe())
 
     async def __aenter__(self) -> Self:
         """Register this manager with an async resource-owning context."""

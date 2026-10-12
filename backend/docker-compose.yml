@@ -7,12 +7,14 @@ services:
       - "${INTERNAL_BIND_HOST:-127.0.0.1}:5432:5432"
     env_file:
       - .env
-    # Raise connection ceiling and tune shared memory for higher throughput.
-    # 300 connections covers all 5 services (up to 120 each for user-service
-    # under load + ~30 each for the rest) with headroom for pgAdmin/migrations.
+    # Sized for a 2-CPU / 8 GB host: Postgres runs only a handful of queries at
+    # once there, so bigger pools would just queue inside it. Every process's
+    # pool (DB_POOL_SIZE + DB_MAX_OVERFLOW below) must fit in max_connections
+    # minus a reserve for superuser, migrations, psql and backups; check with
+    # `./local/dev.sh pool-budget` after adding a process or changing a pool.
     command: >
       postgres
-        -c max_connections=300
+        -c max_connections=100
         -c shared_buffers=256MB
         -c effective_cache_size=768MB
         -c work_mem=4MB
@@ -138,6 +140,8 @@ services:
     env_file:
       - .env
     environment:
+      DB_POOL_SIZE: 3
+      DB_MAX_OVERFLOW: 2
       PROMETHEUS_MULTIPROC_DIR: /tmp/prometheus_multiproc/user-service
       GUNICORN_WORKERS: 1
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
@@ -180,6 +184,8 @@ services:
     env_file:
       - .env
     environment:
+      DB_POOL_SIZE: 1
+      DB_MAX_OVERFLOW: 1
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${USER_SERVICE_DB}
       RABBITMQ_BROKER_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@${RABBITMQ_HOST}:${RABBITMQ_PORT}
     networks:
@@ -201,6 +207,8 @@ services:
     env_file:
       - .env
     environment:
+      DB_POOL_SIZE: 3
+      DB_MAX_OVERFLOW: 2
       GUNICORN_WORKERS: 1
       PROMETHEUS_MULTIPROC_DIR: /tmp/prometheus_multiproc/product-service
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
@@ -236,6 +244,9 @@ services:
         condition: service_healthy
     env_file:
       - .env
+    environment:
+      DB_POOL_SIZE: 1
+      DB_MAX_OVERFLOW: 1
     networks:
       - backend
 
@@ -257,6 +268,9 @@ services:
         condition: service_healthy
     env_file:
       - .env
+    environment:
+      DB_POOL_SIZE: 1
+      DB_MAX_OVERFLOW: 1
     networks:
       - backend
 
@@ -265,6 +279,9 @@ services:
       context: ./product_service
       dockerfile: Dockerfile.worker
     restart: unless-stopped
+    labels:
+      # Engines this container may hold at once: the catalogue mirror opens an engine per sweep; allows one overlap.
+      ecommerce.db.max-engines: "2"
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -275,6 +292,8 @@ services:
     env_file:
       - .env
     environment:
+      DB_POOL_SIZE: 1
+      DB_MAX_OVERFLOW: 0
       MEDIA_ROOT: /media
     networks:
       - backend
@@ -293,6 +312,8 @@ services:
     env_file:
       - .env
     environment:
+      DB_POOL_SIZE: 3
+      DB_MAX_OVERFLOW: 2
       PROMETHEUS_MULTIPROC_DIR: /tmp/prometheus_multiproc/supplier-service
       GUNICORN_WORKERS: 1
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
@@ -330,6 +351,8 @@ services:
     env_file:
       - .env
     environment:
+      DB_POOL_SIZE: 1
+      DB_MAX_OVERFLOW: 1
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${SUPPLIER_SERVICE_DB}
       RABBITMQ_BROKER_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@${RABBITMQ_HOST}:${RABBITMQ_PORT}
     networks:
@@ -351,6 +374,9 @@ services:
         condition: service_healthy
     env_file:
       - .env
+    environment:
+      DB_POOL_SIZE: 1
+      DB_MAX_OVERFLOW: 1
     networks:
       - backend
 
@@ -359,6 +385,9 @@ services:
       context: ./supplier_service
       dockerfile: Dockerfile.worker
     restart: unless-stopped
+    labels:
+      # Engines this container may hold at once: at most 5 tasks at once (--max-async-tasks 5), each with its own engine.
+      ecommerce.db.max-engines: "5"
     depends_on:
       db:
         condition: service_healthy
@@ -370,6 +399,9 @@ services:
         condition: service_healthy
     env_file:
       - .env
+    environment:
+      DB_POOL_SIZE: 1
+      DB_MAX_OVERFLOW: 0
     networks:
       - backend
 
@@ -378,6 +410,9 @@ services:
       context: ./supplier_service
       dockerfile: Dockerfile.scheduler
     restart: unless-stopped
+    labels:
+      # Engines this container may hold at once: uses no database.
+      ecommerce.db.max-engines: "0"
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -402,6 +437,8 @@ services:
     env_file:
       - .env
     environment:
+      DB_POOL_SIZE: 3
+      DB_MAX_OVERFLOW: 2
       PROMETHEUS_MULTIPROC_DIR: /tmp/prometheus_multiproc/notification-service
       GUNICORN_WORKERS: 1
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
@@ -436,6 +473,9 @@ services:
         condition: service_healthy
     env_file:
       - .env
+    environment:
+      DB_POOL_SIZE: 1
+      DB_MAX_OVERFLOW: 1
     networks:
       - backend
 
@@ -444,6 +484,9 @@ services:
       context: ./notification_service
       dockerfile: Dockerfile.worker
     restart: unless-stopped
+    labels:
+      # Engines this container may hold at once: uses no database.
+      ecommerce.db.max-engines: "0"
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -468,6 +511,8 @@ services:
     env_file:
       - .env
     environment:
+      DB_POOL_SIZE: 3
+      DB_MAX_OVERFLOW: 2
       PROMETHEUS_MULTIPROC_DIR: /tmp/prometheus_multiproc/order-service
       GUNICORN_WORKERS: 1
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
@@ -508,6 +553,8 @@ services:
     env_file:
       - .env
     environment:
+      DB_POOL_SIZE: 1
+      DB_MAX_OVERFLOW: 1
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${ORDER_SERVICE_DB}
       RABBITMQ_BROKER_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@${RABBITMQ_HOST}:${RABBITMQ_PORT}
     networks:
@@ -531,6 +578,9 @@ services:
         condition: service_healthy
     env_file:
       - .env
+    environment:
+      DB_POOL_SIZE: 1
+      DB_MAX_OVERFLOW: 1
     networks:
       - backend
 
@@ -550,6 +600,9 @@ services:
         condition: service_healthy
     env_file:
       - .env
+    environment:
+      DB_POOL_SIZE: 1
+      DB_MAX_OVERFLOW: 1
     networks:
       - backend
 
@@ -567,6 +620,8 @@ services:
     env_file:
       - .env
     environment:
+      DB_POOL_SIZE: 3
+      DB_MAX_OVERFLOW: 2
       PROMETHEUS_MULTIPROC_DIR: /tmp/prometheus_multiproc/payment-service
       GUNICORN_WORKERS: 1
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
@@ -604,6 +659,8 @@ services:
     env_file:
       - .env
     environment:
+      DB_POOL_SIZE: 1
+      DB_MAX_OVERFLOW: 1
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${PAYMENT_SERVICE_DB}
       RABBITMQ_BROKER_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@${RABBITMQ_HOST}:${RABBITMQ_PORT}
     networks:
@@ -625,6 +682,9 @@ services:
         condition: service_healthy
     env_file:
       - .env
+    environment:
+      DB_POOL_SIZE: 1
+      DB_MAX_OVERFLOW: 1
     networks:
       - backend
 
@@ -640,6 +700,8 @@ services:
     env_file:
       - .env
     environment:
+      DB_POOL_SIZE: 3
+      DB_MAX_OVERFLOW: 2
       PROMETHEUS_MULTIPROC_DIR: /tmp/prometheus_multiproc/cart-service
       GUNICORN_WORKERS: 1
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
@@ -674,6 +736,9 @@ services:
         condition: service_healthy
     env_file:
       - .env
+    environment:
+      DB_POOL_SIZE: 1
+      DB_MAX_OVERFLOW: 1
     networks:
       - backend
 
@@ -689,6 +754,8 @@ services:
     env_file:
       - .env
     environment:
+      DB_POOL_SIZE: 3
+      DB_MAX_OVERFLOW: 2
       PROMETHEUS_MULTIPROC_DIR: /tmp/prometheus_multiproc/wishlist-service
       GUNICORN_WORKERS: 1
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
@@ -723,6 +790,9 @@ services:
         condition: service_healthy
     env_file:
       - .env
+    environment:
+      DB_POOL_SIZE: 1
+      DB_MAX_OVERFLOW: 1
     networks:
       - backend
 
@@ -740,6 +810,8 @@ services:
     env_file:
       - .env
     environment:
+      DB_POOL_SIZE: 3
+      DB_MAX_OVERFLOW: 2
       PROMETHEUS_MULTIPROC_DIR: /tmp/prometheus_multiproc/shipping-service
       GUNICORN_WORKERS: 1
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
@@ -774,6 +846,9 @@ services:
         condition: service_healthy
     env_file:
       - .env
+    environment:
+      DB_POOL_SIZE: 1
+      DB_MAX_OVERFLOW: 1
     networks:
       - backend
 
@@ -795,6 +870,9 @@ services:
         condition: service_healthy
     env_file:
       - .env
+    environment:
+      DB_POOL_SIZE: 1
+      DB_MAX_OVERFLOW: 1
     networks:
       - backend
 

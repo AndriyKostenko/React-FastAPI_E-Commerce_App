@@ -32,9 +32,9 @@ def create_cart_consumer_resources() -> CartConsumerResources:
         database_url=settings.CART_SERVICE_DATABASE_URL,
         logger=logger,
         echo=settings.DEBUG_MODE,
-        pg_max_connections=settings.PG_MAX_CONNECTIONS,
-        reserved_connections=settings.PG_RESERVED_CONNECTIONS,
-        num_db_services=settings.PG_DB_SERVICES_COUNT,
+        pool_size=settings.DB_POOL_SIZE,
+        max_overflow=settings.DB_MAX_OVERFLOW,
+        pool_timeout=settings.DB_POOL_TIMEOUT_SECONDS,
     )
     idempotency = IdempotencyEventService(
         service_prefix="cart-service",
