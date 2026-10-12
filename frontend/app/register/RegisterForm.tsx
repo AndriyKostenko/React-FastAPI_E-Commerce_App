@@ -3,6 +3,7 @@
 import { LoginFormProps } from "@/types/auth";
 import { useEffect, useState } from "react";
 import Input from "@/components/ui/Input";
+import Button from "@/components/ui/Button";
 import { FieldValues, SubmitHandler, useForm } from "react-hook-form";
 import Link from "next/link";
 import toast from "react-hot-toast";
@@ -159,13 +160,14 @@ const RegisterForm:React.FC<LoginFormProps> = ({currentUser}) => {
             </div>
 
             {/* CTA */}
-            <button
+            <Button
                 onClick={handleSubmit(onSubmit)}
                 disabled={isLoading}
-                className="w-full bg-brand-lime text-primary py-4 px-8 rounded-2xl font-label-bold hover:shadow-xl transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed disabled:active:scale-100"
+                variant="keyboard"
+                size="xl"
             >
                 {isLoading ? "Creating Account..." : "Create Account"}
-            </button>
+            </Button>
 
             <p className="font-body-md text-sm text-secondary">
                 Already have an account?{' '}
