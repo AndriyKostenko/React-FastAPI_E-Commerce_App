@@ -1,3 +1,4 @@
+from typing import TYPE_CHECKING
 from decimal import Decimal
 from uuid import UUID, uuid4
 
@@ -7,6 +8,12 @@ from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 
 from models.base import Base
 from infrastructure.utils.models_mixins import TimestampMixin
+
+# Only for the type checker: SQLAlchemy resolves these relationship names
+# itself, and importing them at runtime would be circular.
+if TYPE_CHECKING:
+    from models.order_address_models import OrderAddress
+    from models.order_item_models import OrderItem
 
 
 class Order(Base, TimestampMixin):

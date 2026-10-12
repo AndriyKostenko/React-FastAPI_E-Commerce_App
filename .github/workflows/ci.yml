@@ -1,0 +1,226 @@
+# Every pull request and every push to main. PRODUCTION_GAPS §1, phase 1.
+#
+# Nothing here needs a secret: the backend suites run against containers
+# whose passwords backend/ci/prepare.sh generates for the run. Actions are
+# pinned to full commit SHAs (the tag is in the comment); Dependabot keeps
+# them current.
+
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: backend (${{ matrix.service }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - api_gateway
+          - user_service
+          - product_service
+          - supplier_service
+          - order_service
+          - payment_service
+          - cart_service
+          - wishlist_service
+          - shipping_service
+          - notification_service
+    env:
+      SERVICE: ${{ matrix.service }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/${{ matrix.service }}/uv.lock
+
+      # The suites' Vault tests start their own `vault server -dev`; prepare.sh
+      # uses one briefly to render the S3 identities.
+      - name: Install Vault
+        run: |
+          wget -qO- https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
+          echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" \
+            | sudo tee /etc/apt/sources.list.d/hashicorp.list > /dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq vault
+
+      - name: Start Postgres, Redis, RabbitMQ and SeaweedFS
+        run: backend/ci/prepare.sh "$SERVICE"
+
+      - name: Install dependencies
+        working-directory: backend/${{ matrix.service }}
+        run: uv sync --frozen
+
+      - name: Tests
+        working-directory: backend/${{ matrix.service }}
+        run: uv run --frozen pytest tests/ -q -p no:cacheprovider
+
+      - name: Migrations match the models
+        if: matrix.service != 'api_gateway'
+        working-directory: backend/${{ matrix.service }}
+        run: |
+          uv run --frozen alembic upgrade head
+          uv run --frozen alembic check
+
+      - name: Container logs
+        if: failure()
+        run: docker compose -f backend/ci/docker-compose.ci.yml logs --tail 200
+
+  checks:
+    name: repository checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+
+      - name: Syntax errors and undefined names
+        run: uvx ruff@0.16.9 check --isolated --select E9,F63,F7,F82 --exclude '**/.venv' backend
+
+      - name: Copied modules are identical in every service
+        run: python3 backend/ci/check_copies.py
+
+      - name: Every process's database pool fits max_connections
+        run: uv run --no-project --with pyyaml python backend/local/pool_budget.py
+
+      - name: Compose files resolve
+        run: |
+          # compose names an env_file the repository never holds
+          touch backend/.env
+          docker compose -f backend/docker-compose.yml config -q
+          docker compose -f backend/docker-compose.yml -f backend/docker-compose.prod.yml config -q
+
+  frontend:
+    name: frontend
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - run: npm ci
+      - name: Type check
+        run: npx tsc --noEmit
+      - name: Production build
+        run: npm run build
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+          # lib/config.ts requires it; a publishable key is public by design,
+          # and the build only checks that one is set.
+          NEXT_PUBLIC_STRIPE_TEST_PUBLISHABLE_KEY: pk_test_ci_build_placeholder
+
+  admin-js:
+    name: admin-js
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: backend/admin-js-service
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/admin-js-service/package-lock.json
+
+      - run: npm ci
+      - name: Type check
+        run: npx tsc --noEmit
+
+  secrets:
+    name: secret scan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      # Only the commits this change adds. The full history was scanned once
+      # (2026-10-12) and holds keys committed before this check existed; they
+      # are dealt with by rotation (PRODUCTION_GAPS §1), not by failing every
+      # pull request.
+      - name: gitleaks
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
+            range="$HEAD~1..$HEAD"
+          else
+            range="$BASE..$HEAD"
+          fi
+          docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.30.1 \
+            git /repo --log-opts="$range" --redact --no-banner
+
+  audit:
+    name: dependency audit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    # Report-only for now: every service carries known vulnerabilities that
+    # need dependency upgrades (PRODUCTION_GAPS §1). Becomes blocking once
+    # those land.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+
+      - name: Python (pip-audit, per service lock file)
+        run: |
+          status=0
+          for lock in backend/*/uv.lock; do
+            service="$(dirname "$lock")"
+            echo "::group::$service"
+            (cd "$service" && uv export --frozen --no-hashes --no-emit-project --quiet -o "$RUNNER_TEMP/requirements.txt")
+            uvx pip-audit -r "$RUNNER_TEMP/requirements.txt" --no-deps --disable-pip --progress-spinner off || status=1
+            echo "::endgroup::"
+          done
+          exit "$status"
+
+      - name: npm (production dependencies, high and above)
+        if: always()
+        run: |
+          status=0
+          for app in frontend backend/admin-js-service; do
+            echo "::group::$app"
+            (cd "$app" && npm audit --omit=dev --audit-level=high) || status=1
+            echo "::endgroup::"
+          done
+          exit "$status"
