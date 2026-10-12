@@ -250,5 +250,12 @@ uv run pytest tests/unit_tests/test_order_service.py::test_create_order -v
 `backend/run_tests.sh` runs the whole suite across all services in Docker — it needs
 a running Docker daemon, so it is unused while we develop locally.
 
+CI (`.github/workflows/ci.yml`) runs every suite on each pull request with no
+`backend/.env` and no Vault: `backend/ci/prepare.sh` starts Postgres, Redis,
+RabbitMQ and SeaweedFS in Docker and supplies `backend/ci/test-settings.conf`
+plus per-run passwords and keys. So a test must not depend on a value only your
+local config holds (a price, a real API key): read it from settings, or set it in
+the test.
+
 Frontend: no test runner is configured yet. The available checks are
 `npm run lint` and `npx tsc --noEmit`.

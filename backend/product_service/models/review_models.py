@@ -1,5 +1,5 @@
 from uuid import uuid4, UUID
-from typing import Any, override
+from typing import Any, TYPE_CHECKING, override
 
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy import ForeignKey, Index
@@ -8,6 +8,11 @@ from sqlalchemy.inspection import inspect
 
 from models.base import Base
 from infrastructure.utils.models_mixins import TimestampMixin
+
+# Only for the type checker: SQLAlchemy resolves these relationship names
+# itself, and importing them at runtime would be circular.
+if TYPE_CHECKING:
+    from models.product_models import Product
 
 
 class ProductReview(Base, TimestampMixin):

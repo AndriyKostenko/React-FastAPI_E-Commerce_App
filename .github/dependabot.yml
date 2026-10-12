@@ -1,0 +1,42 @@
+# Weekly dependency updates, grouped so one maintainer gets a handful of PRs
+# rather than dozens. Security updates still arrive on their own, at once.
+version: 2
+
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: uv
+    directories:
+      - /backend/api_gateway
+      - /backend/user_service
+      - /backend/product_service
+      - /backend/supplier_service
+      - /backend/order_service
+      - /backend/payment_service
+      - /backend/cart_service
+      - /backend/wishlist_service
+      - /backend/shipping_service
+      - /backend/notification_service
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      python-minor-and-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: npm
+    directories:
+      - /frontend
+      - /backend/admin-js-service
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      npm-minor-and-patch:
+        update-types: [minor, patch]

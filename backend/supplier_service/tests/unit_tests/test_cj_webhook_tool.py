@@ -11,8 +11,16 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from pydantic import SecretStr
 
 from tools import cj_webhook
+
+
+@pytest.fixture
+def cj_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A key for the token request's payload: CJ itself is mocked, so the
+    test must not depend on a real key being configured where it runs."""
+    monkeypatch.setattr(cj_webhook.settings, "CJ_DROPSHIPPING_API_KEY", SecretStr("test-cj-api-key"))
 
 
 def _file(tmp_path: Path, mode: int, content: str = "") -> Path:
@@ -44,7 +52,7 @@ async def test_without_a_private_file_cj_is_never_asked(tmp_path: Path) -> None:
     client.assert_not_called()
 
 
-async def test_the_open_id_is_written_into_the_file_and_nowhere_else(tmp_path: Path, capsys) -> None:
+async def test_the_open_id_is_written_into_the_file_and_nowhere_else(tmp_path: Path, capsys, cj_api_key: None) -> None:
     target = _file(tmp_path, 0o600)
 
     async def token_response(*_args: object, **_kwargs: object) -> dict[str, object]:
@@ -57,7 +65,7 @@ async def test_the_open_id_is_written_into_the_file_and_nowhere_else(tmp_path: P
     assert "12312" not in capsys.readouterr().out
 
 
-async def test_a_non_numeric_open_id_is_not_written(tmp_path: Path) -> None:
+async def test_a_non_numeric_open_id_is_not_written(tmp_path: Path, cj_api_key: None) -> None:
     target = _file(tmp_path, 0o600)
 
     async def token_response(*_args: object, **_kwargs: object) -> dict[str, object]:

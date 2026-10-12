@@ -43,7 +43,25 @@ k6 load tests, Alembic per service. The large `shared/` refactor called out in
 ## What's still missing for production
 
 ### 1. Deployment & CI/CD (biggest gap)
-- `.github/` has only Copilot instructions — no CI, no test-on-PR, no image build/publish
+- CI on pull requests: **done (2026-10-12), phase 1 below.** Image
+  build/publish and deploy are phases 2 and 5.
+- **Secrets in the public git history — rotate (found 2026-10-12).** A
+  one-off gitleaks scan of every commit found `backend/.env` and
+  `frontend/.env` committed in the past (2024-04-24 to 2026-01-12, last in
+  `ec7ca1471c`), with a Stripe secret key and other API keys among them. The
+  repository is public, so they are exposed whatever happens to the files
+  now: rewriting history does not undo it. **Rotate every key those files
+  held** (Stripe first; then CJ, OpenRouter, Google OAuth, mail, JWT /
+  signing secrets, database / Redis / RabbitMQ passwords), and turn on
+  GitHub secret scanning with push protection (free for public repos). CI
+  now runs gitleaks on every pull request's new commits.
+- **Known vulnerabilities in the dependencies (found 2026-10-12).** Every
+  service's lock file has 8–16 (pip-audit), e.g. `starlette`, `anyio`,
+  `python-multipart`, `cryptography`, `aiohttp`, `pillow`, `aiosmtplib` (3 →
+  5, through fastapi-mail), several behind exact pins in `pyproject.toml`;
+  the frontend has 10 in production dependencies, one critical in `next`,
+  all fixable within their ranges (`npm audit fix`). The CI audit job reports
+  them without blocking until an upgrade PR lands; then it becomes required.
 - **Plan decided (2026-10-12): see "Deployment plan" at the end of this section.**
 - [x] **`order_service` Alembic setup — DONE (2026-09-09).** It was the only one
   of the nine services without migrations, while relying on `init_db`/`create_all`,
@@ -186,7 +204,39 @@ monitoring stack all run on the host** (not RDS / SSM / Amplify / CloudWatch).
   Dependabot, branch protection with required checks.
 - **Rough cost** (list prices, an estimate): $65–90 / month.
 - **Phases, one PR each:**
-  1. CI on pull requests (repo only, no AWS);
+  1. CI on pull requests (repo only, no AWS). **Done (2026-10-12).**
+     `.github/workflows/ci.yml` on every pull request and push to `main`:
+     - each service's suite in parallel (Python 3.12, pinned for cart and
+       wishlist too) against Postgres, Redis, RabbitMQ and SeaweedFS
+       containers, then `alembic upgrade head` + `alembic check`.
+       `backend/ci/prepare.sh` generates every password and a throwaway
+       Ed25519 key per signing role for the run (masked), renders the S3
+       identities with the unchanged `local/s3_local.py` against a
+       throwaway Vault dev server, and hands the suite
+       `backend/ci/test-settings.conf` (non-secret test values; CI has no
+       `backend/.env` and no Vault);
+     - repository checks: ruff for syntax errors and undefined names (the
+       SQLAlchemy relationship names got `TYPE_CHECKING` imports),
+       `backend/ci/check_copies.py` (copied modules identical in every
+       service, apart from the two trimmed on purpose), `pool-budget`, and
+       both compose files resolving;
+     - frontend type check and production build, admin-js type check;
+     - gitleaks on the commits a change adds; pip-audit and `npm audit`
+       (report-only, see above);
+     - `.github/workflows/codeql.yml`: CodeQL for Python and TypeScript on
+       pull requests, `main` and weekly; `.github/dependabot.yml`: weekly,
+       grouped updates for actions, the ten uv projects and both npm apps.
+     Rehearsed off GitHub with the same script, from a copy of `backend/`
+     without the env file and with a clean environment per service: all ten
+     suites and migration checks pass (1,983 tests). The rehearsal caught
+     tests that only passed with the owner's local config, now independent
+     of it: the T-shirt price test reads the configured price, the CJ
+     open-id tool tests set their own API key, and payment's route tests
+     run with test Stripe secrets (the client is mocked); cart and
+     wishlist got a `.python-version` (3.12, as the images) instead of
+     whatever Python is newest.
+     Left to the owner: make these checks required on `main` (branch
+     protection) once the first run is green.
   2. production images and compose: frontend image, slim monitoring (tracing
      profile), `mem_limit`s, images from ECR by tag, non-root checks;
   3. Terraform: network, host, IAM / OIDC, KMS, S3 + CloudFront, ECR,

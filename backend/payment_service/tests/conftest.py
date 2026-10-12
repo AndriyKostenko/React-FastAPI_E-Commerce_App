@@ -56,8 +56,19 @@ from tests.constants import (
 
 from infrastructure.testing.helpers import allow_testserver_host
 from uuid import UUID
+from pydantic import SecretStr
 from settings import get_settings
 from infrastructure.testing.signing_keys import EphemeralSigningKeys
+
+# The integration clients' PaymentService runs on the real settings with
+# Stripe's secrets replaced: the Stripe client is mocked below, so the suite
+# must not depend on the keys configured where it runs (CI has none).
+SETTINGS_WITH_TEST_STRIPE = settings.model_copy(
+    update={
+        "STRIPE_WEBHOOK_SECRET": SecretStr("whsec_test_secret"),
+        "STRIPE_SECRET_KEY": SecretStr("sk_test_fake_key"),
+    }
+)
 
 # Throwaway gateway keys: the test clients' apps trust assertions signed
 # with these, exactly as a deployed service trusts the gateway's.
@@ -349,7 +360,7 @@ async def integration_client(
         svc = PaymentService(
             repository=PaymentRepository(session=session),
             outbox_event_service=outbox_event_service,
-            settings=settings,
+            settings=SETTINGS_WITH_TEST_STRIPE,
             logger=logger,
         )
         # Patch the Stripe client so no real Stripe API calls are made

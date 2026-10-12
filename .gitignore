@@ -7,7 +7,9 @@ __pycache__/
 .mypy_cache/
 .claude
 .codegraph
-.github
+# Local AI-assistant instructions only: .github/workflows and dependabot.yml are tracked
+.github/copilot-instructions.md
+.github/instructions/
 .ruff_cache
 .claude-format.log
 
@@ -42,6 +44,8 @@ backend/__pycache__
 backend/**/__pycache__/
 backend/*.pem
 backend/local
+# ci/prepare.sh's working files when rehearsed off GitHub
+backend/ci/.run/
 
 # dependencies
 /backend/admin-js-service/node_modules

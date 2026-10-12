@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, TYPE_CHECKING
 from uuid import UUID, uuid4
 
 from sqlalchemy import Index, inspect
@@ -7,6 +7,11 @@ from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 
 from models.base import Base
 from infrastructure.utils.models_mixins import TimestampMixin
+
+# Only for the type checker: SQLAlchemy resolves these relationship names
+# itself, and importing them at runtime would be circular.
+if TYPE_CHECKING:
+    from models.order_models import Order
 
 
 class OrderAddress(Base, TimestampMixin):

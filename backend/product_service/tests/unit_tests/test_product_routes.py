@@ -19,6 +19,7 @@ from httpx import AsyncClient
 from exceptions.category_exceptions import CategoryCreationError, CategoryNotFoundError
 from exceptions.product_exceptions import ProductCreationError, ProductNotFoundError
 from exceptions.review_exceptions import ReviewAlreadyExistsError, ReviewNotFoundError
+from settings import get_settings
 from tests.conftest import TEST_API, TEST_PRODUCT_ID, TEST_CATEGORY_ID, TEST_USER_ID, TEST_REVIEW_ID
 
 
@@ -104,7 +105,8 @@ class TestGetCustomTshirtPricingEndpoint:
         response = await client_for_unit_testing.get(f"{TEST_API}/customization/pricing")
         assert response.status_code == status.HTTP_200_OK
         body = response.json()
-        assert body["base_price"] == 19
+        # The configured price, whatever this environment sets it to.
+        assert body["base_price"] == get_settings().CUSTOM_TSHIRT_BASE_PRICE
         assert body["currency"] == "CAD"
 
 
