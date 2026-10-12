@@ -1,21 +1,41 @@
-
-
-
-
-import math
-import os
 from dataclasses import dataclass
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class PoolSettings:
+    """
+    SQLAlchemy pool settings for one process's engine.
+
+    ``pool_size + max_overflow`` is the most connections this process may hold.
+    The numbers are set per process, not derived: an API process keeps the
+    service's defaults (DB_POOL_SIZE / DB_MAX_OVERFLOW in its settings), while
+    compose and dev.sh give background processes smaller ones. The sum over
+    every process of every service must fit Postgres's max_connections;
+    ``./local/dev.sh pool-budget`` checks docker-compose.yml against it.
+
+    A pool cannot be sized from the CPU count: the gunicorn worker count is set
+    by GUNICORN_WORKERS, not by a formula, and inside a container
+    ``os.cpu_count()`` reports the host's CPUs rather than the container's limit.
+    """
+
     pool_size: int
     max_overflow: int
-    pool_timeout: int
-    pool_recycle: int
-    pool_pre_ping: bool
+    pool_timeout: int = 5
+    pool_recycle: int = 1800
+    pool_pre_ping: bool = True
 
-    def as_dict(self, echo: bool = False) -> dict[str, str | int]:
+    def __post_init__(self) -> None:
+        if self.pool_size < 1:
+            raise ValueError("pool_size must be at least 1")
+        if self.max_overflow < 0:
+            raise ValueError("max_overflow cannot be negative")
+
+    @property
+    def max_connections(self) -> int:
+        """The most connections this process's engine will open."""
+        return self.pool_size + self.max_overflow
+
+    def as_dict(self, echo: bool = False) -> dict[str, bool | int]:
         return {
             "echo": echo,
             "pool_pre_ping": self.pool_pre_ping,
@@ -26,75 +46,9 @@ class PoolSettings:
         }
 
     def describe(self) -> str:
-        """Human-readable summary of the calculated pool settings."""
-        workers = (2 * (os.cpu_count() or 1)) + 1
-        total = (self.pool_size + self.max_overflow) * workers
+        """Human-readable summary, logged when the engine is created."""
         return (
-            f"PoolSettings | workers={workers} "
             f"pool_size={self.pool_size} max_overflow={self.max_overflow} "
-            f"→ max_connections_used≈{total}"
+            f"(at most {self.max_connections} connections) "
+            f"pool_timeout={self.pool_timeout}s pool_recycle={self.pool_recycle}s"
         )
-
-
-class PoolSettingsCalculator:
-    """
-    Calculates safe SQLAlchemy connection-pool settings based on:
-
-        workers            = (2 × cpu_count) + 1          (Gunicorn/uvicorn formula)
-        per_service_budget = (pg_max_connections - reserved) ÷ num_db_services
-        pool_size          = max(1, floor(per_service_budget ÷ workers ÷ 2))
-        max_overflow       = pool_size                     (equal burst headroom)
-
-    The ÷2 ensures (pool_size + max_overflow) × workers never exceeds the
-    per-service connection budget.
-
-    Parameters
-    ----------
-    pg_max_connections : int
-        PostgreSQL max_connections setting (default: 100).
-    reserved_connections : int
-        Connections reserved for superuser/admin/monitoring (default: 5).
-    num_db_services : int
-        Number of microservices sharing the same Postgres instance (default: 5).
-    pool_timeout : int
-        Seconds to wait for a connection from the pool before raising (default: 5).
-    pool_recycle : int
-        Seconds before recycling a connection to prevent staleness (default: 1800).
-    """
-
-    def __init__(
-        self,
-        pg_max_connections: int = 100,
-        reserved_connections: int = 5,
-        num_db_services: int = 5,
-        pool_timeout: int = 5,
-        pool_recycle: int = 1800,
-    ) -> None:
-        self.pg_max_connections: int = pg_max_connections
-        self.reserved_connections: int = reserved_connections
-        self.num_db_services: int = num_db_services
-        self.pool_timeout: int = pool_timeout
-        self.pool_recycle: int = pool_recycle
-
-    @property
-    def _cpu_count(self) -> int:
-        return os.cpu_count() or 1
-
-    @property
-    def workers(self) -> int:
-        """Must use the same formula as the uvicorn workers count in Dockerfile."""
-        return (2 * self._cpu_count) + 1
-
-    def calculate(self) -> PoolSettings:
-        available = self.pg_max_connections - self.reserved_connections
-        per_service = available / max(self.num_db_services, 1)
-        # ÷2 because max_overflow == pool_size, so total slots per worker = 2×pool_size
-        pool_size = max(1, math.floor(per_service / self.workers / 2))
-        return PoolSettings(
-            pool_size=pool_size,
-            max_overflow=pool_size,
-            pool_timeout=self.pool_timeout,
-            pool_recycle=self.pool_recycle,
-            pool_pre_ping=True,
-        )
-    

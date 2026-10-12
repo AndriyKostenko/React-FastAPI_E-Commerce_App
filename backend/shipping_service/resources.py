@@ -32,9 +32,9 @@ def create_shipping_api_resources(
         database_url=app_settings.SHIPPING_SERVICE_DATABASE_URL,
         logger=app_logger,
         echo=app_settings.DEBUG_MODE,
-        pg_max_connections=app_settings.PG_MAX_CONNECTIONS,
-        reserved_connections=app_settings.PG_RESERVED_CONNECTIONS,
-        num_db_services=app_settings.PG_DB_SERVICES_COUNT,
+        pool_size=app_settings.DB_POOL_SIZE,
+        max_overflow=app_settings.DB_MAX_OVERFLOW,
+        pool_timeout=app_settings.DB_POOL_TIMEOUT_SECONDS,
     )
     broker = RabbitBroker(url=app_settings.RABBITMQ_BROKER_URL)
     exchange = RabbitExchange(
@@ -121,9 +121,9 @@ def shipping_outbox_resources(
             database_url=app_settings.SHIPPING_SERVICE_DATABASE_URL,
             logger=app_logger,
             echo=app_settings.DEBUG_MODE,
-            pg_max_connections=app_settings.PG_MAX_CONNECTIONS,
-            reserved_connections=app_settings.PG_RESERVED_CONNECTIONS,
-            num_db_services=app_settings.PG_DB_SERVICES_COUNT,
+            pool_size=app_settings.DB_POOL_SIZE,
+            max_overflow=app_settings.DB_MAX_OVERFLOW,
+            pool_timeout=app_settings.DB_POOL_TIMEOUT_SECONDS,
         ),
         broker=broker,
         publisher=ShippingEventPublisher(

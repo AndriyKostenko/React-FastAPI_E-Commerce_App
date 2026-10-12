@@ -54,12 +54,15 @@ class Settings(BaseSettings):
 
     DEBUG_MODE: bool
 
-    # PostgreSQL connection pool tuning — used by PoolSettingsCalculator
-    PG_MAX_CONNECTIONS: int = 100  # must match postgresql.conf max_connections
-    PG_RESERVED_CONNECTIONS: int = 5  # reserved for superuser / admin / monitoring
-    PG_DB_SERVICES_COUNT: int = (
-        9  # number of microservices sharing the same Postgres instance
-    )
+    # Connections one process of this service may hold: pool_size + max_overflow.
+    # The defaults are an API process's (one gunicorn worker). compose and
+    # dev.sh give consumers, outbox and saga workers 1 + 1, and taskiq workers
+    # 1 + 0 (each task opens its own engine). The sum over every process must
+    # fit Postgres's max_connections: `./local/dev.sh pool-budget` checks it.
+    DB_POOL_SIZE: int = Field(default=3, ge=1)
+    DB_MAX_OVERFLOW: int = Field(default=2, ge=0)
+    # Seconds a request waits for a free connection before failing.
+    DB_POOL_TIMEOUT_SECONDS: int = Field(default=5, ge=1)
 
     # Hosts this service answers to
     ALLOWED_HOSTS: list[str]

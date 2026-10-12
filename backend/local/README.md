@@ -30,7 +30,7 @@ cd backend
 ```
 
 `init` builds a cluster under `backend/local/data/postgres` with the same tuning the
-compose `db` service uses (`max_connections=300`, `shared_buffers=256MB`, …). It is
+compose `db` service uses (`max_connections=100`, `shared_buffers=256MB`, …). It is
 a separate cluster from any other Postgres on the machine and from the compose
 volume, so **the databases start empty** — see "Bringing data over" below.
 

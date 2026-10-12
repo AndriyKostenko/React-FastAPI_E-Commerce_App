@@ -192,9 +192,10 @@ def _make_db_manager(settings, logger) -> DatabaseSessionManager:
         database_url=settings.PRODUCT_SERVICE_DATABASE_URL,
         logger=logger,
         echo=False,
-        pg_max_connections=100,
-        reserved_connections=5,
-        num_db_services=1,   # seed script is the sole user — allocate the full budget
+        # A one-off script running beside the stack: a small pool keeps it
+        # inside the reserve left free in Postgres's max_connections.
+        pool_size=2,
+        max_overflow=0,
     )
 
 

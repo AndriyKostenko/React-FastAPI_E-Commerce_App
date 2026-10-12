@@ -85,6 +85,7 @@ RELOAD=1 ./local/dev.sh up      # same, with uvicorn --reload
 ./local/dev.sh admin enrol <email>          # one-time 15-min link to register an admin's passkey
 ./local/dev.sh admin list|revoke <email> [id]   # an admin's passkeys; revoke ends their sessions
 ./local/dev.sh reset            # down + delete local data (destructive)
+./local/dev.sh pool-budget      # every process's DB pool vs Postgres max_connections
 ./local/dev.sh cj-sandbox status|ship|deliver|poll <order_id>   # see below
 ./local/dev.sh cj-webhook tunnel|tunnel-stop|subscribe|status    # see below
 ```

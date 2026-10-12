@@ -1023,6 +1023,33 @@ approach; decisions are recorded here as they are made.
      services (today each service reaches 3.6k–6k lines of `shared/`, less
      once settings and contracts are trimmed), and a fix to a copied module
      has to be made in every copy.
+6. **Database connection pools, sized for a 2-CPU / 8 GB host.**
+   **Done (2026-10-11).** Every process was capped at 2 connections: the
+   pool was derived from `2 × cpu_count + 1` workers (the APIs run one,
+   `GUNICORN_WORKERS: 1`; in a container `os.cpu_count()` reports the host)
+   and from `PG_MAX_CONNECTIONS = 100` while Postgres allowed 300, and the
+   consumers, outbox/saga workers and taskiq workers were not budgeted at all.
+   An API could run two queries at once; the rest waited and failed after 5 s.
+   - Pools are now set per process, not derived: `DB_POOL_SIZE`,
+     `DB_MAX_OVERFLOW`, `DB_POOL_TIMEOUT_SECONDS` in each service's settings
+     (an API's defaults, 3 + 2); compose and `dev.sh` give consumers, outbox
+     and saga workers 1 + 1 and taskiq workers 1 + 0 (one engine per task).
+     The supplier taskiq worker runs at most 5 tasks (`--max-async-tasks 5`);
+     the product one is budgeted 2 mirror sweeps. `PoolSettingsCalculator` and
+     `PG_MAX_CONNECTIONS` / `PG_RESERVED_CONNECTIONS` / `PG_DB_SERVICES_COUNT`
+     are gone (stale keys in `backend/.env` are ignored).
+   - Postgres `max_connections` is 100 (compose and `dev.sh`). One worker per
+     API: each Python process takes ~90–120 MB (product's ~300 MB), so 2×CPU+1
+     workers for ten APIs would not fit 8 GB, and 2 cores run only a handful
+     of queries at once anyway.
+   - `./local/dev.sh pool-budget` (`local/pool_budget.py`) adds up every
+     container's worst case from `docker-compose.yml` (workers × engines ×
+     pool + overflow) and fails over `max_connections − 15` reserved, or when a
+     container of a database service states no pool: today 82 of 85.
+   - Verified: every suite green (+6 pool tests per database service), the
+     stack restarted with the new pools logged per role, 60 concurrent product
+     lists through the gateway all 200 with product-service at ≤ 5
+     connections. Docker images not built.
 
 ---
 

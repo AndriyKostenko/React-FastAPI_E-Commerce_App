@@ -34,6 +34,7 @@
 #   ./local/dev.sh vault import [--dry-run]
 #                                   # one-time: move secrets from the config
 #                                   # file into Vault (you run it)
+#   ./local/dev.sh pool-budget      # every process's DB pool vs Postgres max_connections
 #   ./local/dev.sh test <service_dir> [pytest args]
 #                                   # a service's tests, with its Vault identity
 #   ./local/dev.sh storage status|import-local
@@ -205,7 +206,7 @@ cart-consumer|cart_service|.venv/bin/faststream run events_consumer.app:app
 wishlist-consumer|wishlist_service|.venv/bin/faststream run events_consumer.app:app
 shipping-consumer|shipping_service|.venv/bin/faststream run events_consumer.app:app
 product-taskiq-worker|product_service|.venv/bin/taskiq worker tasks.broker:taskiq_broker tasks.image_tasks tasks.catalogue_image_tasks --workers 1
-supplier-taskiq-worker|supplier_service|.venv/bin/taskiq worker tasks.broker:taskiq_broker tasks.sync_tasks tasks.tracking_tasks tasks.cj_payment_tasks tasks.stock_tasks --workers 1
+supplier-taskiq-worker|supplier_service|.venv/bin/taskiq worker tasks.broker:taskiq_broker tasks.sync_tasks tasks.tracking_tasks tasks.cj_payment_tasks tasks.stock_tasks --workers 1 --max-async-tasks 5
 notification-taskiq-worker|notification_service|.venv/bin/taskiq worker tasks.broker:taskiq_broker tasks.email_tasks --workers 1
 product-taskiq-scheduler|product_service|.venv/bin/taskiq scheduler tasks.scheduler:product_task_scheduler tasks.catalogue_image_tasks
 supplier-taskiq-scheduler|supplier_service|.venv/bin/taskiq scheduler tasks.scheduler:supplier_task_scheduler tasks.sync_tasks tasks.tracking_tasks tasks.cj_payment_tasks tasks.stock_tasks
@@ -281,7 +282,7 @@ pg_start() {
   say "starting postgres on :$POSTGRES_PORT"
   # Same tuning the compose 'db' service uses, so pool sizing behaves alike.
   pg_ctl -D "$PGDATA" -l "$LOG_DIR/postgres.log" -w -o \
-    "-p $POSTGRES_PORT -k $RUN_DIR -c max_connections=300 -c shared_buffers=256MB -c effective_cache_size=768MB -c work_mem=4MB -c max_wal_size=1GB" \
+    "-p $POSTGRES_PORT -k $RUN_DIR -c max_connections=100 -c shared_buffers=256MB -c effective_cache_size=768MB -c work_mem=4MB -c max_wal_size=1GB" \
     start
 }
 
@@ -714,6 +715,16 @@ proc_running() {
   [ -f "$pf" ] && kill -0 "$(cat "$pf")" 2>/dev/null
 }
 
+# Connections one process may hold (pool_size + max_overflow), by role --
+# the same numbers docker-compose.yml gives each container. API processes keep
+# their settings' defaults (3 + 2); `dev.sh pool-budget` checks the total.
+export_db_pool() {
+  case "$1" in
+    *-consumer|*-outbox-worker|*-saga-timeout-worker) export DB_POOL_SIZE=1 DB_MAX_OVERFLOW=1 ;;
+    *-taskiq-worker) export DB_POOL_SIZE=1 DB_MAX_OVERFLOW=0 ;;  # one engine per task
+  esac
+}
+
 start_one() {
   # Job control is on (set -m) so each child becomes its own process group
   # leader -- that is what lets stop_one take down faststream's and taskiq's
@@ -747,7 +758,7 @@ start_one() {
   [ "${RELOAD:-0}" = "1" ] && case "$cmd" in *uvicorn*) reload=" --reload";; esac
   (
     case "$cmd" in
-      .venv/bin/*) export_vault_identity "$dir" ;;
+      .venv/bin/*) export_vault_identity "$dir"; export_db_pool "$name" ;;
       *start:local*) export_vault_secrets_for_node "$(vault_identity_for_dir "$dir")" ;;
     esac
     cd "$BACKEND_DIR/$dir" && exec nohup $cmd$reload >> "$(log_file "$name")" 2>&1
@@ -970,6 +981,13 @@ cmd_cj_webhook() {
 
 # A service's test suite, with that service's Vault identity: its settings
 # (database password included) come from Vault exactly as when it runs.
+# Every process's database pool against Postgres's max_connections (reads
+# docker-compose.yml; the local process table uses the same numbers).
+cmd_pool_budget() {
+  require_bin uv
+  uv run --quiet --no-project --with pyyaml python "$BACKEND_DIR/local/pool_budget.py"
+}
+
 cmd_test() {
   [ -n "${1:-}" ] || die "test: service dir required (e.g. order_service)"
   local svc="$1"; shift
@@ -1001,5 +1019,6 @@ case "${1:-}" in
   images)   shift; cmd_images "$@" ;;
   admin)    shift; cmd_admin "$@" ;;
   test)     shift; cmd_test "$@" ;;
+  pool-budget) shift; cmd_pool_budget "$@" ;;
   *) sed -n '2,53p' "${BASH_SOURCE[0]}" | sed -E 's/^#[[:space:]]?//'; exit 1 ;;
 esac

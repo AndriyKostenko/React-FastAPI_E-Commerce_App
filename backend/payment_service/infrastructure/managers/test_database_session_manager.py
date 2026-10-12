@@ -15,7 +15,7 @@ class TestDatabaseSessionManager(DatabaseSessionManager):
     Adds truncate_all_tables() for fast between-test isolation.
     """
     def __init__(self, database_url: str | URL, logger: Logger) -> None:
-        # Bypass PoolSettingsCalculator — tests always use NullPool.
+        # No pool settings: tests always use NullPool.
         self.database_url = database_url
         self.logger = logger
         self.async_engine = None
