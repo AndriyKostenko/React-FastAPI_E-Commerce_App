@@ -44,7 +44,7 @@ k6 load tests, Alembic per service. The large `shared/` refactor called out in
 
 ### 1. Deployment & CI/CD (biggest gap)
 - `.github/` has only Copilot instructions — no CI, no test-on-PR, no image build/publish
-- No K8s/Helm manifests; migrations run by hand via `docker compose exec`
+- **Plan decided (2026-10-12): see "Deployment plan" at the end of this section.**
 - [x] **`order_service` Alembic setup — DONE (2026-09-09).** It was the only one
   of the nine services without migrations, while relying on `init_db`/`create_all`,
   whose own docstring says it "deliberately cannot alter existing columns". That
@@ -94,8 +94,113 @@ k6 load tests, Alembic per service. The large `shared/` refactor called out in
 - **Existing databases** join with `alembic stamp <baseline>` before their
   first upgrade; a database built by the old `create_all` already matches the
   baseline.
-- No backup/DR plan for the 9 Postgres DBs; connection pooling unconfirmed
+- No backup/DR plan for the 9 Postgres DBs (connection pooling: done, §8.6)
 - No blue/green or canary, no auto-rollback on deploy failure
+
+#### Deployment plan (decided 2026-10-12)
+
+One maintainer, so no Kubernetes or ECS: one EC2 host runs the existing
+compose stack, GitHub Actions tests, builds and deploys, Terraform describes
+the AWS side. Choices made: **Postgres, Vault, the frontend and a slim
+monitoring stack all run on the host** (not RDS / SSM / Amplify / CloudWatch).
+
+- **AWS shape.**
+  - Region `ca-central-1` (selling in Canada only).
+  - One host, 2 vCPU / 8 GB (`t4g.large`, or `m7g.large` to avoid burst
+    credits), encrypted gp3 EBS, Elastic IP, Route 53. Security group opens
+    80/443 only; no SSH: Session Manager for a shell and for port forwarding
+    (AdminJS on `localhost:3001`, so its passkey rpID stays `localhost`;
+    Grafana the same way).
+  - IMDSv2 required with hop limit 1: containers cannot use the host's role.
+  - ECR, one repository per image, tagged with the git SHA, last 20 kept.
+  - S3: catalogue bucket private behind CloudFront (Origin Access Control),
+    private bucket SSE-KMS (presigned URLs only), a backups bucket (versioned,
+    KMS, lifecycle). Product and order keep their own narrow IAM keys, held in
+    Vault (the code already supports `AWS_S3_ACCESS_KEY_ID`).
+  - Mail through SES (SMTP) or the current provider.
+  - Account baseline: root MFA and unused, an MFA'd Identity Center user,
+    CloudTrail, GuardDuty, a budget alarm.
+- **Memory budget** (8 GB): Python processes ~3.5 GB, Postgres ~0.7–1 GB,
+  monitoring ~0.9–1.3 GB (with cAdvisor, without tracing), RabbitMQ / Redis /
+  Traefik / Vault / frontend ~0.6 GB: about 6–6.5 GB (~0.4 GB more while
+  tracing is on). Add 2–4 GB swap and a `mem_limit` per container so
+  an image-processing spike cannot get Postgres OOM-killed; move to 16 GB if
+  swap is used under normal load.
+- **Postgres on the host:** `max_connections=100` (budget in §8.6). Backups:
+  - `pg_dump -Fc` of each of the 9 databases every 6 h to the backups bucket
+    (RPO ≤ 6 h; the databases are small), kept 30 days;
+  - daily EBS snapshots (Data Lifecycle Manager), kept 7 days;
+  - a scripted restore into a scratch instance, run monthly, and before
+    go-live.
+  - Later, if 6 h is too much to lose: pgBackRest with WAL archiving to S3
+    (point-in-time restore).
+- **Vault on the host** as a systemd service (like Homebrew locally), not a
+  container: integrated (raft) storage on EBS, AWS KMS auto-unseal through the
+  host role (which containers cannot reach), audit log on, UI not exposed.
+  AppRole per service exactly as locally; each container gets only its own
+  role-id / secret-id files. Raft snapshot nightly to the backups bucket.
+  Secrets are imported once by the owner, as locally. Next step unchanged:
+  per-service Postgres users through the database engine (bug list #19).
+- **Frontend** as a container on the host behind Traefik: a Dockerfile with
+  Next's standalone output; `NEXT_PUBLIC_*` values are build-time, so CI builds
+  the production image with production values.
+- **Monitoring, slim:** Prometheus, Alertmanager, Grafana, Loki, promtail and
+  cAdvisor stay (cAdvisor feeds the HighContainerMemory, HighContainerCPU and
+  ContainerRestarted alerts and the per-container dashboard panels, which
+  matter more once every container has a `mem_limit`; a longer housekeeping
+  interval trims its CPU), plus node-exporter for host disk / memory / CPU.
+  Tracing is opt-in: Tempo and otel-collector move to a `tracing` compose
+  profile and services run with `OTEL_TRACES_DISABLED=true`; turning it on
+  while chasing a problem is that flag plus `--profile tracing up` (saves
+  ~0.3–0.4 GB and per-request CPU day to day; traces cover HTTP, SQL and
+  Redis, not the RabbitMQ saga). Alertmanager keeps sending to Telegram. An
+  external Route 53 health check on `/health` alarms by email when the whole
+  host is down, which on-host monitoring cannot report.
+- **CI on every pull request:**
+  - each service's suite in parallel against real Postgres / Redis / RabbitMQ
+    service containers (needs a committed CI config file of non-secret test
+    values, since CI has no `backend/.env` and no Vault);
+  - `alembic check` per service, ruff, `pool-budget`, `docker compose config`;
+  - frontend `tsc` and `next build` (ESLint once it is configured again);
+  - gitleaks, `pip-audit` / `npm audit`, CodeQL, Trivy on the built images.
+- **Deploy on merge to `main`:**
+  1. build every image, tag with the git SHA, push to ECR;
+  2. the `production` GitHub environment waits for the owner's approval; the
+     job assumes an AWS role through OIDC (no stored keys; the role trusts
+     only this repo's `production` environment);
+  3. if a migration changed, `pg_dump` the affected databases first;
+  4. a deploy script on the host (run through SSM) pulls the tag and restarts
+     in order: migrations (the entrypoints), consumers and workers, APIs,
+     gateway, frontend;
+  5. health gate on every service; if one stays unhealthy, redeploy the
+     previous SHA automatically and fail the run;
+  6. recorded as a GitHub deployment (the audit trail).
+- **Release rules:** migrations expand then contract (the previous release
+  must run on the new schema; rollback never downgrades the database); events
+  additive only (as in §8.5); the gateway and frontend can restart without a
+  gap with `docker rollout` (two copies briefly) if a few seconds of restart
+  matter. No permanent staging: local covers the CJ sandbox and Stripe test
+  mode; Terraform can raise a short-lived copy for a risky change.
+- **Host security:** unattended OS security updates, Docker from the official
+  repository, containers non-root, `no-new-privileges`, Trivy before deploy,
+  Dependabot, branch protection with required checks.
+- **Rough cost** (list prices, an estimate): $65–90 / month.
+- **Phases, one PR each:**
+  1. CI on pull requests (repo only, no AWS);
+  2. production images and compose: frontend image, slim monitoring (tracing
+     profile), `mem_limit`s, images from ECR by tag, non-root checks;
+  3. Terraform: network, host, IAM / OIDC, KMS, S3 + CloudFront, ECR,
+     Route 53, account baseline;
+  4. host bootstrap: Docker, Vault (systemd, KMS unseal), swap, updates,
+     backup timers, restore script, first restore drill;
+  5. deploy workflow: build / push, approval, SSM deploy, health gate,
+     automatic rollback;
+  6. go-live: owner imports production secrets into Vault, DNS, Stripe and CJ
+     webhooks to the production URL, external health check, runbook (deploy,
+     rollback, restore, rotate a secret).
+- **Later, if the shop outgrows one host:** ECS on Fargate (a role and
+  injected secrets per service, built-in rollback) at roughly 3–4× the cost;
+  RDS when database operations take more time than they are worth.
 
 ### 2. In-house fulfillment operations — DONE (2026-09-09)
 
