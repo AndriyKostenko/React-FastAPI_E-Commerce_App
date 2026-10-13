@@ -688,6 +688,9 @@ service_env() {
   export MEDIA_ROOT="$DATA_DIR/media"
   # Return photos are private: kept apart from the publicly served media.
   export RETURN_EVIDENCE_ROOT="$DATA_DIR/private-media"
+  # Email links (activation, password reset, ...) must point at the port the
+  # frontend is actually served on, so derive it instead of trusting .env.
+  export FRONTEND_URL="http://localhost:$FRONTEND_PORT"
   # Images live in the local S3 server. Only the non-secret half is set here;
   # each service's access key pair comes from its own Vault path.
   export OBJECT_STORAGE_BACKEND=s3

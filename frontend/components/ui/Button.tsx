@@ -2,6 +2,23 @@
 
 import { ButtonProps } from "@/types/components";
 
+type ButtonSize = NonNullable<ButtonProps["size"]>;
+
+const KEYBOARD_SIZE_CLASSES: Record<ButtonSize, string> = {
+    sm: "text-[10px] py-1 px-2",
+    md: "text-xs py-1.5 md:py-2 px-2 md:px-4",
+    lg: "text-sm md:text-base py-2.5 md:py-3 px-4 md:px-6",
+    xl: "text-base py-4 px-8",
+};
+
+/**
+ * The keycap look (see `.keycap` in globals.css) as a class string, for
+ * elements that cannot be a <Button> -- e.g. a next/link CTA that has to look
+ * like one.
+ */
+export const keycapClassName = (size: ButtonSize = "lg"): string =>
+    `keycap w-full flex items-center justify-center gap-2 font-label-bold text-center ${KEYBOARD_SIZE_CLASSES[size]}`;
+
 const Button: React.FC<ButtonProps> = ({
     label,
     disabled,
@@ -17,7 +34,6 @@ const Button: React.FC<ButtonProps> = ({
     ...props
 }) => {
     const resolvedSize = size ?? (small ? "sm" : "md");
-    const isKeyboard = variant === "keyboard";
     const isSecondary = variant === "secondary";
 
     const baseStyles =
@@ -27,14 +43,14 @@ const Button: React.FC<ButtonProps> = ({
         sm: 16,
         md: 24,
         lg: 28,
+        xl: 32,
     } as const;
 
     const variantBaseStyles = {
         default: `rounded-md hover:opacity-80 border-primary ${
             outline ? "bg-white text-primary" : "bg-primary text-on-primary"
         }`,
-        keyboard:
-            "rounded-2xl bg-brand-lime text-primary shadow-[0_4px_0_0_rgba(132,204,22,1)] hover:shadow-[0_2px_0_0_rgba(132,204,22,1)] active:shadow-none active:translate-y-[4px]",
+        keyboard: "keycap",
         secondary:
             "border border-primary/20 text-primary rounded-2xl w-auto hover:bg-white/40 active:scale-95",
     };
@@ -44,16 +60,14 @@ const Button: React.FC<ButtonProps> = ({
             sm: "text-sm font-light py-1 px-2 border-[1px]",
             md: "text-md font-semibold py-3 px-4 border-2",
             lg: "text-lg font-semibold py-4 px-6 border-2",
+            xl: "text-xl font-semibold py-5 px-8 border-2",
         },
-        keyboard: {
-            sm: "text-[10px] py-1 px-2",
-            md: "text-xs py-1.5 md:py-2 px-2 md:px-4",
-            lg: "text-sm md:text-base py-2.5 md:py-3 px-4 md:px-6",
-        },
+        keyboard: KEYBOARD_SIZE_CLASSES,
         secondary: {
             sm: "p-1.5",
             md: "p-2.5",
             lg: "p-3.5",
+            xl: "p-4",
         },
     };
 

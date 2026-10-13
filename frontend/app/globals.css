@@ -89,6 +89,68 @@
     pointer-events: none;
     z-index: 0;
   }
+  /*
+   * Keycap: a lime keyboard key (Button variant="keyboard").
+   * The element itself is the skirt -- the sloping sides, lit on the left and
+   * darker towards the bottom. ::before is the slightly concave top face, inset
+   * more at the bottom than at the top so the key looks tilted towards the
+   * viewer. `isolation` makes the button its own stacking context, so the face
+   * (z-index -1) paints over the skirt but under the label.
+   * Insets and radii are in em, so the key keeps its proportions at every
+   * text size.
+   */
+  .keycap {
+    --keycap-face: #d4ff5f; /* brand-lime */
+    --keycap-face-light: #e4ff94;
+    --keycap-face-dark: #c8f24e;
+    --keycap-skirt-top: #d9ff70;
+    --keycap-skirt-bottom: #9cc42e;
+    --keycap-edge: rgba(74, 98, 12, 0.55);
+    --keycap-sides:
+      inset 0.3em 0 0.3em rgba(255, 255, 255, 0.3),
+      inset -0.3em 0 0.3em rgba(60, 80, 0, 0.16),
+      inset 0 -0.35em 0.3em rgba(60, 80, 0, 0.2);
+    position: relative;
+    isolation: isolate;
+    color: #000;
+    border: 1px solid var(--keycap-edge);
+    border-radius: 0.3em;
+    background: linear-gradient(to bottom, var(--keycap-skirt-top), var(--keycap-skirt-bottom));
+    box-shadow:
+      var(--keycap-sides),
+      0 0.45em 0.8em -0.25em rgba(0, 0, 0, 0.35);
+    transition: translate 80ms ease-out, box-shadow 80ms ease-out;
+  }
+  .keycap::before {
+    content: '';
+    position: absolute;
+    z-index: -1;
+    inset: 0.15em 0.5em 0.5em;
+    border-radius: 0.2em;
+    /* Lighter towards the upper middle: reads as a dished (concave) face. */
+    background: radial-gradient(
+      120% 140% at 50% 30%,
+      var(--keycap-face-light) 0%,
+      var(--keycap-face) 55%,
+      var(--keycap-face-dark) 100%
+    );
+    /* Soft rim where the face meets the skirt. */
+    box-shadow:
+      0 0 0.25em 0.08em rgba(255, 255, 255, 0.45),
+      0 0.08em 0.15em rgba(60, 80, 0, 0.25);
+  }
+  /* Pressed: the key travels down and its cast shadow tightens. `translate`
+     (not `transform`) so it composes with Tailwind translate utilities. */
+  .keycap:active:not(:disabled) {
+    translate: 0 0.15em;
+    box-shadow:
+      var(--keycap-sides),
+      0 0.2em 0.35em -0.15em rgba(0, 0, 0, 0.35);
+  }
+  .keycap:focus-visible {
+    outline: 2px solid #000;
+    outline-offset: 3px;
+  }
   .gradient-bg {
     background: radial-gradient(circle at 10% 20%, rgba(193, 212, 222, 1) 0%, rgba(223, 233, 237, 1) 45%, rgba(228, 226, 218, 1) 90%);
     min-height: 100vh;

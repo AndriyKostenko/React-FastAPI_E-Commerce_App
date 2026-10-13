@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { keycapClassName } from "@/components/ui/Button";
 import { MdAutoAwesome, MdCheckCircle, MdError } from "react-icons/md";
 import { useFragmentToken } from "@/hooks/useFragmentToken";
 import { AuthApi } from "@/lib/auth-api";
@@ -77,7 +78,7 @@ export default function ActivatePage() {
                         </div>
                         <Link
                             href="/login"
-                            className="w-full bg-brand-lime text-primary py-4 px-8 rounded-2xl font-label-bold hover:shadow-xl transition-all active:scale-95"
+                            className={keycapClassName("xl")}
                         >
                             Sign In
                         </Link>
@@ -93,7 +94,7 @@ export default function ActivatePage() {
                         </div>
                         <Link
                             href="/register"
-                            className="w-full bg-brand-lime text-primary py-4 px-8 rounded-2xl font-label-bold hover:shadow-xl transition-all active:scale-95"
+                            className={keycapClassName("xl")}
                         >
                             Back to Register
                         </Link>

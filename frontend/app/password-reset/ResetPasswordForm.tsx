@@ -7,6 +7,7 @@ import toast from "react-hot-toast";
 import { FieldValues, SubmitHandler, useForm } from "react-hook-form";
 import { MdAutoAwesome, MdError, MdVisibility, MdVisibilityOff } from "react-icons/md";
 import Input from "@/components/ui/Input";
+import Button, { keycapClassName } from "@/components/ui/Button";
 import { useFragmentToken } from "@/hooks/useFragmentToken";
 import { AuthApi } from "@/lib/auth-api";
 import { ApiError } from "@/lib/api-error";
@@ -81,7 +82,7 @@ const ResetPasswordForm = () => {
                 </div>
                 <Link
                     href="/forgot-password"
-                    className="w-full text-center bg-brand-lime text-primary py-4 px-8 rounded-2xl font-label-bold hover:shadow-xl transition-all active:scale-95"
+                    className={keycapClassName("xl")}
                 >
                     Send a New Link
                 </Link>
@@ -132,13 +133,14 @@ const ResetPasswordForm = () => {
                 />
             </div>
 
-            <button
+            <Button
                 onClick={handleSubmit(onSubmit)}
                 disabled={isLoading}
-                className="w-full bg-brand-lime text-primary py-4 px-8 rounded-2xl font-label-bold hover:shadow-xl transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed disabled:active:scale-100"
+                variant="keyboard"
+                size="xl"
             >
                 {isLoading ? "Saving..." : "Set New Password"}
-            </button>
+            </Button>
 
             <p className="font-body-md text-sm text-secondary">
                 <Link href="/login" className="text-primary font-semibold underline underline-offset-2 hover:opacity-70 transition-opacity">

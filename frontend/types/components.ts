@@ -45,7 +45,7 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
     icon?: IconType;
 
     variant?: "default" | "keyboard" | "secondary";
-    size?: "sm" | "md" | "lg";
+    size?: "sm" | "md" | "lg" | "xl";
 }
 
 export interface CartProviderProps {
