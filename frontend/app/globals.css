@@ -119,7 +119,7 @@
     box-shadow:
       var(--keycap-sides),
       0 0.45em 0.8em -0.25em rgba(0, 0, 0, 0.35);
-    transition: translate 80ms ease-out, box-shadow 80ms ease-out, filter 150ms;
+    transition: translate 80ms ease-out, box-shadow 80ms ease-out;
   }
   .keycap::before {
     content: '';
@@ -138,9 +138,6 @@
     box-shadow:
       0 0 0.25em 0.08em rgba(255, 255, 255, 0.45),
       0 0.08em 0.15em rgba(60, 80, 0, 0.25);
-  }
-  .keycap:hover:not(:disabled) {
-    filter: brightness(1.03);
   }
   /* Pressed: the key travels down and its cast shadow tightens. `translate`
      (not `transform`) so it composes with Tailwind translate utilities. */
