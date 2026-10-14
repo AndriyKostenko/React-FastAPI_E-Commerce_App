@@ -23,8 +23,9 @@ Code work:
   so concurrent handlers still get 429s and lean on retries (§5a).
 - **AI content moderation**: none; unscreened designs can reach the printer (§5).
 - **GDPR / audit / retention**: only account deletion exists (§5).
-- **Dependency vulnerabilities**: 8–16 per service (pip-audit), one critical in
-  the frontend's `next`; CI reports them until an upgrade PR lands (§1).
+- **Dependency vulnerabilities**: 35–169 advisories in 8–16 packages per
+  service (pip-audit); admin-js 69 (npm, one critical, `proxy-addr`); CI
+  reports them as warnings until an upgrade PR lands (§1).
 - **Deployment phases 2–6**, which include backups / DR and automatic rollback
   (§1).
 
@@ -81,13 +82,19 @@ k6 load tests, Alembic per service. The large `shared/` refactor called out in
   signing secrets, database / Redis / RabbitMQ passwords), and turn on
   GitHub secret scanning with push protection (free for public repos). CI
   now runs gitleaks on every pull request's new commits.
-- **Known vulnerabilities in the dependencies (found 2026-10-12).** Every
-  service's lock file has 8–16 (pip-audit), e.g. `starlette`, `anyio`,
-  `python-multipart`, `cryptography`, `aiohttp`, `pillow`, `aiosmtplib` (3 →
-  5, through fastapi-mail), several behind exact pins in `pyproject.toml`;
-  the frontend has 10 in production dependencies, one critical in `next`,
-  all fixable within their ranges (`npm audit fix`). The CI audit job reports
-  them without blocking until an upgrade PR lands; then it becomes required.
+- **Known vulnerabilities in the dependencies (found 2026-10-12, counted
+  2026-10-14 from the CI audit).** Every service's lock file has 8–16
+  vulnerable packages (pip-audit), 35–169 advisories between them: api_gateway
+  39 in 8 packages, payment 35 in 9, user 42 in 10, notification 56 in 10,
+  cart / shipping / wishlist 128 in 10 each, supplier 157 in 11, order 53 in
+  13, product 169 in 16. Among them `starlette`, `anyio`, `python-multipart`,
+  `cryptography`, `aiohttp`, `pillow`, `aiosmtplib` (3 → 5, through
+  fastapi-mail), several behind exact pins in `pyproject.toml`. npm
+  (production dependencies): admin-js 69 (2 low, 43 moderate, 23 high, 1
+  critical, `proxy-addr` through express); the frontend 1 moderate (`qs`),
+  its critical `next` advisory gone with the Dependabot bump (#28). The CI
+  audit job reports them as warnings and stays green until an upgrade PR
+  lands; then `AUDIT_BLOCKING: "true"` in `ci.yml` makes it fail on them.
 - **Plan decided (2026-10-12): see "Deployment plan" at the end of this section.**
 - [x] **`order_service` Alembic setup — DONE (2026-09-09).** It was the only one
   of the nine services without migrations, while relying on `init_db`/`create_all`,
