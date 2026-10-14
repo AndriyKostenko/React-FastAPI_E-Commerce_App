@@ -4,13 +4,39 @@ Context: business goal is (1) users create AI print designs on t-shirts that you
 produce at home and ship yourself, and (2) users buy t-shirts sourced from
 CJDropshipping (products pre-fetched and stored in your DB).
 
-Assessment date: 2026-09-03. Last updated 2026-10-10 (AdminJS: passkeys, sole
-back office, every resource, §8.4; before that S3 for images, §8.3; the
-CJ stock webhook, §8.2; before that the refund and cancellation paths,
-PRs #12-#16, see §5a). The hard architectural + integration work is
-substantially done (CJ integration, AI generation, order saga, artwork storage).
-What remains is operational glue, hardening, and in-house fulfillment tooling —
-estimated a few focused weeks, no re-architecting required.
+Assessment date: 2026-09-03. Last updated 2026-10-13 (status review; before
+that CI on pull requests, §1 phase 1, 2026-10-12; the deployment plan, §1;
+connection pools, §8.6; `shared/` removed, §8.5; AdminJS, §8.4; S3 for images,
+§8.3; the CJ stock webhook, §8.2; Vault, §8.1; the refund and cancellation
+paths, PRs #12-#16, §5a). The hard architectural + integration work is done
+(CJ integration, AI generation, order saga, artwork storage, in-house
+fulfilment, secrets per service). What remains is deployment, a few
+hardening items, and legal/compliance work — no re-architecting required.
+
+## Open backend items (2026-10-13)
+
+Code work:
+- **Per-service Postgres users** (bug list #19): one superuser for every
+  database; the three infra passwords sit in one Vault path every service may
+  read; no per-service Redis / RabbitMQ users either (§8.1).
+- **CJ rate limiter**: nothing serialises calls to CJ's one request per second,
+  so concurrent handlers still get 429s and lean on retries (§5a).
+- **AI content moderation**: none; unscreened designs can reach the printer (§5).
+- **GDPR / audit / retention**: only account deletion exists (§5).
+- **Dependency vulnerabilities**: 8–16 per service (pip-audit), one critical in
+  the frontend's `next`; CI reports them until an upgrade PR lands (§1).
+- **Deployment phases 2–6**, which include backups / DR and automatic rollback
+  (§1).
+
+Smaller, listed under their sections as "not covered": CJ PRODUCT / VARIANT
+pushes and `messageId` dedup (§8.2), unused catalogue objects and compose's
+S3 / Vault settings (§8.1, §8.3), return labels / store credit / restocking
+(§5), tax reversal on a lost dispute (§5), a live stock check at the checkout
+quote (§3a), coverage / contract / automated e2e / security tests (§7).
+
+Owner actions: rotate the keys from the committed `.env` files and turn on
+GitHub secret scanning (§1); replay or discard the old notification
+dead letters (§5a); the "Before going live" settings in §3b, §5, §8.2–§8.4.
 
 ---
 
@@ -112,8 +138,11 @@ k6 load tests, Alembic per service. The large `shared/` refactor called out in
 - **Existing databases** join with `alembic stamp <baseline>` before their
   first upgrade; a database built by the old `create_all` already matches the
   baseline.
-- No backup/DR plan for the 9 Postgres DBs (connection pooling: done, §8.6)
-- No blue/green or canary, no auto-rollback on deploy failure
+- No backups / DR for the 9 Postgres DBs yet: planned below (pg_dump every
+  6 h, EBS snapshots, monthly restore drill), built in phase 4 (connection
+  pooling: done, §8.6)
+- No auto-rollback on deploy failure yet: planned below, phase 5 (no
+  blue/green or canary, by choice: one host)
 
 #### Deployment plan (decided 2026-10-12)
 
@@ -566,8 +595,12 @@ already correct; three remain.
       `repr()` shows `SecretStr('**********')` and `model_dump()` no longer
       contains the key.
 
-**Still open in §4 — one item, and it is an infrastructure decision:**
-- **Every service is still *given* every secret.** All 33 compose services load
+**Resolved locally by §8.1 (Vault, 2026-10-08); compose still to do:**
+- ~~**Every service is still *given* every secret.**~~ Since 2026-10-08 every
+  process `dev.sh` starts reads only its own Vault path. Compose still loads
+  the blanket `.env` (its containers would need Vault Agent); the deployment
+  plan (§1) gives each container only its own AppRole. Original note: All 33
+  compose services load
   the same blanket `.env`, so each process still receives keys it never uses.
   Making the fields optional above is the prerequisite that now makes
   withholding possible — a service that never charges a card can start without
@@ -656,7 +689,7 @@ the services), not only in unit tests.
       `U2NET_HOME=/opt/rembg`, so the first job no longer pays for it. The
       `REMBG_MODEL` build arg must match `PRODUCT_IMAGE_BG_REMOVAL_MODEL`.
 
-**Still open from this pass:**
+**Closed since:**
 - **admin-js** runs under `dev.sh` now (2026-09-28, `./local/dev.sh up admin-js`,
   :3001). It checks its configuration at startup: `backend/.env` was missing
   `COOKIE_SECRET`, `ADMINJS_SERVICE_REDIS_DB` and `ADMINJS_SERVICE_REDIS_PREFIX`,
@@ -739,7 +772,11 @@ the services), not only in unit tests.
     what happens to the money, with a separate wording when goods were already
     made or posted.
 - Terms / privacy / returns policy pages
-- GDPR data export + delete, audit logging, data retention (checklist §13 fully unchecked)
+- GDPR data export, audit logging, data retention (checklist §13). Deletion
+  exists only in part: `UserService.delete_user_by_id` anonymises the account
+  (name, email, phone, image, password), ends its sessions and publishes
+  `user.deleted`, which only wishlist-service consumes; orders, addresses,
+  reviews, notifications and stored designs keep their data. No export.
 - AI-print content moderation — you physically print user designs, so IP / trademark / NSFW
   screening is genuine liability, not optional
 
@@ -790,10 +827,11 @@ sold from local stock; only CJ products exist locally.
 - Loading/error states, mobile polish
 
 ### 7. Testing & docs
-- All ten service suites pass (1,621 tests on 2026-10-10: gateway 228, user 174,
-  product 321, supplier 230, order 282, payment 134, cart 62, wishlist 27,
-  shipping 44, notification 119; `shared` 50), but **nothing runs them**: there is no CI, so
-  every PR so far was merged with only GitGuardian checking it.
+- All ten service suites pass (1,983 tests in the CI rehearsal, 2026-10-12;
+  `shared/` and its suite are gone, §8.5), and **CI runs them on every pull
+  request since 2026-10-12** (§1, phase 1), with `alembic check`, ruff,
+  gitleaks, audits and CodeQL. Left to the owner: make the checks required on
+  `main` once the first run is green.
 - The suites no longer depend on the local configuration: order-service's
   tests pin `STRIPE_TAX_ENABLED=false` in `tests/conftest.py` (with Stripe Tax
   on locally, 69 of them used to fail). Tax pricing keeps its own tests with
@@ -1210,11 +1248,13 @@ approach; decisions are recorded here as they are made.
 
 ## Rough priority order
 
-1. CI/CD + automated migrations + backups (CI first: the suites are green and
-   self-contained, so a workflow only has to run them)
+1. Deployment + backups: ~~CI~~ (done 2026-10-12, §1 phase 1) and
+   ~~automated migrations~~ (done, §1); deployment phases 2–6 are next, with
+   the dependency-upgrade PR and the key rotation (§1)
 2. ~~In-house production-queue admin tooling~~ (done — see §2)
-3. ~~HTTPS / CORS / rate-limit hardening~~ (done — see §4); secret
-   *distribution* per service + a secret manager is the one §4 item left
+3. ~~HTTPS / CORS / rate-limit hardening~~ (done — see §4); ~~secret
+   distribution per service + a secret manager~~ (Vault, done locally, §8.1;
+   compose / production in deployment phase 4)
 4. ~~CJ shipping quotes + tracking + failure handling~~ (done — see §3)
 5. AI content moderation (design generation works end to end, so unscreened
    designs can reach the printer), legal pages, GDPR. Tax is wired in (§5);
@@ -1251,7 +1291,7 @@ Backend:
 | 16 | Circuit breaker / retries for CJ? | **Done (2026-09-25).** Per-service breakers in the gateway (503 + Retry-After); CJ reads retry with backoff, writes never do; a process-wide CJ breaker; 429/5xx are 'unavailable', not a rejection |
 | 17 | Process isolation: API, task queue, consumers, DB? | **Already in place.** Every service runs API, consumer, outbox worker, taskiq worker and scheduler as separate processes (dev.sh) / containers (compose), each with its own database. The single Postgres instance is #19 |
 | 18 | RabbitMQ ack policy + DLX? | **Done (2026-09-24).** Worse than open: every queue dead-lettered to a `dlx` exchange nothing declared, so RabbitMQ dropped every failed message. `shared.messaging.ConsumerTopology` now declares `dlx`, one DLQ per queue and 5s/30s/120s retry queues before consuming; `RetryDispatcher` retries transient failures and dead-letters payload errors at once. All 20 queues in 8 consumers, verified on the live broker |
-| 19 | One Postgres instance, one superuser? | Open — per-service least-privilege roles |
+| 19 | One Postgres instance, one superuser? | Open — per-service least-privilege roles, through Vault's database secrets engine (§8.1); Redis / RabbitMQ users per service with it |
 | 19b | taskiq DLX? | **Done for notifications (2026-09-24).** taskiq acks a failed task (its result is saved), so its DLQ never saw one. `DeadLetteringRetryMiddleware` retries emails with backoff and jitter, then parks them in `taskiq.notifications.dead_letter`. Image generation (refunds quota) and the supplier cron jobs (next run is the retry) deliberately do not retry. Parked messages replay with `./local/dev.sh dlq list` / `dlq replay <queue>` |
 | 20 | `autoflush` / `expire_on_commit`; UoW transaction boundaries? | **Done (2026-09-25).** `expire_on_commit=False` is right for async; with `autoflush=False` the gap was deletes: they never flushed, so later reads saw deleted rows and constraint violations surfaced at commit as bare 500s. Deletes now flush; `IntegrityError` renders as 409. Deleting a category silently deleted all its products (ORM cascade) — now refused with 409 |
 
