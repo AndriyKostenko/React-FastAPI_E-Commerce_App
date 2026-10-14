@@ -250,7 +250,8 @@ def test_a_dry_run_names_keys_only_and_changes_nothing(vault: DevVault, tmp_path
     result = _run_import(vault, env_file, "--dry-run")
 
     assert result.returncode == 0, result.stderr
-    assert "imp/shared-infra: POSTGRES_PASSWORD, RABBITMQ_PASSWORD, REDIS_PASSWORD" in result.stdout
+    assert "imp/shared-infra: RABBITMQ_PASSWORD, REDIS_PASSWORD" in result.stdout
+    assert "imp/postgres-admin: POSTGRES_PASSWORD" in result.stdout
     assert "SOME_VENDOR_TOKEN" in result.stdout  # flagged: looks secret, no Vault path
     assert REDIS_VALUE not in result.stdout and STRIPE_VALUE not in result.stdout
     assert env_file.read_text() == ENV_FILE
@@ -264,9 +265,9 @@ def test_the_import_moves_each_secret_to_its_service_and_keeps_the_rest(vault: D
     result = _run_import(vault, env_file)
 
     assert result.returncode == 0, result.stderr
-    assert vault.get("imp/shared-infra") == {
-        "POSTGRES_PASSWORD": DATABASE_VALUE, "REDIS_PASSWORD": REDIS_VALUE, "RABBITMQ_PASSWORD": RABBIT_VALUE,
-    }
+    assert vault.get("imp/shared-infra") == {"REDIS_PASSWORD": REDIS_VALUE, "RABBITMQ_PASSWORD": RABBIT_VALUE}
+    # The superuser's password: not where every service can read it.
+    assert vault.get("imp/postgres-admin") == {"POSTGRES_PASSWORD": DATABASE_VALUE}
     assert vault.get("imp/user-service")["USER_TOKEN_PRIVATE_KEY"].count("\n") == 2  # multi-line PEM intact
     assert vault.get("imp/payment-service") == {"STRIPE_SECRET_KEY": STRIPE_VALUE}  # old name, new key
     assert vault.get("imp/supplier-service") == {"CJ_DROPSHIPPING_API_KEY": CJ_VALUE}
