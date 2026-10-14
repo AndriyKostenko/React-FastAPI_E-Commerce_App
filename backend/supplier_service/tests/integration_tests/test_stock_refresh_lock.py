@@ -38,7 +38,6 @@ def _refresh(database, get_warehouse_stock) -> CJStockRefreshService:
             list_stock_keys=AsyncMock(return_value=[SupplierStockKey(supplier_pid="P", vids=["V"])])
         ),
         logger=getLogger("test"),
-        sleep=AsyncMock(),
     )
 
 

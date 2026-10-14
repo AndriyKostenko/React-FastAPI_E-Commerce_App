@@ -232,6 +232,18 @@ class Settings(BaseSettings):
     CJ_DROPSHIPPING_BREAKER_RECOVERY_SECONDS: float = Field(default=60.0, gt=0)
     CJ_DROPSHIPPING_VERIFY_TIMEOUT_SECONDS: float = 10.0
     CJ_DROPSHIPPING_REQUEST_TIMEOUT_SECONDS: float = 30.0
+    # CJ allows one request per second per account at our level (Free / sales
+    # level 0-1; Plus 2/s, Prime 4/s, Advanced 6/s) and answers more with a
+    # 429. Every supplier-service process shares one budget, kept in Redis.
+    # The interval is 1/QPS plus a margin for network jitter.
+    CJ_DROPSHIPPING_RATE_LIMIT_ENABLED: bool = True
+    CJ_DROPSHIPPING_REQUEST_INTERVAL_SECONDS: float = Field(default=1.1, gt=0)
+    # How long a call may wait for its slot before failing as "CJ unavailable,
+    # retry later". Customer-facing calls (the API process) queue for up to
+    # their whole wait; background work takes a slot only when about one
+    # interval's queue is ahead, so it never keeps a customer waiting long.
+    CJ_DROPSHIPPING_INTERACTIVE_MAX_WAIT_SECONDS: float = Field(default=3.0, ge=0)
+    CJ_DROPSHIPPING_BACKGROUND_MAX_WAIT_SECONDS: float = Field(default=30.0, ge=0)
 
     # CJ Dropshipping order creation
     CJ_DROPSHIPPING_CREATE_ORDER_URL: str = (

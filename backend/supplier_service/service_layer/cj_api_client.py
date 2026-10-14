@@ -1,3 +1,5 @@
+from enum import StrEnum
+from time import monotonic
 from types import TracebackType
 from typing import Any, Self
 from urllib.parse import urlencode
@@ -8,6 +10,14 @@ from httpx import AsyncClient, HTTPStatusError, RequestError, Response
 
 from schemas.cj_webhook_schemas import CJProductSubscriptionResult, CJWebhookSettingsRequest
 from infrastructure.resilience import CircuitBreaker, CircuitOpenError, RetryableError, RetryPolicy
+from infrastructure.resilience.request_pacer import (
+    LocalRequestPacer,
+    PacingBudget,
+    PacingTimeoutError,
+    RedisRequestPacer,
+    RequestPacer,
+    UnpacedRequestPacer,
+)
 from settings import Settings
 
 
@@ -56,8 +66,28 @@ class CJDropshippingUnavailableError(CJDropshippingNetworkError):
     pass
 
 
+class CJDropshippingRateLimitedError(CJDropshippingUnavailableError):
+    """
+    Not sent: no slot in the account's request budget within the caller's
+    wait (``CJ_DROPSHIPPING_*_MAX_WAIT_SECONDS``). CJ was never asked, so the
+    outcome is known, but callers treat it like CJ being busy: try later.
+    """
+
+    pass
+
+
+class CJCaller(StrEnum):
+    """Who is waiting on the call, which decides how long it may wait for a slot."""
+
+    INTERACTIVE = "interactive"  # a request someone is waiting on: the API process
+    BACKGROUND = "background"    # consumers, scheduled tasks, CLI tools
+
+
 # Answers that mean "CJ is not really answering" rather than "CJ said no".
 _UNAVAILABLE_STATUSES = frozenset({429, 500, 502, 503, 504})
+# CJ's "Too Many Requests" code. It comes with a 429; should it ever come in a
+# 200 body, it must still not read as a refusal (a refused order is refunded).
+_RATE_LIMITED_CODE = 1600200
 
 
 class CJDropshippingAPIClient:
@@ -76,6 +106,9 @@ class CJDropshippingAPIClient:
     # consumers and tasks each build their own client, and a breaker per
     # instance would never see enough failures to trip.
     _shared_breaker: CircuitBreaker | None = None
+    # Paces this process's calls while Redis, which holds the budget every
+    # process shares, cannot be reached. One per process, like the breaker.
+    _process_fallback_pacer: LocalRequestPacer | None = None
 
     def __init__(
         self,
@@ -85,6 +118,8 @@ class CJDropshippingAPIClient:
         breaker: CircuitBreaker | None = None,
         retry_policy: RetryPolicy | None = None,
         logger: Logger | None = None,
+        caller: CJCaller = CJCaller.BACKGROUND,
+        pacer: RequestPacer | None = None,
     ) -> None:
         self.settings: Settings = settings
         self._access_token: str | None = None
@@ -95,6 +130,9 @@ class CJDropshippingAPIClient:
         self._retry_policy = retry_policy or RetryPolicy(
             max_attempts=settings.CJ_DROPSHIPPING_RETRY_MAX_ATTEMPTS
         )
+        self._pacer = pacer or self._default_pacer(settings, self._logger)
+        self._owns_pacer = pacer is None
+        self._pacing_budget = self._budget_for(caller, settings)
 
     @classmethod
     def _process_breaker(cls, settings: Settings, logger: Logger) -> CircuitBreaker:
@@ -106,6 +144,31 @@ class CJDropshippingAPIClient:
                 recovery_timeout=settings.CJ_DROPSHIPPING_BREAKER_RECOVERY_SECONDS,
             )
         return cls._shared_breaker
+
+    @classmethod
+    def _default_pacer(cls, settings: Settings, logger: Logger) -> RequestPacer:
+        if not settings.CJ_DROPSHIPPING_RATE_LIMIT_ENABLED:
+            return UnpacedRequestPacer()
+        interval = settings.CJ_DROPSHIPPING_REQUEST_INTERVAL_SECONDS
+        if cls._process_fallback_pacer is None:
+            cls._process_fallback_pacer = LocalRequestPacer(interval)
+        return RedisRequestPacer(
+            redis_url=settings.SUPPLIER_SERVICE_REDIS_URL,
+            key=f"{settings.SUPPLIER_SERVICE_REDIS_PREFIX}:cj:next-request-slot",
+            interval=interval,
+            fallback=cls._process_fallback_pacer,
+            logger=logger,
+        )
+
+    @staticmethod
+    def _budget_for(caller: CJCaller, settings: Settings) -> PacingBudget:
+        if caller is CJCaller.INTERACTIVE:
+            wait = settings.CJ_DROPSHIPPING_INTERACTIVE_MAX_WAIT_SECONDS
+            return PacingBudget(max_wait=wait, max_ahead=wait)
+        # Background work queues at most about one slot ahead, so a customer
+        # arriving behind it waits for that slot and then goes first.
+        wait = settings.CJ_DROPSHIPPING_BACKGROUND_MAX_WAIT_SECONDS
+        return PacingBudget(max_wait=wait, max_ahead=min(wait, settings.CJ_DROPSHIPPING_REQUEST_INTERVAL_SECONDS))
 
     async def __aenter__(self) -> Self:
         """Start the owned HTTP client and clean up if startup fails."""
@@ -133,10 +196,14 @@ class CJDropshippingAPIClient:
             )
 
     async def close(self) -> None:
-        """Close an internally owned reusable HTTP client."""
-        if self._http_client is not None and self._owns_http_client:
-            await self._http_client.aclose()
-            self._http_client = None
+        """Close an internally owned reusable HTTP client and pacer connection."""
+        try:
+            if self._http_client is not None and self._owns_http_client:
+                await self._http_client.aclose()
+                self._http_client = None
+        finally:
+            if self._owns_pacer:
+                await self._pacer.close()
 
     @staticmethod
     def build_url(base_url: str, query_params: dict[str, Any] | None = None) -> str:
@@ -176,11 +243,14 @@ class CJDropshippingAPIClient:
         ``pay_balance`` could pay twice. Their callers reconcile instead.
         """
         repeatable = method.upper() == "GET" if idempotent is None else idempotent
+        # One wait budget for the call, retries included: a retry gets only
+        # what the earlier attempts left of it.
+        pacing_deadline = monotonic() + self._pacing_budget.max_wait
 
         async def attempt() -> dict[str, Any]:
             return await self._send_once(
                 method, url, json=json, params=params, access_token=access_token,
-                timeout=timeout, _retry_on_401=_retry_on_401,
+                timeout=timeout, _retry_on_401=_retry_on_401, pacing_deadline=pacing_deadline,
             )
 
         if not repeatable:
@@ -197,8 +267,13 @@ class CJDropshippingAPIClient:
         access_token: str | None,
         timeout: float | None,
         _retry_on_401: bool,
+        pacing_deadline: float,
     ) -> dict[str, Any]:
         """One call through the breaker. A business rejection still proves CJ is up."""
+        # The slot is taken before the breaker is asked: a half-open breaker
+        # admits one trial call and would stay blocked by a trial that was
+        # then refused a slot and never sent.
+        await self._wait_for_slot(pacing_deadline)
         try:
             self._breaker.before_call()
         except CircuitOpenError as exc:
@@ -216,6 +291,17 @@ class CJDropshippingAPIClient:
             raise
         self._breaker.record_success()
         return payload
+
+    async def _wait_for_slot(self, deadline: float) -> None:
+        budget = PacingBudget(
+            max_wait=max(0.0, deadline - monotonic()), max_ahead=self._pacing_budget.max_ahead
+        )
+        try:
+            await self._pacer.acquire(budget)
+        except PacingTimeoutError as exc:
+            raise CJDropshippingRateLimitedError(
+                f"CJ request not sent: {exc}", retry_after=exc.retry_after
+            ) from exc
 
     async def _exchange(
         self,
@@ -457,6 +543,8 @@ def _response_code(response: Response) -> object:
 
 def _rejection(code: object, message: str) -> CJDropshippingAPIError:
     """The error for an authoritative CJ refusal, the not-found case told apart."""
+    if code == _RATE_LIMITED_CODE:
+        return CJDropshippingUnavailableError(message)
     if code == CJDropshippingNotFoundError.CODE:
         return CJDropshippingNotFoundError(message)
     if code == CJDropshippingWebhookNotEnabledError.CODE:

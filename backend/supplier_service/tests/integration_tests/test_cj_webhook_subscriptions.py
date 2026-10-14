@@ -59,14 +59,13 @@ async def db() -> AsyncGenerator[TestDatabaseSessionManager, None]:
     await manager.close()
 
 
-def _service(db, cj: RecordingCJ, *keys: SupplierStockKey, sleep: AsyncMock | None = None) -> CJWebhookSubscriptionService:
+def _service(db, cj: RecordingCJ, *keys: SupplierStockKey) -> CJWebhookSubscriptionService:
     return CJWebhookSubscriptionService(
         settings=SimpleNamespace(API_GATEWAY_SERVICE_URL_API_VERSION="/api/v1"),
         database=db,
         api_client=cj,
         product_client=SimpleNamespace(list_stock_keys=AsyncMock(return_value=list(keys))),
         logger=getLogger("test"),
-        sleep=sleep or AsyncMock(),
     )
 
 
@@ -153,16 +152,14 @@ async def test_with_the_webhook_off_nothing_is_marked_subscribed(db) -> None:
     assert await _subscriptions(db) == {}
 
 
-async def test_subscriptions_go_in_batches_of_100_spaced_for_cjs_rate_limit(db) -> None:
+async def test_subscriptions_go_in_batches_of_100(db) -> None:
     keys = [SupplierStockKey(supplier_pid=f"P{index:03}", vids=[f"V{index:03}"]) for index in range(150)]
-    cj, sleep = RecordingCJ(), AsyncMock()
+    cj = RecordingCJ()
 
-    report = await _service(db, cj, *keys, sleep=sleep).reconcile()
+    report = await _service(db, cj, *keys).reconcile()
 
     assert [len(call) for call in cj.subscribe_calls] == [100, 50]
     assert report.subscribed == 150
-    # One pause between the two CJ calls, none before the first.
-    sleep.assert_awaited_once()
 
 
 async def test_cj_is_told_to_push_to_the_gateways_webhook_route() -> None:

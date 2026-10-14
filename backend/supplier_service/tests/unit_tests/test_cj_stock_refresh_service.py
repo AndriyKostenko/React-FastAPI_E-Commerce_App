@@ -74,7 +74,7 @@ def _service(
     buffer: int = 0,
     batch_size: int = 100,
     database: _Database | None = None,
-) -> tuple[CJStockRefreshService, SimpleNamespace, AsyncMock]:
+) -> tuple[CJStockRefreshService, SimpleNamespace]:
     async def get_warehouse_stock(pid: str) -> WarehouseStock:
         result = stock[pid]
         if isinstance(result, Exception):
@@ -82,7 +82,6 @@ def _service(
         return result
 
     provider = SimpleNamespace(get_warehouse_stock=AsyncMock(side_effect=get_warehouse_stock))
-    sleep = AsyncMock()
     clock = iter(T0 + timedelta(seconds=i) for i in range(1000))
     service = CJStockRefreshService(
         settings=SimpleNamespace(CJ_DROPSHIPPING_INVENTORY_BUFFER=buffer, CJ_STOCK_REFRESH_BATCH_SIZE=batch_size),
@@ -90,10 +89,9 @@ def _service(
         provider=provider,
         product_client=SimpleNamespace(list_stock_keys=AsyncMock(return_value=keys)),
         logger=getLogger("test"),
-        sleep=sleep,
         clock=lambda: next(clock),
     )
-    return service, provider, sleep
+    return service, provider
 
 
 def _levels(sent: list[tuple[str, object]]) -> dict[str, dict[str, int]]:
@@ -105,7 +103,7 @@ def _levels(sent: list[tuple[str, object]]) -> dict[str, dict[str, int]]:
 
 async def test_a_product_sold_out_in_the_us_is_sent_as_zero(sent) -> None:
     """The case the catalogue sync can never see: CJ no longer lists it in China."""
-    service, _, _ = _service(
+    service, _ = _service(
         [SupplierStockKey(supplier_pid="SOLD-OUT", vids=["V-S", "V-M"])],
         {"SOLD-OUT": WarehouseStock(total=0, by_vid={})},
     )
@@ -119,7 +117,7 @@ async def test_a_product_sold_out_in_the_us_is_sent_as_zero(sent) -> None:
 
 async def test_every_product_we_sell_is_asked_about(sent) -> None:
     keys = [SupplierStockKey(supplier_pid=f"P{i}", vids=[f"V{i}"]) for i in range(3)]
-    service, provider, _ = _service(keys, {f"P{i}": WarehouseStock(total=i, by_vid={f"V{i}": i}) for i in range(3)})
+    service, provider = _service(keys, {f"P{i}": WarehouseStock(total=i, by_vid={f"V{i}": i}) for i in range(3)})
 
     await service.refresh()
 
@@ -131,7 +129,7 @@ async def test_every_product_we_sell_is_asked_about(sent) -> None:
 
 
 async def test_the_buffer_is_held_back_per_variant_and_never_goes_negative(sent) -> None:
-    service, _, _ = _service(
+    service, _ = _service(
         [SupplierStockKey(supplier_pid="P", vids=["V-S", "V-M", "V-L"])],
         {"P": WarehouseStock(total=11, by_vid={"V-S": 10, "V-M": 1})},
         buffer=2,
@@ -147,7 +145,7 @@ async def test_the_buffer_is_held_back_per_variant_and_never_goes_negative(sent)
 
 async def test_a_product_cj_could_not_answer_for_keeps_its_stock(sent) -> None:
     """A failed call is not "sold out": zeroing it could hide a product in stock."""
-    service, _, _ = _service(
+    service, _ = _service(
         [SupplierStockKey(supplier_pid="OK", vids=["V1"]), SupplierStockKey(supplier_pid="DOWN", vids=["V2"])],
         {"OK": WarehouseStock(total=4, by_vid={"V1": 4}), "DOWN": CJDropshippingAPIError("503")},
     )
@@ -159,21 +157,13 @@ async def test_a_product_cj_could_not_answer_for_keeps_its_stock(sent) -> None:
     assert "DOWN" in report.errors[0]
 
 
-# -------------------------------------------------------- pacing + batching
-
-
-async def test_calls_to_cj_are_spaced_to_its_rate_limit(sent) -> None:
-    keys = [SupplierStockKey(supplier_pid=f"P{i}", vids=[]) for i in range(3)]
-    service, _, sleep = _service(keys, {f"P{i}": WarehouseStock(total=0, by_vid={}) for i in range(3)})
-
-    await service.refresh()
-
-    assert [c.args[0] for c in sleep.await_args_list] == [1.1, 1.1]
+# ------------------------------------------------------------------ batching
+# (Pacing to CJ's rate limit is the CJ client's: test_request_pacer.py.)
 
 
 async def test_levels_go_out_in_batches_stamped_with_their_earliest_measurement(sent) -> None:
     keys = [SupplierStockKey(supplier_pid=f"P{i}", vids=["V"]) for i in range(5)]
-    service, _, _ = _service(keys, {f"P{i}": WarehouseStock(total=1, by_vid={"V": 1}) for i in range(5)}, batch_size=2)
+    service, _ = _service(keys, {f"P{i}": WarehouseStock(total=1, by_vid={"V": 1}) for i in range(5)}, batch_size=2)
 
     report = await service.refresh()
 
@@ -188,7 +178,7 @@ async def test_levels_go_out_in_batches_stamped_with_their_earliest_measurement(
 
 async def test_a_refresh_already_running_is_not_doubled(sent) -> None:
     database = _Database(lock_acquired=False)
-    service, provider, _ = _service([SupplierStockKey(supplier_pid="P", vids=[])], {}, database=database)
+    service, provider = _service([SupplierStockKey(supplier_pid="P", vids=[])], {}, database=database)
 
     report = await service.refresh()
 
@@ -200,7 +190,7 @@ async def test_a_refresh_already_running_is_not_doubled(sent) -> None:
 
 async def test_the_lock_is_released_even_when_the_refresh_fails(sent) -> None:
     database = _Database()
-    service, _, _ = _service([], {}, database=database)
+    service, _ = _service([], {}, database=database)
     service._products.list_stock_keys.side_effect = RuntimeError("product-service down")
 
     with pytest.raises(RuntimeError):
