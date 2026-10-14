@@ -99,13 +99,17 @@ Neither client auto-refreshes — reload the tab after exercising a flow.
 | Host | `127.0.0.1` |
 | Port | `5432` |
 | User | `postgres` |
-| Password | `POSTGRES_PASSWORD` from `backend/.env` |
+| Password | the superuser's, in Vault: `vault kv get -field=POSTGRES_PASSWORD secret/ecommerce/postgres-admin` (root token) |
 | Database | `user_service_db` (any one — see below) |
 
-Each service owns its own database, so there are 21 of them
-(`<service>_service_db` plus a `_test_db` twin, and `outbox_events_db`). Rather
-than defining 21 connections, connect to one and use the sidebar database picker;
-in DBeaver the equivalent is the "Show all databases" checkbox.
+Each service owns its own database, so there are 18 of them
+(`<service>_service_db` plus a `_test_db` twin). Rather than defining 18
+connections, connect to one and use the sidebar database picker; in DBeaver the
+equivalent is the "Show all databases" checkbox.
+
+The services themselves connect as logins of their own (`supplier_service`, …),
+each owning only its two databases (`db/service-role.sql`); a service's login
+and password are in its own Vault path. Use the superuser for browsing.
 
 ### Redis — Redis Insight
 
@@ -137,8 +141,8 @@ export REDISCLI_AUTH=$(sed -n 's/^REDIS_PASSWORD=//p' .env)   # keeps it off the
 redis-cli -n 12 --scan          # list one service's keys
 redis-cli -n 0 monitor          # live firehose of every command
 
-export PGPASSWORD=$(sed -n 's/^POSTGRES_PASSWORD=//p' .env)
-psql -h 127.0.0.1 -U postgres -d order_service_db
+# Postgres: the unix socket dev.sh created trusts local connections, no password.
+psql -h "$PWD/local/run" -U postgres -d order_service_db
 ```
 
 `\watch 2` after a query inside `psql` re-runs it every two seconds — the closest

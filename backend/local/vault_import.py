@@ -29,8 +29,11 @@ from dotenv.parser import Binding, parse_stream
 
 # Where each secret goes: the services that read it, and nothing else.
 SECRET_PATHS: dict[str, tuple[str, ...]] = {
-    # Every process connects to these until Vault issues per-service database users.
-    "shared-infra": ("POSTGRES_PASSWORD", "REDIS_PASSWORD", "RABBITMQ_PASSWORD"),
+    # Every process connects to these until each has a Redis / RabbitMQ user of its own.
+    "shared-infra": ("REDIS_PASSWORD", "RABBITMQ_PASSWORD"),
+    # The Postgres superuser: only dev.sh reads it (root token). Each service
+    # connects with a login of its own, kept in its own path (dev.sh pg_roles_sync).
+    "postgres-admin": ("POSTGRES_PASSWORD",),
     "api-gateway": ("GATEWAY_ASSERTION_PRIVATE_KEY",),
     "user-service": ("USER_TOKEN_PRIVATE_KEY",),
     # SECRET_KEY: only the artwork-signing fallback reads it, in these two services.

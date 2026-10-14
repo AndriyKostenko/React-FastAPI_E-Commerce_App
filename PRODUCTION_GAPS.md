@@ -16,9 +16,9 @@ hardening items, and legal/compliance work — no re-architecting required.
 ## Open backend items (2026-10-13)
 
 Code work:
-- **Per-service Postgres users** (bug list #19): one superuser for every
-  database; the three infra passwords sit in one Vault path every service may
-  read; no per-service Redis / RabbitMQ users either (§8.1).
+- **Per-service Redis / RabbitMQ users**: every service still reads the
+  Redis and RabbitMQ passwords from one Vault path (§8.1). Postgres is done
+  (§8.7).
 - **AI content moderation**: none; unscreened designs can reach the printer (§5).
 - **GDPR / audit / retention**: only account deletion exists (§5).
 - **Dependency vulnerabilities**: 35–169 advisories in 8–16 packages per
@@ -191,8 +191,9 @@ monitoring stack all run on the host** (not RDS / SSM / Amplify / CloudWatch).
   host role (which containers cannot reach), audit log on, UI not exposed.
   AppRole per service exactly as locally; each container gets only its own
   role-id / secret-id files. Raft snapshot nightly to the backups bucket.
-  Secrets are imported once by the owner, as locally. Next step unchanged:
-  per-service Postgres users through the database engine (bug list #19).
+  Secrets are imported once by the owner, as locally. Each service's own
+  Postgres login (§8.7) is created on the host as locally, with
+  `db/service-role.sql`.
 - **Frontend** as a container on the host behind Traefik: a Dockerfile with
   Next's standalone output; `NEXT_PUBLIC_*` values are build-time, so CI builds
   the production image with production values.
@@ -924,9 +925,9 @@ approach; decisions are recorded here as they are made.
      Telegram token, Grafana's secret key). `Settings` hides its input in
      validation errors, which would otherwise print part of it, secrets included.
    - Not covered yet: compose (its containers would need Vault Agent), the
-     frontend's own secrets, and Redis/RabbitMQ users per service. All three
-     infra passwords sit in one path that every service may read, until the
-     per-service database users step.
+     frontend's own secrets, and Redis/RabbitMQ users per service. The Redis
+     and RabbitMQ passwords sit in one path that every service may read; the
+     Postgres superuser's moved to `postgres-admin` with §8.7.
 2. **CJ stock webhook.** §3a listed it as "Later": CJ's STOCK webhook pushes
    stock changes instead of the hourly refresh pulling them.
    **Status: live locally since 2026-10-09** (branch `feature/cj-stock-webhook`).
@@ -1280,6 +1281,45 @@ approach; decisions are recorded here as they are made.
      stack restarted with the new pools logged per role, 60 concurrent product
      lists through the gateway all 200 with product-service at ≤ 5
      connections. Docker images not built.
+7. **Per-service Postgres logins (bug list #19).**
+   **Done (2026-10-14).** Every service connected as the `postgres`
+   superuser, with one password every service could read from
+   `shared-infra`: any service could read, change or drop any other's data.
+   Decisions: one login per service, **static** (its password in its own
+   Vault path, generated once, not rotated), chosen over Vault's database
+   engine (rotated or dynamic users) for simplicity; that login **owns** its
+   databases (no separate migration login); Redis / RabbitMQ users are the
+   next step; the unused `outbox_events_db` / `_test_db` are dropped.
+   - `db/service-role.sql` (run by `dev.sh` and CI): a login named after the
+     service directory (`supplier_service`, …), no superuser / createdb /
+     createrole, owning `<svc>_db` and `<svc>_test_db` and every table,
+     sequence, view, enum type and routine in them (the objects earlier
+     migrations created as the superuser move over); `CONNECT` revoked from
+     everyone else, on the maintenance databases (`postgres`, `template1`)
+     too. Idempotent.
+   - `dev.sh infra up` (and `init`) generates each login's password into the
+     service's own Vault path as `POSTGRES_USER` / `POSTGRES_PASSWORD`, which
+     the service's settings read after `shared-infra`, so no Python changed;
+     it moves the superuser's password from `shared-infra` to
+     `postgres-admin` (root token only). `vault import` writes it there too.
+   - CI: `ci/prepare.sh` creates the job's service login the same way and
+     hands the suite that login, so tests, `alembic upgrade` and
+     `alembic check` run without superuser rights there as well.
+   - **Verified live (2026-10-14):** 9 logins, each owning only its two
+     databases, every object in all 18 owned; a second `infra up` changes
+     nothing. As supplier-service's own Vault identity: its database works
+     (temporary tables included); `order_service_db`, `payment_service_db`
+     and `postgres` are refused; `CREATE DATABASE` is refused;
+     `postgres-admin` is 403; `shared-infra` no longer holds the superuser's
+     password. `dev.sh migrate` and `alembic check` clean for all nine as
+     their own logins; all ten suites pass; the stack restarted healthy.
+   - **Before production:** run `db/service-role.sql` for each service on the
+     host with a generated password, kept in that service's Vault path
+     (deployment phase 4). Compose still gives every container the
+     superuser from `.env`.
+   - Not covered: Redis ACL users and RabbitMQ users per service (next);
+     password rotation (by hand: delete the service's `POSTGRES_PASSWORD`
+     from its Vault path, `dev.sh infra up`, restart its processes).
 
 ---
 
@@ -1299,7 +1339,7 @@ approach; decisions are recorded here as they are made.
 6. Frontend account / tracking / designer polish (checkout shipping options
    are done — see §3b)
 7. ~~Finish gateway auth (bug list 1, 2b/5/6, 4, 9) and the reliability items
-   (12–20) below~~ (done — only #19, per-service Postgres roles, is left)
+   (12–20) below~~ (done, #19 included: §8.7)
 8. Refund and cancellation paths (done and verified live — see §5a); ~~the CJ
    rate limiter~~ (done 2026-10-14, §5a)
 
@@ -1328,7 +1368,7 @@ Backend:
 | 16 | Circuit breaker / retries for CJ? | **Done (2026-09-25).** Per-service breakers in the gateway (503 + Retry-After); CJ reads retry with backoff, writes never do; a process-wide CJ breaker; 429/5xx are 'unavailable', not a rejection |
 | 17 | Process isolation: API, task queue, consumers, DB? | **Already in place.** Every service runs API, consumer, outbox worker, taskiq worker and scheduler as separate processes (dev.sh) / containers (compose), each with its own database. The single Postgres instance is #19 |
 | 18 | RabbitMQ ack policy + DLX? | **Done (2026-09-24).** Worse than open: every queue dead-lettered to a `dlx` exchange nothing declared, so RabbitMQ dropped every failed message. `shared.messaging.ConsumerTopology` now declares `dlx`, one DLQ per queue and 5s/30s/120s retry queues before consuming; `RetryDispatcher` retries transient failures and dead-letters payload errors at once. All 20 queues in 8 consumers, verified on the live broker |
-| 19 | One Postgres instance, one superuser? | Open — per-service least-privilege roles, through Vault's database secrets engine (§8.1); Redis / RabbitMQ users per service with it |
+| 19 | One Postgres instance, one superuser? | **Done for Postgres (2026-10-14, §8.7).** One login per service, owning only its two databases, password in its own Vault path (static, not rotated: chosen over Vault's database engine). Redis / RabbitMQ users per service are the next step |
 | 19b | taskiq DLX? | **Done for notifications (2026-09-24).** taskiq acks a failed task (its result is saved), so its DLQ never saw one. `DeadLetteringRetryMiddleware` retries emails with backoff and jitter, then parks them in `taskiq.notifications.dead_letter`. Image generation (refunds quota) and the supplier cron jobs (next run is the retry) deliberately do not retry. Parked messages replay with `./local/dev.sh dlq list` / `dlq replay <queue>` |
 | 20 | `autoflush` / `expire_on_commit`; UoW transaction boundaries? | **Done (2026-09-25).** `expire_on_commit=False` is right for async; with `autoflush=False` the gap was deletes: they never flushed, so later reads saw deleted rows and constraint violations surfaced at commit as bare 500s. Deletes now flush; `IntegrityError` renders as 409. Deleting a category silently deleted all its products (ORM cascade) — now refused with 409 |
 

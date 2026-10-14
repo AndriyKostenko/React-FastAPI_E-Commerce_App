@@ -101,8 +101,10 @@ REDIS_PORT="$(env_get REDIS_PORT)"
 RABBITMQ_USER="$(env_get RABBITMQ_USER)"
 RABBITMQ_PORT="$(env_get RABBITMQ_PORT)"
 : "${POSTGRES_PORT:=5432}" "${REDIS_PORT:=6379}" "${RABBITMQ_PORT:=5672}"
-# The three infra passwords live in Vault (secret/ecommerce/shared-infra) and
-# are loaded by load_infra_secrets only where a command needs them.
+# The infra passwords live in Vault and are loaded by load_infra_secrets only
+# where a command needs them: Redis and RabbitMQ in secret/ecommerce/shared-infra,
+# the Postgres superuser's in secret/ecommerce/postgres-admin (root token only;
+# each service has a Postgres login of its own, see pg_roles_sync).
 POSTGRES_PASSWORD="" REDIS_PASSWORD="" RABBITMQ_PASSWORD=""
 
 # --------------------------------------------------------------------------
@@ -293,6 +295,49 @@ pg_stop() {
 # Over the unix socket, which initdb set to trust: no password needed.
 psql_run() { psql -h "$RUN_DIR" -p "$POSTGRES_PORT" -U "$POSTGRES_USER" "$@"; }
 
+# One Postgres login per service (every MIGRATABLE dir), named after the dir,
+# owning its <svc>_db and <svc>_test_db and nothing else; no other login may
+# connect to them (db/service-role.sql). The login's name and password sit in
+# the service's own Vault path as POSTGRES_USER / POSTGRES_PASSWORD; its
+# settings read that path after shared-infra, so they win. A password is
+# generated once and kept. Idempotent: run by init and on every infra up.
+pg_roles_sync() {
+  local svc identity path password db
+  for svc in $MIGRATABLE; do
+    identity="$(vault_identity_for_dir "$svc")"
+    path="secret/$VAULT_PREFIX/$identity"
+    password="$(vault_op kv get -field=POSTGRES_PASSWORD "$path" 2>/dev/null || true)"
+    if [ -z "$password" ] || [ "$(vault_op kv get -field=POSTGRES_USER "$path" 2>/dev/null || true)" != "$svc" ]; then
+      [ -n "$password" ] || password="$(openssl rand -hex 24)"
+      # The value goes in on stdin ("-"), never as an argument.
+      printf '%s' "$password" | vault_op kv patch "$path" POSTGRES_USER="$svc" POSTGRES_PASSWORD=- >/dev/null
+      echo "  $svc: Postgres login stored in Vault ($identity)"
+    fi
+    for db in "${svc}_db" "${svc}_test_db"; do
+      # The password reaches psql on stdin as well (\set), not on the command line.
+      printf '\\set role %s\n\\set password %s\n' "$svc" "$password" \
+        | cat - "$BACKEND_DIR/db/service-role.sql" | psql_run -d "$db" -q -X >/dev/null
+    done
+  done
+}
+
+# Once: the superuser's password leaves shared-infra, which every service may
+# read, for postgres-admin, which only the root token reads. Services no
+# longer need it: each connects with its own login (pg_roles_sync first).
+vault_move_postgres_admin() {
+  local shared="secret/$VAULT_PREFIX/shared-infra" admin="secret/$VAULT_PREFIX/postgres-admin" password
+  password="$(vault_op kv get -field=POSTGRES_PASSWORD "$shared" 2>/dev/null || true)"
+  [ -n "$password" ] || return 0
+  printf '%s' "$password" | vault_op kv put "$admin" POSTGRES_PASSWORD=- >/dev/null
+  [ "$(vault_op kv get -field=POSTGRES_PASSWORD "$admin")" = "$password" ] || \
+    die "could not copy the Postgres superuser password to $admin"
+  # Rewrite shared-infra without it (kv put replaces the whole secret).
+  vault_op kv get -format=json "$shared" \
+    | python3 -c 'import json, sys; d = json.load(sys.stdin)["data"]["data"]; d.pop("POSTGRES_PASSWORD", None); json.dump(d, sys.stdout)' \
+    | vault_op kv put "$shared" - >/dev/null
+  say "postgres superuser password moved from shared-infra to postgres-admin"
+}
+
 redis_pid_file="$RUN_DIR/redis.pid"
 redis_running() { [ -f "$redis_pid_file" ] && kill -0 "$(cat "$redis_pid_file")" 2>/dev/null; }
 
@@ -435,7 +480,10 @@ load_infra_secrets() {
   local path="secret/$VAULT_PREFIX/shared-infra"
   vault_op kv get "$path" >/dev/null 2>&1 || \
     die "Vault has no $path yet. Move the secrets in first: ./local/dev.sh vault import"
-  POSTGRES_PASSWORD="$(vault_op kv get -field=POSTGRES_PASSWORD "$path")"
+  # The superuser's password: in postgres-admin, or still in shared-infra on
+  # a Vault not yet past vault_move_postgres_admin.
+  POSTGRES_PASSWORD="$(vault_op kv get -field=POSTGRES_PASSWORD "secret/$VAULT_PREFIX/postgres-admin" 2>/dev/null ||
+    vault_op kv get -field=POSTGRES_PASSWORD "$path")"
   REDIS_PASSWORD="$(vault_op kv get -field=REDIS_PASSWORD "$path")"
   RABBITMQ_PASSWORD="$(vault_op kv get -field=RABBITMQ_PASSWORD "$path")"
 }
@@ -598,8 +646,9 @@ cmd_vault() {
       if ! vault_running; then echo "vault     down"; return; fi
       echo "vault     up (health $(vault_health))"
       local name
-      # tooling and observability: read by no local process, root token only.
-      for name in shared-infra $(vault_identities | cut -d'|' -f1) tooling observability; do
+      # postgres-admin, tooling and observability: read by no local process,
+      # root token only.
+      for name in shared-infra $(vault_identities | cut -d'|' -f1) postgres-admin tooling observability; do
         # Key names only, never values.
         printf '  %-22s %s\n' "$name" "$(vault_op kv get -format=json "secret/$VAULT_PREFIX/$name" 2>/dev/null \
           | python3 -c 'import json, sys; print(", ".join(sorted(json.load(sys.stdin)["data"]["data"])))' 2>/dev/null || echo '(empty)')"
@@ -617,7 +666,8 @@ cmd_vault() {
 
 cmd_infra() {
   case "${1:-up}" in
-    up)     vault_start; load_infra_secrets; pg_start; redis_start; rabbit_start; seaweed_start ;;
+    up)     vault_start; load_infra_secrets; pg_start; pg_roles_sync; vault_move_postgres_admin
+            redis_start; rabbit_start; seaweed_start ;;
     down)   if vault_running && [ -f "$VAULT_INIT_FILE" ]; then load_infra_secrets; fi
             seaweed_stop; rabbit_stop; redis_stop; pg_stop; vault_stop ;;
     status) vault_running && echo "vault     up" || echo "vault     down"
@@ -658,6 +708,10 @@ cmd_init() {
       psql_run -d postgres -q -c "CREATE DATABASE $db" && echo "  created $db"
     fi
   done
+
+  say "per-service postgres logins"
+  pg_roles_sync
+  vault_move_postgres_admin
 
   redis_start
   rabbit_start

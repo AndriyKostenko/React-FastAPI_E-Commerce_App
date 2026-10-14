@@ -12,7 +12,9 @@
 #    per-service S3 scoping. The suites themselves never see Vault: with no
 #    VAULT_ADDR their settings read the environment, as in production builds.
 # 3. Starts Postgres, Redis, RabbitMQ and SeaweedFS (ci/docker-compose.ci.yml)
-#    and waits until each is healthy, then creates the test buckets.
+#    and waits until each is healthy, then creates the test buckets and the
+#    service's own Postgres login (db/service-role.sql, as dev.sh does), so
+#    the suite and its migrations run without superuser rights.
 # 4. Writes ci/test-settings.conf, the passwords, throwaway Ed25519 signing
 #    keys (an app reads its verifying key at startup; the suites sign with
 #    their own) and, for product- and order-service, that service's own S3
@@ -108,9 +110,27 @@ for attempt in $(seq 1 30); do
   sleep 1
 done
 
+echo "== postgres login for $service"
+# Every service with a database gets a login of its own that owns it and its
+# test database; the gateway has none.
+db_login_password=""
+if grep -q "^CREATE DATABASE ${service}_db;" "$BACKEND_DIR/db/init-databases.sql"; then
+  new_secret db_login_password
+  for db in "${service}_db" "${service}_test_db"; do
+    # The password reaches psql on stdin (\set), not on the command line.
+    printf '\\set role %s\n\\set password %s\n' "$service" "$db_login_password" \
+      | cat - "$BACKEND_DIR/db/service-role.sql" \
+      | docker compose -f "$CI_DIR/docker-compose.ci.yml" exec -T postgres psql -U postgres -d "$db" -q -X > /dev/null
+  done
+fi
+
 echo "== settings for $service"
 grep -Ev '^[[:space:]]*(#|$)' "$CI_DIR/test-settings.conf" >> "$GITHUB_ENV"
-publish POSTGRES_PASSWORD "$CI_POSTGRES_PASSWORD"
+if [ -n "$db_login_password" ]; then
+  # After test-settings.conf, so they replace its POSTGRES_USER=postgres.
+  publish POSTGRES_USER "$service"
+  publish POSTGRES_PASSWORD "$db_login_password"
+fi
 publish REDIS_PASSWORD "$CI_REDIS_PASSWORD"
 publish RABBITMQ_PASSWORD "$CI_RABBITMQ_PASSWORD"
 for role in USER_TOKEN GATEWAY_ASSERTION ORDER_SERVICE_ASSERTION SUPPLIER_SERVICE_ASSERTION; do
