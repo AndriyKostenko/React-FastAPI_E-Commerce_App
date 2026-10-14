@@ -40,3 +40,10 @@ updates:
     groups:
       npm-minor-and-patch:
         update-types: [minor, patch]
+    ignore:
+      # admin-js lints with a legacy .eslintrc and eslint-config-airbnb, which
+      # stop at ESLint 8: a major bump (#29, ESLint 10) broke `npm ci`. Move
+      # to ESLint 9+ by hand, with a flat config, then drop this. (It covers
+      # the frontend too, which has no ESLint config yet.)
+      - dependency-name: eslint
+        update-types: ["version-update:semver-major"]
