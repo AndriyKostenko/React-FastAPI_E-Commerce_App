@@ -12,8 +12,7 @@ is refreshed on the way. It runs hourly and from ``dev.sh cj-webhook``.
 one-off per address (a tunnel URL changes every run), done by hand.
 """
 
-import asyncio
-from collections.abc import Awaitable, Callable, Iterator
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from logging import Logger
@@ -26,8 +25,6 @@ from service_layer.product_service_client import ProductServiceClient
 from infrastructure.managers.database_session_manager import DatabaseSessionManager
 from settings import Settings
 
-# CJ allows about one request per second per account.
-_CJ_CALL_SPACING_SECONDS = 1.1
 # CJ's maximum per subscribe / unsubscribe call.
 _CJ_SUBSCRIPTION_BATCH = 100
 
@@ -69,7 +66,6 @@ class CJWebhookSubscriptionService:
         api_client: CJDropshippingAPIClient,
         product_client: ProductServiceClient,
         logger: Logger,
-        sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
         clock: Callable[[], datetime] | None = None,
     ) -> None:
         self._settings = settings
@@ -77,9 +73,7 @@ class CJWebhookSubscriptionService:
         self._cj = api_client
         self._products = product_client
         self._logger = logger
-        self._sleep = sleep
         self._now = clock or (lambda: datetime.now(timezone.utc))
-        self._calls = 0
 
     def callback_url(self, public_base_url: str) -> str:
         """Where CJ pushes: the gateway's public address plus the webhook route."""
@@ -89,7 +83,6 @@ class CJWebhookSubscriptionService:
     async def register(self, public_base_url: str, switch: CJWebhookSwitch) -> str:
         """Point CJ's stock and product pushes at us (ENABLE) or stop them (CANCEL)."""
         url = self.callback_url(public_base_url)
-        await self._call()
         await self._cj.set_webhooks(CJWebhookSettingsRequest.stock_only(url, switch))
         self._logger.info("CJ webhooks %s for %s", "enabled" if switch == "ENABLE" else "cancelled", url)
         return url
@@ -110,13 +103,11 @@ class CJWebhookSubscriptionService:
         await self._forget(never_subscribed)
         try:
             for batch in _batches(to_subscribe):
-                await self._call()
                 result = await self._cj.subscribe_products(batch)
                 await self._mark_subscribed(result.success_product_ids)
                 report.subscribed += len(result.success_product_ids)
                 report.refused.extend(result.fail_product_ids)
             for batch in _batches([row.pid for row in no_longer_sold if row.subscribed_at is not None]):
-                await self._call()
                 await self._cj.unsubscribe_products(batch)
                 await self._forget(batch)
                 report.unsubscribed += len(batch)
@@ -130,12 +121,6 @@ class CJWebhookSubscriptionService:
             self._logger.warning("CJ refused to subscribe %s product(s): %s", len(report.refused), report.refused[:20])
         self._logger.info("CJ stock subscriptions reconciled: %s", report.as_dict())
         return report
-
-    async def _call(self) -> None:
-        """Space CJ calls out: CJ answers back-to-back ones with a 429."""
-        if self._calls:
-            await self._sleep(_CJ_CALL_SPACING_SECONDS)
-        self._calls += 1
 
     async def _mark_subscribed(self, pids: list[str]) -> None:
         async with self._database.transaction() as session:

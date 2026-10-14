@@ -1,4 +1,3 @@
-import asyncio
 from datetime import datetime, timezone
 from uuid import uuid4
 from sqlalchemy.exc import IntegrityError
@@ -310,8 +309,7 @@ class SupplierSyncOrchestrator:
                 # Neither the detail nor the list response says where the stock
                 # is: the list's figure sums every warehouse. Only CJ's US
                 # warehouses ship our orders, so the catalogue carries exactly
-                # that stock (a different endpoint, so CJ's per-endpoint limit
-                # still allows the call right after the detail fetch).
+                # that stock (one more CJ call, spaced by the CJ client).
                 skipped = await self._apply_warehouse_stock(provider, detailed)
                 if skipped:
                     return skipped
@@ -322,11 +320,9 @@ class SupplierSyncOrchestrator:
                 return f"Failed to fetch details for {product.supplier_pid}: {exc}"
 
         results: list[GenericSupplierProduct | str | None] = []
-        for index, product in enumerate(products):
-            # CJ's product-detail endpoint has a hard QPS limit of one request.
-            # Space calls slightly beyond one second to avoid boundary-rate 429s.
-            if index:
-                await asyncio.sleep(1.1)
+        # One product at a time: CJ allows one request per second per account,
+        # and the CJ client spaces every call to it.
+        for product in products:
             results.append(await fetch(product))
         detailed_products = [result for result in results if isinstance(result, GenericSupplierProduct)]
         errors = [result for result in results if isinstance(result, str)]

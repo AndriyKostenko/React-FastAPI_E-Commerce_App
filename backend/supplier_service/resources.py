@@ -9,7 +9,7 @@ from faststream.rabbit import ExchangeType, RabbitBroker, RabbitExchange
 from starlette.requests import HTTPConnection
 
 from event_publisher.supplier_event_publisher import SupplierEventPublisher
-from service_layer.cj_api_client import CJDropshippingAPIClient
+from service_layer.cj_api_client import CJCaller, CJDropshippingAPIClient
 from service_layer.cj_freight_service import FreightQuoteCache
 from service_layer.product_service_client import ProductServiceClient
 from infrastructure.idempotency.idempotency_service import IdempotencyEventService
@@ -72,7 +72,8 @@ def create_supplier_api_resources(
         settings=app_settings,
         logger=app_logger,
         database=create_database_manager(app_settings, app_logger),
-        cj_api_client=CJDropshippingAPIClient(app_settings),
+        # Someone is waiting on an API request: a short wait for a CJ slot.
+        cj_api_client=CJDropshippingAPIClient(app_settings, caller=CJCaller.INTERACTIVE),
         product_service_client=ProductServiceClient(app_settings),
         freight_cache=FreightQuoteCache(
             ttl_seconds=app_settings.CJ_DROPSHIPPING_FREIGHT_CACHE_TTL_SECONDS,

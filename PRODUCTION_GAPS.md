@@ -19,8 +19,6 @@ Code work:
 - **Per-service Postgres users** (bug list #19): one superuser for every
   database; the three infra passwords sit in one Vault path every service may
   read; no per-service Redis / RabbitMQ users either (§8.1).
-- **CJ rate limiter**: nothing serialises calls to CJ's one request per second,
-  so concurrent handlers still get 429s and lean on retries (§5a).
 - **AI content moderation**: none; unscreened designs can reach the printer (§5).
 - **GDPR / audit / retention**: only account deletion exists (§5).
 - **Dependency vulnerabilities**: 35–169 advisories in 8–16 packages per
@@ -451,8 +449,8 @@ per order (`cj_order_attempts.is_sandbox`, supplier migration `f3c8a2d6b519`).
 **Verified against CJ (2026-10-02):** `confirmOrder` accepts a sandbox order
 before `simulatePay`, and `cj-sandbox ship` (status 500) and `deliver` (600)
 move a sandbox order through the tracking poll to shipped and delivered. CJ
-allows one request per second per account, so the helper waits 1.1s between
-calls.
+allows one request per second per account; the CJ client spaces the helper's
+calls like every other (§5a).
 
 ### 3b. Checkout → Stripe → CJ money flow — DONE (2026-09-10)
 Branch `feature/checkout-payment-cj-flow`; diagram in `FLOWS.md` →
@@ -814,11 +812,43 @@ outcome, coloured by service).
 (`PaymentService.handle_payment_refund` on a succeeded payment) needs a product
 sold from local stock; only CJ products exist locally.
 
+**CJ rate limiter — done (2026-10-14).** CJ allows one request per second per
+account at our level (Free / sales level 0–1; more at higher levels) and
+answers more with HTTP 429, code `1600200`. Nothing coordinated the calls:
+the API, consumer, taskiq worker (up to 5 tasks at once), scheduler and CLI
+tools each paced only their own loop, with hand-placed 1.1 s sleeps, so the
+logs held ~480 such 429s (the cancellation-race order on 2026-10-05 failed
+its create this way).
+- Every CJ call now takes a slot from one budget in supplier-service's Redis
+  (`RedisRequestPacer`, `infrastructure/resilience/request_pacer.py`): a Lua
+  script reserves the next free slot on Redis's clock, one
+  `CJ_DROPSHIPPING_REQUEST_INTERVAL_SECONDS` (1.1) after the last. Each
+  attempt, retries included, waits for a slot before the breaker is asked.
+- Who waits how long: the API process (a customer is waiting, e.g. the
+  checkout freight quote) queues for up to
+  `CJ_DROPSHIPPING_INTERACTIVE_MAX_WAIT_SECONDS` (3); background work
+  (consumer, tasks, tools) waits up to `..._BACKGROUND_MAX_WAIT_SECONDS` (30)
+  but takes a slot only when about one interval is queued ahead, so it never
+  stands in front of a customer for long. One wait covers a call's retries.
+  Past it the call is not sent: `CJDropshippingRateLimitedError`, a kind of
+  "CJ unavailable", so callers retry later and an order is never failed or
+  refunded over it. `1600200` in a 200 body reads as busy too.
+- Redis unreachable: the process paces its own calls (one warning per
+  outage) and CJ calls go on.
+- The hand-placed sleeps are gone (stock refresh, subscriptions, catalogue
+  sync, `cj-sandbox`). `CJ_DROPSHIPPING_RATE_LIMIT_ENABLED=false` switches
+  pacing off (the test suite does; tests that cover pacing inject a pacer).
+- Verified: unit tests on a controllable clock, integration tests against
+  the real Redis (two pacers share one budget, a customer-facing call goes
+  ahead of queued background work, the per-process fallback), and live
+  against CJ: unpaced, 2 of 3 concurrent balance reads got a 429; paced,
+  24 of 24 from eight clients at once succeeded, sent 1.1 s apart.
+- Not covered: the CJ MCP server (`cj-mcp`) and anything else using the
+  same CJ account outside supplier-service draw on the same CJ budget
+  without seeing ours; their calls can still cause 429s, which the existing
+  retries absorb. If 429s keep appearing, raise the interval (e.g. 1.2).
+
 **Open follow-ups:**
-- `cj_api_client` has no shared limiter for CJ's one-request-per-second limit:
-  handlers calling CJ at the same moment get 429s (the cancellation-race order
-  on 2026-10-05 failed its create this way). PR #12 makes such a create recover
-  on retry, but each 429 still costs a retry.
 - 10 old messages sit in `taskiq.notifications.dead_letter` (from before
   PR #11); replay or discard them.
 - After any change to an event in a service's `contracts/events.py`, restart every process of
@@ -1270,8 +1300,8 @@ approach; decisions are recorded here as they are made.
    are done — see §3b)
 7. ~~Finish gateway auth (bug list 1, 2b/5/6, 4, 9) and the reliability items
    (12–20) below~~ (done — only #19, per-service Postgres roles, is left)
-8. Refund and cancellation paths (done and verified live — see §5a); the CJ
-   rate limiter is the open follow-up
+8. Refund and cancellation paths (done and verified live — see §5a); ~~the CJ
+   rate limiter~~ (done 2026-10-14, §5a)
 
 ## Bug list — triage (2026-09-24)
 

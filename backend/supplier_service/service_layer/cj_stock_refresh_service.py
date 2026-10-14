@@ -13,8 +13,7 @@ A product CJ could not be asked about keeps its current stock: a failed call
 never zeroes a product that may well be in stock.
 """
 
-import asyncio
-from collections.abc import Awaitable, Callable
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from logging import Logger
@@ -35,8 +34,6 @@ from settings import Settings
 # pg_try_advisory_lock key: "stock" as ASCII. One refresh at a time, across
 # every worker process, without a table to clean up after a crash.
 _REFRESH_LOCK_KEY = 0x73746F636B
-# CJ allows about one request per second per endpoint.
-_CJ_CALL_SPACING_SECONDS = 1.1
 
 
 @dataclass(slots=True)
@@ -71,7 +68,6 @@ class CJStockRefreshService:
         provider: SupplierProvider,
         product_client: ProductServiceClient,
         logger: Logger,
-        sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
         clock: Callable[[], datetime] | None = None,
     ) -> None:
         self._settings = settings
@@ -79,7 +75,6 @@ class CJStockRefreshService:
         self._provider = provider
         self._products = product_client
         self._logger = logger
-        self._sleep = sleep
         self._now = clock or (lambda: datetime.now(timezone.utc))
 
     async def refresh(self) -> StockRefreshReport:
@@ -112,9 +107,8 @@ class CJStockRefreshService:
         report.products = len(keys)
         batch: list[SupplierStockLevel] = []
         batch_measured_at: datetime | None = None
-        for index, key in enumerate(keys):
-            if index:
-                await self._sleep(_CJ_CALL_SPACING_SECONDS)
+        # One CJ call per product; the CJ client spaces them to CJ's rate limit.
+        for key in keys:
             measured_at = self._now()
             level = await self._measure(key, report)
             if level is None:
