@@ -192,9 +192,12 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     # Report-only for now: every service carries known vulnerabilities that
-    # need dependency upgrades (PRODUCTION_GAPS §1). Becomes blocking once
-    # those land.
-    continue-on-error: true
+    # need dependency upgrades (PRODUCTION_GAPS §1). Findings show as warnings
+    # on the run and the job stays green; set AUDIT_BLOCKING to "true" once
+    # those upgrades land. (Job-level continue-on-error left a red check on
+    # every pull request, which hides real failures.)
+    env:
+      AUDIT_BLOCKING: "false"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -212,7 +215,10 @@ jobs:
             uvx pip-audit -r "$RUNNER_TEMP/requirements.txt" --no-deps --disable-pip --progress-spinner off || status=1
             echo "::endgroup::"
           done
-          exit "$status"
+          if [ "$status" -ne 0 ]; then
+            echo "::warning title=pip-audit::known vulnerabilities in at least one service, see this step's log"
+            if [ "$AUDIT_BLOCKING" = "true" ]; then exit 1; fi
+          fi
 
       - name: npm (production dependencies, high and above)
         if: always()
@@ -223,4 +229,7 @@ jobs:
             (cd "$app" && npm audit --omit=dev --audit-level=high) || status=1
             echo "::endgroup::"
           done
-          exit "$status"
+          if [ "$status" -ne 0 ]; then
+            echo "::warning title=npm audit::high or critical vulnerabilities in production dependencies, see this step's log"
+            if [ "$AUDIT_BLOCKING" = "true" ]; then exit 1; fi
+          fi
