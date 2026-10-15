@@ -14,6 +14,7 @@ import { ProductProps } from "@/types/product";
 import { ImageProps } from "@/types/image";
 import { formatPrice } from "@/utils/formatPrice";
 import { getColorSwatch, getVariantOption } from "@/utils/productVariants";
+import { toCartLine } from "@/utils/cartLine";
 
 // Only the not-found check lives here. The hooks live in
 // ProductDetailsContent, which renders only with a real product: hooks must
@@ -82,24 +83,9 @@ const ProductDetailsContent: React.FC<{ product: ProductProps; titleAction?: Rea
 
     const [selectedColor, setSelectedColor] = useState<string | null>(initialColor);
 
-    const [cartProduct, setCartProduct] = useState<ProductProps>({
-        id: product.id,
-        category: product.category,
-        quantity: 1,
-        in_stock: product.in_stock,
-        name: product.name,
-        description: product.description,
-        brand: product.brand,
-        price: initialVariant?.retail_price ?? product.price,
-        date_created: product.date_created,
-        selected_image: productImages[0],
-        reviews: product.reviews,
-        images: productImages,
-        supplier_id: product.supplier_id,
-        variants: product.variants,
-        selected_variant_id: initialVariant?.id ?? null,
-        fulfillment_type: isCjProduct ? "cj" : "catalog",
-    });
+    const [cartProduct, setCartProduct] = useState<ProductProps>(() =>
+        toCartLine(product, initialVariant, productImages),
+    );
 
     // Derived from the cart: the line for this product and variant is there.
     const isProductInCart = useMemo(

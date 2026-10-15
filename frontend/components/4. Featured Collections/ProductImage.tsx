@@ -1,5 +1,6 @@
 "use client";
 
+import { imageKey } from "@/types/image";
 import { ProductImageProps } from "@/types/product";
 import { ImageProps } from "@/types/image";
 import Image from "next/image";
@@ -13,13 +14,13 @@ const ProductImage: React.FC<ProductImageProps> = ({
     return (
         <div className="grid grid-cols-6 gap-3 h-full max-h-[600px] min-h-[300px] sm:min-h-[400px] bg-white/40 rounded-3xl p-3">
             <div className="flex flex-col items-center gap-3 overflow-y-auto no-scrollbar h-full">
-                {product.images.map((image: ImageProps) => {
+                {product.images.map((image: ImageProps, index: number) => {
+                    // Compared by identity: CJ images may share a colour name or have none.
                     const isSelected =
-                        cartProduct.selected_image.image_color ===
-                        image.image_color;
+                        imageKey(cartProduct.selected_image) === imageKey(image);
                     return (
                         <div
-                            key={image.image_color}
+                            key={imageKey(image)}
                             onClick={() => handleColorSelect(image)}
                             className={`relative w-full aspect-square rounded-2xl overflow-hidden border-2 cursor-pointer transition-all hover:opacity-80 ${
                                 isSelected
@@ -29,7 +30,7 @@ const ProductImage: React.FC<ProductImageProps> = ({
                         >
                             <Image
                                 src={resolveImageUrl(image.image_url)}
-                                alt={image.image_color}
+                                alt={image.image_color ? `${product.name}, ${image.image_color}` : `${product.name}, view ${index + 1}`}
                                 fill
                                 sizes="(max-width: 768px) 20vw, 8vw"
                                 className="object-contain p-1"

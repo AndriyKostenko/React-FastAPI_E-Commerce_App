@@ -56,7 +56,7 @@ const CommunityGallery = () => {
                 {GALLERY_ITEMS.map((item) => (
                     <div
                         key={item.author}
-                        className="min-w-[340px] glass-card p-4 space-y-4 group flex-shrink-0"
+                        className="min-w-[260px] sm:min-w-[340px] glass-card p-4 space-y-4 group flex-shrink-0"
                     >
                         <div className="aspect-square rounded-3xl overflow-hidden relative">
                             <Image

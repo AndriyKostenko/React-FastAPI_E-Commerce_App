@@ -218,18 +218,7 @@ export const COLOR_MAP: Record<string,{ base: string;
   },
 };
 
-export const PLACEMENT_ZONES: Record<string, { x: number; y: number; w: number; h: number; back?: boolean }> = {
-  "Center Chest": { x: 128, y: 182, w: 144, h: 120 },
-  "Left Top Chest": { x: 96, y: 182, w: 78, h: 78 },
-  "Right Top Chest": { x: 226, y: 182, w: 78, h: 78 },
-  "Left Bottom": { x: 90, y: 308, w: 110, h: 132 },
-  "Right Bottom": { x: 200, y: 308, w: 110, h: 132 },
-  "Center Bottom": { x: 118, y: 300, w: 164, h: 148 },
-  "Oversized Center": { x: 88, y: 168, w: 224, h: 256 },
-  "Full Back": { x: 88, y: 174, w: 224, h: 252, back: true },
-  "Back Upper": { x: 88, y: 174, w: 224, h: 124, back: true },
-  "Back Lower": { x: 88, y: 308, w: 224, h: 140, back: true },
-};
+// Placement rectangles now come from utils/printAreas.ts (true print sizes).
 
 const BODY_PATH = [
   "L 324,70",

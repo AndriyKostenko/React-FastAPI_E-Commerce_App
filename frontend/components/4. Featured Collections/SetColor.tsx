@@ -1,5 +1,6 @@
 "use client";
 
+import { imageKey } from "@/types/image";
 import { SetColorProps } from "@/types/product";
 
 const SetColor: React.FC<SetColorProps> = ({
@@ -13,12 +14,12 @@ const SetColor: React.FC<SetColorProps> = ({
                 <span className="font-label-bold text-primary">Color</span>
                 <div className="flex gap-2">
                     {images.map((image) => {
+                        // Compared by identity: CJ images may share a colour name or have none.
                         const isSelected =
-                            cartProduct.selected_image.image_color ===
-                            image.image_color;
+                            imageKey(cartProduct.selected_image) === imageKey(image);
                         return (
                             <div
-                                key={image.image_color}
+                                key={imageKey(image)}
                                 onClick={() => handleColorSelect(image)}
                                 className={`h-8 w-8 rounded-full flex items-center justify-center cursor-pointer transition-all ${
                                     isSelected

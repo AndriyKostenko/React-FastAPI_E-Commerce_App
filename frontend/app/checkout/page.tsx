@@ -11,7 +11,7 @@ const Checkout = async () => {
     // The shipping form starts from the saved default address, when there is one.
     const defaultAddress = currentUserJWT ? await fetchDefaultAddress(currentUserJWT) : null;
     return (
-      <div className="p-8">
+      <div className="py-4 sm:p-8">
           <Container>
               <FormWrap>
                   <CheckoutClient isSignedIn={Boolean(currentUserJWT)} defaultAddress={defaultAddress}/>
