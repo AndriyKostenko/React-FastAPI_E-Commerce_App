@@ -1,9 +1,10 @@
-import { AuthOptions, User } from "next-auth";
+import { AuthOptions, DefaultSession, User } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
 import { settings } from "@/lib/config";
 import { ApiError } from "@/lib/api-error";
 import { AUTH_ERROR_PARAM, AUTH_ERROR_MAX_LENGTH } from "@/utils/constants";
+import { clientAddressHeaders } from "@/lib/client-address";
 
 const LOGIN_FALLBACK = "Sign-in failed. Please try again.";
 const GOOGLE_FALLBACK = "Google sign-in failed. Please try again.";
@@ -20,12 +21,14 @@ interface CustomUser extends User {
     token_expiry: number;
 }
 
+// What the browser may see. The access token is deliberately not here: it
+// stays in the encrypted session cookie and is read on the server only
+// (actions/getCurrentUser.ts), so no script on the page can take it.
 declare module "next-auth" {
     interface Session {
-        jwt: string;
         role: string;
         token_expiry: number;
-        user: {
+        user: DefaultSession["user"] & {
             id: string;
         };
     }
@@ -56,7 +59,10 @@ export const authOptions: AuthOptions = {
             try {
                 response = await fetch(settings.api.endpoints.authLogin, {
                     method: "POST",
-                    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                    headers: {
+                        ...(await clientAddressHeaders()),
+                        "Content-Type": "application/x-www-form-urlencoded",
+                    },
                     body: formData.toString(),
                 });
             } catch (error) {
@@ -101,7 +107,10 @@ export const authOptions: AuthOptions = {
             try {
                 const response = await fetch(settings.api.endpoints.googleLogin, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        ...(await clientAddressHeaders()),
+                        'Content-Type': 'application/json',
+                    },
                     body: JSON.stringify({ id_token: idToken }),
                 });
 
@@ -151,7 +160,6 @@ export const authOptions: AuthOptions = {
 
     session: async ({ session, token }) => {
         if (token) {
-            session.jwt = token.jwt as string;
             session.role = token.role as string;
             session.token_expiry = token.token_expiry as number;
             session.user.id = token.id as string;

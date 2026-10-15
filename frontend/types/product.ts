@@ -55,12 +55,12 @@ export interface AllProductsProps {
 }
 
 export interface ProductCardProps {
-    product: any;
+    product: ProductProps;
 }
 
 export interface ProductImageProps {
     cartProduct: ProductProps;
-    product: any;
+    product: ProductProps;
     handleColorSelect: (value: ImageProps) => void;
 }
 

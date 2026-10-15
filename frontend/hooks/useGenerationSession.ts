@@ -1,11 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import type { GeneratedDesignPayload, StyleOption } from "@/types/generation";
 import type {
     GenerationCounter,
     GenerationPhase,
-    GenerationSession,
 } from "@/types/generation-panel";
 import {
     GenerationSessionController,
@@ -15,45 +14,24 @@ import {
 /**
  * React integration for `GenerationSessionController`.
  *
- * The hook instantiates one controller per component lifetime, exposes the
- * current session for rendering, and returns stable action callbacks that
- * delegate mutations to the controller and then synchronise React state.
+ * The session is read from the controller's store with `useSyncExternalStore`,
+ * so there is no effect that copies storage into state. The controller is
+ * created per default limit: a guest who signs in gets a controller whose
+ * counter starts fresh, loaded from storage with that limit.
  */
 export const useGenerationSession = (isRegisteredUser: boolean) => {
     const defaultLimit = resolveDefaultLimit(isRegisteredUser);
 
-    const controllerRef = useRef<GenerationSessionController | null>(null);
-    if (!controllerRef.current) {
-        controllerRef.current = new GenerationSessionController(defaultLimit);
-    }
-    const controller = controllerRef.current;
-
-    const [session, setSession] = useState<GenerationSession>(
-        () => controller.session,
+    const controller = useMemo(
+        () => new GenerationSessionController(defaultLimit),
+        [defaultLimit],
     );
 
-    const syncSession = useCallback(() => {
-        setSession(controller.session);
-    }, [controller]);
-
-    // Hydrate the session from localStorage after the initial client mount so
-    // the server-rendered HTML and the first client render stay identical.
-    useEffect(() => {
-        controller.loadFromStorage(defaultLimit);
-        syncSession();
-    }, [controller, defaultLimit, syncSession]);
-
-    // Reset the counter when the user's authentication status changes.
-    useEffect(() => {
-        if (controller.resetCounterOnAuthChange(defaultLimit)) {
-            syncSession();
-        }
-    }, [controller, defaultLimit, syncSession]);
-
-    // Persist the unified session to localStorage on every meaningful change.
-    useEffect(() => {
-        controller.persist();
-    }, [controller, session]);
+    const session = useSyncExternalStore(
+        controller.subscribe,
+        controller.getSnapshot,
+        controller.getServerSnapshot,
+    );
 
     // Abort any in-flight generation when the component unmounts.
     const abortControllerRef = useRef<AbortController | null>(null);
@@ -65,36 +43,18 @@ export const useGenerationSession = (isRegisteredUser: boolean) => {
 
     const actions = useMemo(
         () => ({
-            setPrompt: (prompt: string) => {
-                controller.setPrompt(prompt);
-                syncSession();
-            },
-            setStyle: (style: StyleOption) => {
-                controller.setStyle(style);
-                syncSession();
-            },
-            setPhase: (phase: GenerationPhase) => {
-                controller.setPhase(phase);
-                syncSession();
-            },
-            appendHistory: (payload: GeneratedDesignPayload) => {
-                controller.appendHistory(payload);
-                syncSession();
-            },
-            selectHistoryEntry: (index: number) => {
-                controller.selectHistoryEntry(index);
-                syncSession();
-            },
+            setPrompt: (prompt: string) => controller.setPrompt(prompt),
+            setStyle: (style: StyleOption) => controller.setStyle(style),
+            setPhase: (phase: GenerationPhase) => controller.setPhase(phase),
+            appendHistory: (payload: GeneratedDesignPayload) => controller.appendHistory(payload),
+            selectHistoryEntry: (index: number) => controller.selectHistoryEntry(index),
             setCounter: (
                 counter:
                     | GenerationCounter
                     | ((prev: GenerationCounter) => GenerationCounter),
-            ) => {
-                controller.setCounter(counter);
-                syncSession();
-            },
+            ) => controller.setCounter(counter),
         }),
-        [controller, syncSession],
+        [controller],
     );
 
     return {

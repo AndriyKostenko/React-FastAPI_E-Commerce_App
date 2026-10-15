@@ -11,7 +11,7 @@ const Checkout = async () => {
       <div className="p-8">
           <Container>
               <FormWrap>
-                  <CheckoutClient currentUserJWT={currentUserJWT}/>
+                  <CheckoutClient isSignedIn={Boolean(currentUserJWT)}/>
               </FormWrap>
           </Container>
       </div>

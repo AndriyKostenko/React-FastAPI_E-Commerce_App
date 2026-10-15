@@ -5,5 +5,5 @@ export interface UserProps {
     role?: string
     phone_number?: string
     date_created: string
-    image?: any
+    image?: string | null
 }

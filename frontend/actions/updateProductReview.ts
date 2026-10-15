@@ -1,16 +1,17 @@
 import { ReviewUpsertPayload } from "@/types/actions";
 import { settings } from "@/lib/config";
+import { proxied } from "@/lib/gateway-proxy";
 
-const updateProductReview = async (review: ReviewUpsertPayload, token: string) => {
+// Runs in the browser; the same-origin proxy adds the user's token on the server.
+const updateProductReview = async (review: ReviewUpsertPayload) => {
     const product_id = "product_id" in review ? review.product_id : review.productId;
     const user_id = "user_id" in review ? review.user_id : review.userId;
     const { rating, comment } = review;
 
     try {
-        const response = await fetch(settings.api.backendEndpoints.reviewProduct(product_id), {
+        const response = await fetch(proxied(settings.api.backendEndpoints.reviewProduct(product_id)), {
             method: 'POST',
             headers: {
-                'Authorization': `Bearer ${token}`,
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({

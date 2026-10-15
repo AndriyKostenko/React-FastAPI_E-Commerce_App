@@ -22,9 +22,8 @@ export interface ReviewProps {
 
 export interface AddReviewProps {
     product: ProductProps;
-    user: ReviewAuthorProps;
+    user: Pick<ReviewAuthorProps, "id">;
     isDelivered: boolean;
-    token: string;
 }
 
 export interface ListReviewProps {

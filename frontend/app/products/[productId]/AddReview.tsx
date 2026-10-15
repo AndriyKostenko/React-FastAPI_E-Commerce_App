@@ -14,12 +14,7 @@ const AddReview: React.FC<AddReviewProps> = ({
     product,
     user,
     isDelivered,
-    token,
 }) => {
-    if (!user || !product) return null;
-
-    if (isDelivered === false) return null;
-
     const [isLoading, setIsLoading] = useState(false);
     const router = useRouter();
     const {
@@ -37,7 +32,7 @@ const AddReview: React.FC<AddReviewProps> = ({
         },
     });
 
-    const setCustomValue = (id: string, value: any) => {
+    const setCustomValue = (id: string, value: number | string | null) => {
         setValue(id, value, {
             shouldValidate: true,
             shouldDirty: true,
@@ -60,7 +55,7 @@ const AddReview: React.FC<AddReviewProps> = ({
             rating: data.rating,
             comment: data.comment,
         };
-        const result = await updateProductReview(reviewData, token);
+        const result = await updateProductReview(reviewData);
 
         if (!result.success) {
             toast.error(result.message);
@@ -73,6 +68,11 @@ const AddReview: React.FC<AddReviewProps> = ({
         router.refresh();
         setIsLoading(false);
     };
+
+    // Guards come after every hook: hooks must run on every render.
+    if (!user || !product) return null;
+
+    if (isDelivered === false) return null;
 
     return (
         <div className="flex flex-col gap-4 max-w-[600px]">

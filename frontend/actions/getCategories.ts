@@ -1,11 +1,13 @@
 import { CategoryProps } from "@/types/category";
 import { settings } from "@/lib/config";
+import { clientAddressHeaders } from "@/lib/client-address";
 
 const fetchCategoriesFromBackend = async (): Promise<CategoryProps[]> => {
     try {
         const response = await fetch(settings.api.endpoints.categories, {
             method: 'GET',
             cache: 'no-store',
+            headers: await clientAddressHeaders(),
         });
 
         if (!response.ok) {

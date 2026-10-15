@@ -4,7 +4,7 @@ import { FeaturedCollectionProps, FilterTab } from "@/types/product";
 import { HOW_IT_WORKS } from "@/utils/constants";
 import calculateAverageRating from "@/utils/productRating";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import ProductCard from "@/components/4. Featured Collections/ProductCard";
 
 const NEW_ARRIVAL_WINDOW_DAYS = 30;
@@ -19,15 +19,21 @@ const FeaturedCollection: React.FC<FeaturedCollectionProps> = ({
     products,
 }) => {
     const searchParams = useSearchParams();
-    const [activeTab, setActiveTab] = useState<FilterTab>(() =>
-        getTabFromQuery(searchParams.get("collection")),
+    const collection = searchParams.get("collection");
+    const queryTab = getTabFromQuery(collection);
+    // A click is remembered for the collection it was made in, so a new query
+    // falls back to the tab the link names.
+    const [selection, setSelection] = useState<{ tab: FilterTab; collection: string | null } | null>(null);
+    const activeTab = selection && selection.collection === collection ? selection.tab : queryTab;
+    const setActiveTab = useCallback(
+        (tab: FilterTab) => setSelection({ tab, collection }),
+        [collection],
     );
 
     const tabs: FilterTab[] = ["All", "Trending", "New Arrivals"];
 
-    useEffect(() => {
-        setActiveTab(getTabFromQuery(searchParams.get("collection")));
-    }, [searchParams]);
+    // The clock is read once per mount, so the list does not depend on render timing.
+    const [now] = useState(() => Date.now());
 
     const visibleProducts = useMemo(() => {
         if (activeTab === "Trending") {
@@ -44,7 +50,7 @@ const FeaturedCollection: React.FC<FeaturedCollectionProps> = ({
         }
 
         if (activeTab === "New Arrivals") {
-            const cutoff = Date.now() - NEW_ARRIVAL_WINDOW_DAYS * 86_400_000;
+            const cutoff = now - NEW_ARRIVAL_WINDOW_DAYS * 86_400_000;
 
             return products
                 .filter(
@@ -59,7 +65,7 @@ const FeaturedCollection: React.FC<FeaturedCollectionProps> = ({
         }
 
         return products;
-    }, [activeTab, products]);
+    }, [activeTab, products, now]);
 
     return (
         <>

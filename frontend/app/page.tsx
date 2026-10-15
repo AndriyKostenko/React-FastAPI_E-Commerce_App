@@ -1,7 +1,6 @@
 import CommunityGallery from "@/components/3. Community Gallery/CommunityGallery";
 import FeaturedCollection from "@/components/4. Featured Collections/FeaturedCollection";
 import Testimonials from "@/components/5. Testimonials/Testimonials";
-import NullData from "@/components/ui/NullData";
 import fetchProductsFromBackend from "../actions/getProducts";
 import { Params, SearchParams } from "../types/params";
 import HeroSection from "@/components/2. Hero/HeroComponentr";
@@ -21,8 +20,7 @@ export default async function Home(props: {params: Params, searchParams: SearchP
 
     return (
         <div className="space-y-8">
-			<HeroSection isRegisteredUser={Boolean(currentUserJWT)}
-						 currentUserJWT={currentUserJWT} />
+			<HeroSection isRegisteredUser={Boolean(currentUserJWT)} />
             <CommunityGallery />
             <FeaturedCollection products={products} />
             <Testimonials />

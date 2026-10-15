@@ -6,7 +6,6 @@ import toast from "react-hot-toast";
 import getCustomTshirtPricing from "@/actions/getCustomTshirtPricing";
 import { useCart } from "@/hooks/useCart";
 import {
-    STYLE_PREVIEWS,
     SIZE_MEASUREMENTS,
     TSHIRT_PLACEMENT_SURCHARGES,
 	TSHIRT_SIZE_PRICE_MULTIPLIERS,
@@ -20,16 +19,16 @@ import HeroText from "./HeroText";
 import GenerationPanel from "./GenerationPanel";
 import TshirtMeasurement from "./TshirtMeasurement";
 import HeroBottomBar from "./HeroBottomBar";
+import { fromCents, toCents } from "@/utils/money";
 
 
 type HeroSectionProps = {
     isRegisteredUser: boolean;
-    currentUserJWT?: string | null;
 };
 type GarmentColor = "bg-white" | "bg-black";
 type Design = { title: string, image: string, asset?: GeneratedArtworkAsset}
 
-const HeroSection = ({isRegisteredUser, currentUserJWT}: HeroSectionProps) => {
+const HeroSection = ({isRegisteredUser}: HeroSectionProps) => {
 	const { handleAddProductToCart } = useCart();
     const [placement, setPlacement] = useState("Center Chest");
     const [isGenerating, setIsGenerating] = useState(false);
@@ -68,7 +67,9 @@ const HeroSection = ({isRegisteredUser, currentUserJWT}: HeroSectionProps) => {
         };
     }, []);
 
-    const finalPrice = useMemo(() => {
+    // One unit price, in cents. Every total is this number times the quantity,
+    // so the price shown, the cart line and the checkout total all agree.
+    const unitPriceCents = useMemo(() => {
         const sizePriceMultipliers =
             TSHIRT_SIZE_PRICE_MULTIPLIERS ?? FALLBACK_SIZE_PRICE_MULTIPLIERS;
         const normalizedSize = (
@@ -77,9 +78,9 @@ const HeroSection = ({isRegisteredUser, currentUserJWT}: HeroSectionProps) => {
         const sizeMultiplier = sizePriceMultipliers[normalizedSize] ?? 1;
         const placementSurcharges = TSHIRT_PLACEMENT_SURCHARGES ?? {};
         const placementSurcharge = placementSurcharges[placement] ?? 0;
-        const unitPrice = basePrice * sizeMultiplier + placementSurcharge;
-        return Math.round(unitPrice * quantity * 100) / 100;
-    }, [basePrice, placement, quantity, size]);
+        return toCents(basePrice * sizeMultiplier + placementSurcharge);
+    }, [basePrice, placement, size]);
+    const finalPrice = fromCents(unitPriceCents * quantity);
 
     const handleAddToCart = () => {
         if (!currentDesign.asset) {
@@ -88,8 +89,7 @@ const HeroSection = ({isRegisteredUser, currentUserJWT}: HeroSectionProps) => {
         }
         const promptLabel = selectedPrompt.trim() || currentDesign.title;
         const customId = crypto.randomUUID();
-        const unitPrice =
-            Math.round((finalPrice / Math.max(quantity, 1)) * 100) / 100;
+        const unitPrice = fromCents(unitPriceCents);
 
         const selectedImage = {
             id: `${customId}-image`,
@@ -150,7 +150,6 @@ const HeroSection = ({isRegisteredUser, currentUserJWT}: HeroSectionProps) => {
                     setIsGenerating={setIsGenerating}
                     onDesignGenerated={handleDesignGenerated}
                     isRegisteredUser={isRegisteredUser}
-                    currentUserJWT={currentUserJWT}
                 />
             </div>
             {/* ── Right col: t-shirt mockup (grid-stretch makes it match left col height) ── */}

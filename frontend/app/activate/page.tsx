@@ -24,19 +24,18 @@ const REDIRECT_DELAY_MS = 2500;
 export default function ActivatePage() {
     const token = useFragmentToken();
     const router = useRouter();
-    const [status, setStatus] = useState<Status>("loading");
-    const [message, setMessage] = useState("");
+    const [statusState, setStatus] = useState<Status>("loading");
+    const [messageState, setMessage] = useState("");
+    // A link without its token is an error at once: derived, not set in an effect.
+    const missingToken = token === null;
+    const status: Status = missingToken ? "error" : statusState;
+    const message = missingToken ? MISSING_TOKEN : messageState;
     // The token is single-use: StrictMode's second effect run (development)
     // would spend a second request and race the first one's answer.
     const submitted = useRef<string | null>(null);
 
     useEffect(() => {
-        if (token === undefined) return; // fragment not read yet
-        if (token === null) {
-            setMessage(MISSING_TOKEN);
-            setStatus("error");
-            return;
-        }
+        if (token === undefined || token === null) return; // not read yet, or missing (shown above)
         if (submitted.current === token) return;
         submitted.current = token;
 

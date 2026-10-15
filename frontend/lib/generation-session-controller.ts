@@ -157,77 +157,66 @@ const loadStoredSession = (defaultLimit: number): GenerationSession => {
 };
 
 /**
- * Encapsulates generation session state and its transitions.
+ * Generation session state and its transitions, kept in localStorage.
  *
- * The controller is intentionally decoupled from React: it owns the session
- * object, exposes read-only access via `session`, and mutates it through
- * small, focused command methods. React integration (re-rendering, effects,
- * refs) lives in `useGenerationSession`.
+ * It is an external store: React reads `session` through
+ * `useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot)`, and every
+ * change is written to storage and announced to subscribers in one place
+ * (`commit`). One controller serves one default limit: the hook creates a new
+ * one when the limit changes, and the stored counter is normalized on load.
  */
 export class GenerationSessionController {
     private _session: GenerationSession;
+    private readonly serverSession: GenerationSession;
+    private readonly listeners = new Set<() => void>();
 
     constructor(defaultLimit: number) {
-        this._session = createDefaultSession(defaultLimit);
-    }
-
-    /**
-     * Hydrates the session from localStorage. Must be called inside a
-     * client-side effect so the initial render/hydration matches the SSR
-     * output (which cannot access localStorage).
-     */
-    loadFromStorage(defaultLimit: number): void {
-        if (typeof window === "undefined") return;
         this._session = loadStoredSession(defaultLimit);
+        this.serverSession = createDefaultSession(defaultLimit);
     }
 
     get session(): GenerationSession {
         return this._session;
     }
 
-    /**
-     * Resets the used counter when the authenticated user's default limit
-     * differs from the one stored in the active session. Returns `true` when
-     * the session was mutated.
-     */
-    resetCounterOnAuthChange(defaultLimit: number): boolean {
-        if (this._session.generationCounter.limit === defaultLimit) {
-            return false;
-        }
-
-        this._session = {
-            ...this._session,
-            generationCounter: { used: 0, limit: defaultLimit },
+    subscribe = (listener: () => void): (() => void) => {
+        this.listeners.add(listener);
+        return () => {
+            this.listeners.delete(listener);
         };
-        return true;
-    }
+    };
+
+    getSnapshot = (): GenerationSession => this._session;
+
+    /** What the server renders and hydration starts from: the same defaults on both sides. */
+    getServerSnapshot = (): GenerationSession => this.serverSession;
 
     setPrompt(prompt: string): void {
-        this._session = { ...this._session, prompt };
+        this.commit({ ...this._session, prompt });
     }
 
     setStyle(style: StyleOption): void {
-        this._session = { ...this._session, style };
+        this.commit({ ...this._session, style });
     }
 
     setPhase(phase: GenerationPhase): void {
-        this._session = { ...this._session, phase };
+        this.commit({ ...this._session, phase });
     }
 
     appendHistory(payload: GeneratedDesignPayload): void {
         const nextEntries = [...this._session.generationHistory.entries, payload];
-        this._session = {
+        this.commit({
             ...this._session,
             generationHistory: {
                 entries: nextEntries,
                 index: nextEntries.length - 1,
             },
-        };
+        });
     }
 
     selectHistoryEntry(index: number): void {
         const entry = this._session.generationHistory.entries[index];
-        this._session = {
+        this.commit({
             ...this._session,
             prompt: entry.prompt,
             style: entry.style,
@@ -235,7 +224,7 @@ export class GenerationSessionController {
                 ...this._session.generationHistory,
                 index,
             },
-        };
+        });
     }
 
     setCounter(
@@ -243,16 +232,23 @@ export class GenerationSessionController {
             | GenerationCounter
             | ((prev: GenerationCounter) => GenerationCounter),
     ): void {
-        this._session = {
+        this.commit({
             ...this._session,
             generationCounter:
                 typeof counter === "function"
                     ? counter(this._session.generationCounter)
                     : counter,
-        };
+        });
     }
 
-    persist(): void {
+    /** The one place a session changes: store it, save it, tell React. */
+    private commit(next: GenerationSession): void {
+        this._session = next;
+        this.persist();
+        this.listeners.forEach((listener) => listener());
+    }
+
+    private persist(): void {
         if (typeof window === "undefined") return;
 
         localStorage.setItem(
@@ -273,8 +269,8 @@ export class GenerationSessionController {
 
 /**
  * Guests cannot generate at all, so they get no quota (0 = "no counter").
- * Keeping the two limits distinct also makes `resetCounterOnAuthChange`
- * start a fresh counter when a guest signs in.
+ * Keeping the two limits distinct means a guest who signs in starts a fresh
+ * counter: the hook gives the new limit its own controller.
  */
 export const resolveDefaultLimit = (isRegisteredUser: boolean): number =>
     isRegisteredUser ? DEFAULT_GENERATION_LIMIT : 0;

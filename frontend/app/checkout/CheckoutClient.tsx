@@ -32,7 +32,7 @@ const buildOrderProducts = (products: ProductProps[]): OrderProductInput[] =>
               },
     );
 
-const CheckoutClient: React.FC<CheckoutClientProps> = ({ currentUserJWT }) => {
+const CheckoutClient: React.FC<CheckoutClientProps> = ({ isSignedIn }) => {
     const { cartProducts, cartTotalAmount, handleClearCart, handleSetPaymentIntent } = useCart();
     const [quotedAmountCents, setQuotedAmountCents] = useState<number | null>(null);
     const [paymentSuccess, setPaymentSuccess] = useState(false);
@@ -86,7 +86,7 @@ const CheckoutClient: React.FC<CheckoutClientProps> = ({ currentUserJWT }) => {
         );
     }
 
-    if (!currentUserJWT) {
+    if (!isSignedIn) {
         return (
             <Link href={"/login"} className="text-slate-500 flex items-center gap-1 mt-2">
                 <span>Please log in to check out</span>
@@ -99,7 +99,6 @@ const CheckoutClient: React.FC<CheckoutClientProps> = ({ currentUserJWT }) => {
             <Elements options={options} stripe={stripePromise}>
                 <CheckoutForm
                     products={products}
-                    currentUserJWT={currentUserJWT}
                     onAmountChange={setQuotedAmountCents}
                     onPaid={handlePaid}
                 />

@@ -1,6 +1,9 @@
 import { settings } from "@/lib/config";
 
-const fetchOrderByUserId = async (userId: string, token: string | null): Promise<any[]> => {
+import type { OrderProps } from "@/types/order";
+import { clientAddressHeaders } from "@/lib/client-address";
+
+const fetchOrderByUserId = async (userId: string, token: string | null): Promise<OrderProps[]> => {
     try {
         if (!token) {
             return [];
@@ -10,6 +13,7 @@ const fetchOrderByUserId = async (userId: string, token: string | null): Promise
             method: 'GET',
             cache: 'no-store',
             headers: {
+                ...(await clientAddressHeaders()),
                 'Authorization': `Bearer ${token}`,
                 'Content-Type': 'application/json'
             },

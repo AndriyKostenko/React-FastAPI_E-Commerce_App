@@ -5,7 +5,6 @@ export interface GenerationPanelProps {
   setIsGenerating: (value: boolean) => void;
   onDesignGenerated: (payload: GeneratedDesignPayload) => void;
   isRegisteredUser: boolean;
-  currentUserJWT?: string | null;
 }
 
 export interface GenerationSession {
