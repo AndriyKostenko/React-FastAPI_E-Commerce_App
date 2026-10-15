@@ -69,7 +69,8 @@ const forward = async (
     return new NextResponse(upstream.body, { status: upstream.status, headers: responseHeaders });
 };
 
-type Context = RouteContext<"/api/gateway/[...path]">;
+// Declared here rather than generated: the type check must pass on a fresh checkout.
+type Context = { params: Promise<{ path: string[] }> };
 
 export async function GET(request: NextRequest, context: Context) {
     return forward(request, (await context.params).path);
