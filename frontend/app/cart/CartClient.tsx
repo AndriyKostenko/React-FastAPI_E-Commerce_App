@@ -63,7 +63,7 @@ const CartClient: React.FC<CartClientProps> = ({currentUser, expiryToken}) => {
                         <Button label={currentUser ? 'Checkout' : 'Login to Checkout'}
                                 variant="keyboard"
                                 size="md"
-                                onClick={() => { currentUser ? router.push('/checkout') : router.push('/login')}}>
+                                onClick={() => router.push(currentUser ? '/checkout' : '/login')}>
                         </Button>
 
                         <Link href={"/"} className="text-slate-500 flex items-center gap-1 mt-2">

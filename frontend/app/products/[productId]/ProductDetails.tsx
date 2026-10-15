@@ -55,18 +55,23 @@ const ProductDetailsContent: React.FC<{ product: ProductProps; titleAction?: Rea
     product,
     titleAction,
 }) => {
-    const productImages =
-        product.images?.length > 0
-            ? product.images
-            : [
-                  {
-                      id: `placeholder-${product.id}`,
-                      product_id: product.id,
-                      image_url: "",
-                      image_color: "Default",
-                      image_color_code: "#e2e8f0",
-                  },
-              ];
+    // Memoised: a new placeholder array on every render would change the
+    // callbacks that depend on it (selectVariant) on every render too.
+    const productImages = useMemo(
+        () =>
+            product.images?.length > 0
+                ? product.images
+                : [
+                      {
+                          id: `placeholder-${product.id}`,
+                          product_id: product.id,
+                          image_url: "",
+                          image_color: "Default",
+                          image_color_code: "#e2e8f0",
+                      },
+                  ],
+        [product.images, product.id],
+    );
 
     const { handleAddProductToCart, cartProducts } = useCart();
     const activeVariants = useMemo(

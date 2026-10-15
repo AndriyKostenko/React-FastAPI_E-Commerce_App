@@ -24,7 +24,6 @@ const Categories: React.FC<CategoriesProps> = ({ categories }) => {
                     {categories.map((item) => (
                         <Category
                             key={item.id}
-                            id={item.id}
                             name={item.name}
                             image_url={resolveImageUrl(item.image_url)}
                             selected={
