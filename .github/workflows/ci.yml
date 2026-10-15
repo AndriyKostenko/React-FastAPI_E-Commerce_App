@@ -128,8 +128,15 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - run: npm ci
+      # Clean since PR #43: a warning fails the job too, so none creep back in.
+      - name: Lint
+        run: npm run lint -- --max-warnings=0
       - name: Type check
         run: npx tsc --noEmit
+      # The session manager under controlled interleavings, through its
+      # injected seam: no stack, network or secrets needed.
+      - name: Session race tests
+        run: npm run test:race
       - name: Production build
         run: npm run build
         env:
