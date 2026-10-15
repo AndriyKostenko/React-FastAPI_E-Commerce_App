@@ -191,3 +191,60 @@ class TestFailureHandling:
 
         manager._redis = BrokenRedis()
         assert await manager.is_rate_limited(_request(), times=1, seconds=60) is False
+
+
+class TestGlobalLimitHasItsOwnBucket:
+    """
+    The gateway middleware's global check runs on every request, before a
+    route's own @rate_limited check. Both used to write the same key, so each
+    request counted twice and the global 60-second window pruned the route's
+    hourly one.
+    """
+
+    @staticmethod
+    def _middleware(manager: RateLimitManager) -> "GatewayRequestMiddleware":
+        from unittest.mock import AsyncMock, MagicMock
+        from middleware.cache_middleware import GatewayRequestMiddleware
+
+        cache = MagicMock(
+            get_cached_response=AsyncMock(return_value=None),
+            get_invalidation_namespaces=MagicMock(return_value=[]),
+        )
+        return GatewayRequestMiddleware(cache_manager=cache, rate_limit_manager=manager)
+
+    async def test_route_limit_counts_each_request_once(self):
+        from starlette.responses import Response
+
+        manager, _ = _manager()
+        middleware = self._middleware(manager)
+
+        async def route(request: Request) -> Response:
+            # What @rate_limited(times=5, seconds=3600) does inside the route.
+            await manager.is_rate_limited(request, times=5, seconds=3600)
+            return Response(status_code=200)
+
+        for _ in range(5):
+            response = await middleware(_request(path="/users/me/password"), route, is_cacheable=False)
+            assert response.status_code == 200
+        with pytest.raises(RateLimitExceededError):
+            await middleware(_request(path="/users/me/password"), route, is_cacheable=False)
+
+    async def test_global_window_does_not_prune_an_hourly_route_window(self):
+        from starlette.responses import Response
+
+        manager, _ = _manager()
+        middleware = self._middleware(manager)
+
+        async def route(request: Request) -> Response:
+            await manager.is_rate_limited(request, times=2, seconds=3600)
+            return Response(status_code=200)
+
+        # Two requests ten minutes apart use up the hourly allowance; the
+        # global check's 60-second prune in between must not forget the first.
+        with patch("infrastructure.managers.ratelimit_manager.time", return_value=1_000.0):
+            await middleware(_request(path="/login"), route, is_cacheable=False)
+        with patch("infrastructure.managers.ratelimit_manager.time", return_value=1_600.0):
+            await middleware(_request(path="/login"), route, is_cacheable=False)
+        with patch("infrastructure.managers.ratelimit_manager.time", return_value=1_700.0):
+            with pytest.raises(RateLimitExceededError):
+                await middleware(_request(path="/login"), route, is_cacheable=False)

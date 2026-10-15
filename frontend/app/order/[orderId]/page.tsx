@@ -11,9 +11,10 @@ interface IDParameters {
 
 
 // will be rendered on server so cosole.log will be shown in terminal
-const Order = async ({params} : {params: IDParameters}) => {
+const Order = async ({params} : {params: Promise<IDParameters>}) => {
     
-    const { orderId } = params;
+    // Next 16 passes params as a promise; reading it synchronously gives undefined.
+    const { orderId } = await params;
 
     // Only the order's owner can read it; without a session there is nothing to show.
     const currentUserToken = await sessionManagaer.getCurrentUserJWT();
