@@ -19,6 +19,10 @@ module.exports = {
         'no-underscore-dangle': 'off',
         'no-shadow': 'off',
         '@typescript-eslint/no-shadow': 'error',
+        // The base rule reads a parameter-property constructor
+        // (`constructor(private readonly x: X) {}`) as useless; the typed one does not.
+        'no-useless-constructor': 'off',
+        '@typescript-eslint/no-useless-constructor': 'error',
         'import/prefer-default-export': 'off',
         'import/no-unresolved': 'off',
         'import/no-extraneous-dependencies': 'off',
