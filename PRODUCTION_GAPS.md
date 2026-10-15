@@ -62,9 +62,9 @@ or recorded as decided. Merged so far: PR #41 (readiness, phases 2–5) and PR #
   sign-in token, so a newly uploaded picture shows there only after the next sign-in; a
   local `stripe listen` is needed for a browser checkout to move past "Order placed".
   `next build` was not run (it shares `.next` with the running dev server).
-- Put `npm run test:race` (and the live suite, where a stack is available) into CI;
-  neither runs there today, and `lint` is not a CI gate. Lint is clean since
-  2026-10-15 (no warnings), so it can become one without first fixing anything.
+- The live session suite (`npm run test:session`) still runs only locally: it needs the
+  whole stack. CI's frontend job gates on `npm run lint -- --max-warnings=0` and runs
+  `npm run test:race` since 2026-10-15.
 - Browser sign-in, checkout (Stripe test card, CJ sandbox) and the new pages were checked
   in Playwright at 390px and 1280px on 2026-10-15. The Chrome extension was still not
   connected.
