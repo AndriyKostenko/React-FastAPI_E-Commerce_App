@@ -10,6 +10,7 @@ from uvicorn import run
 
 from app_config import DESCRIPTOR, resolve_resources, user_service_lifespan
 from managers import UserApiResources, logger, settings
+from routes.address_routes import address_routes
 from routes.passkey_routes import passkey_routes
 from routes.user_routes import user_routes
 from infrastructure.app import DatabaseEngineProbe, RedisPingProbe, ServiceAppBuilder
@@ -26,6 +27,8 @@ app = (
         RedisPingProbe("rate_limiter"),
     )
     .with_middleware(GZipMiddleware, minimum_size=1024)
+    # Ahead of user_routes: the literal /users/me/... paths before /users/{user_id}.
+    .with_router(address_routes, prefix=DESCRIPTOR.api_prefix)
     .with_router(user_routes, prefix=DESCRIPTOR.api_prefix)
     .with_router(passkey_routes, prefix=DESCRIPTOR.api_prefix)
     .build()

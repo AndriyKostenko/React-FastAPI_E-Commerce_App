@@ -4,36 +4,34 @@ import OrderDetails from "./OrderDetails";
 import Container from "@/components/ui/Container";
 import NullData from "@/components/ui/NullData";
 
-
 interface IDParameters {
-    orderId: string;
+  orderId: string;
 }
-
 
 // will be rendered on server so cosole.log will be shown in terminal
-const Order = async ({params} : {params: IDParameters}) => {
-    
-    const { orderId } = params;
+const Order = async ({ params }: { params: Promise<IDParameters> }) => {
+  // Next 16 passes params as a promise; reading it synchronously gives undefined.
+  const { orderId } = await params;
 
-    // Only the order's owner can read it; without a session there is nothing to show.
-    const currentUserToken = await sessionManagaer.getCurrentUserJWT();
-    if (!currentUserToken) {
-        return <NullData title="Sign in to see this order."></NullData>
-    }
+  // Only the order's owner can read it; without a session there is nothing to show.
+  const currentUserToken = await sessionManagaer.getCurrentUserJWT();
+  if (!currentUserToken) {
+    return <NullData title="Sign in to see this order." action={{ href: "/login", label: "Sign in" }} />;
+  }
 
-    const order = await fetchOrderById(orderId, currentUserToken)
+  const order = await fetchOrderById(orderId, currentUserToken);
 
-    if (!order) {
-        return <NullData title="No orders found."></NullData>
-    }
+  if (!order) {
+    return <NullData title="No orders found."></NullData>;
+  }
 
-    return ( 
-        <div className="p-8">
-            <Container>
-                <OrderDetails order={order}/>
-            </Container>
-        </div>
-     );
-}
- 
+  return (
+    <div className="py-4 sm:p-8">
+      <Container>
+        <OrderDetails order={order} />
+      </Container>
+    </div>
+  );
+};
+
 export default Order;

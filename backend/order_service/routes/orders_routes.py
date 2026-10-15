@@ -5,6 +5,7 @@ from fastapi import APIRouter, Request, status
 from schemas.order_schemas import (
     CreateOrder,
     UpdateOrder,
+    OrderDetailSchema,
     OrderSchema,
     CancelOrder,
     QuoteOrderRequest,
@@ -96,6 +97,24 @@ async def get_order_by_id(
     order = await order_service.get_order_by_id(order_id=order_id)
     ensure_owner_or_admin(caller, order.user_id)
     return order
+
+
+@order_routes.get(
+    "/orders/{order_id}/details",
+    response_model=OrderDetailSchema,
+    summary="An order with its address and each line's progress and tracking",
+    status_code=status.HTTP_200_OK,
+)
+async def get_order_detail(
+    caller: CallerDep,
+    request: Request,
+    order_id: UUID,
+    order_service: order_service_dependency,
+) -> OrderDetailSchema:
+    detail = await order_service.get_order_detail(order_id=order_id)
+    # The same rule as GET /orders/{id}: the owner or an admin, nobody else.
+    ensure_owner_or_admin(caller, detail.user_id)
+    return detail
 
 
 @order_routes.get(

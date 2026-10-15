@@ -16,7 +16,6 @@ export interface UserMenuProps {
 }
 
 export interface NavCategoryProps {
-    id: string;
     name: string;
     image_url: string;
     selected?: boolean;

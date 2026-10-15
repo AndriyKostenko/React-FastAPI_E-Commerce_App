@@ -18,6 +18,11 @@ class GatewayRequestMiddleware:
     # Global rate-limit defaults applied to every request.
     _RATE_LIMIT_TIMES: int = 10_000
     _RATE_LIMIT_SECONDS: int = 60
+    # The global check's own bucket. Sharing the route limits' key (subject +
+    # path) counted every request on a @rate_limited route twice, and this
+    # check's 60-second window pruned the shared key, so an hourly route limit
+    # (login, password reset, password change) only remembered the last minute.
+    GLOBAL_BUCKET: str = "global"
 
     def __init__(self, cache_manager: CacheManager, rate_limit_manager: RateLimitManager) -> None:
         self.cache_manager: CacheManager = cache_manager
@@ -47,6 +52,7 @@ class GatewayRequestMiddleware:
             request,
             times=self._RATE_LIMIT_TIMES,
             seconds=self._RATE_LIMIT_SECONDS,
+            identifier=self.GLOBAL_BUCKET,
         )
 
         # 2. Return from cache if available.

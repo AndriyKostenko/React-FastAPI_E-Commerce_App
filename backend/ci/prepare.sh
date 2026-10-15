@@ -17,7 +17,7 @@
 #    the suite and its migrations run without superuser rights.
 # 4. Writes ci/test-settings.conf, the passwords, throwaway Ed25519 signing
 #    keys (an app reads its verifying key at startup; the suites sign with
-#    their own) and, for product- and order-service, that service's own S3
+#    their own) and, for product-, order- and user-service, that service's own S3
 #    key pair to $GITHUB_ENV.
 #
 # Off GitHub, point GITHUB_ENV at a file and source it afterwards; the
@@ -144,6 +144,7 @@ publish MAIL_PASSWORD "$mail_password"
 case "$service" in
   product_service) s3_identity=product-service ;;
   order_service) s3_identity=order-service ;;
+  user_service) s3_identity=user-service ;;
   *) s3_identity="" ;;
 esac
 if [ -n "$s3_identity" ]; then

@@ -1,7 +1,7 @@
 'use client';
 
 import { Rating } from "@mui/material";
-import { useCallback, useMemo, useState } from "react";
+import { type ReactNode, useCallback, useMemo, useState } from "react";
 
 import SetQuantity from "@/components/4. Featured Collections/SetQuantity";
 import Button from "@/components/ui/Button";
@@ -14,13 +14,21 @@ import { ProductProps } from "@/types/product";
 import { ImageProps } from "@/types/image";
 import { formatPrice } from "@/utils/formatPrice";
 import { getColorSwatch, getVariantOption } from "@/utils/productVariants";
+import { toCartLine } from "@/utils/cartLine";
 
 // Only the not-found check lives here. The hooks live in
 // ProductDetailsContent, which renders only with a real product: hooks must
 // run on every render, and they read product fields, so they cannot sit
 // below an early return.
-const ProductDetails: React.FC<{ product: ProductProps | null }> = ({
+interface ProductDetailsProps {
+    product: ProductProps | null;
+    /** Shown beside the product name, e.g. the wishlist heart. */
+    titleAction?: ReactNode;
+}
+
+const ProductDetails: React.FC<ProductDetailsProps> = ({
     product,
+    titleAction,
 }) => {
     const router = useRouter();
 
@@ -40,22 +48,30 @@ const ProductDetails: React.FC<{ product: ProductProps | null }> = ({
         );
     }
 
-    return <ProductDetailsContent product={product} />;
+    return <ProductDetailsContent product={product} titleAction={titleAction} />;
 };
 
-const ProductDetailsContent: React.FC<{ product: ProductProps }> = ({ product }) => {
-    const productImages =
-        product.images?.length > 0
-            ? product.images
-            : [
-                  {
-                      id: `placeholder-${product.id}`,
-                      product_id: product.id,
-                      image_url: "",
-                      image_color: "Default",
-                      image_color_code: "#e2e8f0",
-                  },
-              ];
+const ProductDetailsContent: React.FC<{ product: ProductProps; titleAction?: ReactNode }> = ({
+    product,
+    titleAction,
+}) => {
+    // Memoised: a new placeholder array on every render would change the
+    // callbacks that depend on it (selectVariant) on every render too.
+    const productImages = useMemo(
+        () =>
+            product.images?.length > 0
+                ? product.images
+                : [
+                      {
+                          id: `placeholder-${product.id}`,
+                          product_id: product.id,
+                          image_url: "",
+                          image_color: "Default",
+                          image_color_code: "#e2e8f0",
+                      },
+                  ],
+        [product.images, product.id],
+    );
 
     const { handleAddProductToCart, cartProducts } = useCart();
     const activeVariants = useMemo(
@@ -72,24 +88,9 @@ const ProductDetailsContent: React.FC<{ product: ProductProps }> = ({ product })
 
     const [selectedColor, setSelectedColor] = useState<string | null>(initialColor);
 
-    const [cartProduct, setCartProduct] = useState<ProductProps>({
-        id: product.id,
-        category: product.category,
-        quantity: 1,
-        in_stock: product.in_stock,
-        name: product.name,
-        description: product.description,
-        brand: product.brand,
-        price: initialVariant?.retail_price ?? product.price,
-        date_created: product.date_created,
-        selected_image: productImages[0],
-        reviews: product.reviews,
-        images: productImages,
-        supplier_id: product.supplier_id,
-        variants: product.variants,
-        selected_variant_id: initialVariant?.id ?? null,
-        fulfillment_type: isCjProduct ? "cj" : "catalog",
-    });
+    const [cartProduct, setCartProduct] = useState<ProductProps>(() =>
+        toCartLine(product, initialVariant, productImages),
+    );
 
     // Derived from the cart: the line for this product and variant is there.
     const isProductInCart = useMemo(
@@ -210,9 +211,12 @@ const ProductDetailsContent: React.FC<{ product: ProductProps }> = ({ product })
 
                 <div className="flex flex-col gap-5 text-secondary font-body-md">
                     <div className="space-y-2">
-                        <h1 className="font-headline-lg text-primary">
-                            {product.name}
-                        </h1>
+                        <div className="flex items-start justify-between gap-3">
+                            <h1 className="font-headline-lg text-primary">
+                                {product.name}
+                            </h1>
+                            {titleAction}
+                        </div>
                         <div className="flex items-center gap-2 text-sm">
                             <Rating
                                 value={averageRating}

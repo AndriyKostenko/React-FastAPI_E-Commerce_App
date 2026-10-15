@@ -10,7 +10,9 @@ wishlist_proxy = APIRouter(tags=["Wishlist Service Proxy"])
 
 
 @wishlist_proxy.get("/wishlists/me", summary="Get current user's wishlist")
-@rate_limited(times=10, seconds=60)
+# Read on every product page a signed-in user opens (the heart's state), so a
+# read-shaped limit like /me's; the writes stay at 10 a minute.
+@rate_limited(times=60, seconds=60)
 async def get_my_wishlist(request: Request, current_user: CurrentUserInfo = Depends(get_current_user)):
     return await api_gateway_manager.forward_request(
         service_name=Services.WISHLIST_SERVICE,

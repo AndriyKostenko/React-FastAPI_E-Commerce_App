@@ -47,7 +47,7 @@ output "images_host" {
   value       = local.images_host
 }
 
-# Long-lived keys for the two services that handle objects. Store them in each
+# Long-lived keys for the services that handle objects. Store them in each
 # service's Vault path, then keep the state bucket private. Read with:
 #   tofu output -raw product_service_access_key_id
 output "product_service_access_key_id" {
@@ -67,5 +67,15 @@ output "order_service_access_key_id" {
 
 output "order_service_secret_access_key" {
   value     = aws_iam_access_key.order_service.secret
+  sensitive = true
+}
+
+output "user_service_access_key_id" {
+  value     = aws_iam_access_key.user_service.id
+  sensitive = true
+}
+
+output "user_service_secret_access_key" {
+  value     = aws_iam_access_key.user_service.secret
   sensitive = true
 }

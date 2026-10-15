@@ -13,13 +13,13 @@ const Orders = async () => {
   const expiryToken = await sessionManagaer.getCurrentUserTokenExpiry();
 
     if (!currentUser || !currentUserToken) {
-        return <NullData title="Oops ! Access denied!"></NullData>
+        return <NullData title="Sign in to see your orders." action={{ href: "/login", label: "Sign in" }} />
     }
 
     const orders = await fetchOrderByUserId(currentUser.id, currentUserToken);
 
-    if (!orders) {
-        return <NullData title="No orders yet" />
+    if (!orders || orders.length === 0) {
+        return <NullData title="No orders yet" action={{ href: "/", label: "Start shopping" }} />
     }
 
 

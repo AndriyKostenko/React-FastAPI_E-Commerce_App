@@ -18,6 +18,7 @@ from schemas.production_schemas import (
 )
 from service_layer.artwork_asset_client import ArtworkAssetClient, ArtworkDownloadError
 from service_layer.order_fulfillment_status_service import OrderFulfillmentStatusService
+from service_layer.parcel_tracking import ParcelTracking
 from service_layer.outbox_event_service import OutboxEventService
 from service_layer.packing_slip_service import PackingSlipBuilder
 from contracts.events import (
@@ -244,11 +245,19 @@ class ProductionQueueService:
         notes: str | None = None,
     ) -> ProductionJobSchema:
         """The parcel is in the post; this is what the customer is told."""
-        job = await self._transition(job_id, ProductionJobStatus.SHIPPED, notes=notes)
+        # The order line keeps the parcel too, so the customer's order page
+        # reads every channel's tracking the same way.
+        parcel = ParcelTracking(
+            tracking_number=tracking_number,
+            carrier=carrier,
+            tracking_url=tracking_url,
+            shipped_at=datetime.now(UTC),
+        )
+        job = await self._transition(job_id, ProductionJobStatus.SHIPPED, notes=notes, parcel=parcel)
         job.tracking_number = tracking_number
         job.carrier = carrier
         job.tracking_url = tracking_url
-        job.shipped_at = datetime.now(UTC)
+        job.shipped_at = parcel.shipped_at
         await self.repository.update(job)
         await self._publish(job, ProductionEvents.PRODUCTION_JOB_SHIPPED)
         return self._to_schema(job)
@@ -368,16 +377,20 @@ class ProductionQueueService:
         target: ProductionJobStatus,
         *,
         notes: str | None = None,
+        parcel: ParcelTracking | None = None,
     ) -> CustomProductionJob:
         job = await self._require_locked_job(job_id)
         self.state_machine.ensure(job.id, job.job_status, target)
-        await self._apply_status(job, target)
+        await self._apply_status(job, target, parcel)
         if notes:
             job.notes = f"{job.notes}\n{notes}" if job.notes else notes
         return job
 
     async def _apply_status(
-        self, job: CustomProductionJob, target: ProductionJobStatus
+        self,
+        job: CustomProductionJob,
+        target: ProductionJobStatus,
+        parcel: ParcelTracking | None = None,
     ) -> None:
         """Move the job and the order line it belongs to together.
 
@@ -390,6 +403,7 @@ class ProductionQueueService:
             job.order,
             target.line_status,
             order_item_ids={job.order_item_id},
+            parcel=parcel,
         )
 
     async def _publish(

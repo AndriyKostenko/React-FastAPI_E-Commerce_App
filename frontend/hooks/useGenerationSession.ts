@@ -36,8 +36,13 @@ export const useGenerationSession = (isRegisteredUser: boolean) => {
     // Abort any in-flight generation when the component unmounts.
     const abortControllerRef = useRef<AbortController | null>(null);
     useEffect(() => {
+        // The ref holds a request's AbortController, not a DOM node: the
+        // cleanup must read it at unmount, when it names the latest request.
+        // Copying `.current` here (the lint rule's usual advice) would capture
+        // null and abort nothing.
+        const inFlight = abortControllerRef;
         return () => {
-            abortControllerRef.current?.abort();
+            inFlight.current?.abort();
         };
     }, []);
 

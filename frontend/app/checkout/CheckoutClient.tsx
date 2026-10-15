@@ -32,7 +32,7 @@ const buildOrderProducts = (products: ProductProps[]): OrderProductInput[] =>
               },
     );
 
-const CheckoutClient: React.FC<CheckoutClientProps> = ({ isSignedIn }) => {
+const CheckoutClient: React.FC<CheckoutClientProps> = ({ isSignedIn, defaultAddress }) => {
     const { cartProducts, cartTotalAmount, handleClearCart, handleSetPaymentIntent } = useCart();
     const [quotedAmountCents, setQuotedAmountCents] = useState<number | null>(null);
     const [paymentSuccess, setPaymentSuccess] = useState(false);
@@ -101,6 +101,7 @@ const CheckoutClient: React.FC<CheckoutClientProps> = ({ isSignedIn }) => {
                     products={products}
                     onAmountChange={setQuotedAmountCents}
                     onPaid={handlePaid}
+                    defaultAddress={defaultAddress}
                 />
             </Elements>
         </div>

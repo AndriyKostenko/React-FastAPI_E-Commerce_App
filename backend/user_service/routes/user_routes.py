@@ -2,7 +2,7 @@ from typing import Annotated
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, Request, status
+from fastapi import APIRouter, Depends, File, Query, Request, UploadFile, status
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import EmailStr
 
@@ -12,6 +12,8 @@ from dependencies.dependencies import (
     current_user_dependency,
     admin_only_dependency,
     self_or_admin_dependency,
+    address_service_dependency,
+    avatar_service_dependency,
 )
 from models.user_models import User
 from schemas.user_schemas import (
@@ -20,6 +22,7 @@ from schemas.user_schemas import (
     ForgotPasswordRequest,
     ForgotPasswordResponse,
     GoogleLoginRequest,
+    PasswordChangeRequest,
     PasswordUpdateResponse,
     RefreshTokenRequest,
     RefreshTokenResponse,
@@ -168,6 +171,48 @@ async def get_me(current_user: current_user_dependency):
     return current_user
 
 
+@user_routes.post("/users/me/password",
+                  summary="Change my password",
+                  response_model=PasswordUpdateResponse,
+                  status_code=status.HTTP_200_OK)
+@rate_limited(times=15, seconds=3600)
+async def change_my_password(request: Request,
+                             data: PasswordChangeRequest,
+                             current_user: current_user_dependency,
+                             user_service: user_service_dependency):
+    """Change the caller's password; every session ends, this one included."""
+    user = await user_service.change_password(
+        user_id=current_user.id,
+        current_password=data.current_password,
+        new_password=data.new_password,
+    )
+    return PasswordUpdateResponse(detail="Password changed; sign in again", email=user.email)
+
+
+@user_routes.put("/users/me/avatar",
+                 summary="Upload my avatar",
+                 response_model=UserInfo,
+                 status_code=status.HTTP_200_OK)
+@rate_limited(times=30, seconds=3600)
+async def upload_my_avatar(request: Request,
+                           current_user: current_user_dependency,
+                           avatars: avatar_service_dependency,
+                           file: UploadFile = File(...)):
+    """A JPEG, PNG or WebP; stored re-encoded as a square WebP without metadata."""
+    # One byte over the limit is enough to know it is too large, without
+    # reading an arbitrarily big upload into memory.
+    content = await file.read(settings.AVATAR_MAX_UPLOAD_BYTES + 1)
+    return await avatars.upload(current_user.id, content)
+
+
+@user_routes.delete("/users/me/avatar",
+                    summary="Remove my avatar",
+                    response_model=UserInfo,
+                    status_code=status.HTTP_200_OK)
+async def remove_my_avatar(current_user: current_user_dependency, avatars: avatar_service_dependency):
+    return await avatars.remove(current_user.id)
+
+
 # --------------------------Users (Admin & Self Protected)------------------------------------
 
 
@@ -229,8 +274,16 @@ async def update_user_by_id(
 async def delete_user_by_id(
     user_id: UUID,
     user_service: user_service_dependency,
+    addresses: address_service_dependency,
+    avatars: avatar_service_dependency,
     auth_user: self_or_admin_dependency,
 ):
+    # Saved addresses and the avatar are personal data: they go with the
+    # account (the user row itself is anonymised, not deleted, so the foreign
+    # key's cascade never fires). The avatar is deleted first; if the store
+    # cannot be reached nothing is changed and the deletion can be retried.
+    await avatars.forget(user_id)
+    await addresses.delete_all(user_id)
     await user_service.delete_user_by_id(user_id=user_id)
     return {"detail": "User deleted successfully"}
 

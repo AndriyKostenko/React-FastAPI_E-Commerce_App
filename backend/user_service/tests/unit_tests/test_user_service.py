@@ -330,7 +330,7 @@ class TestUpdateUserBasicInfo:
         mock_repository.update_by_id.return_value = None
 
         with pytest.raises(UserNotFoundError):
-            await user_service.update_user_basic_info(uuid4(), UserBasicUpdate(name="X"))
+            await user_service.update_user_basic_info(uuid4(), UserBasicUpdate(name="Xavier"))
 
 
 # ---------------------------------------------------------------------------

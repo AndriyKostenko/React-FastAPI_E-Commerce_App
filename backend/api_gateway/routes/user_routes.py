@@ -200,6 +200,95 @@ async def get_current_user_data(request: Request,
     )
 
 
+@user_proxy.post("/users/me/password", summary="Change my password")
+# A credential operation: as tight as password-reset. Every session ends on
+# success, so a guessing attacker holding a stolen session gets few tries.
+@rate_limited(times=5, seconds=3600)
+async def change_my_password(request: Request,
+                             current_user: CurrentUserInfo = Depends(get_current_user)) -> JSONResponse:
+    return await api_gateway_manager.forward_request(
+        service_name=Services.USER_SERVICE,
+        request=request,
+    )
+
+
+@user_proxy.put("/users/me/avatar", summary="Upload my avatar (multipart, field `file`)")
+@rate_limited(times=20, seconds=3600)
+async def upload_my_avatar(request: Request,
+                           current_user: CurrentUserInfo = Depends(get_current_user)) -> JSONResponse:
+    return await api_gateway_manager.forward_request(
+        service_name=Services.USER_SERVICE,
+        request=request,
+    )
+
+
+@user_proxy.delete("/users/me/avatar", summary="Remove my avatar")
+@rate_limited(times=20, seconds=3600)
+async def remove_my_avatar(request: Request,
+                           current_user: CurrentUserInfo = Depends(get_current_user)) -> JSONResponse:
+    return await api_gateway_manager.forward_request(
+        service_name=Services.USER_SERVICE,
+        request=request,
+    )
+
+
+# ==================== MY ADDRESS BOOK ====================
+# Always the caller's own: user-service takes the user from the assertion,
+# never from the path.
+
+@user_proxy.get("/users/me/addresses", summary="My saved addresses")
+@rate_limited(times=60, seconds=60)
+async def list_my_addresses(request: Request,
+                            current_user: CurrentUserInfo = Depends(get_current_user)) -> JSONResponse:
+    return await api_gateway_manager.forward_request(
+        service_name=Services.USER_SERVICE,
+        request=request,
+    )
+
+
+@user_proxy.post("/users/me/addresses", summary="Save an address")
+@rate_limited(times=20, seconds=60)
+async def create_my_address(request: Request,
+                            current_user: CurrentUserInfo = Depends(get_current_user)) -> JSONResponse:
+    return await api_gateway_manager.forward_request(
+        service_name=Services.USER_SERVICE,
+        request=request,
+    )
+
+
+@user_proxy.put("/users/me/addresses/{address_id}", summary="Replace a saved address")
+@rate_limited(times=20, seconds=60)
+async def replace_my_address(request: Request,
+                             address_id: UUID,
+                             current_user: CurrentUserInfo = Depends(get_current_user)) -> JSONResponse:
+    return await api_gateway_manager.forward_request(
+        service_name=Services.USER_SERVICE,
+        request=request,
+    )
+
+
+@user_proxy.post("/users/me/addresses/{address_id}/default", summary="Make an address the default")
+@rate_limited(times=20, seconds=60)
+async def make_my_address_default(request: Request,
+                                  address_id: UUID,
+                                  current_user: CurrentUserInfo = Depends(get_current_user)) -> JSONResponse:
+    return await api_gateway_manager.forward_request(
+        service_name=Services.USER_SERVICE,
+        request=request,
+    )
+
+
+@user_proxy.delete("/users/me/addresses/{address_id}", summary="Delete a saved address")
+@rate_limited(times=20, seconds=60)
+async def delete_my_address(request: Request,
+                            address_id: UUID,
+                            current_user: CurrentUserInfo = Depends(get_current_user)) -> JSONResponse:
+    return await api_gateway_manager.forward_request(
+        service_name=Services.USER_SERVICE,
+        request=request,
+    )
+
+
 # ==================== ADMIN OR SELF ENDPOINTS ====================
 
 

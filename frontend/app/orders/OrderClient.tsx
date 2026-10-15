@@ -1,160 +1,67 @@
-'use client';
+"use client";
 
-import { UserOrdersClientProps } from '@/types/cart';
-import { OrderProps } from '@/types/order';
-import { formatPrice } from '@/utils/formatPrice';
-import { DataGrid, GridColDef, GridRenderCellParams } from '@mui/x-data-grid';
-import Heading from '@/components/ui/Heading';
-import Status from '@/components/ui/Status';
-import { MdClose, MdDone, MdRemoveRedEye, MdAccessTimeFilled, MdDeliveryDining} from 'react-icons/md';
-import ActionBtn from '@/components/ui/ActionBtn';
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import Link from "next/link";
+import { MdChevronRight } from "react-icons/md";
+import Heading from "@/components/ui/Heading";
 import { useCurrentUserTokenExpiryCheck } from "@/hooks/useCurrentUserToken";
+import type { UserOrdersClientProps } from "@/types/cart";
+import type { OrderDeliveryStatus, OrderStatus } from "@/types/order";
+import { formatPrice } from "@/utils/formatPrice";
+import { orderProgress, PROGRESS_STEPS } from "@/utils/orderProgress";
 
-const OrdersClient:React.FC<UserOrdersClientProps> = ({userOrders, expiryToken}) => {
-    const [orders] = useState<OrderProps[]>(userOrders);
-const router = useRouter();
+const PROGRESS_TONE: Readonly<Record<string, string>> = {
+  placed: "bg-slate-200 text-slate-700",
+  confirmed: "bg-sky-100 text-sky-800",
+  shipped: "bg-orange-100 text-orange-800",
+  delivered: "bg-green-100 text-green-800",
+  cancelled: "bg-rose-100 text-rose-700",
+};
 
-    useCurrentUserTokenExpiryCheck(expiryToken)
+const dateOnly = (value: string): string =>
+  new Date(value).toLocaleDateString("en-CA", { year: "numeric", month: "short", day: "numeric" });
 
-  // The grid's view of an order: amounts and dates formatted for display.
-  type OrderRow = Omit<OrderProps, "amount" | "date_created" | "address_id" | "items"> & {
-    amount: string;
-    date_created: string;
-    address_id: string;
-  };
-  let rows: OrderRow[] = [];
-
-  if (orders) {
-    rows = orders.map((order) => {
-      const normalizedPaymentStatus = order.status === 'confirmed' ? 'succeeded' : order.status;
-
-      return {
-        id: order.id,
-        amount: formatPrice(order.amount),
-status: normalizedPaymentStatus,
-date_created: order.date_created ? new Date(order.date_created).toLocaleString() : 'N/A',
-address_id: order.address_id || 'N/A',
-user_id: order.user_id,
-currency: order.currency,
-delivery_status: order.delivery_status,
-payment_intent_id: order.payment_intent_id
-      }
-    })
-  }
-
-  const columns: GridColDef[] = [
-{field: 'id', headerName: 'ID', width: 220},
-{field: 'amount', headerName: 'Amount (CAD)', width: 220},
-{field: 'status', headerName: 'Payment Status', width: 100, renderCell: (params: GridRenderCellParams<OrderProps>) => {
-let background = '';
-        let color = '';
-        let icon = MdDone;
-
-switch (params.row.status) {
-                case 'pending':
-                    background = 'bg-yellow-200';
-                    color = 'text-yellow-700';
-                    icon = MdAccessTimeFilled;
-                    break;
-                case 'succeeded':
-                    background = 'bg-green-200';
-                    color = 'text-green-700';
-                    icon = MdDone;
-                    break;
-                case 'cancelled':
-                    background = 'bg-red-200';
-                    color = 'text-red-700';
-                    icon = MdClose;
-                    break;
-                case 'complete':
-                    background = 'bg-green-200';
-                    color = 'text-green-700';
-                    icon = MdDone;
-                    break;
-                default:
-                    background = 'bg-gray-200';
-                    color = 'text-gray-700';
-                    icon = MdDone;
-            }
-return (
-                <div>
-                    <Status text={params.row.status} icon={icon} background={background} color={color} />
-                </div>
-            );
-}},
-{field: 'date_created', headerName: 'Date of creation', width: 200},
-{field: 'address_id', headerName: 'Address ID', width: 200},
-{field: 'currency', headerName: 'Currency', width: 200},
-{field: 'delivery_status', headerName: 'Delivery Status', width: 200, renderCell: (params: GridRenderCellParams<OrderProps>) => {
-let background = '';
-        let color = '';
-        let icon = MdDone;
-
-switch (params.row.delivery_status) {
-                case 'pending':
-                    background = 'bg-yellow-200';
-                    color = 'text-yellow-700';
-                    icon = MdAccessTimeFilled;
-                    break;
-                case 'cancelled':
-                    background = 'bg-red-200';
-                    color = 'text-red-700';
-                    icon = MdClose;
-                    break;
-                case 'dispatched':
-                    background = 'bg-orange-200';
-                    color = 'text-orange-700';
-                    icon = MdDeliveryDining;
-                    break;
-                case 'delivered':
-                    background = 'bg-green-200';
-                    color = 'text-green-700';
-                    icon = MdDone;
-                    break;
-                default:
-                    background = 'bg-gray-200';
-                    color = 'text-gray-700';
-                    icon = MdDone;
-            }
-return (
-                <div>
-                    <Status text={params.row.delivery_status} icon={icon} background={background} color={color} />
-                </div>
-            );
-}
-},
-{field: 'action', headerName: 'Actions', width: 200, renderCell: (params) => {
-return (<div className='flex justify-between gap-4 w-full'>
-<ActionBtn icon={MdRemoveRedEye} onClick={() => {router.push(`/order/${params.row.id}`)}}/>
-</div>)
-}},
-  ]
+/** The customer's orders, newest first, each linking to its detail and tracking page. */
+const OrdersClient: React.FC<UserOrdersClientProps> = ({ userOrders, expiryToken }) => {
+  useCurrentUserTokenExpiryCheck(expiryToken);
+  const orders = [...userOrders].sort((a, b) => b.date_created.localeCompare(a.date_created));
 
   return (
-    <div className='max-w-[1150px] m-auto text-xl'>
-<div className='mb-4 mt-8'>
-<Heading title='Manage Orders' center/>
-</div>
-
-<div style={{height: 600, width: '100%'}}>
-<DataGrid
-rows={rows}
-columns={columns}
-initialState={{
-pagination: {
-paginationModel: { page: 0, pageSize: 5 },
-},
-}}
-pageSizeOptions={[5, 10]}
-checkboxSelection
-disableRowSelectionOnClick
-/>
-</div>
-
+    <div className="max-w-3xl mx-auto flex flex-col gap-4">
+      <Heading title="Your orders" />
+      <ul className="flex flex-col gap-3">
+        {orders.map((order) => {
+          const progress = orderProgress({
+            status: order.status as OrderStatus,
+            delivery_status: order.delivery_status as OrderDeliveryStatus,
+          });
+          const label =
+            progress === "cancelled" ? "Cancelled" : PROGRESS_STEPS.find((entry) => entry.step === progress)?.label;
+          return (
+            <li key={order.id}>
+              <Link
+                href={`/order/${order.id}`}
+                className="glass-card p-4 sm:p-5 flex items-center justify-between gap-3 hover:bg-white/50 transition"
+              >
+                <div className="min-w-0 flex flex-col gap-1">
+                  <p className="font-semibold text-primary">
+                    {dateOnly(order.date_created)}
+                    <span className="ml-2 text-xs font-mono text-secondary">#{order.id.slice(0, 8)}</span>
+                  </p>
+                  <span className={`self-start text-xs font-semibold rounded-full px-2.5 py-1 ${PROGRESS_TONE[progress]}`}>
+                    {label}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="font-semibold">{formatPrice(order.amount)}</span>
+                  <MdChevronRight size={22} className="text-secondary" />
+                </div>
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
     </div>
-  )
-}
+  );
+};
 
 export default OrdersClient;

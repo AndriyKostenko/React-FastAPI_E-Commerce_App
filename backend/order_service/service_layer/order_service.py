@@ -22,16 +22,21 @@ from models.order_fulfillment_models import CustomProductionJob
 from models.order_models import Order
 from models.order_saga_models import OrderSagaState
 from schemas.order_schemas import (
+    AddressType,
     ConfirmedOrderAddress,
     ConfirmedOrderItem,
     CreateOrder,
     OrderAddressBase,
+    OrderDetailSchema,
     OrderItemBase,
+    OrderLineView,
     OrderSchema,
+    ParcelView,
     UpdateOrder,
 )
 from service_layer.order_address_service import OrderAddressService
 from service_layer.order_fulfillment_status_service import OrderFulfillmentStatusService
+from service_layer.parcel_tracking import ParcelTracking
 from service_layer.order_item_service import OrderItemService
 from service_layer.order_pricing_service import (
     CanonicalOrderQuote,
@@ -703,6 +708,53 @@ class OrderService:
     async def get_order_with_details(self, order_id: UUID) -> Order | None:
         return await self.repository.get_with_fulfillment(order_id)
 
+    async def get_order_detail(self, order_id: UUID) -> OrderDetailSchema:
+        """
+        The order as its customer's order page shows it: address, lines, and
+        the parcel each line left in. Lines appear in the order they were
+        bought; a line without a fulfillment snapshot (orders older than the
+        snapshots) reads as pending under its product id.
+        """
+        order = await self.repository.get_with_fulfillment(order_id)
+        if order is None:
+            raise OrderNotFoundError(order_id)
+
+        lines: list[OrderLineView] = []
+        for item in sorted(order.items, key=lambda i: (i.date_created, str(i.id))):
+            line = item.fulfillment
+            parcel = (
+                ParcelView(
+                    tracking_number=line.tracking_number,
+                    carrier=line.carrier,
+                    tracking_url=line.tracking_url,
+                    shipped_at=line.shipped_at,
+                )
+                if line is not None and line.tracking_number
+                else None
+            )
+            lines.append(
+                OrderLineView(
+                    order_item_id=item.id,
+                    product_id=item.product_id,
+                    variant_id=item.variant_id,
+                    product_name=line.product_name if line else str(item.product_id),
+                    quantity=item.quantity,
+                    unit_price=item.price,
+                    fulfillment_type=line.fulfillment_type if line else "catalog",
+                    status=line.status if line else LineFulfillmentStatus.PENDING,
+                    delivered_at=line.delivered_at if line else None,
+                    parcel=parcel,
+                )
+            )
+
+        header = OrderSchema.model_validate(order).model_dump()
+        header.pop("amount_cents", None)  # computed again by the schema
+        return OrderDetailSchema(
+            **header,
+            address=AddressType.model_validate(order.address) if order.address else None,
+            lines=lines,
+        )
+
     async def update_order_status(self, order_id: UUID, order_status: str) -> OrderSchema:
         updated = await self.repository.update_by_id(order_id, {"status": order_status})
         if not updated:
@@ -715,6 +767,7 @@ class OrderService:
         status: LineFulfillmentStatus,
         *,
         fulfillment_types: set[str],
+        parcel: ParcelTracking | None = None,
     ) -> OrderSchema:
         """Advance one fulfillment channel's lines and re-derive the order status.
 
@@ -726,7 +779,7 @@ class OrderService:
         async with self.repository.session.begin_nested():
             order = await self._get_order(order_id)
             await self.fulfillment_status_service.mark_lines(
-                order, status, fulfillment_types=fulfillment_types
+                order, status, fulfillment_types=fulfillment_types, parcel=parcel
             )
         return OrderSchema.model_validate(order)
 

@@ -1,3 +1,4 @@
+import type { SavedAddress } from "@/types/account";
 import type { CurrentUserShape } from "@/types/auth";
 import type { OrderProps } from "@/types/order";
 import type { ProductProps } from "@/types/product";
@@ -79,10 +80,13 @@ export interface CheckoutFormProps {
     products: OrderProductInput[];
     onAmountChange: (amountCents: number) => void;
     onPaid: () => void;
+    /** The saved default address the shipping form starts from, if any. */
+    defaultAddress: SavedAddress | null;
 }
 
 export interface CheckoutClientProps {
     isSignedIn: boolean;
+    defaultAddress: SavedAddress | null;
 }
 
 export interface UserOrdersClientProps {

@@ -13,6 +13,72 @@ paths, PRs #12-#16, §5a). The hard architectural + integration work is done
 fulfilment, secrets per service). What remains is deployment, a few
 hardening items, and legal/compliance work — no re-architecting required.
 
+## Next session: open items (saved 2026-10-15)
+
+Start here. Everything below is still open; everything else in this file is done
+or recorded as decided. Merged so far: PR #41 (readiness, phases 2–5) and PR #42
+(frontend session isolation, token off the browser, rate limits, lint, race test).
+
+**Needs you (infrastructure and account)**
+- Apply the Terraform change: `cd infra && tofu apply tfplan-phase5` (the plan is
+  not saved any more; run `tofu plan -out=tfplan-phase5` first). It adds the build
+  role and trims the deploy role.
+- Move the Vault recovery keys and root token off the host: `/root/vault-init.json`.
+  Mandatory before production.
+- Root account: turn on MFA, create an admin identity other than root, delete root
+  access keys. Terraform has been running as root.
+- Create `/etc/ecommerce/production.env` on the host (non-secret settings, plus the
+  Postgres superuser, Redis and RabbitMQ passwords the infrastructure containers read
+  from the environment, a deliberate exception to the Vault rule).
+- Set the repository variables `DOMAIN`, `NEXT_PUBLIC_APP_URL`,
+  `NEXT_PUBLIC_STRIPE_TEST_PUBLISHABLE_KEY` and `CATALOGUE_IMAGE_HOST`. The build fails
+  without `NEXT_PUBLIC_APP_URL` and the Stripe key. `AWS_BUILD_ROLE_ARN`,
+  `AWS_DEPLOY_ROLE_ARN`, `ECR_REGISTRY` and `HOST_INSTANCE_ID` are already set.
+  `DEPLOY_ENABLED` stays unset until go-live.
+- Provide a domain: Route 53 zone, `images.` CDN, external uptime check, and the
+  registrar's name servers. Also set `alert_email` for alarms and the budget warning.
+
+**Phase 6 (go-live), not started**
+- Import production secrets into Vault (shared-infra and each service's path), and
+  move the three service keys (product-, order-, user-service) out of Terraform state into
+  Vault. `tofu apply` first: the user-service IAM user (avatars/ only) is new.
+- First real deploy through the workflow (approval, health gate, rollback), then the
+  external checks: the full stack under compose with real secrets, Traefik routing
+  live, and memory limits measured with `docker stats` (they are first-cut ceilings).
+- Stripe and CJ webhooks to the production URL; the Stripe Tax registrations if tax is
+  switched on; RETURN_ADDRESS and ADMIN_ALERT_EMAIL; the returns policy page; a runbook
+  (deploy, rollback, restore, rotate a secret).
+- Vault still serves plain HTTP on the Docker bridges; TLS is a later step.
+- admin-js is behind the `admin` profile until it reads Vault itself.
+
+**Backend and platform (decided, not started)**
+- Per-service Redis and RabbitMQ users (postponed in favour of deploying first).
+- Dependency upgrades (the 35–169 advisories per service, and the critical `proxy-addr`
+  in admin-js); then make the audit blocking.
+- AI content moderation, GDPR and retention, legal pages (see §5 and §8).
+
+**Frontend**
+- Section 6 is done (2026-10-15), see §6. Left over: the header avatar comes from the
+  sign-in token, so a newly uploaded picture shows there only after the next sign-in; a
+  local `stripe listen` is needed for a browser checkout to move past "Order placed".
+  `next build` was not run (it shares `.next` with the running dev server).
+- Put `npm run test:race` (and the live suite, where a stack is available) into CI;
+  neither runs there today, and `lint` is not a CI gate. Lint is clean since
+  2026-10-15 (no warnings), so it can become one without first fixing anything.
+- Browser sign-in, checkout (Stripe test card, CJ sandbox) and the new pages were checked
+  in Playwright at 390px and 1280px on 2026-10-15. The Chrome extension was still not
+  connected.
+- Open design question: the gateway limits authenticated calls per user, but the
+  proxy's anonymous calls depend on the forwarded address. Confirm this in production
+  behind Traefik before go-live.
+
+**Decisions taken (recorded so they are not re-opened)**
+- Deploy workflow off until `DEPLOY_ENABLED=true`; approval through the `production`
+  environment; two roles (build from `main`, deploy from `production` only).
+- Storefront same-origin on the apex; gateway owns `/api/`, `/media/`, `/health`, `/docs`.
+- Token never reaches the browser; browser calls go through the proxy route.
+- Race test uses the approved seam (dependency injection), verified by mutation.
+
 ## Open backend items (2026-10-13)
 
 Code work:
@@ -953,11 +1019,22 @@ its create this way).
 
 ### 6. Frontend completeness
 
-- No user account/profile page, address book, order-tracking detail page
-- No wishlist UI (the service exists, no page)
-- The "designer" is a single Hero panel — a sellable product likely needs real placement /
-  sizing / per-variant (color) mockups
-- Loading/error states, mobile polish
+DONE (2026-10-15):
+- `/account`: profile (name, phone), avatar (user-service re-encodes to a metadata-free
+  WebP under `avatars/` in the catalogue bucket, its own S3 key), password change (ends
+  every session, sends the "password changed" email), account deletion (addresses and
+  avatar go too) and an address book (user-service `user_addresses`, one default per
+  user, Canada only); checkout prefills the default address.
+- `/wishlist` and a heart on the product page.
+- `/order/[id]`: lines, per-line status and parcel tracking for every channel (CJ, local
+  warehouse, in-house) from order-service's new `GET /orders/{id}/details`; `/orders` is a
+  customer list instead of an admin grid.
+- Designer: white + black kept; every placement drawn at its true print size (mirrors
+  order-service's `PRINT_AREAS_INCHES`), front/back toggle, fabric texture, print blend
+  per garment colour.
+- Loading skeletons, `error.tsx`, `global-error.tsx`, `not-found.tsx`; tighter mobile
+  padding; product cards, featured grid and gallery fixed at phone width; Quick Add
+  really adds (or opens the product to choose a size).
 
 ### 7. Testing & docs
 
@@ -1504,7 +1581,8 @@ Frontend, status (2026-10-15, uncommitted on main):
   eight different addresses all succeed, and the attribution test fails with the
   forwarding turned off. Production relies on the frontend being reachable only
   through Traefik; the header is trusted only from the private networks.
-- Done, lint: 0 errors (8 warnings left, all existing hook-dependency notes). The
+- Done, lint: 0 errors (8 warnings left, all existing hook-dependency notes; cleared
+  2026-10-15 in PR #43, `npm run lint` now reports no issues). The
   cart, the checkout intent and the generation session are external stores
   (`lib/local-storage-store.ts`, `useSyncExternalStore`), so nothing copies storage
   into state in an effect. The other rule hits were derived during render (activation,

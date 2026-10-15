@@ -78,6 +78,23 @@ async def get_order_by_id(
     return JSONResponse(content=content, status_code=upstream.status_code)
 
 
+@order_proxy.get("/orders/{order_id}/details", summary="An order with its address, lines and tracking")
+@rate_limited(times=60, seconds=60)
+async def get_order_detail(
+    request: Request,
+    order_id: UUID,
+    current_user: CurrentUserInfo = Depends(get_current_user),
+):
+    # Checked here as for GET /orders/{id}, and again by order-service.
+    upstream = await api_gateway_manager.request_service(
+        request, "order-service", f"/orders/{order_id}/details"
+    )
+    content = upstream.json()
+    if upstream.is_success:
+        require_user_or_admin(current_user, target_user_id=UUID(content["user_id"]))
+    return JSONResponse(content=content, status_code=upstream.status_code)
+
+
 # ==================== AUTHENTICATED ENDPOINTS ====================
 
 @order_proxy.patch("/orders/{order_id}/cancel", summary="Cancel an order")

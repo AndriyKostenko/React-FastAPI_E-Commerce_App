@@ -4,7 +4,6 @@ import type {
     RegisterOptions,
     UseFormRegister,
 } from "react-hook-form";
-import type { ImageType } from "@/types/admin";
 
 export interface InputProps {
     id: string;
@@ -25,18 +24,6 @@ export interface TextAreaProps {
     required?: boolean;
     register: UseFormRegister<FieldValues>;
     errors: FieldErrors;
-}
-
-export interface SelectColorProps {
-    item: ImageType;
-    addImageToState: (value: ImageType) => void;
-    removeImageFromState: (value: ImageType) => void;
-    isProductCreated: boolean;
-}
-
-export interface SelectImageProps {
-    item?: ImageType;
-    handleFileChange: (value: File) => void;
 }
 
 export interface CategoryInputProps {

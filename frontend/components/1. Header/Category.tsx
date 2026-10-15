@@ -8,7 +8,6 @@ import queryString from "query-string";
 import Image from "next/image";
 
 const Category: React.FC<NavCategoryProps> = ({
-    id,
     name,
     image_url,
     selected,

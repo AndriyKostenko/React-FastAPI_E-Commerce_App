@@ -7,6 +7,7 @@ import {
     CheckoutSession,
     PendingCheckout,
 } from "@/types/cart";
+import type { SavedAddress } from "@/types/account";
 import { formatPrice } from "@/utils/formatPrice";
 import { useElements, useStripe, PaymentElement, AddressElement } from "@stripe/react-stripe-js";
 import type { StripeAddressElementChangeEvent } from "@stripe/stripe-js";
@@ -65,7 +66,20 @@ const detailOf = async (response: Response, fallback: string): Promise<string> =
     }
 };
 
-const CheckoutForm: React.FC<CheckoutFormProps> = ({ products, onAmountChange, onPaid }) => {
+/** The saved default address in the Address Element's shape; the user can still change it. */
+const toAddressDefaults = (address: SavedAddress) => ({
+    name: address.name,
+    phone: address.phone,
+    address: {
+        line1: address.street,
+        city: address.city,
+        state: address.province,
+        postal_code: address.postal_code,
+        country: address.country_code,
+    },
+});
+
+const CheckoutForm: React.FC<CheckoutFormProps> = ({ products, onAmountChange, onPaid, defaultAddress }) => {
     const stripe = useStripe();
     const elements = useElements();
     const router = useRouter();
@@ -301,6 +315,9 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({ products, onAmountChange, o
                     allowedCountries: ["CA"],
                     fields: { phone: "always" },
                     validation: { phone: { required: "always" } },
+                    // A complete default fires the same change event as typing
+                    // it in, so the quote starts without any input.
+                    defaultValues: defaultAddress ? toAddressDefaults(defaultAddress) : undefined,
                 }}
             />
 

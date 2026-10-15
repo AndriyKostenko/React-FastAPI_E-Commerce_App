@@ -36,7 +36,7 @@ export const dynamic = "force-dynamic";
 export default async function RootLayout({children}: {children: React.ReactNode}) {
     return (
         <html lang="en" suppressHydrationWarning>
-            <body className={`${hankenGrotesk.variable} ${inter.variable} font-body-md text-on-surface overflow-x-hidden gradient-bg p-4 md:p-8`}>
+            <body className={`${hankenGrotesk.variable} ${inter.variable} font-body-md text-on-surface overflow-x-hidden gradient-bg p-2 sm:p-4 md:p-8`}>
                 <Toaster toastOptions={{
                             style: {
                                 background: 'rgb(51 65 85)',
@@ -52,7 +52,8 @@ export default async function RootLayout({children}: {children: React.ReactNode}
                         <div className="glass-card shadow-2xl overflow-hidden min-h-screen border-none flex flex-col">
                             <NavBar/>
 
-                            <main className="flex-grow p-4 md:p-8 space-y-8">
+                            {/* Tighter on phones: the page gutter, this padding and each card's own add up. */}
+                            <main className="flex-grow px-3 py-4 sm:p-4 md:p-8 space-y-8">
                                 {children}
                             </main>
 

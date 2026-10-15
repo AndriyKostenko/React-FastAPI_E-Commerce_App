@@ -5,14 +5,18 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, EmailStr, JsonValue, field_validator
 from pydantic.fields import Field
 
+from storage.avatar_url import AvatarUrl
+
 
 class UserInfo(BaseModel):
     id: UUID
-    name: str = Field(..., min_length=3, max_length=50, description="User name must be between 3 and 50 characters")
+    # min 2, as sign-up allows: a stricter response model turned a valid account into a 500.
+    name: str = Field(..., min_length=2, max_length=50, description="User name must be between 2 and 50 characters")
     email: EmailStr = Field(..., description="User email")
     role: str
     phone_number: Optional[str]
-    image: Optional[str]
+    # The stored avatar key becomes its public URL here (a Google picture URL passes through).
+    image: Optional[AvatarUrl]
     date_created: datetime
     date_updated: Optional[datetime]
     is_verified: bool
@@ -51,10 +55,18 @@ class UserUpdate(BaseModel):
 
 class UserBasicUpdate(BaseModel):
     """Schema for basic user information updates"""
-    name: Optional[str] = None
-    phone_number: Optional[str] = None
-    image: Optional[str] = None
-    model_config = ConfigDict(extra="forbid")
+    # Same bounds as sign-up and the users.name column.
+    name: Optional[str] = Field(default=None, min_length=2, max_length=50)
+    phone_number: Optional[str] = Field(default=None, max_length=32)
+    # No image: an avatar changes only through PUT/DELETE /users/me/avatar,
+    # which store a checked, re-encoded file (setting any URL is not allowed).
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+
+class PasswordChangeRequest(BaseModel):
+    """A signed-in user's own password change; the current password proves it is them."""
+    current_password: str = Field(..., min_length=1, max_length=100)
+    new_password: str = Field(..., min_length=8, max_length=100, description="New password must be between 8 and 100 characters")
 
 
 class GetUser(BaseModel):

@@ -69,7 +69,7 @@ const FeaturedCollection: React.FC<FeaturedCollectionProps> = ({
 
     return (
         <>
-            <section id="shop" className="glass-card scroll-mt-8 p-8 md:p-12">
+            <section id="shop" className="glass-card scroll-mt-8 p-4 sm:p-8 md:p-12">
                 <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10">
                     <div>
                         <h2 className="font-headline-lg text-primary">
@@ -96,14 +96,14 @@ const FeaturedCollection: React.FC<FeaturedCollectionProps> = ({
                     </div>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-8">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6 lg:gap-8">
                     {visibleProducts.map((product) => (
                         <ProductCard key={product.id} product={product} />
                     ))}
                 </div>
             </section>
 
-            <section className="glass-card p-8 md:p-12">
+            <section className="glass-card p-5 sm:p-8 md:p-12">
                 <div className="text-center mb-12">
                     <h2 className="font-headline-lg text-headline-xl font-bold text-primary">
                         From Imagination to Wardrobe

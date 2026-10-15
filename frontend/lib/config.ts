@@ -64,6 +64,15 @@ class AppSettings {
             forgotPassword: string;
             passwordReset: string;
             me: string;
+            userById: (userId: string) => string;
+            changePassword: string;
+            avatar: string;
+            wishlist: string;
+            wishlistItems: string;
+            wishlistItem: (itemId: string) => string;
+            addresses: string;
+            addressById: (addressId: string) => string;
+            addressDefault: (addressId: string) => string;
             categories: string;
             customizationPricing: string;
             productsDetailed: string;
@@ -72,6 +81,7 @@ class AppSettings {
             imageGenerationsStatus: (jobId: string) => string;
             orders: string;
             orderById: (orderId: string) => string;
+            orderDetails: (orderId: string) => string;
             cancelOrder: (orderId: string) => string;
             ordersByUserId: (userId: string) => string;
             checkoutQuote: string;
@@ -120,7 +130,16 @@ class AppSettings {
             forgotPassword:       AppSettings.joinUrl(baseUrl, "forgot-password"),
             passwordReset:        AppSettings.joinUrl(baseUrl, "password-reset"),
             me:                   AppSettings.joinUrl(baseUrl, "me"),
-            categories:           AppSettings.joinUrl(baseUrl, "categories"),
+            userById:             (userId: string)    => AppSettings.joinUrl(baseUrl, `users/${userId}`),
+            changePassword:       AppSettings.joinUrl(baseUrl, "users/me/password"),
+            avatar:               AppSettings.joinUrl(baseUrl, "users/me/avatar"),
+            wishlist:             AppSettings.joinUrl(baseUrl, "wishlists/me"),
+            wishlistItems:        AppSettings.joinUrl(baseUrl, "wishlists/me/items"),
+            wishlistItem:         (itemId: string) => AppSettings.joinUrl(baseUrl, `wishlists/me/items/${itemId}`),
+            addresses:            AppSettings.joinUrl(baseUrl, "users/me/addresses"),
+            addressById:          (addressId: string) => AppSettings.joinUrl(baseUrl, `users/me/addresses/${addressId}`),
+            addressDefault:       (addressId: string) => AppSettings.joinUrl(baseUrl, `users/me/addresses/${addressId}/default`),
+            categories:          AppSettings.joinUrl(baseUrl, "categories"),
             customizationPricing: AppSettings.joinUrl(baseUrl, "customization/pricing"),
             productsDetailed:     AppSettings.joinUrl(baseUrl, "products/detailed"),
             productDetailed:      (productId: string) => AppSettings.joinUrl(baseUrl, `products/${productId}/detailed`),
@@ -128,6 +147,7 @@ class AppSettings {
             imageGenerationsStatus: (jobId: string) => AppSettings.joinUrl(baseUrl, `images/generations/${jobId}/status`),
             orders:               AppSettings.joinUrl(baseUrl, "orders"),
             orderById:            (orderId: string)   => AppSettings.joinUrl(baseUrl, `orders/${orderId}`),
+            orderDetails:         (orderId: string)   => AppSettings.joinUrl(baseUrl, `orders/${orderId}/details`),
             cancelOrder:          (orderId: string)   => AppSettings.joinUrl(baseUrl, `orders/${orderId}/cancel`),
             ordersByUserId:       (userId: string)    => AppSettings.joinUrl(baseUrl, `orders/user/${userId}`),
             checkoutQuote:        AppSettings.joinUrl(baseUrl, "checkout/quote"),
