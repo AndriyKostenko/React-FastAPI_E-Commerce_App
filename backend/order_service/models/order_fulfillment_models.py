@@ -39,6 +39,15 @@ class OrderLineFulfillment(Base, TimestampMixin):
     delivered_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    # The parcel this line left in, recorded when its channel reports it
+    # shipped (CJ, the local warehouse or the in-house queue), so the customer
+    # can follow every line of a mixed order from one place.
+    tracking_number: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    carrier: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    tracking_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    shipped_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     order_item: Mapped["OrderItem"] = relationship(
         "OrderItem", back_populates="fulfillment"

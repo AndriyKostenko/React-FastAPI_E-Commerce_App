@@ -1,7 +1,7 @@
 'use client';
 
 import { Rating } from "@mui/material";
-import { useCallback, useMemo, useState } from "react";
+import { type ReactNode, useCallback, useMemo, useState } from "react";
 
 import SetQuantity from "@/components/4. Featured Collections/SetQuantity";
 import Button from "@/components/ui/Button";
@@ -19,8 +19,15 @@ import { getColorSwatch, getVariantOption } from "@/utils/productVariants";
 // ProductDetailsContent, which renders only with a real product: hooks must
 // run on every render, and they read product fields, so they cannot sit
 // below an early return.
-const ProductDetails: React.FC<{ product: ProductProps | null }> = ({
+interface ProductDetailsProps {
+    product: ProductProps | null;
+    /** Shown beside the product name, e.g. the wishlist heart. */
+    titleAction?: ReactNode;
+}
+
+const ProductDetails: React.FC<ProductDetailsProps> = ({
     product,
+    titleAction,
 }) => {
     const router = useRouter();
 
@@ -40,10 +47,13 @@ const ProductDetails: React.FC<{ product: ProductProps | null }> = ({
         );
     }
 
-    return <ProductDetailsContent product={product} />;
+    return <ProductDetailsContent product={product} titleAction={titleAction} />;
 };
 
-const ProductDetailsContent: React.FC<{ product: ProductProps }> = ({ product }) => {
+const ProductDetailsContent: React.FC<{ product: ProductProps; titleAction?: ReactNode }> = ({
+    product,
+    titleAction,
+}) => {
     const productImages =
         product.images?.length > 0
             ? product.images
@@ -210,9 +220,12 @@ const ProductDetailsContent: React.FC<{ product: ProductProps }> = ({ product })
 
                 <div className="flex flex-col gap-5 text-secondary font-body-md">
                     <div className="space-y-2">
-                        <h1 className="font-headline-lg text-primary">
-                            {product.name}
-                        </h1>
+                        <div className="flex items-start justify-between gap-3">
+                            <h1 className="font-headline-lg text-primary">
+                                {product.name}
+                            </h1>
+                            {titleAction}
+                        </div>
                         <div className="flex items-center gap-2 text-sm">
                             <Rating
                                 value={averageRating}

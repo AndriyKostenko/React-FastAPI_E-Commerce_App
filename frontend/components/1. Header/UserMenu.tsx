@@ -47,6 +47,11 @@ const UserMenu: React.FC<UserMenuProps> = ({ currentUser }) => {
                                         Your Orders
                                     </MenuItem>
                                 </Link>
+                                <Link href="/wishlist">
+                                    <MenuItem onClick={toggleOpen}>
+                                        Your Wishlist
+                                    </MenuItem>
+                                </Link>
                                 <MenuItem
                                     onClick={() => {
                                         toggleOpen();

@@ -54,6 +54,24 @@ class TestOrderRoutes:
         mock_service_request.assert_awaited_once()
         mock_forward.assert_not_awaited()
 
+    async def test_get_order_detail_for_its_owner(
+        self, client: AsyncClient, mock_service_request: AsyncMock
+    ):
+        response = await client.get(f"{TEST_API}/orders/{TEST_ORDER_ID}/details")
+        assert response.status_code == 200
+        mock_service_request.assert_awaited_once()
+        assert mock_service_request.await_args.args[2] == f"/orders/{TEST_ORDER_ID}/details"
+
+    async def test_get_order_detail_of_another_user_returns_403(
+        self, client: AsyncClient, mock_service_request: AsyncMock
+    ):
+        async def someone_elses(_request, _service, _path, **_kwargs):
+            return HttpxResponse(200, json={"id": str(TEST_ORDER_ID), "user_id": str(uuid4())})
+
+        mock_service_request.side_effect = someone_elses
+        response = await client.get(f"{TEST_API}/orders/{TEST_ORDER_ID}/details")
+        assert response.status_code == 403
+
     async def test_cancel_order_authenticated_calls_forward(
         self, client: AsyncClient, mock_forward: AsyncMock
     ):

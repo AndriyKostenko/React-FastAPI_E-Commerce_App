@@ -62,6 +62,37 @@ class AddressType(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class ParcelView(BaseModel):
+    """The parcel one order line left in."""
+
+    tracking_number: str
+    carrier: str | None = None
+    tracking_url: str | None = None
+    shipped_at: datetime | None = None
+
+
+class OrderLineView(BaseModel):
+    """One line of an order as its customer sees it: what, how many, and where it is."""
+
+    order_item_id: UUID
+    product_id: UUID
+    variant_id: UUID | None = None
+    product_name: str
+    quantity: int
+    unit_price: Decimal
+    fulfillment_type: str
+    status: str
+    delivered_at: datetime | None = None
+    parcel: ParcelView | None = None
+
+
+class OrderDetailSchema(OrderSchema):
+    """An order with its shipping address and each line's progress and tracking."""
+
+    address: AddressType | None = None
+    lines: list[OrderLineView]
+
+
 class ShippingAddress(AddressType):
     """
     A shipping address the customer submits: Canadian, or refused with a 422.

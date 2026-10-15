@@ -8,6 +8,7 @@ from database_layer.order_repository import OrderRepository
 from models.order_fulfillment_models import OrderLineFulfillment
 from models.order_models import Order
 from service_layer.order_delivery_status import OrderDeliveryStatusAggregator
+from service_layer.parcel_tracking import ParcelTracking
 from enums.status_enums import LineFulfillmentStatus, OrderStatus
 
 
@@ -41,12 +42,14 @@ class OrderFulfillmentStatusService:
         *,
         fulfillment_types: set[str] | None = None,
         order_item_ids: set[UUID] | None = None,
+        parcel: ParcelTracking | None = None,
     ) -> Order:
         """Advance the selected lines, then re-derive the order status.
 
         Selection is by fulfillment channel, by explicit line, or both. A line
         that has already reached a terminal state is left alone so a late
-        duplicate event cannot walk a delivered parcel backwards.
+        duplicate event cannot walk a delivered parcel backwards. ``parcel``,
+        given with SHIPPED, is recorded on every line it moves.
         """
         lines = await self.get_lines(order.id)
         for line in lines:
@@ -57,6 +60,11 @@ class OrderFulfillmentStatusService:
             if LineFulfillmentStatus(line.status) in LineFulfillmentStatus.terminal():
                 continue
             line.status = status
+            if parcel is not None and status == LineFulfillmentStatus.SHIPPED:
+                line.tracking_number = parcel.tracking_number
+                line.carrier = parcel.carrier
+                line.tracking_url = parcel.tracking_url
+                line.shipped_at = parcel.shipped_at
             if status == LineFulfillmentStatus.DELIVERED:
                 # The customer's return window runs from this moment.
                 line.delivered_at = datetime.now(UTC)

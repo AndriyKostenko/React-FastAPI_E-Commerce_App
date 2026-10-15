@@ -7,6 +7,7 @@ from database_layer.order_item_repository import OrderItemRepository
 from database_layer.order_repository import OrderRepository
 from infrastructure.database_layer.outbox_repository import OutboxRepository
 from events_publisher.order_event_publisher import OrderEventPublisher
+from service_layer.parcel_tracking import ParcelTracking
 from service_layer.order_address_service import OrderAddressService
 from service_layer.order_fulfillment_status_service import OrderFulfillmentStatusService
 from service_layer.order_item_service import OrderItemService
@@ -265,7 +266,15 @@ class OrderEventConsumer:
             f"with tracking {event.tracking_number}"
         )
         await self._record_line_fulfillment(
-            message, LineFulfillmentStatus.SHIPPED, {"cj"}
+            message,
+            LineFulfillmentStatus.SHIPPED,
+            {"cj"},
+            parcel=ParcelTracking(
+                tracking_number=event.tracking_number,
+                carrier=event.carrier,
+                tracking_url=event.tracking_url,
+                shipped_at=ParcelTracking.parse_time(event.shipped_at),
+            ),
         )
 
     async def handle_cj_order_delivered(self, message: dict[str, Any]) -> None:
@@ -679,6 +688,7 @@ class OrderEventConsumer:
         message: dict[str, Any],
         status: LineFulfillmentStatus,
         fulfillment_types: set[str],
+        parcel: ParcelTracking | None = None,
     ) -> None:
         """Record progress reported by one fulfillment channel.
 
@@ -719,6 +729,7 @@ class OrderEventConsumer:
                     order_id=order_id,
                     status=status,
                     fulfillment_types=fulfillment_types,
+                    parcel=parcel,
                 )
                 self.logger.info(
                     f"Recorded {status} on {sorted(fulfillment_types)} lines of order "
@@ -779,8 +790,17 @@ class OrderEventConsumer:
         CJ owns delivery for its own lines and the in-house queue posts custom
         ones — so its events speak for the catalog lines alone.
         """
+        event = ShipmentShippedEvent(**message)
         await self._record_line_fulfillment(
-            message, LineFulfillmentStatus.SHIPPED, {"catalog"}
+            message,
+            LineFulfillmentStatus.SHIPPED,
+            {"catalog"},
+            parcel=ParcelTracking(
+                tracking_number=event.tracking_number,
+                carrier=None,
+                tracking_url=None,
+                shipped_at=ParcelTracking.parse_time(event.shipped_at),
+            ),
         )
 
     async def handle_shipment_delivered(self, message: dict[str, Any]) -> None:
