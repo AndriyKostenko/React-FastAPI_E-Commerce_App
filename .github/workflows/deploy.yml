@@ -1,0 +1,140 @@
+# Deploy to the storefront host. PRODUCTION_GAPS §1, phase 5.
+#
+# Runs after a green CI on main. The build job builds every image natively for
+# arm64 (the host is Graviton) and pushes it to ECR, tagged with the commit SHA.
+# The deploy job waits for the owner's approval through the `production`
+# environment, then runs infra/host/deploy.sh on the host through SSM and waits
+# for it. The host rolls back by itself if the new commit fails its health gate.
+#
+# No stored AWS keys: both jobs assume the deploy role through OIDC.
+# Actions are pinned to full commit SHAs (the tag is in the comment).
+
+name: Deploy
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One deploy at a time; a queued deploy waits instead of cancelling a running one.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  build:
+    # Off until go-live: set the repository variable DEPLOY_ENABLED to true.
+    if: vars.DEPLOY_ENABLED == 'true' && (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      COMMIT: ${{ github.event.workflow_run.head_sha || github.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.COMMIT }}
+
+      - uses: aws-actions/configure-aws-credentials@61815dcd50bd041e203e49132bacad1fd04d2708 # v5.1.1
+        with:
+          role-to-assume: ${{ vars.AWS_BUILD_ROLE_ARN }}
+          aws-region: ca-central-1
+
+      - name: Log in to ECR
+        run: |
+          aws ecr get-login-password --region ca-central-1 \
+            | docker login --username AWS --password-stdin "${{ vars.ECR_REGISTRY }}"
+
+      - name: Build images (arm64)
+        working-directory: backend
+        env:
+          IMAGE_REGISTRY: ${{ vars.ECR_REGISTRY }}
+          IMAGE_TAG: ${{ env.COMMIT }}
+          # Public values, compiled into the storefront bundle.
+          NEXT_PUBLIC_APP_URL: ${{ vars.NEXT_PUBLIC_APP_URL }}
+          NEXT_PUBLIC_API_VERSION: v1
+          NEXT_PUBLIC_STRIPE_TEST_PUBLISHABLE_KEY: ${{ vars.NEXT_PUBLIC_STRIPE_TEST_PUBLISHABLE_KEY }}
+          NEXT_PUBLIC_STRIPE_PROD_PUBLISHABLE_KEY: ${{ vars.NEXT_PUBLIC_STRIPE_PROD_PUBLISHABLE_KEY }}
+          CATALOGUE_IMAGE_HOST: ${{ vars.CATALOGUE_IMAGE_HOST }}
+        run: docker compose -f docker-compose.yml -f docker-compose.prod.yml build
+
+      - name: Push images
+        working-directory: backend
+        env:
+          IMAGE_REGISTRY: ${{ vars.ECR_REGISTRY }}
+          IMAGE_TAG: ${{ env.COMMIT }}
+        run: |
+          set -euo pipefail
+          services="$(docker compose -f docker-compose.yml -f docker-compose.prod.yml config --format json \
+            | jq -r '.services | to_entries[] | select(.value.build) | .key')"
+          # shellcheck disable=SC2086
+          docker compose -f docker-compose.yml -f docker-compose.prod.yml push $services
+
+  deploy:
+    needs: build
+    if: vars.DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    # The approval gate: required reviewers are set on this environment.
+    environment:
+      name: production
+      url: https://${{ vars.DOMAIN }}
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      COMMIT: ${{ github.event.workflow_run.head_sha || github.sha }}
+    steps:
+      - uses: aws-actions/configure-aws-credentials@61815dcd50bd041e203e49132bacad1fd04d2708 # v5.1.1
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ca-central-1
+
+      - name: Deploy on the host and wait for the result
+        env:
+          INSTANCE_ID: ${{ vars.HOST_INSTANCE_ID }}
+        run: |
+          set -euo pipefail
+          # Runs on the host as root. It fetches the commit, then runs the
+          # deploy script from that commit, so the script always matches the code.
+          remote="$(cat <<EOF
+          set -euo pipefail
+          command -v git >/dev/null || dnf -y -q install git
+          if [ ! -d /opt/ecommerce/src/.git ]; then
+              git clone -q https://github.com/AndriyKostenko/React-FastAPI_E-Commerce_App.git /opt/ecommerce/src
+          fi
+          git -C /opt/ecommerce/src fetch -q --prune origin
+          git -C /opt/ecommerce/src checkout -q --detach ${COMMIT}
+          exec /opt/ecommerce/src/infra/host/deploy.sh ${COMMIT}
+          EOF
+          )"
+          params="$(jq -n --arg c "$remote" '{commands: [$c], executionTimeout: ["3000"]}')"
+          command_id="$(aws ssm send-command \
+            --instance-ids "$INSTANCE_ID" \
+            --document-name AWS-RunShellScript \
+            --comment "deploy ${COMMIT}" \
+            --parameters "$params" \
+            --query Command.CommandId --output text)"
+          echo "SSM command: $command_id"
+
+          status=Pending
+          for _ in $(seq 1 300); do
+              status="$(aws ssm get-command-invocation --command-id "$command_id" \
+                  --instance-id "$INSTANCE_ID" --query Status --output text 2>/dev/null || echo Pending)"
+              case "$status" in
+                  Success|Failed|Cancelled|TimedOut) break ;;
+              esac
+              sleep 10
+          done
+
+          aws ssm get-command-invocation --command-id "$command_id" --instance-id "$INSTANCE_ID" \
+              --query '[StandardOutputContent,StandardErrorContent]' --output text || true
+          [ "$status" = "Success" ] || { echo "deploy finished with status $status"; exit 1; }
+          echo "deployed ${COMMIT}"

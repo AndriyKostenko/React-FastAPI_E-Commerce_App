@@ -14,6 +14,8 @@ const catalogueImagePatterns = [
 ];
 
 const nextConfig = {
+	// Self-contained server (.next/standalone) for the production image.
+	output: "standalone",
 	// Pin the workspace root to this directory.  A stray package-lock.json two
 	// levels up (~/Documents/Projects) otherwise wins the root inference, and
 	// turbopack then resolves packages like @swc/helpers against a tree that has

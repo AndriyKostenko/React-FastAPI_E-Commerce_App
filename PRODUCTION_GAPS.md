@@ -33,6 +33,8 @@ S3 / Vault settings (§8.1, §8.3), return labels / store credit / restocking
 (§5), tax reversal on a lost dispute (§5), a live stock check at the checkout
 quote (§3a), coverage / contract / automated e2e / security tests (§7).
 
+**Before production, secure the Vault keys (owner, mandatory):** the Vault recovery keys and root token sit in `/root/vault-init.json` on the host. Move that file off the host to an offline store (password manager or sealed envelope), delete it from the host, then confirm the copy works. Until it is moved, anyone with root on the host can take over Vault and every secret in it. Do not go live before this is done.
+
 Owner actions: rotate the keys from the committed `.env` files and turn on
 GitHub secret scanning (§1); replay or discard the old notification
 dead letters (§5a); the "Before going live" settings in §3b, §5, §8.2–§8.4.
@@ -273,13 +275,90 @@ monitoring stack all run on the host** (not RDS / SSM / Amplify / CloudWatch).
      Left to the owner: make these checks required on `main` (branch
      protection) once the first run is green.
   2. production images and compose: frontend image, slim monitoring (tracing
-     profile), `mem_limit`s, images from ECR by tag, non-root checks;
+     profile), `mem_limit`s, images from ECR by tag, non-root checks.
+     **Done (2026-10-14), not yet deployed:**
+     - `frontend/Dockerfile` (Next standalone, `node` user, NEXT_PUBLIC_* as
+       build args; the build fails without the publishable Stripe key, by
+       design) and `.dockerignore` files that keep `.env*` out of every image.
+     - `admin-js-service/Dockerfile` is now multi-stage with production
+       dependencies only and runs as `node`; it also ships `src/`, which
+       AdminJS compiles at startup.
+     - Compose: 30 built services are tagged `${IMAGE_REGISTRY}/ecommerce-<svc>:
+       ${IMAGE_TAG}` (ECR-ready; `local/…:dev` by default); every service has
+       a `mem_limit` (ceilings, not yet measured under load: tune from
+       `docker stats` on the host); `OTEL_TRACES_DISABLED` defaults to `true`;
+       Tempo and the OTEL collector sit in the `tracing` profile; node-exporter
+       joins Prometheus.
+     - Storefront routing, same origin: the gateway owns `/api/`, `/media/`,
+       `/health`, `/docs`, `/openapi.json` on the apex; the frontend takes the
+       rest (lower priority). No CORS or cookie-domain change.
+     - Verified: all 30 images build with `docker compose build`; the frontend
+       and admin-js images run as uid 1000, the frontend serves 200 and reports
+       healthy; every Python image runs as a non-root uid, the two taskiq
+       workers after `gosu` (their entrypoint starts as root to fix the media
+       volume's ownership). Not verified yet: the full stack under compose
+       (needs Vault and the production secrets), Traefik routing live, and
+       memory use under load.
   3. Terraform: network, host, IAM / OIDC, KMS, S3 + CloudFront, ECR,
      Route 53, account baseline;
-  4. host bootstrap: Docker, Vault (systemd, KMS unseal), swap, updates,
-     backup timers, restore script, first restore drill;
+  3. Terraform: network, host, IAM / OIDC, KMS, S3 + CloudFront, ECR,
+     Route 53, account baseline. **Done (2026-10-14), applied to account
+     008897528825 in ca-central-1.** Code in `infra/` (`bootstrap/` made the
+     state bucket). Created: VPC and public subnet, one `m7g.large` host with
+     IMDSv2 hop limit 1 and no key pair, Elastic IP, 80 GB encrypted root with
+     daily snapshots (7 kept), two KMS keys, catalogue / private / backups
+     buckets, 31 immutable ECR repositories (20 kept), GitHub OIDC deploy role
+     for the `production` environment, CloudTrail, GuardDuty, EBS encryption by
+     default, host and budget alarms. Not created yet, waiting on a domain:
+     Route 53 zone, `images.` CloudFront, and the uptime check. Owner actions:
+     root MFA, an admin identity other than root, and the registrar's name
+     servers once a domain exists. The product and order service keys sit in
+     Terraform state; move them to Vault in phase 6.
+  4. host bootstrap: **Done (2026-10-14), run on the host through SSM**
+     (`infra/host/bootstrap-host.sh`, idempotent). 4 GB swap (swappiness 10);
+     security-only dnf-automatic; Docker with live-restore and bounded logs,
+     no `no-new-privileges` (the taskiq workers need gosu); Compose v5.5.0
+     and Vault 2.1.2, both checksum-verified; Vault as a systemd service on
+     integrated storage with AWS KMS auto-unseal, plain HTTP on 8200 that the
+     `vault-firewall` unit allows only from loopback and the Docker bridges.
+     Backups: `ecommerce-backup-postgres` (pg_dump -Fc of the nine production
+     databases every 6 h, with a MANIFEST written last), `ecommerce-backup-vault`
+     (raft snapshot nightly, read-only token), `ecommerce-restore-drill`
+     (monthly). First drill passed against a scratch Postgres with the nine
+     database names: all nine restored, table counts match the dumps. Postgres
+     runs in its compose container on the host, so the backup timer stays
+     disabled until the stack runs (phase 5). **Owner action:** Vault's recovery
+     keys and root token are in `/root/vault-init.json` on the host. Move them
+     to an offline store and delete the file.
   5. deploy workflow: build / push, approval, SSM deploy, health gate,
      automatic rollback;
+  5. deploy workflow: **Built (2026-10-15), not run yet.** `.github/workflows/deploy.yml`
+     runs after a green CI on main. The build job (arm64 runner, the host is
+     Graviton) builds all images, pushes them to ECR tagged with the commit SHA,
+     and assumes the build role, which can only push images and is trusted from
+     `main`. The deploy job waits for approval through the `production`
+     environment (required reviewer set; deployments from main only), assumes
+     the deploy role (SSM only, trusted from that environment alone), and runs
+     `infra/host/deploy.sh <sha>` on the host through SSM. The script backs up
+     the databases first (aborting on failure), pulls, runs `compose up --wait`
+     (migrations run in each entrypoint; `--wait` fails on an unhealthy
+     container), and on failure brings the previous SHA back. The host
+     `vault-identities.sh` created one AppRole per service, with credentials in
+     `/etc/ecommerce/vault/<service>/` mounted read-only into that service only.
+     Compose changes: 29 Python services read Vault (no more database or Redis
+     URLs with passwords in their environment); admin-js sits behind the `admin`
+     profile until it reads Vault. Checked: actionlint and shellcheck clean,
+     compose resolves. **Not run:** no deploy yet, since the services need the
+     secrets imported (phase 6). **Owner actions before the first deploy:**
+     apply `infra/tfplan-phase5` (creates the build role, trims the deploy role);
+     create `/etc/ecommerce/production.env` on the host (non-secret settings, and
+     the Postgres superuser, Redis and RabbitMQ passwords that the infrastructure
+     containers still take from the environment); set the repository variables
+     `DOMAIN`, `NEXT_PUBLIC_APP_URL`, `NEXT_PUBLIC_STRIPE_TEST_PUBLISHABLE_KEY`
+     and `CATALOGUE_IMAGE_HOST`; add the required reviewer to `production` (done
+     for you, as the only reviewer).
+     The workflow is switched off: both jobs run only when the repository
+     variable `DEPLOY_ENABLED` is `true`, which is set at go-live.
   6. go-live: owner imports production secrets into Vault, DNS, Stripe and CJ
      webhooks to the production URL, external health check, runbook (deploy,
      rollback, restore, rotate a secret).

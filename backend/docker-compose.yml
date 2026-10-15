@@ -1,6 +1,6 @@
 services:
-
   db:
+    mem_limit: 1g
     image: postgres:16-alpine
     restart: always
     ports:
@@ -31,6 +31,7 @@ services:
       retries: 5
 
   pgadmin:
+    mem_limit: 512m
     image: dpage/pgadmin4:latest
     restart: always
     env_file:
@@ -44,6 +45,7 @@ services:
         condition: service_healthy
 
   redis:
+    mem_limit: 256m
     image: redis:7-alpine
     restart: always
     ports:
@@ -60,6 +62,7 @@ services:
       retries: 5
 
   rabbitmq:
+    mem_limit: 768m
     image: rabbitmq:3-management-alpine
     restart: always
     ports:
@@ -81,6 +84,8 @@ services:
       - rabbitmq_data:/var/lib/rabbitmq
 
   api-gateway:
+    mem_limit: 384m
+    image: ${IMAGE_REGISTRY:-local}/ecommerce-api-gateway:${IMAGE_TAG:-dev}
     build:
       context: ./api_gateway
       dockerfile: Dockerfile
@@ -97,12 +102,19 @@ services:
         condition: service_healthy
     env_file:
       - .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
+      VAULT_ADDR: http://host.docker.internal:8200
+      VAULT_ROLE_ID_FILE: /run/vault/role-id
+      VAULT_SECRET_ID_FILE: /run/vault/secret-id
+      VAULT_SECRET_PATHS: ecommerce/shared-infra,ecommerce/api-gateway
+      OTEL_TRACES_DISABLED: ${OTEL_TRACES_DISABLED:-true}
       GUNICORN_WORKERS: 1
       PROMETHEUS_MULTIPROC_DIR: /tmp/prometheus_multiproc/api-gateway
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
-      REDIS_URL: redis://:${REDIS_PASSWORD}@${REDIS_HOST}:${REDIS_PORT}/${APIGATEWAY_SERVICE_REDIS_DB}
     volumes:
+      - ${VAULT_CREDENTIALS_DIR:-/etc/ecommerce/vault}/api-gateway:/run/vault:ro
       - /tmp/prometheus_multiproc:/tmp/prometheus_multiproc
     ports:
       - "${INTERNAL_BIND_HOST:-127.0.0.1}:8000:8000"
@@ -117,7 +129,10 @@ services:
     labels:
       - "traefik.enable=true"
       # Main app router: handles all traffic for the apex domain and www (www redirects to apex).
-      - "traefik.http.routers.api-gateway.rule=Host(`${DOMAIN}`) || Host(`www.${DOMAIN}`)"
+      # Same origin as the storefront: the gateway owns the API paths and the
+      # frontend (below) takes everything else on the apex. /health is kept
+      # because the external uptime check reads it.
+      - "traefik.http.routers.api-gateway.rule=(Host(`${DOMAIN}`) || Host(`www.${DOMAIN}`)) && (PathPrefix(`/api/`) || PathPrefix(`/media/`) || Path(`/health`) || Path(`/docs`) || Path(`/openapi.json`))"
       - "traefik.http.routers.api-gateway.entrypoints=${TRAEFIK_ENTRYPOINT:-web}"
       - "traefik.http.routers.api-gateway.tls.certresolver=${CERT_RESOLVER:-}"
       - "traefik.http.routers.api-gateway.middlewares=www-to-apex@file,limit-body-size@file,rate-limit-api@file,compress@file"
@@ -127,6 +142,8 @@ services:
       - "traefik.http.services.api-gateway.loadbalancer.passHostHeader=true"
 
   user-service:
+    mem_limit: 256m
+    image: ${IMAGE_REGISTRY:-local}/ecommerce-user-service:${IMAGE_TAG:-dev}
     build:
       context: ./user_service
       dockerfile: Dockerfile
@@ -139,15 +156,21 @@ services:
         condition: service_healthy
     env_file:
       - .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
+      VAULT_ADDR: http://host.docker.internal:8200
+      VAULT_ROLE_ID_FILE: /run/vault/role-id
+      VAULT_SECRET_ID_FILE: /run/vault/secret-id
+      VAULT_SECRET_PATHS: ecommerce/shared-infra,ecommerce/user-service
+      OTEL_TRACES_DISABLED: ${OTEL_TRACES_DISABLED:-true}
       DB_POOL_SIZE: 3
       DB_MAX_OVERFLOW: 2
       PROMETHEUS_MULTIPROC_DIR: /tmp/prometheus_multiproc/user-service
       GUNICORN_WORKERS: 1
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${USER_SERVICE_DB}
-      REDIS_URL: redis://:${REDIS_PASSWORD}@${REDIS_HOST}:${REDIS_PORT}/${USER_SERVICE_REDIS_DB}
     volumes:
+      - ${VAULT_CREDENTIALS_DIR:-/etc/ecommerce/vault}/user-service:/run/vault:ro
       - /tmp/prometheus_multiproc:/tmp/prometheus_multiproc
     ports:
       - "${INTERNAL_BIND_HOST:-127.0.0.1}:8001:8001"
@@ -166,6 +189,8 @@ services:
       retries: 3
 
   user-outbox-worker:
+    mem_limit: 192m
+    image: ${IMAGE_REGISTRY:-local}/ecommerce-user-outbox-worker:${IMAGE_TAG:-dev}
     build:
       context: ./user_service
       dockerfile: Dockerfile
@@ -183,15 +208,24 @@ services:
         condition: service_healthy
     env_file:
       - .env
+    volumes:
+      - ${VAULT_CREDENTIALS_DIR:-/etc/ecommerce/vault}/user-service:/run/vault:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
+      VAULT_ADDR: http://host.docker.internal:8200
+      VAULT_ROLE_ID_FILE: /run/vault/role-id
+      VAULT_SECRET_ID_FILE: /run/vault/secret-id
+      VAULT_SECRET_PATHS: ecommerce/shared-infra,ecommerce/user-service
+      OTEL_TRACES_DISABLED: ${OTEL_TRACES_DISABLED:-true}
       DB_POOL_SIZE: 1
       DB_MAX_OVERFLOW: 1
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${USER_SERVICE_DB}
-      RABBITMQ_BROKER_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@${RABBITMQ_HOST}:${RABBITMQ_PORT}
     networks:
       - backend
 
   product-service:
+    mem_limit: 384m
+    image: ${IMAGE_REGISTRY:-local}/ecommerce-product-service:${IMAGE_TAG:-dev}
     build:
       context: ./product_service
       dockerfile: Dockerfile
@@ -206,16 +240,22 @@ services:
         condition: service_healthy
     env_file:
       - .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
+      VAULT_ADDR: http://host.docker.internal:8200
+      VAULT_ROLE_ID_FILE: /run/vault/role-id
+      VAULT_SECRET_ID_FILE: /run/vault/secret-id
+      VAULT_SECRET_PATHS: ecommerce/shared-infra,ecommerce/product-service
+      OTEL_TRACES_DISABLED: ${OTEL_TRACES_DISABLED:-true}
       DB_POOL_SIZE: 3
       DB_MAX_OVERFLOW: 2
       GUNICORN_WORKERS: 1
       PROMETHEUS_MULTIPROC_DIR: /tmp/prometheus_multiproc/product-service
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${PRODUCT_SERVICE_DB}
       MEDIA_ROOT: /media
-      REDIS_URL: redis://:${REDIS_PASSWORD}@${REDIS_HOST}:${REDIS_PORT}/${PRODUCT_SERVICE_REDIS_DB}
     volumes:
+      - ${VAULT_CREDENTIALS_DIR:-/etc/ecommerce/vault}/product-service:/run/vault:ro
       - product_media:/media
       - /tmp/prometheus_multiproc:/tmp/prometheus_multiproc
     ports:
@@ -229,6 +269,8 @@ services:
       retries: 3
 
   product-consumer:
+    mem_limit: 192m
+    image: ${IMAGE_REGISTRY:-local}/ecommerce-product-consumer:${IMAGE_TAG:-dev}
     build:
       context: ./product_service
       dockerfile: Dockerfile.consumer
@@ -244,13 +286,24 @@ services:
         condition: service_healthy
     env_file:
       - .env
+    volumes:
+      - ${VAULT_CREDENTIALS_DIR:-/etc/ecommerce/vault}/product-service:/run/vault:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
+      VAULT_ADDR: http://host.docker.internal:8200
+      VAULT_ROLE_ID_FILE: /run/vault/role-id
+      VAULT_SECRET_ID_FILE: /run/vault/secret-id
+      VAULT_SECRET_PATHS: ecommerce/shared-infra,ecommerce/product-service
+      OTEL_TRACES_DISABLED: ${OTEL_TRACES_DISABLED:-true}
       DB_POOL_SIZE: 1
       DB_MAX_OVERFLOW: 1
     networks:
       - backend
 
   product-outbox-worker:
+    mem_limit: 192m
+    image: ${IMAGE_REGISTRY:-local}/ecommerce-product-outbox-worker:${IMAGE_TAG:-dev}
     build:
       context: ./product_service
       dockerfile: Dockerfile
@@ -268,13 +321,24 @@ services:
         condition: service_healthy
     env_file:
       - .env
+    volumes:
+      - ${VAULT_CREDENTIALS_DIR:-/etc/ecommerce/vault}/product-service:/run/vault:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
+      VAULT_ADDR: http://host.docker.internal:8200
+      VAULT_ROLE_ID_FILE: /run/vault/role-id
+      VAULT_SECRET_ID_FILE: /run/vault/secret-id
+      VAULT_SECRET_PATHS: ecommerce/shared-infra,ecommerce/product-service
+      OTEL_TRACES_DISABLED: ${OTEL_TRACES_DISABLED:-true}
       DB_POOL_SIZE: 1
       DB_MAX_OVERFLOW: 1
     networks:
       - backend
 
   product-taskiq-worker:
+    mem_limit: 384m
+    image: ${IMAGE_REGISTRY:-local}/ecommerce-product-taskiq-worker:${IMAGE_TAG:-dev}
     build:
       context: ./product_service
       dockerfile: Dockerfile.worker
@@ -291,16 +355,26 @@ services:
         condition: service_healthy
     env_file:
       - .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
+      VAULT_ADDR: http://host.docker.internal:8200
+      VAULT_ROLE_ID_FILE: /run/vault/role-id
+      VAULT_SECRET_ID_FILE: /run/vault/secret-id
+      VAULT_SECRET_PATHS: ecommerce/shared-infra,ecommerce/product-service
+      OTEL_TRACES_DISABLED: ${OTEL_TRACES_DISABLED:-true}
       DB_POOL_SIZE: 1
       DB_MAX_OVERFLOW: 0
       MEDIA_ROOT: /media
     networks:
       - backend
     volumes:
+      - ${VAULT_CREDENTIALS_DIR:-/etc/ecommerce/vault}/product-service:/run/vault:ro
       - product_media:/media
 
   supplier-service:
+    mem_limit: 256m
+    image: ${IMAGE_REGISTRY:-local}/ecommerce-supplier-service:${IMAGE_TAG:-dev}
     build:
       context: ./supplier_service
       dockerfile: Dockerfile
@@ -311,20 +385,25 @@ services:
         condition: service_healthy
     env_file:
       - .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
+      VAULT_ADDR: http://host.docker.internal:8200
+      VAULT_ROLE_ID_FILE: /run/vault/role-id
+      VAULT_SECRET_ID_FILE: /run/vault/secret-id
+      VAULT_SECRET_PATHS: ecommerce/shared-infra,ecommerce/supplier-service
+      OTEL_TRACES_DISABLED: ${OTEL_TRACES_DISABLED:-true}
       DB_POOL_SIZE: 3
       DB_MAX_OVERFLOW: 2
       PROMETHEUS_MULTIPROC_DIR: /tmp/prometheus_multiproc/supplier-service
       GUNICORN_WORKERS: 1
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${SUPPLIER_SERVICE_DB}
-      REDIS_URL: redis://:${REDIS_PASSWORD}@${REDIS_HOST}:${REDIS_PORT}/${SUPPLIER_SERVICE_REDIS_DB}
-      RABBITMQ_BROKER_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@${RABBITMQ_HOST}:${RABBITMQ_PORT}
     ports:
       - "${INTERNAL_BIND_HOST:-127.0.0.1}:8010:8010"
     networks:
       - backend
     volumes:
+      - ${VAULT_CREDENTIALS_DIR:-/etc/ecommerce/vault}/supplier-service:/run/vault:ro
       - /tmp/prometheus_multiproc:/tmp/prometheus_multiproc
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8010/health"]
@@ -333,6 +412,8 @@ services:
       retries: 3
 
   supplier-outbox-worker:
+    mem_limit: 192m
+    image: ${IMAGE_REGISTRY:-local}/ecommerce-supplier-outbox-worker:${IMAGE_TAG:-dev}
     build:
       context: ./supplier_service
       dockerfile: Dockerfile
@@ -350,15 +431,24 @@ services:
         condition: service_healthy
     env_file:
       - .env
+    volumes:
+      - ${VAULT_CREDENTIALS_DIR:-/etc/ecommerce/vault}/supplier-service:/run/vault:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
+      VAULT_ADDR: http://host.docker.internal:8200
+      VAULT_ROLE_ID_FILE: /run/vault/role-id
+      VAULT_SECRET_ID_FILE: /run/vault/secret-id
+      VAULT_SECRET_PATHS: ecommerce/shared-infra,ecommerce/supplier-service
+      OTEL_TRACES_DISABLED: ${OTEL_TRACES_DISABLED:-true}
       DB_POOL_SIZE: 1
       DB_MAX_OVERFLOW: 1
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${SUPPLIER_SERVICE_DB}
-      RABBITMQ_BROKER_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@${RABBITMQ_HOST}:${RABBITMQ_PORT}
     networks:
       - backend
 
   supplier-consumer:
+    mem_limit: 192m
+    image: ${IMAGE_REGISTRY:-local}/ecommerce-supplier-consumer:${IMAGE_TAG:-dev}
     build:
       context: ./supplier_service
       dockerfile: Dockerfile.consumer
@@ -374,13 +464,24 @@ services:
         condition: service_healthy
     env_file:
       - .env
+    volumes:
+      - ${VAULT_CREDENTIALS_DIR:-/etc/ecommerce/vault}/supplier-service:/run/vault:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
+      VAULT_ADDR: http://host.docker.internal:8200
+      VAULT_ROLE_ID_FILE: /run/vault/role-id
+      VAULT_SECRET_ID_FILE: /run/vault/secret-id
+      VAULT_SECRET_PATHS: ecommerce/shared-infra,ecommerce/supplier-service
+      OTEL_TRACES_DISABLED: ${OTEL_TRACES_DISABLED:-true}
       DB_POOL_SIZE: 1
       DB_MAX_OVERFLOW: 1
     networks:
       - backend
 
   supplier-taskiq-worker:
+    mem_limit: 192m
+    image: ${IMAGE_REGISTRY:-local}/ecommerce-supplier-taskiq-worker:${IMAGE_TAG:-dev}
     build:
       context: ./supplier_service
       dockerfile: Dockerfile.worker
@@ -399,13 +500,34 @@ services:
         condition: service_healthy
     env_file:
       - .env
+    volumes:
+      - ${VAULT_CREDENTIALS_DIR:-/etc/ecommerce/vault}/supplier-service:/run/vault:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
+      VAULT_ADDR: http://host.docker.internal:8200
+      VAULT_ROLE_ID_FILE: /run/vault/role-id
+      VAULT_SECRET_ID_FILE: /run/vault/secret-id
+      VAULT_SECRET_PATHS: ecommerce/shared-infra,ecommerce/supplier-service
+      OTEL_TRACES_DISABLED: ${OTEL_TRACES_DISABLED:-true}
       DB_POOL_SIZE: 1
       DB_MAX_OVERFLOW: 0
     networks:
       - backend
 
   supplier-taskiq-scheduler:
+    mem_limit: 128m
+    image: ${IMAGE_REGISTRY:-local}/ecommerce-supplier-taskiq-scheduler:${IMAGE_TAG:-dev}
+    volumes:
+      - ${VAULT_CREDENTIALS_DIR:-/etc/ecommerce/vault}/supplier-service:/run/vault:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      VAULT_ADDR: http://host.docker.internal:8200
+      VAULT_ROLE_ID_FILE: /run/vault/role-id
+      VAULT_SECRET_ID_FILE: /run/vault/secret-id
+      VAULT_SECRET_PATHS: ecommerce/shared-infra,ecommerce/supplier-service
+      OTEL_TRACES_DISABLED: ${OTEL_TRACES_DISABLED:-true}
     build:
       context: ./supplier_service
       dockerfile: Dockerfile.scheduler
@@ -426,6 +548,8 @@ services:
       - backend
 
   notification-service:
+    mem_limit: 256m
+    image: ${IMAGE_REGISTRY:-local}/ecommerce-notification-service:${IMAGE_TAG:-dev}
     build:
       context: ./notification_service
       dockerfile: Dockerfile
@@ -436,20 +560,25 @@ services:
         condition: service_healthy
     env_file:
       - .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
+      VAULT_ADDR: http://host.docker.internal:8200
+      VAULT_ROLE_ID_FILE: /run/vault/role-id
+      VAULT_SECRET_ID_FILE: /run/vault/secret-id
+      VAULT_SECRET_PATHS: ecommerce/shared-infra,ecommerce/notification-service
+      OTEL_TRACES_DISABLED: ${OTEL_TRACES_DISABLED:-true}
       DB_POOL_SIZE: 3
       DB_MAX_OVERFLOW: 2
       PROMETHEUS_MULTIPROC_DIR: /tmp/prometheus_multiproc/notification-service
       GUNICORN_WORKERS: 1
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${NOTIFICATION_SERVICE_DB}
-      REDIS_URL: redis://:${REDIS_PASSWORD}@${REDIS_HOST}:${REDIS_PORT}/${NOTIFICATION_SERVICE_REDIS_DB}
-      RABBITMQ_BROKER_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@${RABBITMQ_HOST}:${RABBITMQ_PORT}
     ports:
       - "${INTERNAL_BIND_HOST:-127.0.0.1}:8003:8003"
     networks:
       - backend
     volumes:
+      - ${VAULT_CREDENTIALS_DIR:-/etc/ecommerce/vault}/notification-service:/run/vault:ro
       - /tmp/prometheus_multiproc:/tmp/prometheus_multiproc
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
@@ -458,6 +587,8 @@ services:
       retries: 3
 
   notification-consumer:
+    mem_limit: 192m
+    image: ${IMAGE_REGISTRY:-local}/ecommerce-notification-consumer:${IMAGE_TAG:-dev}
     build:
       context: ./notification_service
       dockerfile: Dockerfile.consumer
@@ -473,13 +604,34 @@ services:
         condition: service_healthy
     env_file:
       - .env
+    volumes:
+      - ${VAULT_CREDENTIALS_DIR:-/etc/ecommerce/vault}/notification-service:/run/vault:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
+      VAULT_ADDR: http://host.docker.internal:8200
+      VAULT_ROLE_ID_FILE: /run/vault/role-id
+      VAULT_SECRET_ID_FILE: /run/vault/secret-id
+      VAULT_SECRET_PATHS: ecommerce/shared-infra,ecommerce/notification-service
+      OTEL_TRACES_DISABLED: ${OTEL_TRACES_DISABLED:-true}
       DB_POOL_SIZE: 1
       DB_MAX_OVERFLOW: 1
     networks:
       - backend
 
   notification-taskiq-worker:
+    mem_limit: 192m
+    image: ${IMAGE_REGISTRY:-local}/ecommerce-notification-taskiq-worker:${IMAGE_TAG:-dev}
+    volumes:
+      - ${VAULT_CREDENTIALS_DIR:-/etc/ecommerce/vault}/notification-service:/run/vault:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      VAULT_ADDR: http://host.docker.internal:8200
+      VAULT_ROLE_ID_FILE: /run/vault/role-id
+      VAULT_SECRET_ID_FILE: /run/vault/secret-id
+      VAULT_SECRET_PATHS: ecommerce/shared-infra,ecommerce/notification-service
+      OTEL_TRACES_DISABLED: ${OTEL_TRACES_DISABLED:-true}
     build:
       context: ./notification_service
       dockerfile: Dockerfile.worker
@@ -500,6 +652,8 @@ services:
       - backend
 
   order-service:
+    mem_limit: 256m
+    image: ${IMAGE_REGISTRY:-local}/ecommerce-order-service:${IMAGE_TAG:-dev}
     build:
       context: ./order_service
       dockerfile: Dockerfile
@@ -510,18 +664,23 @@ services:
         condition: service_healthy
     env_file:
       - .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
+      VAULT_ADDR: http://host.docker.internal:8200
+      VAULT_ROLE_ID_FILE: /run/vault/role-id
+      VAULT_SECRET_ID_FILE: /run/vault/secret-id
+      VAULT_SECRET_PATHS: ecommerce/shared-infra,ecommerce/order-service
+      OTEL_TRACES_DISABLED: ${OTEL_TRACES_DISABLED:-true}
       DB_POOL_SIZE: 3
       DB_MAX_OVERFLOW: 2
       PROMETHEUS_MULTIPROC_DIR: /tmp/prometheus_multiproc/order-service
       GUNICORN_WORKERS: 1
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${ORDER_SERVICE_DB}
-      REDIS_URL: redis://:${REDIS_PASSWORD}@${REDIS_HOST}:${REDIS_PORT}/${ORDER_SERVICE_REDIS_DB}
-      RABBITMQ_BROKER_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@${RABBITMQ_HOST}:${RABBITMQ_PORT}
       # Customers' return photos: private, so not the public product_media volume.
       RETURN_EVIDENCE_ROOT: /return-evidence
     volumes:
+      - ${VAULT_CREDENTIALS_DIR:-/etc/ecommerce/vault}/order-service:/run/vault:ro
       - /tmp/prometheus_multiproc:/tmp/prometheus_multiproc
       - return_evidence:/return-evidence
     ports:
@@ -535,6 +694,8 @@ services:
       retries: 3
 
   order-outbox-worker:
+    mem_limit: 192m
+    image: ${IMAGE_REGISTRY:-local}/ecommerce-order-outbox-worker:${IMAGE_TAG:-dev}
     build:
       context: ./order_service
       dockerfile: Dockerfile
@@ -552,15 +713,24 @@ services:
         condition: service_healthy
     env_file:
       - .env
+    volumes:
+      - ${VAULT_CREDENTIALS_DIR:-/etc/ecommerce/vault}/order-service:/run/vault:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
+      VAULT_ADDR: http://host.docker.internal:8200
+      VAULT_ROLE_ID_FILE: /run/vault/role-id
+      VAULT_SECRET_ID_FILE: /run/vault/secret-id
+      VAULT_SECRET_PATHS: ecommerce/shared-infra,ecommerce/order-service
+      OTEL_TRACES_DISABLED: ${OTEL_TRACES_DISABLED:-true}
       DB_POOL_SIZE: 1
       DB_MAX_OVERFLOW: 1
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${ORDER_SERVICE_DB}
-      RABBITMQ_BROKER_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@${RABBITMQ_HOST}:${RABBITMQ_PORT}
     networks:
       - backend
 
   order-saga-timeout-worker:
+    mem_limit: 192m
+    image: ${IMAGE_REGISTRY:-local}/ecommerce-order-saga-timeout-worker:${IMAGE_TAG:-dev}
     build:
       context: ./order_service
       dockerfile: Dockerfile
@@ -578,13 +748,24 @@ services:
         condition: service_healthy
     env_file:
       - .env
+    volumes:
+      - ${VAULT_CREDENTIALS_DIR:-/etc/ecommerce/vault}/order-service:/run/vault:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
+      VAULT_ADDR: http://host.docker.internal:8200
+      VAULT_ROLE_ID_FILE: /run/vault/role-id
+      VAULT_SECRET_ID_FILE: /run/vault/secret-id
+      VAULT_SECRET_PATHS: ecommerce/shared-infra,ecommerce/order-service
+      OTEL_TRACES_DISABLED: ${OTEL_TRACES_DISABLED:-true}
       DB_POOL_SIZE: 1
       DB_MAX_OVERFLOW: 1
     networks:
       - backend
 
   order-consumer:
+    mem_limit: 192m
+    image: ${IMAGE_REGISTRY:-local}/ecommerce-order-consumer:${IMAGE_TAG:-dev}
     build:
       context: ./order_service
       dockerfile: Dockerfile.consumer
@@ -600,13 +781,24 @@ services:
         condition: service_healthy
     env_file:
       - .env
+    volumes:
+      - ${VAULT_CREDENTIALS_DIR:-/etc/ecommerce/vault}/order-service:/run/vault:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
+      VAULT_ADDR: http://host.docker.internal:8200
+      VAULT_ROLE_ID_FILE: /run/vault/role-id
+      VAULT_SECRET_ID_FILE: /run/vault/secret-id
+      VAULT_SECRET_PATHS: ecommerce/shared-infra,ecommerce/order-service
+      OTEL_TRACES_DISABLED: ${OTEL_TRACES_DISABLED:-true}
       DB_POOL_SIZE: 1
       DB_MAX_OVERFLOW: 1
     networks:
       - backend
 
   payment-service:
+    mem_limit: 256m
+    image: ${IMAGE_REGISTRY:-local}/ecommerce-payment-service:${IMAGE_TAG:-dev}
     build:
       context: ./payment_service
       dockerfile: Dockerfile
@@ -619,16 +811,21 @@ services:
         condition: service_healthy
     env_file:
       - .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
+      VAULT_ADDR: http://host.docker.internal:8200
+      VAULT_ROLE_ID_FILE: /run/vault/role-id
+      VAULT_SECRET_ID_FILE: /run/vault/secret-id
+      VAULT_SECRET_PATHS: ecommerce/shared-infra,ecommerce/payment-service
+      OTEL_TRACES_DISABLED: ${OTEL_TRACES_DISABLED:-true}
       DB_POOL_SIZE: 3
       DB_MAX_OVERFLOW: 2
       PROMETHEUS_MULTIPROC_DIR: /tmp/prometheus_multiproc/payment-service
       GUNICORN_WORKERS: 1
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${PAYMENT_SERVICE_DB}
-      REDIS_URL: redis://:${REDIS_PASSWORD}@${REDIS_HOST}:${REDIS_PORT}/${PAYMENT_SERVICE_REDIS_DB}
-      RABBITMQ_BROKER_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@${RABBITMQ_HOST}:${RABBITMQ_PORT}
     volumes:
+      - ${VAULT_CREDENTIALS_DIR:-/etc/ecommerce/vault}/payment-service:/run/vault:ro
       - /tmp/prometheus_multiproc:/tmp/prometheus_multiproc
     ports:
       - "${INTERNAL_BIND_HOST:-127.0.0.1}:8006:8006"
@@ -641,6 +838,8 @@ services:
       retries: 3
 
   payment-outbox-worker:
+    mem_limit: 192m
+    image: ${IMAGE_REGISTRY:-local}/ecommerce-payment-outbox-worker:${IMAGE_TAG:-dev}
     build:
       context: ./payment_service
       dockerfile: Dockerfile
@@ -658,15 +857,24 @@ services:
         condition: service_healthy
     env_file:
       - .env
+    volumes:
+      - ${VAULT_CREDENTIALS_DIR:-/etc/ecommerce/vault}/payment-service:/run/vault:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
+      VAULT_ADDR: http://host.docker.internal:8200
+      VAULT_ROLE_ID_FILE: /run/vault/role-id
+      VAULT_SECRET_ID_FILE: /run/vault/secret-id
+      VAULT_SECRET_PATHS: ecommerce/shared-infra,ecommerce/payment-service
+      OTEL_TRACES_DISABLED: ${OTEL_TRACES_DISABLED:-true}
       DB_POOL_SIZE: 1
       DB_MAX_OVERFLOW: 1
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${PAYMENT_SERVICE_DB}
-      RABBITMQ_BROKER_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@${RABBITMQ_HOST}:${RABBITMQ_PORT}
     networks:
       - backend
 
   payment-consumer:
+    mem_limit: 192m
+    image: ${IMAGE_REGISTRY:-local}/ecommerce-payment-consumer:${IMAGE_TAG:-dev}
     build:
       context: ./payment_service
       dockerfile: Dockerfile.consumer
@@ -682,13 +890,24 @@ services:
         condition: service_healthy
     env_file:
       - .env
+    volumes:
+      - ${VAULT_CREDENTIALS_DIR:-/etc/ecommerce/vault}/payment-service:/run/vault:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
+      VAULT_ADDR: http://host.docker.internal:8200
+      VAULT_ROLE_ID_FILE: /run/vault/role-id
+      VAULT_SECRET_ID_FILE: /run/vault/secret-id
+      VAULT_SECRET_PATHS: ecommerce/shared-infra,ecommerce/payment-service
+      OTEL_TRACES_DISABLED: ${OTEL_TRACES_DISABLED:-true}
       DB_POOL_SIZE: 1
       DB_MAX_OVERFLOW: 1
     networks:
       - backend
 
   cart-service:
+    mem_limit: 256m
+    image: ${IMAGE_REGISTRY:-local}/ecommerce-cart-service:${IMAGE_TAG:-dev}
     build:
       context: ./cart_service
       dockerfile: Dockerfile
@@ -699,16 +918,21 @@ services:
         condition: service_healthy
     env_file:
       - .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
+      VAULT_ADDR: http://host.docker.internal:8200
+      VAULT_ROLE_ID_FILE: /run/vault/role-id
+      VAULT_SECRET_ID_FILE: /run/vault/secret-id
+      VAULT_SECRET_PATHS: ecommerce/shared-infra,ecommerce/cart-service
+      OTEL_TRACES_DISABLED: ${OTEL_TRACES_DISABLED:-true}
       DB_POOL_SIZE: 3
       DB_MAX_OVERFLOW: 2
       PROMETHEUS_MULTIPROC_DIR: /tmp/prometheus_multiproc/cart-service
       GUNICORN_WORKERS: 1
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${CART_SERVICE_DB}
-      REDIS_URL: redis://:${REDIS_PASSWORD}@${REDIS_HOST}:${REDIS_PORT}/${CART_SERVICE_REDIS_DB}
-      RABBITMQ_BROKER_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@${RABBITMQ_HOST}:${RABBITMQ_PORT}
     volumes:
+      - ${VAULT_CREDENTIALS_DIR:-/etc/ecommerce/vault}/cart-service:/run/vault:ro
       - /tmp/prometheus_multiproc:/tmp/prometheus_multiproc
     ports:
       - "${INTERNAL_BIND_HOST:-127.0.0.1}:8007:8007"
@@ -721,6 +945,8 @@ services:
       retries: 3
 
   cart-consumer:
+    mem_limit: 192m
+    image: ${IMAGE_REGISTRY:-local}/ecommerce-cart-consumer:${IMAGE_TAG:-dev}
     build:
       context: ./cart_service
       dockerfile: Dockerfile.consumer
@@ -736,13 +962,24 @@ services:
         condition: service_healthy
     env_file:
       - .env
+    volumes:
+      - ${VAULT_CREDENTIALS_DIR:-/etc/ecommerce/vault}/cart-service:/run/vault:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
+      VAULT_ADDR: http://host.docker.internal:8200
+      VAULT_ROLE_ID_FILE: /run/vault/role-id
+      VAULT_SECRET_ID_FILE: /run/vault/secret-id
+      VAULT_SECRET_PATHS: ecommerce/shared-infra,ecommerce/cart-service
+      OTEL_TRACES_DISABLED: ${OTEL_TRACES_DISABLED:-true}
       DB_POOL_SIZE: 1
       DB_MAX_OVERFLOW: 1
     networks:
       - backend
 
   wishlist-service:
+    mem_limit: 256m
+    image: ${IMAGE_REGISTRY:-local}/ecommerce-wishlist-service:${IMAGE_TAG:-dev}
     build:
       context: ./wishlist_service
       dockerfile: Dockerfile
@@ -753,16 +990,21 @@ services:
         condition: service_healthy
     env_file:
       - .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
+      VAULT_ADDR: http://host.docker.internal:8200
+      VAULT_ROLE_ID_FILE: /run/vault/role-id
+      VAULT_SECRET_ID_FILE: /run/vault/secret-id
+      VAULT_SECRET_PATHS: ecommerce/shared-infra,ecommerce/wishlist-service
+      OTEL_TRACES_DISABLED: ${OTEL_TRACES_DISABLED:-true}
       DB_POOL_SIZE: 3
       DB_MAX_OVERFLOW: 2
       PROMETHEUS_MULTIPROC_DIR: /tmp/prometheus_multiproc/wishlist-service
       GUNICORN_WORKERS: 1
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${WISHLIST_SERVICE_DB}
-      REDIS_URL: redis://:${REDIS_PASSWORD}@${REDIS_HOST}:${REDIS_PORT}/${WISHLIST_SERVICE_REDIS_DB}
-      RABBITMQ_BROKER_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@${RABBITMQ_HOST}:${RABBITMQ_PORT}
     volumes:
+      - ${VAULT_CREDENTIALS_DIR:-/etc/ecommerce/vault}/wishlist-service:/run/vault:ro
       - /tmp/prometheus_multiproc:/tmp/prometheus_multiproc
     ports:
       - "${INTERNAL_BIND_HOST:-127.0.0.1}:8009:8009"
@@ -775,6 +1017,8 @@ services:
       retries: 3
 
   wishlist-consumer:
+    mem_limit: 192m
+    image: ${IMAGE_REGISTRY:-local}/ecommerce-wishlist-consumer:${IMAGE_TAG:-dev}
     build:
       context: ./wishlist_service
       dockerfile: Dockerfile.consumer
@@ -790,13 +1034,24 @@ services:
         condition: service_healthy
     env_file:
       - .env
+    volumes:
+      - ${VAULT_CREDENTIALS_DIR:-/etc/ecommerce/vault}/wishlist-service:/run/vault:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
+      VAULT_ADDR: http://host.docker.internal:8200
+      VAULT_ROLE_ID_FILE: /run/vault/role-id
+      VAULT_SECRET_ID_FILE: /run/vault/secret-id
+      VAULT_SECRET_PATHS: ecommerce/shared-infra,ecommerce/wishlist-service
+      OTEL_TRACES_DISABLED: ${OTEL_TRACES_DISABLED:-true}
       DB_POOL_SIZE: 1
       DB_MAX_OVERFLOW: 1
     networks:
       - backend
 
   shipping-service:
+    mem_limit: 256m
+    image: ${IMAGE_REGISTRY:-local}/ecommerce-shipping-service:${IMAGE_TAG:-dev}
     build:
       context: ./shipping_service
       dockerfile: Dockerfile
@@ -809,16 +1064,21 @@ services:
         condition: service_healthy
     env_file:
       - .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
+      VAULT_ADDR: http://host.docker.internal:8200
+      VAULT_ROLE_ID_FILE: /run/vault/role-id
+      VAULT_SECRET_ID_FILE: /run/vault/secret-id
+      VAULT_SECRET_PATHS: ecommerce/shared-infra,ecommerce/shipping-service
+      OTEL_TRACES_DISABLED: ${OTEL_TRACES_DISABLED:-true}
       DB_POOL_SIZE: 3
       DB_MAX_OVERFLOW: 2
       PROMETHEUS_MULTIPROC_DIR: /tmp/prometheus_multiproc/shipping-service
       GUNICORN_WORKERS: 1
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${SHIPPING_SERVICE_DB}
-      REDIS_URL: redis://:${REDIS_PASSWORD}@${REDIS_HOST}:${REDIS_PORT}/${SHIPPING_SERVICE_REDIS_DB}
-      RABBITMQ_BROKER_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@${RABBITMQ_HOST}:${RABBITMQ_PORT}
     volumes:
+      - ${VAULT_CREDENTIALS_DIR:-/etc/ecommerce/vault}/shipping-service:/run/vault:ro
       - /tmp/prometheus_multiproc:/tmp/prometheus_multiproc
     ports:
       - "${INTERNAL_BIND_HOST:-127.0.0.1}:8008:8008"
@@ -831,6 +1091,8 @@ services:
       retries: 3
 
   shipping-consumer:
+    mem_limit: 192m
+    image: ${IMAGE_REGISTRY:-local}/ecommerce-shipping-consumer:${IMAGE_TAG:-dev}
     build:
       context: ./shipping_service
       dockerfile: Dockerfile.consumer
@@ -846,13 +1108,24 @@ services:
         condition: service_healthy
     env_file:
       - .env
+    volumes:
+      - ${VAULT_CREDENTIALS_DIR:-/etc/ecommerce/vault}/shipping-service:/run/vault:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
+      VAULT_ADDR: http://host.docker.internal:8200
+      VAULT_ROLE_ID_FILE: /run/vault/role-id
+      VAULT_SECRET_ID_FILE: /run/vault/secret-id
+      VAULT_SECRET_PATHS: ecommerce/shared-infra,ecommerce/shipping-service
+      OTEL_TRACES_DISABLED: ${OTEL_TRACES_DISABLED:-true}
       DB_POOL_SIZE: 1
       DB_MAX_OVERFLOW: 1
     networks:
       - backend
 
   shipping-outbox-worker:
+    mem_limit: 192m
+    image: ${IMAGE_REGISTRY:-local}/ecommerce-shipping-outbox-worker:${IMAGE_TAG:-dev}
     build:
       context: ./shipping_service
       dockerfile: Dockerfile
@@ -870,19 +1143,65 @@ services:
         condition: service_healthy
     env_file:
       - .env
+    volumes:
+      - ${VAULT_CREDENTIALS_DIR:-/etc/ecommerce/vault}/shipping-service:/run/vault:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
+      VAULT_ADDR: http://host.docker.internal:8200
+      VAULT_ROLE_ID_FILE: /run/vault/role-id
+      VAULT_SECRET_ID_FILE: /run/vault/secret-id
+      VAULT_SECRET_PATHS: ecommerce/shared-infra,ecommerce/shipping-service
+      OTEL_TRACES_DISABLED: ${OTEL_TRACES_DISABLED:-true}
       DB_POOL_SIZE: 1
       DB_MAX_OVERFLOW: 1
     networks:
       - backend
 
+  # Storefront (Next.js). Public values are build arguments: they are compiled
+  # into the bundle, so changing them means rebuilding the image. Optional
+  # values are passed in list form, so an unset variable stays unset and the
+  # app falls back to its defaults (same-origin API, no optional keys).
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:30000}
+        NEXT_PUBLIC_API_ORIGIN:
+        NEXT_PUBLIC_API_VERSION: ${NEXT_PUBLIC_API_VERSION:-v1}
+        NEXT_PUBLIC_STRIPE_TEST_PUBLISHABLE_KEY:
+        NEXT_PUBLIC_STRIPE_PROD_PUBLISHABLE_KEY:
+        CATALOGUE_IMAGE_HOST:
+    image: ${IMAGE_REGISTRY:-local}/ecommerce-frontend:${IMAGE_TAG:-dev}
+    mem_limit: 256m
+    restart: unless-stopped
+    # Local runs reach it on localhost:30000; production publishes nothing and
+    # Traefik serves it (docker-compose.prod.yml).
+    ports:
+      - "${INTERNAL_BIND_HOST:-127.0.0.1}:30000:3000"
+    networks:
+      - edge
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.frontend.rule=Host(`${DOMAIN}`) || Host(`www.${DOMAIN}`)"
+      # Lower than the gateway's rule, which is longer, so API paths win.
+      - "traefik.http.routers.frontend.priority=1"
+      - "traefik.http.routers.frontend.entrypoints=${TRAEFIK_ENTRYPOINT:-web}"
+      - "traefik.http.routers.frontend.tls.certresolver=${CERT_RESOLVER:-}"
+      - "traefik.http.routers.frontend.middlewares=www-to-apex@file,compress@file"
+      - "traefik.http.services.frontend.loadbalancer.server.port=3000"
+
   admin-js-service:
+    mem_limit: 256m
+    image: ${IMAGE_REGISTRY:-local}/ecommerce-admin-js-service:${IMAGE_TAG:-dev}
     build:
       context: ./admin-js-service
       dockerfile: Dockerfile
     env_file:
       - .env
     environment:
+      OTEL_TRACES_DISABLED: ${OTEL_TRACES_DISABLED:-true}
       # Inside its container it must accept the port mapping below; the
       # mapping is what keeps it private.
       ADMIN_JS_LISTEN_HOST: 0.0.0.0
@@ -900,6 +1219,8 @@ services:
       - "traefik.enable=false"
 
   otel-collector:
+    mem_limit: 256m
+    profiles: ["tracing"]
     image: otel/opentelemetry-collector-contrib:0.123.0
     container_name: otel-collector
     restart: unless-stopped
@@ -915,6 +1236,8 @@ services:
       - tempo
 
   tempo:
+    mem_limit: 384m
+    profiles: ["tracing"]
     image: grafana/tempo:2.7.2
     container_name: tempo
     restart: unless-stopped
@@ -928,6 +1251,7 @@ services:
       - backend
 
   prometheus:
+    mem_limit: 512m
     image: prom/prometheus:latest
     ports: ["9090:9090"]
     volumes:
@@ -948,6 +1272,7 @@ services:
       - backend
 
   alertmanager:
+    mem_limit: 64m
     image: prom/alertmanager:v0.32.1
     ports: ["9093:9093"]
     volumes:
@@ -964,6 +1289,7 @@ services:
     restart: unless-stopped
 
   grafana:
+    mem_limit: 256m
     image: grafana/grafana:13.0.1-security-01
     ports: ["3002:3000"]
     environment:
@@ -990,6 +1316,7 @@ services:
       - "traefik.http.services.grafana.loadbalancer.server.port=3000"
 
   loki:
+    mem_limit: 256m
     image: grafana/loki:3.7.2
     ports: ["3100:3100"]
     command: -config.file=/etc/loki/local-config.yaml
@@ -997,6 +1324,7 @@ services:
       - backend
 
   promtail:
+    mem_limit: 128m
     image: grafana/promtail:3.6.11
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
@@ -1009,6 +1337,7 @@ services:
 
   # CPU / RAM / net / disk metrics per container
   cadvisor:
+    mem_limit: 128m
     image: gcr.io/cadvisor/cadvisor:v0.47.2
     privileged: true          # required on modern kernels for full cgroup access
     ports: ["8080:8080"]
@@ -1029,10 +1358,25 @@ services:
     networks:
       - backend
 
+  # Host CPU / memory / disk / network (the host itself, not its containers).
+  node-exporter:
+    image: prom/node-exporter:v1.9.1
+    mem_limit: 64m
+    restart: unless-stopped
+    pid: host
+    command:
+      - '--path.rootfs=/host'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc|run)($$|/)'
+    volumes:
+      - /:/host:ro,rslave
+    networks:
+      - backend
+
   # Docker socket proxy: rewrites Traefik's hardcoded API v1.24 → v1.41 so it
   # works with OrbStack (which rejects anything below 1.40). Only Traefik
   # connects to this proxy; it should never be exposed to other services.
   socket-proxy:
+    mem_limit: 32m
     image: nginx:alpine
     restart: always
     volumes:
@@ -1046,6 +1390,7 @@ services:
   # Requires DOMAIN and ACME_EMAIL in .env.
   # On first deploy: touch traefik/acme.json && chmod 600 traefik/acme.json
   traefik:
+    mem_limit: 128m
     image: traefik:v3.7.1
     restart: always
     ports:

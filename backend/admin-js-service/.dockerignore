@@ -1,0 +1,6 @@
+node_modules
+dist
+.adminjs
+# Config and secrets come from the container environment, never from the build context.
+.env*
+.git
