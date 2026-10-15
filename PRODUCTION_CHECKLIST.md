@@ -20,7 +20,7 @@ This checklist covers all essential and advanced items to get your FastAPI micro
 - [ ] Strong request/response validation (Pydantic models)
 - [ ] Sensible HTTP status codes for all responses
 - [ ] Proper use of response models (no leaking sensitive info)
-- [ ] Rate limiting Redis / API gateway 
+- [ ] Rate limiting Redis / API gateway
 - [ ] CORS securely configured
 - [ ] HTTPS enforced (SSL/TLS)
 - [✅] Authentication (JWT/OAuth2, external IdP, or internal)
@@ -164,4 +164,5 @@ This checklist covers all essential and advanced items to get your FastAPI micro
 @cache_decorator          # Caching (before expensive operations)
 @rate_limiter_decorator   # Rate limiting
 @logging_decorator        # Logging (closest to function)
-async def your_function():
+
+Before go-live: register for Stripe Tax and subscribe the Stripe webhook to every event the app handles. Set the CJ exchange rate and markup on purpose and prefund the CJ wallet. Set RETURN_ADDRESS, ADMIN_ALERT_EMAIL and the WebAuthn settings, and register the production URL for the CJ webhook.

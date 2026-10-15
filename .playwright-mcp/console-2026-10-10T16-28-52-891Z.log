@@ -1,0 +1,117 @@
+[     229ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:3001/admin/frontend/assets/global.bundle.js:49904
+[     323ms] [WARNING] You are loading @emotion/react when it is already loaded. Running multiple instances may cause problems. This can happen if multiple versions are used, or if multiple builds of the same version are used. @ http://localhost:3001/admin/frontend/assets/design-system.bundle.js:66217
+[     374ms] [WARNING] i18next::backendConnector: No backend was added via i18next.use. Will not load resources. @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     375ms] [LOG] i18next: languageChanged en @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     375ms] [LOG] i18next: initialized {debug: true, initImmediate: true, ns: Array(1), defaultNS: translation, fallbackLng: Array(1)} @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     387ms] [LOG] i18next::translator: missingKey en translation labels.Users Users @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     388ms] [LOG] i18next::translator: missingKey en translation labels.Customers Customers @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     388ms] [LOG] i18next::translator: missingKey en translation labels.Products Products @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     388ms] [LOG] i18next::translator: missingKey en translation labels.Catalogue Catalogue @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     388ms] [LOG] i18next::translator: missingKey en translation labels.Catalogue Catalogue @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     389ms] [LOG] i18next::translator: missingKey en translation labels.Categories Categories @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     389ms] [LOG] i18next::translator: missingKey en translation labels.Catalogue Catalogue @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     389ms] [LOG] i18next::translator: missingKey en translation labels.Images Images @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     389ms] [LOG] i18next::translator: missingKey en translation labels.Catalogue Catalogue @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     389ms] [LOG] i18next::translator: missingKey en translation labels.Reviews Reviews @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     389ms] [LOG] i18next::translator: missingKey en translation labels.Orders Orders @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     389ms] [LOG] i18next::translator: missingKey en translation labels.Orders Orders @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     400ms] [LOG] i18next::translator: missingKey en translation labels.Orders Orders @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     407ms] [LOG] i18next::translator: missingKey en translation properties.id Id @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     408ms] [LOG] i18next::translator: missingKey en translation properties.date_updated Date Updated @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     412ms] [LOG] i18next::translator: missingKey en translation properties.date_created Date Created @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     414ms] [LOG] i18next::translator: missingKey en translation properties.cj_order_number Cj Order Number @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     414ms] [LOG] i18next::translator: missingKey en translation properties.address_id Address Id @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     414ms] [LOG] i18next::translator: missingKey en translation properties.payment_intent_id Payment Intent Id @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     414ms] [LOG] i18next::translator: missingKey en translation properties.delivery_status Delivery Status @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     415ms] [LOG] i18next::translator: missingKey en translation properties.status Status @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     415ms] [LOG] i18next::translator: missingKey en translation properties.currency Currency @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     415ms] [LOG] i18next::translator: missingKey en translation properties.shipping_cost_usd Shipping Cost Usd @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     415ms] [LOG] i18next::translator: missingKey en translation properties.shipping_logistic_name Shipping Logistic Name @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     416ms] [LOG] i18next::translator: missingKey en translation properties.dispute_status Dispute Status @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     416ms] [LOG] i18next::translator: missingKey en translation properties.tax_calculation_id Tax Calculation Id @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     416ms] [LOG] i18next::translator: missingKey en translation properties.tax_amount Tax Amount @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     417ms] [LOG] i18next::translator: missingKey en translation properties.shipping_amount Shipping Amount @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     417ms] [LOG] i18next::translator: missingKey en translation properties.subtotal_amount Subtotal Amount @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     417ms] [LOG] i18next::translator: missingKey en translation properties.amount Amount @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     417ms] [LOG] i18next::translator: missingKey en translation properties.user_email User Email @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     417ms] [LOG] i18next::translator: missingKey en translation properties.user_id User Id @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     433ms] [LOG] i18next::translator: missingKey en translation labels.Users Users @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     433ms] [LOG] i18next::translator: missingKey en translation labels.Customers Customers @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     434ms] [LOG] i18next::translator: missingKey en translation labels.Products Products @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     434ms] [LOG] i18next::translator: missingKey en translation labels.Catalogue Catalogue @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     434ms] [LOG] i18next::translator: missingKey en translation labels.Catalogue Catalogue @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     434ms] [LOG] i18next::translator: missingKey en translation labels.Categories Categories @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     434ms] [LOG] i18next::translator: missingKey en translation labels.Catalogue Catalogue @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     434ms] [LOG] i18next::translator: missingKey en translation labels.Images Images @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     434ms] [LOG] i18next::translator: missingKey en translation labels.Catalogue Catalogue @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     434ms] [LOG] i18next::translator: missingKey en translation labels.Reviews Reviews @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     434ms] [LOG] i18next::translator: missingKey en translation labels.Orders Orders @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     434ms] [LOG] i18next::translator: missingKey en translation labels.Orders Orders @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     436ms] [LOG] i18next::translator: missingKey en translation labels.Orders Orders @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     438ms] [LOG] i18next::translator: missingKey en translation properties.id Id @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     438ms] [LOG] i18next::translator: missingKey en translation properties.date_updated Date Updated @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     440ms] [LOG] i18next::translator: missingKey en translation properties.date_created Date Created @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     441ms] [LOG] i18next::translator: missingKey en translation properties.cj_order_number Cj Order Number @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     441ms] [LOG] i18next::translator: missingKey en translation properties.address_id Address Id @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     441ms] [LOG] i18next::translator: missingKey en translation properties.payment_intent_id Payment Intent Id @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     441ms] [LOG] i18next::translator: missingKey en translation properties.delivery_status Delivery Status @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     442ms] [LOG] i18next::translator: missingKey en translation properties.status Status @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     442ms] [LOG] i18next::translator: missingKey en translation properties.currency Currency @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     442ms] [LOG] i18next::translator: missingKey en translation properties.shipping_cost_usd Shipping Cost Usd @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     442ms] [LOG] i18next::translator: missingKey en translation properties.shipping_logistic_name Shipping Logistic Name @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     442ms] [LOG] i18next::translator: missingKey en translation properties.dispute_status Dispute Status @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     442ms] [LOG] i18next::translator: missingKey en translation properties.tax_calculation_id Tax Calculation Id @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     442ms] [LOG] i18next::translator: missingKey en translation properties.tax_amount Tax Amount @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     443ms] [LOG] i18next::translator: missingKey en translation properties.shipping_amount Shipping Amount @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     443ms] [LOG] i18next::translator: missingKey en translation properties.subtotal_amount Subtotal Amount @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     443ms] [LOG] i18next::translator: missingKey en translation properties.amount Amount @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     443ms] [LOG] i18next::translator: missingKey en translation properties.user_email User Email @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     443ms] [LOG] i18next::translator: missingKey en translation properties.user_id User Id @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     453ms] [LOG] i18next::translator: missingKey en translation labels.Orders Orders @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     454ms] [LOG] i18next::translator: missingKey en translation properties.id Id @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     455ms] [LOG] i18next::translator: missingKey en translation properties.date_updated Date Updated @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     456ms] [LOG] i18next::translator: missingKey en translation properties.date_created Date Created @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     457ms] [LOG] i18next::translator: missingKey en translation properties.cj_order_number Cj Order Number @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     457ms] [LOG] i18next::translator: missingKey en translation properties.address_id Address Id @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     457ms] [LOG] i18next::translator: missingKey en translation properties.payment_intent_id Payment Intent Id @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     457ms] [LOG] i18next::translator: missingKey en translation properties.delivery_status Delivery Status @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     457ms] [LOG] i18next::translator: missingKey en translation properties.status Status @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     458ms] [LOG] i18next::translator: missingKey en translation properties.currency Currency @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     458ms] [LOG] i18next::translator: missingKey en translation properties.shipping_cost_usd Shipping Cost Usd @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     458ms] [LOG] i18next::translator: missingKey en translation properties.shipping_logistic_name Shipping Logistic Name @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     458ms] [LOG] i18next::translator: missingKey en translation properties.dispute_status Dispute Status @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     458ms] [LOG] i18next::translator: missingKey en translation properties.tax_calculation_id Tax Calculation Id @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     458ms] [LOG] i18next::translator: missingKey en translation properties.tax_amount Tax Amount @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     459ms] [LOG] i18next::translator: missingKey en translation properties.shipping_amount Shipping Amount @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     459ms] [LOG] i18next::translator: missingKey en translation properties.subtotal_amount Subtotal Amount @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     459ms] [LOG] i18next::translator: missingKey en translation properties.amount Amount @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     459ms] [LOG] i18next::translator: missingKey en translation properties.user_email User Email @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     459ms] [LOG] i18next::translator: missingKey en translation properties.user_id User Id @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     468ms] [LOG] i18next::translator: missingKey en translation properties.id Id @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     468ms] [LOG] i18next::translator: missingKey en translation properties.date_updated Date Updated @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     469ms] [LOG] i18next::translator: missingKey en translation properties.date_created Date Created @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     469ms] [LOG] i18next::translator: missingKey en translation properties.cj_order_number Cj Order Number @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     469ms] [LOG] i18next::translator: missingKey en translation properties.address_id Address Id @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     469ms] [LOG] i18next::translator: missingKey en translation properties.payment_intent_id Payment Intent Id @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     470ms] [LOG] i18next::translator: missingKey en translation properties.delivery_status Delivery Status @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     470ms] [LOG] i18next::translator: missingKey en translation properties.status Status @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     495ms] [LOG] i18next::translator: missingKey en translation labels.Orders Orders @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     508ms] [LOG] i18next::translator: missingKey en translation properties.id Id @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     508ms] [LOG] i18next::translator: missingKey en translation properties.date_updated Date Updated @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     509ms] [LOG] i18next::translator: missingKey en translation properties.date_created Date Created @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     509ms] [LOG] i18next::translator: missingKey en translation properties.cj_order_number Cj Order Number @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     510ms] [LOG] i18next::translator: missingKey en translation properties.address_id Address Id @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     510ms] [LOG] i18next::translator: missingKey en translation properties.payment_intent_id Payment Intent Id @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     510ms] [LOG] i18next::translator: missingKey en translation properties.delivery_status Delivery Status @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     510ms] [LOG] i18next::translator: missingKey en translation properties.status Status @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     510ms] [LOG] i18next::translator: missingKey en translation properties.currency Currency @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     510ms] [LOG] i18next::translator: missingKey en translation properties.shipping_cost_usd Shipping Cost Usd @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     510ms] [LOG] i18next::translator: missingKey en translation properties.shipping_logistic_name Shipping Logistic Name @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     510ms] [LOG] i18next::translator: missingKey en translation properties.dispute_status Dispute Status @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     511ms] [LOG] i18next::translator: missingKey en translation properties.tax_calculation_id Tax Calculation Id @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     511ms] [LOG] i18next::translator: missingKey en translation properties.tax_amount Tax Amount @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     511ms] [LOG] i18next::translator: missingKey en translation properties.shipping_amount Shipping Amount @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     511ms] [LOG] i18next::translator: missingKey en translation properties.subtotal_amount Subtotal Amount @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     511ms] [LOG] i18next::translator: missingKey en translation properties.amount Amount @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     511ms] [LOG] i18next::translator: missingKey en translation properties.user_email User Email @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213
+[     511ms] [LOG] i18next::translator: missingKey en translation properties.user_id User Id @ http://localhost:3001/admin/frontend/assets/app.bundle.js:31213

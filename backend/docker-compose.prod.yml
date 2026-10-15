@@ -15,6 +15,8 @@ services:
     ports: !reset []
   rabbitmq:
     ports: !reset []
+  frontend:
+    ports: !reset []
   api-gateway:
     ports: !reset []
   user-service:
@@ -35,6 +37,10 @@ services:
     ports: !reset []
   shipping-service:
     ports: !reset []
+  # admin-js is off the default deploy until it reads Vault itself (its Node
+  # process has no Vault client yet); run it with --profile admin.
+  admin-js-service:
+    profiles: ["admin"]
   # admin-js keeps its loopback-only port: it is reached over an SSH tunnel,
   # never through Traefik (see docker-compose.yml).
   otel-collector:

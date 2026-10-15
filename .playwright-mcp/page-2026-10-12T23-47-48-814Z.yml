@@ -1,0 +1,404 @@
+- generic [active] [ref=f1e1]:
+  - generic [ref=f1e3]:
+    - banner [ref=f1e4]:
+      - navigation [ref=f1e5]:
+        - generic [ref=f1e6]:
+          - link "AIGEN" [ref=f1e7] [cursor=pointer]:
+            - /url: /
+          - generic [ref=f1e8]:
+            - link "Home" [ref=f1e9] [cursor=pointer]:
+              - /url: /
+            - link "Create Design" [ref=f1e10] [cursor=pointer]:
+              - /url: /#create-design
+            - link "Shop" [ref=f1e11] [cursor=pointer]:
+              - /url: /#shop
+            - link "Best Sellers" [ref=f1e12] [cursor=pointer]:
+              - /url: /?collection=trending#shop
+        - generic [ref=f1e14]:
+          - textbox "Search designs..." [ref=f1e15]
+          - button "Search" [ref=f1e16] [cursor=pointer]
+        - generic [ref=f1e19]:
+          - generic [ref=f1e20] [cursor=pointer]: "0"
+          - generic [ref=f1e26]: Account
+    - main [ref=f1e33]:
+      - generic [ref=f1e34]:
+        - generic [ref=f1e35]:
+          - generic [ref=f1e36]:
+            - generic [ref=f1e37]:
+              - generic [ref=f1e38]: AI Design Studio
+              - heading "The Future of Personal Expression." [level=1] [ref=f1e43]
+              - paragraph [ref=f1e44]: Craft your vision. The AI Design Studio puts a team of world-class artists at your fingertips. No design skills required.
+            - generic [ref=f1e47]:
+              - generic [ref=f1e48]:
+                - generic [ref=f1e49]:
+                  - generic [ref=f1e50]: Prompt
+                  - textbox "A futuristic cyberpunk samurai mask made of translucent glass shards, neon indigo lighting, minimalist vector style..." [ref=f1e51]
+                - generic [ref=f1e52]:
+                  - generic [ref=f1e53]: Style
+                  - combobox [ref=f1e54] [cursor=pointer]:
+                    - option "None" [selected]
+                    - option "Minimal"
+                    - option "Vintage"
+                    - option "Anime"
+                    - option "Streetwear"
+                    - option "Abstract"
+                    - option "Typography"
+              - generic [ref=f1e55]:
+                - button "Sign in to generate" [ref=f1e57] [cursor=pointer]
+                - button "Browse generated states" [disabled] [ref=f1e61]
+                - button "Random Prompt" [ref=f1e65] [cursor=pointer]
+          - generic [ref=f1e71]:
+            - generic [ref=f1e72]:
+              - img "T-shirt front preview" [ref=f1e75]
+              - generic [ref=f1e86]:
+                - generic [ref=f1e87]:
+                  - button "−" [ref=f1e88] [cursor=pointer]
+                  - generic [ref=f1e89]: 100%
+                  - button "+" [ref=f1e90] [cursor=pointer]
+                - button "Reset" [ref=f1e91] [cursor=pointer]
+            - img:
+              - generic: 50 cm
+              - generic: 64-67 cm
+          - generic [ref=f1e92]:
+            - generic [ref=f1e93]:
+              - generic [ref=f1e94]:
+                - heading "T-Shirt Color" [level=3] [ref=f1e95]
+                - generic [ref=f1e96]:
+                  - button "White" [ref=f1e97] [cursor=pointer]
+                  - button "Black" [ref=f1e98] [cursor=pointer]
+              - generic [ref=f1e100]:
+                - heading "Size" [level=3] [ref=f1e101]
+                - generic [ref=f1e102]:
+                  - button "S" [ref=f1e103] [cursor=pointer]
+                  - button "M" [ref=f1e104] [cursor=pointer]
+                  - button "L" [ref=f1e105] [cursor=pointer]
+              - generic [ref=f1e107]:
+                - heading "Gender" [level=3] [ref=f1e108]
+                - generic [ref=f1e109]:
+                  - button "Male" [ref=f1e110] [cursor=pointer]
+                  - button "Female" [ref=f1e111] [cursor=pointer]
+                  - button "X" [ref=f1e112] [cursor=pointer]
+              - generic [ref=f1e114]:
+                - heading "Print Placement" [level=3] [ref=f1e115]
+                - combobox [ref=f1e117] [cursor=pointer]:
+                  - option "Center Chest" [selected]
+                  - option "Left Top Chest"
+                  - option "Right Top Chest"
+                  - option "Left Bottom"
+                  - option "Right Bottom"
+                  - option "Center Bottom"
+                  - option "Oversized Center"
+                  - option "Full Back"
+                  - option "Back Upper"
+                  - option "Back Lower"
+              - generic [ref=f1e119]:
+                - heading "Quantity" [level=3] [ref=f1e120]
+                - combobox [ref=f1e122] [cursor=pointer]:
+                  - option "1" [selected]
+                  - option "2"
+                  - option "3"
+                  - option "4"
+                  - option "5"
+                  - option "6"
+                  - option "7"
+                  - option "8"
+                  - option "9"
+                  - option "10"
+            - generic [ref=f1e123]:
+              - generic [ref=f1e124]: ...
+              - button "Add to Cart" [ref=f1e125] [cursor=pointer]
+        - generic [ref=f1e126]:
+          - generic [ref=f1e127]:
+            - generic [ref=f1e128]:
+              - heading "Community Gallery" [level=2] [ref=f1e129]
+              - paragraph [ref=f1e130]: Recently created and purchased designs
+            - generic [ref=f1e131]:
+              - button "Scroll left" [ref=f1e132] [cursor=pointer]
+              - button "Scroll right" [ref=f1e136] [cursor=pointer]
+          - generic [ref=f1e140]:
+            - generic [ref=f1e141]:
+              - generic [ref=f1e142]:
+                - img "Retro Anime Aura by AuraDesign" [ref=f1e143]
+                - button [ref=f1e144] [cursor=pointer]
+              - generic [ref=f1e148]:
+                - paragraph [ref=f1e149]: "@AuraDesign"
+                - generic [ref=f1e150]: Trending
+            - generic [ref=f1e151]:
+              - generic [ref=f1e152]:
+                - img "Sumi-e Ink Wash by ZenStudio" [ref=f1e153]
+                - button [ref=f1e154] [cursor=pointer]
+              - generic [ref=f1e158]:
+                - paragraph [ref=f1e159]: "@ZenStudio"
+                - generic [ref=f1e160]: Best Seller
+            - generic [ref=f1e161]:
+              - generic [ref=f1e162]:
+                - img "Brutalist Architecture by ArchDesign" [ref=f1e163]
+                - button [ref=f1e164] [cursor=pointer]
+              - paragraph [ref=f1e169]: "@ArchDesign"
+            - generic [ref=f1e170]:
+              - generic [ref=f1e171]:
+                - img "Geometric Wolf by LoboCraft" [ref=f1e172]
+                - button [ref=f1e173] [cursor=pointer]
+              - paragraph [ref=f1e178]: "@LoboCraft"
+        - generic [ref=f1e179]:
+          - generic [ref=f1e180]:
+            - generic [ref=f1e181]:
+              - heading "Featured Selection" [level=2] [ref=f1e182]
+              - paragraph [ref=f1e183]: Premium pre-designed collections
+            - generic [ref=f1e184]:
+              - button "All" [ref=f1e185] [cursor=pointer]
+              - button "Trending" [ref=f1e186] [cursor=pointer]
+              - button "New Arrivals" [ref=f1e187] [cursor=pointer]
+          - generic [ref=f1e188]:
+            - generic [ref=f1e189] [cursor=pointer]:
+              - generic [ref=f1e190]:
+                - img "shorts lapel t-shirt men's short-sleeved business casual t-shirt men's polo shirt" [ref=f1e191]
+                - button "Quick Add" [ref=f1e193]
+              - generic [ref=f1e194]:
+                - generic [ref=f1e195]:
+                  - heading "shorts lapel t-shirt men'..." [level=3] [ref=f1e196]
+                  - paragraph [ref=f1e197]: t-shirts
+                - generic [ref=f1e198]: $44.99
+            - generic [ref=f1e199] [cursor=pointer]:
+              - generic [ref=f1e200]:
+                - img "t shirt" [ref=f1e201]
+                - button "Quick Add" [ref=f1e203]
+              - generic [ref=f1e204]:
+                - generic [ref=f1e205]:
+                  - heading "t shirt" [level=3] [ref=f1e206]
+                  - paragraph [ref=f1e207]: t-shirts
+                - generic [ref=f1e208]: $32.99
+            - generic [ref=f1e209] [cursor=pointer]:
+              - generic [ref=f1e210]:
+                - img "short-sleeved t-shirt shiny men's t-shirt bottoming shirt" [ref=f1e211]
+                - button "Quick Add" [ref=f1e213]
+              - generic [ref=f1e214]:
+                - generic [ref=f1e215]:
+                  - heading "short-sleeved t-shirt shi..." [level=3] [ref=f1e216]
+                  - paragraph [ref=f1e217]: t-shirts
+                - generic [ref=f1e218]: $30.99
+            - generic [ref=f1e219] [cursor=pointer]:
+              - generic [ref=f1e220]:
+                - img "custom design, t-shirt, personal t-shirt" [ref=f1e221]
+                - button "Quick Add" [ref=f1e223]
+              - generic [ref=f1e224]:
+                - generic [ref=f1e225]:
+                  - heading "custom design, t-shirt, p..." [level=3] [ref=f1e226]
+                  - paragraph [ref=f1e227]: t-shirts
+                - generic [ref=f1e228]: $35.99
+            - generic [ref=f1e229] [cursor=pointer]:
+              - generic [ref=f1e230]:
+                - img "men's printed t-shirt" [ref=f1e231]
+                - button "Quick Add" [ref=f1e233]
+              - generic [ref=f1e234]:
+                - generic [ref=f1e235]:
+                  - heading "men's printed t-shirt" [level=3] [ref=f1e236]
+                  - paragraph [ref=f1e237]: t-shirts
+                - generic [ref=f1e238]: $93.99
+            - generic [ref=f1e239] [cursor=pointer]:
+              - generic [ref=f1e240]:
+                - img "t-shirt" [ref=f1e241]
+                - button "Quick Add" [ref=f1e243]
+              - generic [ref=f1e244]:
+                - generic [ref=f1e245]:
+                  - heading "t-shirt" [level=3] [ref=f1e246]
+                  - paragraph [ref=f1e247]: t-shirts
+                - generic [ref=f1e248]: $18.99
+            - generic [ref=f1e249] [cursor=pointer]:
+              - generic [ref=f1e250]:
+                - img "t-shirt" [ref=f1e251]
+                - button "Quick Add" [ref=f1e253]
+              - generic [ref=f1e254]:
+                - generic [ref=f1e255]:
+                  - heading "t-shirt" [level=3] [ref=f1e256]
+                  - paragraph [ref=f1e257]: t-shirts
+                - generic [ref=f1e258]: $18.99
+            - generic [ref=f1e259] [cursor=pointer]:
+              - generic [ref=f1e260]:
+                - img "3d t-shirt short sleeve t-shirt" [ref=f1e261]
+                - button "Quick Add" [ref=f1e263]
+              - generic [ref=f1e264]:
+                - generic [ref=f1e265]:
+                  - heading "3d t-shirt short sleeve t..." [level=3] [ref=f1e266]
+                  - paragraph [ref=f1e267]: t-shirts
+                - generic [ref=f1e268]: $19.99
+            - generic [ref=f1e269] [cursor=pointer]:
+              - generic [ref=f1e270]:
+                - img "cycling jersey top t-shirt sports t-shirt" [ref=f1e271]
+                - button "Quick Add" [ref=f1e273]
+              - generic [ref=f1e274]:
+                - generic [ref=f1e275]:
+                  - heading "cycling jersey top t-shir..." [level=3] [ref=f1e276]
+                  - paragraph [ref=f1e277]: t-shirts
+                - generic [ref=f1e278]: $49.99
+            - generic [ref=f1e279] [cursor=pointer]:
+              - generic [ref=f1e280]:
+                - img "men's printed short-sleeved t-shirt" [ref=f1e281]
+                - button "Quick Add" [ref=f1e283]
+              - generic [ref=f1e284]:
+                - generic [ref=f1e285]:
+                  - heading "men's printed short-sleev..." [level=3] [ref=f1e286]
+                  - paragraph [ref=f1e287]: t-shirts
+                - generic [ref=f1e288]: $21.99
+            - generic [ref=f1e289] [cursor=pointer]:
+              - generic [ref=f1e290]:
+                - img "t-shirt" [ref=f1e291]
+                - button "Quick Add" [ref=f1e293]
+              - generic [ref=f1e294]:
+                - generic [ref=f1e295]:
+                  - heading "t-shirt" [level=3] [ref=f1e296]
+                  - paragraph [ref=f1e297]: t-shirts
+                - generic [ref=f1e298]: $18.99
+            - generic [ref=f1e299] [cursor=pointer]:
+              - generic [ref=f1e300]:
+                - img "men's t-shirt round neck t-shirt" [ref=f1e301]
+                - button "Quick Add" [ref=f1e303]
+              - generic [ref=f1e304]:
+                - generic [ref=f1e305]:
+                  - heading "men's t-shirt round neck ..." [level=3] [ref=f1e306]
+                  - paragraph [ref=f1e307]: t-shirts
+                - generic [ref=f1e308]: $6.99
+            - generic [ref=f1e309] [cursor=pointer]:
+              - generic [ref=f1e310]:
+                - img "t-shirt" [ref=f1e311]
+                - button "Quick Add" [ref=f1e313]
+              - generic [ref=f1e314]:
+                - generic [ref=f1e315]:
+                  - heading "t-shirt" [level=3] [ref=f1e316]
+                  - paragraph [ref=f1e317]: t-shirts
+                - generic [ref=f1e318]: $25.99
+            - generic [ref=f1e319] [cursor=pointer]:
+              - generic [ref=f1e320]:
+                - img "t-shirt" [ref=f1e321]
+                - button "Quick Add" [ref=f1e323]
+              - generic [ref=f1e324]:
+                - generic [ref=f1e325]:
+                  - heading "t-shirt" [level=3] [ref=f1e326]
+                  - paragraph [ref=f1e327]: t-shirts
+                - generic [ref=f1e328]: $20.99
+            - generic [ref=f1e329] [cursor=pointer]:
+              - generic [ref=f1e330]:
+                - img "t-shirt" [ref=f1e331]
+                - button "Quick Add" [ref=f1e333]
+              - generic [ref=f1e334]:
+                - generic [ref=f1e335]:
+                  - heading "t-shirt" [level=3] [ref=f1e336]
+                  - paragraph [ref=f1e337]: t-shirts
+                - generic [ref=f1e338]: $43.99
+            - generic [ref=f1e339] [cursor=pointer]:
+              - generic [ref=f1e340]:
+                - img "alien football tie dye men's and women's casual short sleeve t-shirt" [ref=f1e341]
+                - button "Quick Add" [ref=f1e343]
+              - generic [ref=f1e344]:
+                - generic [ref=f1e345]:
+                  - heading "alien football tie dye me..." [level=3] [ref=f1e346]
+                  - paragraph [ref=f1e347]: t-shirts
+                - generic [ref=f1e348]: $74.99
+            - generic [ref=f1e349] [cursor=pointer]:
+              - generic [ref=f1e350]:
+                - img "large size t-shirt print t-shirt" [ref=f1e351]
+                - button "Quick Add" [ref=f1e353]
+              - generic [ref=f1e354]:
+                - generic [ref=f1e355]:
+                  - heading "large size t-shirt print ..." [level=3] [ref=f1e356]
+                  - paragraph [ref=f1e357]: t-shirts
+                - generic [ref=f1e358]: $57.99
+            - generic [ref=f1e359] [cursor=pointer]:
+              - generic [ref=f1e360]:
+                - img "frog tactical t-shirt outdoor t-shirt tactical t-shirt" [ref=f1e361]
+                - button "Quick Add" [ref=f1e363]
+              - generic [ref=f1e364]:
+                - generic [ref=f1e365]:
+                  - heading "frog tactical t-shirt out..." [level=3] [ref=f1e366]
+                  - paragraph [ref=f1e367]: t-shirts
+                - generic [ref=f1e368]: $66.99
+            - generic [ref=f1e369] [cursor=pointer]:
+              - generic [ref=f1e370]:
+                - img "men's cotton comfort printed t-shirt" [ref=f1e371]
+                - button "Quick Add" [ref=f1e373]
+              - generic [ref=f1e374]:
+                - generic [ref=f1e375]:
+                  - heading "men's cotton comfort prin..." [level=3] [ref=f1e376]
+                  - paragraph [ref=f1e377]: t-shirts
+                - generic [ref=f1e378]: $19.99
+            - generic [ref=f1e379] [cursor=pointer]:
+              - generic [ref=f1e380]:
+                - img "t-shirt" [ref=f1e381]
+                - button "Quick Add" [ref=f1e383]
+              - generic [ref=f1e384]:
+                - generic [ref=f1e385]:
+                  - heading "t-shirt" [level=3] [ref=f1e386]
+                  - paragraph [ref=f1e387]: t-shirts
+                - generic [ref=f1e388]: $30.99
+        - generic [ref=f1e389]:
+          - heading "From Imagination to Wardrobe" [level=2] [ref=f1e391]
+          - generic [ref=f1e392]:
+            - generic [ref=f1e393]:
+              - heading "1. Generate" [level=3] [ref=f1e399]
+              - paragraph [ref=f1e400]: Describe your vision in plain English. Our bespoke AI engine transforms words into high-resolution wearable art.
+            - generic [ref=f1e401]:
+              - heading "2. Customize" [level=3] [ref=f1e406]
+              - paragraph [ref=f1e407]: Choose your garment color, material weight, and print placement. Real-time previews ensure perfection.
+            - generic [ref=f1e408]:
+              - heading "3. Order" [level=3] [ref=f1e413]
+              - paragraph [ref=f1e414]: Printed on premium 240gsm organic cotton. Delivered in carbon-neutral packaging.
+        - generic [ref=f1e415]:
+          - generic [ref=f1e416]:
+            - paragraph [ref=f1e439]: "\"The print quality is indistinguishable from high-end luxury brands. Generating my own design felt like having a personal artist.\""
+            - generic [ref=f1e440]:
+              - img "Marcus Chen" [ref=f1e442]
+              - generic [ref=f1e443]:
+                - paragraph [ref=f1e444]: Marcus Chen
+                - paragraph [ref=f1e445]: Creative Director
+          - generic [ref=f1e446]:
+            - generic [ref=f1e451]:
+              - heading "Join 50k+ Creators" [level=3] [ref=f1e452]
+              - paragraph [ref=f1e453]: Be part of the future of fashion. Start generating your own unique styles today.
+            - button "Get Started" [ref=f1e454] [cursor=pointer]
+          - generic [ref=f1e455]:
+            - paragraph [ref=f1e478]: "\"AIGEN is addictive. I've designed five shirts already. Every single one became a conversation starter. Truly innovative tech.\""
+            - generic [ref=f1e479]:
+              - img "Sarah Jenkins" [ref=f1e481]
+              - generic [ref=f1e482]:
+                - paragraph [ref=f1e483]: Sarah Jenkins
+                - paragraph [ref=f1e484]: Influencer
+    - contentinfo [ref=f1e485]:
+      - generic [ref=f1e486]:
+        - generic [ref=f1e487]:
+          - generic [ref=f1e488]:
+            - link "AIGEN" [ref=f1e489] [cursor=pointer]:
+              - /url: /
+            - paragraph [ref=f1e490]: Pioneering the intersection of artificial intelligence and premium streetwear.
+          - generic [ref=f1e491]:
+            - heading "COLLECTIONS" [level=4] [ref=f1e492]
+            - navigation [ref=f1e493]:
+              - link "New Arrivals" [ref=f1e494] [cursor=pointer]:
+                - /url: "#"
+              - link "Best Sellers" [ref=f1e495] [cursor=pointer]:
+                - /url: "#"
+              - link "Limited Edition" [ref=f1e496] [cursor=pointer]:
+                - /url: "#"
+          - generic [ref=f1e497]:
+            - heading "COMPANY" [level=4] [ref=f1e498]
+            - navigation [ref=f1e499]:
+              - link "About Studio" [ref=f1e500] [cursor=pointer]:
+                - /url: "#"
+              - link "Sustainability" [ref=f1e501] [cursor=pointer]:
+                - /url: "#"
+              - link "Careers" [ref=f1e502] [cursor=pointer]:
+                - /url: "#"
+          - generic [ref=f1e503]:
+            - heading "STAY UPDATED" [level=4] [ref=f1e504]
+            - generic [ref=f1e505]:
+              - textbox "Email address" [ref=f1e506]
+              - button [ref=f1e507] [cursor=pointer]
+        - generic [ref=f1e511]:
+          - paragraph [ref=f1e512]: © 2026 AIGEN Studio. High Resolution Art.
+          - generic [ref=f1e513]:
+            - link "Instagram" [ref=f1e514] [cursor=pointer]:
+              - /url: "#"
+            - link "Twitter" [ref=f1e515] [cursor=pointer]:
+              - /url: "#"
+            - link "Terms of Use" [ref=f1e516] [cursor=pointer]:
+              - /url: "#"
+  - button "Open Next.js Dev Tools" [ref=f1e522] [cursor=pointer]

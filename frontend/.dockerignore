@@ -1,0 +1,9 @@
+node_modules
+.next
+out
+# Local config and secrets never enter the image; NEXT_PUBLIC_* come in as build args.
+.env*
+npm-debug.log*
+.DS_Store
+tsconfig.tsbuildinfo
+.git
