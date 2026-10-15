@@ -62,10 +62,9 @@ or recorded as decided. Merged so far: PR #41 (readiness, phases 2–5) and PR #
   sign-in token, so a newly uploaded picture shows there only after the next sign-in; a
   local `stripe listen` is needed for a browser checkout to move past "Order placed".
   `next build` was not run (it shares `.next` with the running dev server).
-- The 8 remaining lint warnings (`npm run lint`): 6 `react-hooks/exhaustive-deps`, one
-  unused variable, one unused expression.
 - Put `npm run test:race` (and the live suite, where a stack is available) into CI;
-  neither runs there today, and `lint` is not a CI gate.
+  neither runs there today, and `lint` is not a CI gate. Lint is clean since
+  2026-10-15 (no warnings), so it can become one without first fixing anything.
 - Browser sign-in, checkout (Stripe test card, CJ sandbox) and the new pages were checked
   in Playwright at 390px and 1280px on 2026-10-15. The Chrome extension was still not
   connected.
@@ -1582,7 +1581,8 @@ Frontend, status (2026-10-15, uncommitted on main):
   eight different addresses all succeed, and the attribution test fails with the
   forwarding turned off. Production relies on the frontend being reachable only
   through Traefik; the header is trusted only from the private networks.
-- Done, lint: 0 errors (8 warnings left, all existing hook-dependency notes). The
+- Done, lint: 0 errors (8 warnings left, all existing hook-dependency notes; cleared
+  2026-10-15 in PR #43, `npm run lint` now reports no issues). The
   cart, the checkout intent and the generation session are external stores
   (`lib/local-storage-store.ts`, `useSyncExternalStore`), so nothing copies storage
   into state in an effect. The other rule hits were derived during render (activation,
