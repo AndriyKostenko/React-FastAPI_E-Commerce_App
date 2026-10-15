@@ -12,7 +12,6 @@ const SearchBar = () => {
         register,
         handleSubmit,
         reset,
-        formState: { errors },
     } = useForm<FieldValues>({
         defaultValues: {
             searchTerm: "",

@@ -16,6 +16,7 @@ hardening items, and legal/compliance work — no re-architecting required.
 ## Open backend items (2026-10-13)
 
 Code work:
+
 - **Per-service Redis / RabbitMQ users**: every service still reads the
   Redis and RabbitMQ passwords from one Vault path (§8.1). Postgres is done
   (§8.7).
@@ -44,6 +45,7 @@ dead letters (§5a); the "Before going live" settings in §3b, §5, §8.2–§8.
 ## What's already in place
 
 **AI print-on-demand flow**
+
 - `product_service`: `openrouter_client` -> `image_generation_service` (+ quota, job store)
   -> `image_storage_service` (S3, signed immutable manifest, SHA-256, pixel/DPI/print-area
   validation — see `product_service/ARTWORK_STORAGE.md`)
@@ -51,11 +53,13 @@ dead letters (§5a); the "Before going live" settings in §3b, §5, §8.2–§8.
   `getCustomTshirtPricing`, `generateImage` action
 
 **CJ Dropshipping**
+
 - `supplier_service`: `cj_api_client` (token auth, `listV2`, `createOrderV2`, order detail,
   delete), `sync_orchestrator_service` + `scheduler` (products fetched & stored in DB),
   `cj_inventory_verifier`, `cj_to_supplier_mapper`, `cj_order_attempt_repository`, unit tests
 
 **Dual fulfillment routing already modeled**
+
 - `order_service`: `OrderLineFulfillment.fulfillment_type` splits per line item;
   `CustomProductionJob` = durable in-house work queue; `supplier_id` path -> CJ
 - Order saga with payment/inventory/fulfillment gates + `saga_timeout_worker`
@@ -70,6 +74,7 @@ k6 load tests, Alembic per service. The large `shared/` refactor called out in
 ## What's still missing for production
 
 ### 1. Deployment & CI/CD (biggest gap)
+
 - CI on pull requests: **done (2026-10-12), phase 1 below.** Image
   build/publish and deploy are phases 2 and 5.
 - **Secrets in the public git history — rotate (found 2026-10-12).** A
@@ -301,7 +306,7 @@ monitoring stack all run on the host** (not RDS / SSM / Amplify / CloudWatch).
        memory use under load.
   3. Terraform: network, host, IAM / OIDC, KMS, S3 + CloudFront, ECR,
      Route 53, account baseline;
-  3. Terraform: network, host, IAM / OIDC, KMS, S3 + CloudFront, ECR,
+  4. Terraform: network, host, IAM / OIDC, KMS, S3 + CloudFront, ECR,
      Route 53, account baseline. **Done (2026-10-14), applied to account
      008897528825 in ca-central-1.** Code in `infra/` (`bootstrap/` made the
      state bucket). Created: VPC and public subnet, one `m7g.large` host with
@@ -314,7 +319,7 @@ monitoring stack all run on the host** (not RDS / SSM / Amplify / CloudWatch).
      root MFA, an admin identity other than root, and the registrar's name
      servers once a domain exists. The product and order service keys sit in
      Terraform state; move them to Vault in phase 6.
-  4. host bootstrap: **Done (2026-10-14), run on the host through SSM**
+  5. host bootstrap: **Done (2026-10-14), run on the host through SSM**
      (`infra/host/bootstrap-host.sh`, idempotent). 4 GB swap (swappiness 10);
      security-only dnf-automatic; Docker with live-restore and bounded logs,
      no `no-new-privileges` (the taskiq workers need gosu); Compose v5.5.0
@@ -330,9 +335,9 @@ monitoring stack all run on the host** (not RDS / SSM / Amplify / CloudWatch).
      disabled until the stack runs (phase 5). **Owner action:** Vault's recovery
      keys and root token are in `/root/vault-init.json` on the host. Move them
      to an offline store and delete the file.
-  5. deploy workflow: build / push, approval, SSM deploy, health gate,
+  6. deploy workflow: build / push, approval, SSM deploy, health gate,
      automatic rollback;
-  5. deploy workflow: **Built (2026-10-15), not run yet.** `.github/workflows/deploy.yml`
+  7. deploy workflow: **Built (2026-10-15), not run yet.** `.github/workflows/deploy.yml`
      runs after a green CI on main. The build job (arm64 runner, the host is
      Graviton) builds all images, pushes them to ECR tagged with the commit SHA,
      and assumes the build role, which can only push images and is trusted from
@@ -359,7 +364,7 @@ monitoring stack all run on the host** (not RDS / SSM / Amplify / CloudWatch).
      for you, as the only reviewer).
      The workflow is switched off: both jobs run only when the repository
      variable `DEPLOY_ENABLED` is `true`, which is set at go-live.
-  6. go-live: owner imports production secrets into Vault, DNS, Stripe and CJ
+  8. go-live: owner imports production secrets into Vault, DNS, Stripe and CJ
      webhooks to the production URL, external health check, runbook (deploy,
      rollback, restore, rotate a secret).
 - **Later, if the shop outgrows one host:** ECS on Fargate (a role and
@@ -435,6 +440,7 @@ and `shipping_refunded`, and notification-service emails the customer
 A job cancelled after printing still sends nothing: that is a human decision.
 
 ### 3. CJ dropshipping order lifecycle completeness — DONE (2026-09-08)
+
 - [x] Checkout-time shipping quote from CJ (`freightCalculate`)
   - `cj_api_client.calculate_freight` + `CJFreightQuoteService` (resolves local
     product/variant -> CJ vid, TTL-cached per ASGI process, cheapest option first)
@@ -483,6 +489,7 @@ Schema: `supplier_service` migration `c4a7f1d2e9b8` adds the tracking columns
 been bootstrapped by `create_all`).
 
 ### 3a. Canada only; CJ goods from China warehouses only — DONE (2026-09-28, sourcing moved US → China 2026-10-02)
+
 - **Selling:** `shared.contracts.shipping_region.CanadianAddress` checks every
   shipping address order-service accepts (order and checkout quote) before it is
   priced: country Canada (a missing one is taken as Canada), a real province or
@@ -521,6 +528,7 @@ been bootstrapped by `create_all`).
   check at the checkout quote.
 
 ### 3c. CJ sandbox for end-to-end tests — DONE (2026-09-28)
+
 `CJ_DROPSHIPPING_SANDBOX=true` creates CJ orders with `isSandbox=1` and pays
 them with CJ's `simulatePay` (no wallet balance read or spent); everything
 else runs as for a real order. `./local/dev.sh cj-sandbox ship|deliver
@@ -533,8 +541,10 @@ allows one request per second per account; the CJ client spaces the helper's
 calls like every other (§5a).
 
 ### 3b. Checkout → Stripe → CJ money flow — DONE (2026-09-10)
+
 Branch `feature/checkout-payment-cj-flow`; diagram in `FLOWS.md` →
 "Checkout, Payment & CJ Fulfillment Flow".
+
 - [x] **CJ orders are actually paid.** They were created with `payType=3`
   ("create only") and never confirmed or paid, so CJ never shipped anything.
   `CJOrderPaymentService` now runs confirmOrder → cost-ceiling check → balance
@@ -681,6 +691,7 @@ already correct; three remain.
       contains the key.
 
 **Resolved locally by §8.1 (Vault, 2026-10-08); compose still to do:**
+
 - ~~**Every service is still *given* every secret.**~~ Since 2026-10-08 every
   process `dev.sh` starts reads only its own Vault path. Compose still loads
   the blanket `.env` (its containers would need Vault Agent); the deployment
@@ -775,6 +786,7 @@ the services), not only in unit tests.
       `REMBG_MODEL` build arg must match `PRODUCT_IMAGE_BG_REMOVAL_MODEL`.
 
 **Closed since:**
+
 - **admin-js** runs under `dev.sh` now (2026-09-28, `./local/dev.sh up admin-js`,
   :3001). It checks its configuration at startup: `backend/.env` was missing
   `COOKIE_SECRET`, `ADMINJS_SERVICE_REDIS_DB` and `ADMINJS_SERVICE_REDIS_PREFIX`,
@@ -782,6 +794,7 @@ the services), not only in unit tests.
   done since 2026-10-10 (§8.4).
 
 ### 5. Payments & tax/legal
+
 - [x] Partial refunds (2026-09-25). `POST /admin/orders/{id}/refunds` refunds
   chosen lines and optionally shipping, never above what was captured. Before
   capture the card is simply charged less (`amount_to_capture`); after capture
@@ -899,6 +912,7 @@ the API, consumer, taskiq worker (up to 5 tasks at once), scheduler and CLI
 tools each paced only their own loop, with hand-placed 1.1 s sleeps, so the
 logs held ~480 such 429s (the cancellation-race order on 2026-10-05 failed
 its create this way).
+
 - Every CJ call now takes a slot from one budget in supplier-service's Redis
   (`RedisRequestPacer`, `infrastructure/resilience/request_pacer.py`): a Lua
   script reserves the next free slot on Redis's clock, one
@@ -929,6 +943,7 @@ its create this way).
   retries absorb. If 429s keep appearing, raise the interval (e.g. 1.2).
 
 **Open follow-ups:**
+
 - 10 old messages sit in `taskiq.notifications.dead_letter` (from before
   PR #11); replay or discard them.
 - After any change to an event in a service's `contracts/events.py`, restart every process of
@@ -937,6 +952,7 @@ its create this way).
   (seen with `refund_scope` on 2026-10-07).
 
 ### 6. Frontend completeness
+
 - No user account/profile page, address book, order-tracking detail page
 - No wishlist UI (the service exists, no page)
 - The "designer" is a single Hero panel — a sellable product likely needs real placement /
@@ -944,6 +960,7 @@ its create this way).
 - Loading/error states, mobile polish
 
 ### 7. Testing & docs
+
 - All ten service suites pass (1,983 tests in the CI rehearsal, 2026-10-12;
   `shared/` and its suite are gone, §8.5), and **CI runs them on every pull
   request since 2026-10-12** (§1, phase 1), with `alembic check`, ruff,
@@ -1427,7 +1444,7 @@ approach; decisions are recorded here as they are made.
 Backend:
 
 | # | Question | Status |
-|---|---|---|
+| --- | --- | --- |
 | 1 | Is the token decoded twice (gateway `AuthMiddleware` and user-service)? | **Done (2026-09-24).** Only the gateway decodes it; user-service reads the gateway's signed caller assertion and checks the account row |
 | 2 | Gateway strips auth and injects identity headers? | **Done (2026-09-24).** `Authorization` and `Cookie` stop at the gateway; identity travels only as the signed assertion |
 | 2b | Signing key out of the gateway, like Google login? | **Done (2026-09-24).** User tokens are EdDSA, private key in user-service only; the gateway signs 60s method+path-bound caller assertions (`X-Caller-Assertion`) that services verify with its public key |
@@ -1451,6 +1468,55 @@ Backend:
 | 19b | taskiq DLX? | **Done for notifications (2026-09-24).** taskiq acks a failed task (its result is saved), so its DLQ never saw one. `DeadLetteringRetryMiddleware` retries emails with backoff and jitter, then parks them in `taskiq.notifications.dead_letter`. Image generation (refunds quota) and the supplier cron jobs (next run is the retry) deliberately do not retry. Parked messages replay with `./local/dev.sh dlq list` / `dlq replay <queue>` |
 | 20 | `autoflush` / `expire_on_commit`; UoW transaction boundaries? | **Done (2026-09-25).** `expire_on_commit=False` is right for async; with `autoflush=False` the gap was deletes: they never flushed, so later reads saw deleted rows and constraint violations surfaced at commit as bare 500s. Deletes now flush; `IntegrityError` renders as 409. Deleting a category silently deleted all its products (ORM cascade) — now refused with 409 |
 
+Frontend, status (2026-10-15, uncommitted on main):
+- Done: the server session is per request (it was a module-level object, so
+  concurrent requests could read each other's session); the order page sends the
+  owner's token (it could never show an order) and asks for sign-in without one;
+  sign-out and session expiry clear the user's payment intent, pending checkout and
+  generation state (`utils/client-storage.ts`; the cart stays); `useCart` builds new
+  state, sums in cents (`utils/money.ts`), writes storage after load, and memoizes
+  its value; the hero computes its unit price once in cents, so a cart line times
+  its quantity equals the price shown; `ProductDetails` and `AddReview` no longer
+  return before their hooks; the generation hook no longer reads a ref during render.
+- Done, bug 9: the access token no longer reaches the browser. The session endpoint
+  and the rendered HTML carry no token (`/api/auth/session` returned it before).
+  Browser calls for checkout, image generation and reviews go through a same-origin
+  proxy (`app/api/gateway/[...path]/route.ts`), which adds the token on the server,
+  allows only the versioned API, and refuses cross-site writes.
+- Done, lint: `eslint-config-next` was an unrelated 0.2.4 package; it is now the
+  16.x release and the config is flat (`eslint.config.mjs`). `npm run lint` runs.
+  9 errors remain, all from the `set-state-in-effect` rule (storage hydration and
+  prop sync in the cart, the generation hook, the checkout form, the product page,
+  the colour selector, the activation page and the featured collection). Fixing them
+  properly means `useSyncExternalStore` for storage-backed state; that is a design
+  choice, not a mechanical fix.
+- Tests: `npm run test:session` (11 tests, real stack, no mocks): two users stay
+  separate, including 240 concurrent page requests; the proxy refuses anonymous
+  callers and cross-site writes and keeps users to their own orders; the token is
+  absent from the session endpoint and the HTML. The two token tests failed before
+  the fix. The concurrency test passes on the old code too: the race did not show up
+  in 480 overlapping requests here, so it is not proven by that test.
+- Done, rate limits by client: the gateway already trusts `X-Forwarded-For` only from
+  the private proxy networks (`TRUSTED_PROXY_NETWORKS`) and walks the chain from the
+  right; the gap was on the frontend. Server-side calls and the NextAuth sign-in now
+  forward the browser's address (`lib/client-address.ts`), and the proxy route passes
+  it on. Signed-in users were already counted per account. Checked: sign-ins from
+  eight different addresses all succeed, and the attribution test fails with the
+  forwarding turned off. Production relies on the frontend being reachable only
+  through Traefik; the header is trusted only from the private networks.
+- Done, lint: 0 errors (8 warnings left, all existing hook-dependency notes). The
+  cart, the checkout intent and the generation session are external stores
+  (`lib/local-storage-store.ts`, `useSyncExternalStore`), so nothing copies storage
+  into state in an effect. The other rule hits were derived during render (activation,
+  checkout quote, cart membership, featured tab) or reset during render (colour
+  selector). The fragment token is read through a store that remembers it per path.
+- Done, deterministic race test: `npm run test:race` (6 tests). `SessionManager` takes
+  its cookie reader and token decoder as dependencies (the approved seam). The test
+  runs one shared instance, binds each request's cookies with AsyncLocalStorage, and
+  releases the decodes in a chosen order. Mutation check: putting the old shared-state
+  pattern back fails 4 of the 6 tests on every run; the fix passes all 6. The
+  production decoder is loaded lazily, so the test does not pull in the auth
+  configuration.
 Frontend:
 /order/orderid is open for anyone?
 signout() doesn't clear the localstorage?
@@ -1462,5 +1528,4 @@ useCart() re-render the entire provider subtree twice on every cart change?
 is checkout client stripe memorized? do clicking the size/color/qty re-render the panel?
 9. Cookie-based session, not a JWT in localStorage. Your gateway already sets HttpOnly — trust it and stop carrying tokens in JS? Removing NextAuth Dumb frontend, cookies are the session?
 10. TanStack Query for any client-side caching / refetch / optimistic UI. Not Redux.?
-
-
+11. Inspect carefully the creatin of Payment Intent using the stripe? Is it flow correct and all potential bugs are noticed?

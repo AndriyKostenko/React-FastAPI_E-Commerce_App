@@ -6,8 +6,11 @@
     "dev": "next dev --webpack",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
-    "gen:api": "node scripts/generate-api-types.mjs"
+    "lint": "eslint",
+    "gen:api": "node scripts/generate-api-types.mjs",
+    "test:session": "node --test --test-concurrency=1 tests/session-isolation.test.mjs",
+    "seed:session-users": "node tests/seed-session-users.mjs",
+    "test:race": "node --import tsx --test tests/session-race.test.ts"
   },
   "dependencies": {
     "@mui/x-data-grid": "^7.6.2",
@@ -37,10 +40,11 @@
     "@types/react-dom": "19.3.0",
     "autoprefixer": "^10.6.1",
     "eslint": "^10.12.0",
-    "eslint-config-next": "^0.2.4",
+    "eslint-config-next": "^16.4.1",
     "openapi-typescript": "^7.13.0",
     "postcss": "^8",
     "tailwindcss": "^3.3.0",
+    "tsx": "^4.23.15",
     "typescript": "^5"
   },
   "overrides": {

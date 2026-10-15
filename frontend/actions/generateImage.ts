@@ -1,4 +1,5 @@
 import { settings } from "@/lib/config";
+import { proxied } from "@/lib/gateway-proxy";
 import { resolveImageUrl } from "@/utils/resolveImageUrl";
 import type { GeneratedArtworkAsset } from "@/types/generation";
 
@@ -8,7 +9,6 @@ type GenerateImageRequest = {
   prompt: string;
   style: string;
   removeBackground?: boolean;
-  authToken?: string | null;
 };
 
 type JobStatus = "pending" | "running" | "completed" | "failed";
@@ -77,19 +77,17 @@ const getErrorMessage = (payload: ErrorResponsePayload | null): string => {
 // ── Main action ──────────────────────────────────────────────────────────────
 
 const generateImage = async (
-  { prompt, style, removeBackground = false, authToken }: GenerateImageRequest,
+  { prompt, style, removeBackground = false }: GenerateImageRequest,
   signal?: AbortSignal,
   onPhaseChange?: (phase: "pending" | "running") => void,
 ): Promise<GenerateImageResult> => {
-  // Both the submit and every status poll need the session: the gateway only
+  // Both the submit and every status poll go through the same-origin proxy,
+  // which attaches the signed-in user's token on the server. The gateway only
   // lets signed-in users generate, and a job is visible to its owner alone.
-  const authHeaders: Record<string, string> = authToken?.trim()
-    ? { Authorization: `Bearer ${authToken.trim()}` }
-    : {};
-  const headers: Record<string, string> = { "Content-Type": "application/json", ...authHeaders };
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
 
   // 1. Submit job → 202 Accepted
-  const submitRes = await fetch(settings.api.endpoints.imageGenerations, {
+  const submitRes = await fetch(proxied(settings.api.endpoints.imageGenerations), {
     method: "POST",
     headers,
     credentials: "include",
@@ -122,8 +120,8 @@ const generateImage = async (
     await sleep(POLL_INTERVAL_MS);
 
     const statusRes = await fetch(
-      settings.api.endpoints.imageGenerationsStatus(job_id),
-      { headers: authHeaders, credentials: "include", cache: "no-store", signal },
+      proxied(settings.api.endpoints.imageGenerationsStatus(job_id)),
+      { credentials: "include", cache: "no-store", signal },
     );
 
     if (statusRes.status === 401) throw new GenerationAuthRequiredError();

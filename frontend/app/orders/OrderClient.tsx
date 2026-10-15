@@ -3,7 +3,7 @@
 import { UserOrdersClientProps } from '@/types/cart';
 import { OrderProps } from '@/types/order';
 import { formatPrice } from '@/utils/formatPrice';
-import { DataGrid, GridColDef} from '@mui/x-data-grid';
+import { DataGrid, GridColDef, GridRenderCellParams } from '@mui/x-data-grid';
 import Heading from '@/components/ui/Heading';
 import Status from '@/components/ui/Status';
 import { MdClose, MdDone, MdRemoveRedEye, MdAccessTimeFilled, MdDeliveryDining} from 'react-icons/md';
@@ -12,13 +12,19 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCurrentUserTokenExpiryCheck } from "@/hooks/useCurrentUserToken";
 
-const OrdersClient:React.FC<UserOrdersClientProps> = ({userOrders, token, expiryToken}) => {
+const OrdersClient:React.FC<UserOrdersClientProps> = ({userOrders, expiryToken}) => {
     const [orders] = useState<OrderProps[]>(userOrders);
 const router = useRouter();
 
     useCurrentUserTokenExpiryCheck(expiryToken)
 
-  let rows: any = [];
+  // The grid's view of an order: amounts and dates formatted for display.
+  type OrderRow = Omit<OrderProps, "amount" | "date_created" | "address_id" | "items"> & {
+    amount: string;
+    date_created: string;
+    address_id: string;
+  };
+  let rows: OrderRow[] = [];
 
   if (orders) {
     rows = orders.map((order) => {
@@ -41,7 +47,7 @@ payment_intent_id: order.payment_intent_id
   const columns: GridColDef[] = [
 {field: 'id', headerName: 'ID', width: 220},
 {field: 'amount', headerName: 'Amount (CAD)', width: 220},
-{field: 'status', headerName: 'Payment Status', width: 100, renderCell: (params: any) => {
+{field: 'status', headerName: 'Payment Status', width: 100, renderCell: (params: GridRenderCellParams<OrderProps>) => {
 let background = '';
         let color = '';
         let icon = MdDone;
@@ -81,7 +87,7 @@ return (
 {field: 'date_created', headerName: 'Date of creation', width: 200},
 {field: 'address_id', headerName: 'Address ID', width: 200},
 {field: 'currency', headerName: 'Currency', width: 200},
-{field: 'delivery_status', headerName: 'Delivery Status', width: 200, renderCell: (params: any) => {
+{field: 'delivery_status', headerName: 'Delivery Status', width: 200, renderCell: (params: GridRenderCellParams<OrderProps>) => {
 let background = '';
         let color = '';
         let icon = MdDone;

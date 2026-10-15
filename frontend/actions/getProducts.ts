@@ -1,5 +1,6 @@
 import { ProductProps } from "@/types/product";
 import { settings } from "@/lib/config";
+import { clientAddressHeaders } from "@/lib/client-address";
 
 const fetchProductsFromBackend = async (category?: string , searchTerm?: string): Promise<ProductProps[]> => {
     try {
@@ -23,6 +24,7 @@ const fetchProductsFromBackend = async (category?: string , searchTerm?: string)
         const response = await fetch(url.toString(), {
             method: 'GET',
             headers: {
+                ...(await clientAddressHeaders()),
                 'Content-Type': 'application/json',
             }
         });

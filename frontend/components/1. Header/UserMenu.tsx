@@ -7,6 +7,7 @@ import MenuItem from "./MenuItem";
 import Link from "next/link";
 import BackDrop from "./BackDrop";
 import { signOut } from "next-auth/react";
+import { clearUserScopedStorage } from "@/utils/client-storage";
 
 const UserMenu: React.FC<UserMenuProps> = ({ currentUser }) => {
     const [isOpen, setIsOpen] = useState(false);
@@ -44,6 +45,7 @@ const UserMenu: React.FC<UserMenuProps> = ({ currentUser }) => {
                                 <MenuItem
                                     onClick={() => {
                                         toggleOpen();
+                                        clearUserScopedStorage();
                                         signOut();
                                     }}
                                 >

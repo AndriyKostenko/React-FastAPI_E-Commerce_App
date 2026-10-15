@@ -1,4 +1,5 @@
 import { signOut } from "next-auth/react";
+import { clearUserScopedStorage } from "@/utils/client-storage";
 import { useEffect } from "react";
 import toast from 'react-hot-toast';
 
@@ -14,12 +15,13 @@ export function useCurrentUserTokenExpiryCheck(tokenExpiry: number | null) {
 
         if (currentTime >= expirationTime) {
             toast.error('Your session has expired!');
-            localStorage.removeItem('eShopPaymentIntent')
+            clearUserScopedStorage();
             signOut({ callbackUrl: '/login' });
         } else {
             const timeout = expirationTime - currentTime;
             const timer = setTimeout(() => {
                 toast.error('Your session has expired!');
+                clearUserScopedStorage();
                 signOut({ callbackUrl: '/login' });
             }, timeout);
 

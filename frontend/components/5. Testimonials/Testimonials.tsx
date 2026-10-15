@@ -18,7 +18,7 @@ const Testimonials = () => (
             <div className="space-y-4">
                 <StarRating count={TESTIMONIALS[0].stars} />
                 <p className="font-body-lg italic text-primary">
-                    "{TESTIMONIALS[0].quote}"
+                    &ldquo;{TESTIMONIALS[0].quote}&rdquo;
                 </p>
             </div>
             <div className="flex items-center gap-4 pt-4 border-t border-white/30">
@@ -63,7 +63,7 @@ const Testimonials = () => (
             <div className="space-y-4">
                 <StarRating count={TESTIMONIALS[1].stars} />
                 <p className="font-body-lg italic text-primary">
-                    "{TESTIMONIALS[1].quote}"
+                    &ldquo;{TESTIMONIALS[1].quote}&rdquo;
                 </p>
             </div>
             <div className="flex items-center gap-4 pt-4 border-t border-white/30">

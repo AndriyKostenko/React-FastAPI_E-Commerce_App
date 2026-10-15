@@ -22,7 +22,9 @@ const Product = async ({params} : {params: Promise<IDParameters>}) => {
 
     const currentUserToken = await sessionManagaer.getCurrentUserJWT();
 
-    const isDelivered = currentUser ? await checkIfOrderIsDelivered(currentUser.id, productId, currentUserToken) : false;
+    const isDelivered = currentUser && currentUserToken
+        ? await checkIfOrderIsDelivered(currentUser.id, productId, currentUserToken)
+        : false;
 
     return ( 
         <div className="py-8">
@@ -31,12 +33,11 @@ const Product = async ({params} : {params: Promise<IDParameters>}) => {
                     <ProductDetails product={product}/>
                     <section className="glass-card p-6 md:p-8">
                         <div className="flex flex-col gap-8">
-                            {currentUser && product && (
+                            {currentUser && currentUserToken && product && (
                                 <AddReview
                                     product={product}
                                     user={currentUser}
                                     isDelivered={isDelivered}
-                                    token={currentUserToken}
                                 />
                             )}
                             <ListReview product={product}/>

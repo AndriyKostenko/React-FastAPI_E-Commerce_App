@@ -18,8 +18,7 @@ import { useRouter } from "next/navigation";
 const GenerationPanel = ({ isGenerating,
 							setIsGenerating,
 							onDesignGenerated,
-							isRegisteredUser,
-							currentUserJWT }: GenerationPanelProps) => {
+							isRegisteredUser }: GenerationPanelProps) => {
     const router = useRouter();
     const { session, abortControllerRef, actions } = useGenerationSession(isRegisteredUser);
 
@@ -102,7 +101,6 @@ const GenerationPanel = ({ isGenerating,
                     prompt: session.prompt.trim(),
                     style: targetStyle,
                     removeBackground: true,
-                    authToken: currentUserJWT ?? null,
                 },
                 controller.signal,
                 actions.setPhase,

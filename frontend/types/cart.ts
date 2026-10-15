@@ -77,17 +77,15 @@ export type OrderProductInput = {
 
 export interface CheckoutFormProps {
     products: OrderProductInput[];
-    currentUserJWT: string;
     onAmountChange: (amountCents: number) => void;
     onPaid: () => void;
 }
 
 export interface CheckoutClientProps {
-    currentUserJWT?: string | null;
+    isSignedIn: boolean;
 }
 
 export interface UserOrdersClientProps {
     userOrders: OrderProps[];
-    token: string;
     expiryToken: number | null;
 }

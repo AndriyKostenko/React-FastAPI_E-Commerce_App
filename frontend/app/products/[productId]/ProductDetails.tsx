@@ -1,7 +1,7 @@
 'use client';
 
 import { Rating } from "@mui/material";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 import SetQuantity from "@/components/4. Featured Collections/SetQuantity";
 import Button from "@/components/ui/Button";
@@ -15,6 +15,10 @@ import { ImageProps } from "@/types/image";
 import { formatPrice } from "@/utils/formatPrice";
 import { getColorSwatch, getVariantOption } from "@/utils/productVariants";
 
+// Only the not-found check lives here. The hooks live in
+// ProductDetailsContent, which renders only with a real product: hooks must
+// run on every render, and they read product fields, so they cannot sit
+// below an early return.
 const ProductDetails: React.FC<{ product: ProductProps | null }> = ({
     product,
 }) => {
@@ -36,6 +40,10 @@ const ProductDetails: React.FC<{ product: ProductProps | null }> = ({
         );
     }
 
+    return <ProductDetailsContent product={product} />;
+};
+
+const ProductDetailsContent: React.FC<{ product: ProductProps }> = ({ product }) => {
     const productImages =
         product.images?.length > 0
             ? product.images
@@ -62,7 +70,6 @@ const ProductDetails: React.FC<{ product: ProductProps | null }> = ({
     const initialColor = variantOptions[0]?.color ?? null;
     const isCjProduct = product.supplier_id === "cjdropshipping";
 
-    const [isProductInCart, setIsProductInCart] = useState(false);
     const [selectedColor, setSelectedColor] = useState<string | null>(initialColor);
 
     const [cartProduct, setCartProduct] = useState<ProductProps>({
@@ -84,21 +91,19 @@ const ProductDetails: React.FC<{ product: ProductProps | null }> = ({
         fulfillment_type: isCjProduct ? "cj" : "catalog",
     });
 
-    useEffect(() => {
-        setIsProductInCart(false);
-
-        if (cartProducts) {
-            const existingIndexProduct = cartProducts.findIndex(
-                (item) =>
-                    item.id === product.id &&
-                    (item.selected_variant_id ?? null) ===
-                        (cartProduct.selected_variant_id ?? null),
-            );
-            if (existingIndexProduct > -1) {
-                setIsProductInCart(true);
-            }
-        }
-    }, [cartProducts, cartProduct.selected_variant_id, product.id]);
+    // Derived from the cart: the line for this product and variant is there.
+    const isProductInCart = useMemo(
+        () =>
+            Boolean(
+                cartProducts?.some(
+                    (item) =>
+                        item.id === product.id &&
+                        (item.selected_variant_id ?? null) ===
+                            (cartProduct.selected_variant_id ?? null),
+                ),
+            ),
+        [cartProducts, cartProduct.selected_variant_id, product.id],
+    );
 
     const handleColorSelect = useCallback((value: ImageProps) => {
         setCartProduct((currentProduct) => {

@@ -1,7 +1,7 @@
 "use client";
 
 import { SelectColorProps } from "@/types/inputs";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import SelectImage from "./SelectImage";
 import Button from "@/components/ui/Button";
 
@@ -13,13 +13,15 @@ const SelectColor: React.FC<SelectColorProps> = ({
 }) => {
     const [isSelected, setIsSelected] = useState(false);
     const [file, setFile] = useState<File | null>(null);
-
-    useEffect(() => {
+    // Reset when a product is created: adjusted during render, not in an effect.
+    const [wasCreated, setWasCreated] = useState(isProductCreated);
+    if (isProductCreated !== wasCreated) {
+        setWasCreated(isProductCreated);
         if (isProductCreated) {
             setIsSelected(false);
             setFile(null);
         }
-    }, [isProductCreated]);
+    }
 
     const handleFileChange = useCallback((value: File) => {
         setFile(value);

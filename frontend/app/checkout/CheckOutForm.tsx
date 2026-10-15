@@ -11,18 +11,22 @@ import { formatPrice } from "@/utils/formatPrice";
 import { useElements, useStripe, PaymentElement, AddressElement } from "@stripe/react-stripe-js";
 import type { StripeAddressElementChangeEvent } from "@stripe/stripe-js";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import Heading from "@/components/ui/Heading";
 import Button from "@/components/ui/Button";
 import { settings } from "@/lib/config";
+import { proxied } from "@/lib/gateway-proxy";
 
-const PENDING_CHECKOUT_KEY = "eShopPendingCheckout";
+// The browser never sends the token: the same-origin proxy adds it on the server.
+const JSON_HEADERS = { "Content-Type": "application/json" } as const;
+import { PENDING_CHECKOUT_STORAGE_KEY } from "@/utils/constants";
+
 const QUOTE_DEBOUNCE_MS = 500;
 
 const readPendingCheckout = (): PendingCheckout | null => {
     try {
-        const raw = localStorage.getItem(PENDING_CHECKOUT_KEY);
+        const raw = localStorage.getItem(PENDING_CHECKOUT_STORAGE_KEY);
         return raw ? (JSON.parse(raw) as PendingCheckout) : null;
     } catch {
         return null;
@@ -32,9 +36,9 @@ const readPendingCheckout = (): PendingCheckout | null => {
 const writePendingCheckout = (pending: PendingCheckout | null) => {
     try {
         if (pending) {
-            localStorage.setItem(PENDING_CHECKOUT_KEY, JSON.stringify(pending));
+            localStorage.setItem(PENDING_CHECKOUT_STORAGE_KEY, JSON.stringify(pending));
         } else {
-            localStorage.removeItem(PENDING_CHECKOUT_KEY);
+            localStorage.removeItem(PENDING_CHECKOUT_STORAGE_KEY);
         }
     } catch {
         // Storage can be unavailable (private mode); resuming is only a convenience.
@@ -61,14 +65,16 @@ const detailOf = async (response: Response, fallback: string): Promise<string> =
     }
 };
 
-const CheckoutForm: React.FC<CheckoutFormProps> = ({ products, currentUserJWT, onAmountChange, onPaid }) => {
+const CheckoutForm: React.FC<CheckoutFormProps> = ({ products, onAmountChange, onPaid }) => {
     const stripe = useStripe();
     const elements = useElements();
     const router = useRouter();
 
     const [address, setAddress] = useState<CheckoutAddress | null>(null);
     const [selectedShipping, setSelectedShipping] = useState<string | null>(null);
-    const [quote, setQuote] = useState<CheckoutQuote | null>(null);
+    const [storedQuote, setQuote] = useState<CheckoutQuote | null>(null);
+    // A quote is shown only while it still matches the address and the basket.
+    const quote = address && products.length > 0 ? storedQuote : null;
     const [quoteError, setQuoteError] = useState<string | null>(null);
     const [isQuoting, setIsQuoting] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -76,13 +82,6 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({ products, currentUserJWT, o
     // again for the stored order instead of being persisted.
     const session = useRef<(CheckoutSession & { fingerprint: string }) | null>(null);
 
-    const authHeaders = useMemo(
-        () => ({
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${currentUserJWT}`,
-        }),
-        [currentUserJWT],
-    );
 
     const handleAddressChange = (event: StripeAddressElementChangeEvent) => {
         if (!event.complete) {
@@ -104,18 +103,15 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({ products, currentUserJWT, o
 
     // Re-price whenever the cart, the address, or the chosen shipping changes.
     useEffect(() => {
-        if (!address || products.length === 0) {
-            setQuote(null);
-            return;
-        }
+        if (!address || products.length === 0) return;
         const controller = new AbortController();
         const timer = setTimeout(async () => {
             setIsQuoting(true);
             setQuoteError(null);
             try {
-                const response = await fetch(settings.api.endpoints.checkoutQuote, {
+                const response = await fetch(proxied(settings.api.endpoints.checkoutQuote), {
                     method: "POST",
-                    headers: authHeaders,
+                    headers: JSON_HEADERS,
                     signal: controller.signal,
                     body: JSON.stringify({
                         products,
@@ -153,13 +149,13 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({ products, currentUserJWT, o
             controller.abort();
             clearTimeout(timer);
         };
-    }, [address, selectedShipping, products, authHeaders, onAmountChange, router]);
+    }, [address, selectedShipping, products, onAmountChange, router]);
 
     const cancelOrder = async (orderId: string) => {
         try {
-            await fetch(settings.api.endpoints.cancelOrder(orderId), {
+            await fetch(proxied(settings.api.endpoints.cancelOrder(orderId)), {
                 method: "PATCH",
-                headers: authHeaders,
+                headers: JSON_HEADERS,
                 body: JSON.stringify({ reason: "Checkout changed before payment" }),
             });
         } catch (error) {
@@ -182,9 +178,9 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({ products, currentUserJWT, o
 
         const pending = readPendingCheckout();
         if (pending && pending.fingerprint === fingerprint) {
-            const resumed = await fetch(settings.api.endpoints.checkout, {
+            const resumed = await fetch(proxied(settings.api.endpoints.checkout), {
                 method: "POST",
-                headers: authHeaders,
+                headers: JSON_HEADERS,
                 body: JSON.stringify({ order_id: pending.orderId }),
             });
             if (resumed.ok) {
@@ -206,9 +202,9 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({ products, currentUserJWT, o
             writePendingCheckout(null);
         }
 
-        const response = await fetch(settings.api.endpoints.checkout, {
+        const response = await fetch(proxied(settings.api.endpoints.checkout), {
             method: "POST",
-            headers: authHeaders,
+            headers: JSON_HEADERS,
             body: JSON.stringify({
                 products,
                 address: toOrderAddress(address!),
