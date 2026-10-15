@@ -21,6 +21,8 @@ from main import app
 from database_layer.user_repository import UserRepository
 from dependencies.dependencies import (
     admin_only_dependency,
+    get_address_service,
+    get_avatar_service,
     get_current_user,
     get_db_session,
     get_user_service,
@@ -319,6 +321,10 @@ async def client_for_unit_testing(mock_route_service: MagicMock) -> AsyncGenerat
 
     app.dependency_overrides[get_user_service] = lambda: mock_route_service
     app.dependency_overrides[get_current_user] = lambda: TEST_CURRENT_USER
+    # Route tests only: the address book and avatars run for real in the
+    # integration suite (test_address_routes.py, test_avatar_routes.py).
+    app.dependency_overrides[get_address_service] = lambda: MagicMock(delete_all=AsyncMock(return_value=None))
+    app.dependency_overrides[get_avatar_service] = lambda: MagicMock(forget=AsyncMock(return_value=None))
 
     async with AsyncClient(transport=ASGITransport(app=app),base_url="http://testserver") as async_client:
         yield async_client

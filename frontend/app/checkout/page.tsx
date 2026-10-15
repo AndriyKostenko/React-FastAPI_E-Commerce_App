@@ -3,15 +3,18 @@ import Container from "@/components/ui/Container";
 import FormWrap from "@/components/ui/FormWrap";
 import CheckoutClient from "./CheckoutClient";
 import { sessionManagaer } from "@/actions/getCurrentUser";
+import { fetchDefaultAddress } from "@/actions/getAccount";
 
 
 const Checkout = async () => {
     const currentUserJWT = await sessionManagaer.getCurrentUserJWT();
+    // The shipping form starts from the saved default address, when there is one.
+    const defaultAddress = currentUserJWT ? await fetchDefaultAddress(currentUserJWT) : null;
     return (
       <div className="p-8">
           <Container>
               <FormWrap>
-                  <CheckoutClient isSignedIn={Boolean(currentUserJWT)}/>
+                  <CheckoutClient isSignedIn={Boolean(currentUserJWT)} defaultAddress={defaultAddress}/>
               </FormWrap>
           </Container>
       </div>

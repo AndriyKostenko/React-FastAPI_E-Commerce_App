@@ -6,7 +6,7 @@ service's Vault path, so every value is still set where it was before.
 from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
-from typing import ClassVar
+from typing import ClassVar, Literal
 from uuid import UUID, uuid4
 
 from pydantic import Field, SecretStr
@@ -169,6 +169,23 @@ class Settings(BaseSettings):
     ADMIN_PANEL_URL: str = "http://localhost:3001/admin"
     PASSKEY_ENROLMENT_TTL_MINUTES: int = Field(default=15, ge=1, le=60)
     PASSKEY_CHALLENGE_TTL_SECONDS: int = Field(default=300, ge=30, le=600)
+
+    # Avatars live in the public catalogue bucket under ``avatars/`` -- the
+    # only prefix user-service's key may touch. The row keeps the object key;
+    # responses add AWS_S3_CATALOGUE_PUBLIC_BASE_URL. With ``local`` (no object
+    # store) avatar uploads are refused; nothing else needs storage. Checked
+    # where used, so the service starts without them.
+    OBJECT_STORAGE_BACKEND: Literal["local", "s3"] = "local"
+    AWS_S3_CATALOGUE_BUCKET: str | None = None
+    AWS_S3_CATALOGUE_PUBLIC_BASE_URL: str | None = None
+    AWS_S3_REGION: str | None = None
+    AWS_S3_ENDPOINT_URL: str | None = None
+    # Static keys exist for S3-compatible servers (the local SeaweedFS) only;
+    # unset in AWS, where the default credential chain is used.
+    AWS_S3_ACCESS_KEY_ID: SecretStr | None = None
+    AWS_S3_SECRET_ACCESS_KEY: SecretStr | None = None
+    AVATAR_MAX_UPLOAD_BYTES: int = Field(default=5 * 1024 * 1024, ge=64 * 1024, le=20 * 1024 * 1024)
+    AVATAR_SIZE_PX: int = Field(default=512, ge=64, le=2048)
 
     MISSING_SECRET_HINT: ClassVar[str] = (
         "{name} is not configured for this service. Secrets are optional so "

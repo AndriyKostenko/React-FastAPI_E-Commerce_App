@@ -432,7 +432,8 @@ export const RESOURCE_CATALOGUE: readonly ResourceEntry[] = [
             listPath: '/users',
             schemaPath: '/admin/schema/users',
             writes: { create: false, update: true, delete: true },
-            readOnlyFields: ['email', 'is_verified', 'is_active', 'role', 'token_version', 'hashed_password', 'deleted_at'],
+            // image: avatars change only through the user's own upload, never by hand.
+            readOnlyFields: ['email', 'is_verified', 'is_active', 'role', 'token_version', 'hashed_password', 'deleted_at', 'image'],
         },
     },
     {

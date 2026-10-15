@@ -108,11 +108,12 @@ existing order is paid. Never enable it where real sales happen.
 
 **Images live in S3** (SeaweedFS on `127.0.0.1:8333`, started by `infra up`).
 Two buckets: `ecommerce-catalogue` is anonymously readable and holds product,
-variant and category images (CJ copies and admin uploads); `ecommerce-private`
+variant and category images (CJ copies and admin uploads) and user avatars
+(`avatars/`, user-service's key only); `ecommerce-private`
 holds generated designs and return photos and is reached only with a
 service's own key or a presigned URL. The non-secret settings
 (`OBJECT_STORAGE_BACKEND=s3`, endpoint, bucket names) are exported by `dev.sh`;
-product- and order-service's access keys, the admin key and the at-rest
+product-, order- and user-service's access keys, the admin key and the at-rest
 encryption key are generated into Vault on first start (`local/s3_local.py`),
 and each service's key reaches only its own bucket or prefix. The database
 keeps catalogue *keys*, not URLs; responses add the public origin. CJ images

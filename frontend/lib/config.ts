@@ -64,6 +64,12 @@ class AppSettings {
             forgotPassword: string;
             passwordReset: string;
             me: string;
+            userById: (userId: string) => string;
+            changePassword: string;
+            avatar: string;
+            addresses: string;
+            addressById: (addressId: string) => string;
+            addressDefault: (addressId: string) => string;
             categories: string;
             customizationPricing: string;
             productsDetailed: string;
@@ -120,7 +126,13 @@ class AppSettings {
             forgotPassword:       AppSettings.joinUrl(baseUrl, "forgot-password"),
             passwordReset:        AppSettings.joinUrl(baseUrl, "password-reset"),
             me:                   AppSettings.joinUrl(baseUrl, "me"),
-            categories:           AppSettings.joinUrl(baseUrl, "categories"),
+            userById:             (userId: string)    => AppSettings.joinUrl(baseUrl, `users/${userId}`),
+            changePassword:       AppSettings.joinUrl(baseUrl, "users/me/password"),
+            avatar:               AppSettings.joinUrl(baseUrl, "users/me/avatar"),
+            addresses:            AppSettings.joinUrl(baseUrl, "users/me/addresses"),
+            addressById:          (addressId: string) => AppSettings.joinUrl(baseUrl, `users/me/addresses/${addressId}`),
+            addressDefault:       (addressId: string) => AppSettings.joinUrl(baseUrl, `users/me/addresses/${addressId}/default`),
+            categories:          AppSettings.joinUrl(baseUrl, "categories"),
             customizationPricing: AppSettings.joinUrl(baseUrl, "customization/pricing"),
             productsDetailed:     AppSettings.joinUrl(baseUrl, "products/detailed"),
             productDetailed:      (productId: string) => AppSettings.joinUrl(baseUrl, `products/${productId}/detailed`),

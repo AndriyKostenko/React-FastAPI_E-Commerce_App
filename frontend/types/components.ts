@@ -30,6 +30,8 @@ export interface StatusProps {
 
 export interface NullDataProps {
     title: string;
+    /** A link to where the user can go next, e.g. sign in. */
+    action?: { href: string; label: string };
 }
 
 import type { ButtonHTMLAttributes } from "react";

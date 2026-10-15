@@ -217,6 +217,50 @@ class TestAuthenticatedUserRoutes:
         mock_forward.assert_awaited_once()
 
 
+class TestMyAccountRoutes:
+    """The caller's own password and address book: forwarded for any signed-in user."""
+
+    async def test_change_password_calls_forward(self, client: AsyncClient, mock_forward: AsyncMock):
+        await client.post(
+            f"{TEST_API}/users/me/password",
+            json={"current_password": "old-password", "new_password": "new-password-123"},
+        )
+        mock_forward.assert_awaited_once()
+
+    async def test_upload_avatar_calls_forward(self, client: AsyncClient, mock_forward: AsyncMock):
+        await client.put(f"{TEST_API}/users/me/avatar", files={"file": ("me.png", b"\x89PNG\r\n\x1a\n", "image/png")})
+        mock_forward.assert_awaited_once()
+
+    async def test_remove_avatar_calls_forward(self, client: AsyncClient, mock_forward: AsyncMock):
+        await client.delete(f"{TEST_API}/users/me/avatar")
+        mock_forward.assert_awaited_once()
+
+    async def test_list_addresses_calls_forward(self, client: AsyncClient, mock_forward: AsyncMock):
+        await client.get(f"{TEST_API}/users/me/addresses")
+        mock_forward.assert_awaited_once()
+
+    async def test_create_address_calls_forward(self, client: AsyncClient, mock_forward: AsyncMock):
+        await client.post(f"{TEST_API}/users/me/addresses", json={"label": "Home"})
+        mock_forward.assert_awaited_once()
+
+    async def test_replace_address_calls_forward(self, client: AsyncClient, mock_forward: AsyncMock):
+        await client.put(f"{TEST_API}/users/me/addresses/{uuid4()}", json={"label": "Home"})
+        mock_forward.assert_awaited_once()
+
+    async def test_make_default_calls_forward(self, client: AsyncClient, mock_forward: AsyncMock):
+        await client.post(f"{TEST_API}/users/me/addresses/{uuid4()}/default")
+        mock_forward.assert_awaited_once()
+
+    async def test_delete_address_calls_forward(self, client: AsyncClient, mock_forward: AsyncMock):
+        await client.delete(f"{TEST_API}/users/me/addresses/{uuid4()}")
+        mock_forward.assert_awaited_once()
+
+    async def test_address_id_must_be_a_uuid(self, client: AsyncClient, mock_forward: AsyncMock):
+        response = await client.delete(f"{TEST_API}/users/me/addresses/not-a-uuid")
+        assert response.status_code == 422
+        mock_forward.assert_not_awaited()
+
+
 # ---------------------------------------------------------------------------
 # Admin-only endpoints
 # ---------------------------------------------------------------------------

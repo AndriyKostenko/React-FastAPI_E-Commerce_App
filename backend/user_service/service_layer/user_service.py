@@ -501,6 +501,51 @@ class UserService:
 
         return UserInfo.model_validate(updated_user)
 
+    async def change_password(self, user_id: UUID, current_password: str, new_password: str) -> UserInfo:
+        """
+        A signed-in user's own password change, proven with the current password.
+
+        Ends every session, this one included, as a reset does: whoever might
+        know the old password is signed out everywhere. The client signs in
+        again with the new one. An account without a password (created through
+        Google) has nothing to prove with; it sets one through forgot-password.
+        """
+        user = await self.repository.get_by_id(user_id)
+        if not user:
+            raise UserNotFoundError(f"User with id: {user_id} not found.")
+        # 400 rather than 401: the caller is authenticated; a 401 would read as
+        # an expired session and sign them out.
+        if not user.hashed_password or not self.password_manager.verify_password(
+            current_password, user.hashed_password
+        ):
+            raise HTTPException(status_code=400, detail="Current password is incorrect")
+        if current_password == new_password:
+            raise HTTPException(status_code=400, detail="The new password must differ from the current one")
+
+        new_version = (user.token_version or 1) + 1
+        updated_user = await self.repository.update_by_id(
+            item_id=user.id,
+            data={"hashed_password": self.password_manager.hash_password(new_password),
+                  "token_version": new_version},
+        )
+        if not updated_user:
+            raise UserUpdateError("Password change failed")
+
+        # The same "your password was changed" email a reset sends, written in
+        # the same transaction as the new password.
+        await self.outbox_event_service.add_outbox_event(
+            event_type=UserEvents.USER_PASSWORD_RESET_SUCCESS,
+            payload=PasswordResetSuccessEvent(
+                user_email=updated_user.email,
+                user_id=updated_user.id,
+            )
+        )
+        # Committed before publishing, as in end_all_sessions: the session
+        # registry must never run ahead of the database.
+        await self.repository.commit()
+        await self._revoke_all_sessions_for_user(user.id, new_version)
+        return UserInfo.model_validate(updated_user)
+
     def is_admin(self, user: User) -> bool:
         return user.role == self.settings.SECRET_ROLE
 

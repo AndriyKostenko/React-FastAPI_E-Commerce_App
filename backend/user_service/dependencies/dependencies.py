@@ -9,6 +9,10 @@ from service_layer.user_service import UserService
 from models.outbox_models import OutboxEvent
 from database_layer.user_repository import UserRepository
 from database_layer.webauthn_credential_repository import WebAuthnCredentialRepository
+from database_layer.address_repository import AddressRepository
+from service_layer.address_service import AddressService
+from service_layer.avatar_service import AvatarService
+from storage.avatar_storage import AvatarImageProcessor, AvatarStoreFactory
 from service_layer.passkey_ceremony_store import PasskeyCeremonyStore
 from service_layer.passkey_service import PasskeyService, RelyingParty
 from infrastructure.database_layer.outbox_repository import OutboxRepository
@@ -121,6 +125,31 @@ def get_passkey_service(user_service: user_service_dependency,
 
 
 passkey_service_dependency = Annotated[PasskeyService, Depends(get_passkey_service)]
+
+
+def get_address_service(session: AsyncSession = Depends(get_db_session, scope="function")) -> AddressService:
+    """The address book, on the request's transaction (shared with the user service)."""
+    return AddressService(repository=AddressRepository(session=session))
+
+
+address_service_dependency = Annotated[AddressService, Depends(get_address_service)]
+
+
+def get_avatar_service(session: AsyncSession = Depends(get_db_session, scope="function"),
+                       resources: UserApiResources = Depends(get_resources)) -> AvatarService:
+    """The user's avatar, on the request's transaction; no store when object storage is off."""
+    app_settings = resources.settings
+    return AvatarService(
+        users=UserRepository(session=session),
+        store=AvatarStoreFactory.get(app_settings),
+        processor=AvatarImageProcessor(
+            size=app_settings.AVATAR_SIZE_PX,
+            max_bytes=app_settings.AVATAR_MAX_UPLOAD_BYTES,
+        ),
+    )
+
+
+avatar_service_dependency = Annotated[AvatarService, Depends(get_avatar_service)]
 
 
 async def get_current_user(request: Request, user_service: user_service_dependency) -> CurrentUserInfo:

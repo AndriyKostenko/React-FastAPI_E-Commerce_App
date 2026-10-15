@@ -11,7 +11,7 @@ Run by dev.sh with the operator's root token (VAULT_ADDR, VAULT_TOKEN), on the
 product-service venv's interpreter (it has boto3). Prints key and bucket names,
 never a secret value.
 
-Credentials: product-service and order-service each get an access key pair in
+Credentials: product-, order- and user-service each get an access key pair in
 their own Vault path (AWS_S3_ACCESS_KEY_ID / AWS_S3_SECRET_ACCESS_KEY), which
 Settings reads like any other secret; the server's admin pair and the key
 that encrypts objects at rest (SSE-S3) go to the root-only ``tooling`` path.
@@ -43,6 +43,8 @@ TEST_SUFFIX = "-test"
 # Prefixes in the private bucket, one per owning service.
 DESIGNS_PREFIX = "generated-designs"
 EVIDENCE_PREFIX = "return-evidence"
+# user-service's prefix in the (public) catalogue bucket.
+AVATARS_PREFIX = "avatars"
 
 
 def buckets() -> list[tuple[str, str]]:
@@ -53,7 +55,7 @@ def buckets() -> list[tuple[str, str]]:
 def identities() -> dict[str, list[str]]:
     """What each service's key may do: its own bucket or prefix, nothing else
     (the same on the test pair)."""
-    rights: dict[str, list[str]] = {"product-service": [], "order-service": []}
+    rights: dict[str, list[str]] = {"product-service": [], "order-service": [], "user-service": []}
     for catalogue, private in buckets():
         rights["product-service"] += [
             f"Read:{catalogue}",
@@ -65,6 +67,11 @@ def identities() -> dict[str, list[str]]:
         rights["order-service"] += [
             f"Read:{private}/{EVIDENCE_PREFIX}/*",
             f"Write:{private}/{EVIDENCE_PREFIX}/*",
+        ]
+        # Write covers delete: a replaced or forgotten avatar is removed.
+        rights["user-service"] += [
+            f"Read:{catalogue}/{AVATARS_PREFIX}/*",
+            f"Write:{catalogue}/{AVATARS_PREFIX}/*",
         ]
     return rights
 
@@ -211,6 +218,7 @@ def cmd_status(vault: Vault) -> int:
     rows = [
         (CATALOGUE_BUCKET, "catalogue/cj/"),
         (CATALOGUE_BUCKET, "catalogue/uploads/"),
+        (CATALOGUE_BUCKET, f"{AVATARS_PREFIX}/"),
         (PRIVATE_BUCKET, f"{DESIGNS_PREFIX}/"),
         (PRIVATE_BUCKET, f"{EVIDENCE_PREFIX}/"),
     ]

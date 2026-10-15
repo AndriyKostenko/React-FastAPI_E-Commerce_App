@@ -74,9 +74,10 @@ resource "aws_iam_role_policy" "host" {
 }
 
 # ---------------------------------------------------------------------------
-# Two S3 identities for the services that handle objects, mirroring the local
+# S3 identities for the services that handle objects, mirroring the local
 # ones (local/s3_local.py): product-service on the catalogue and the designs
-# prefix, order-service on the return-evidence prefix only. Their keys go into
+# prefix, order-service on the return-evidence prefix only (user-service, on
+# avatars/, is below). Their keys go into
 # each service's Vault path (phase 6), never into the repository.
 # ---------------------------------------------------------------------------
 resource "aws_iam_user" "product_service" {
@@ -149,6 +150,32 @@ resource "aws_iam_access_key" "product_service" {
 
 resource "aws_iam_access_key" "order_service" {
   user = aws_iam_user.order_service.name
+}
+
+# user-service: its users' avatars, under avatars/ in the public catalogue
+# bucket and nowhere else (local/s3_local.py grants the same).
+resource "aws_iam_user" "user_service" {
+  name = "${var.name}-user-service"
+}
+
+resource "aws_iam_user_policy" "user_service" {
+  name = "s3"
+  user = aws_iam_user.user_service.name
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid      = "AvatarObjects"
+        Effect   = "Allow"
+        Action   = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
+        Resource = "${aws_s3_bucket.catalogue.arn}/avatars/*"
+      },
+    ]
+  })
+}
+
+resource "aws_iam_access_key" "user_service" {
+  user = aws_iam_user.user_service.name
 }
 
 # ---------------------------------------------------------------------------

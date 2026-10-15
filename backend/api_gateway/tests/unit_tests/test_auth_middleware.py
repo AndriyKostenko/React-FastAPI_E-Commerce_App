@@ -124,6 +124,19 @@ class TestIsPublicEndpoint:
     def test_users_user_id_get_is_not_public(self):
         assert self.mw.is_public_endpoint(f"{API}/users/abc-123", "GET") is False
 
+    @pytest.mark.parametrize("path,method", [
+        (f"{API}/users/me/password", "POST"),
+        (f"{API}/users/me/avatar", "PUT"),
+        (f"{API}/users/me/avatar", "DELETE"),
+        (f"{API}/users/me/addresses", "GET"),
+        (f"{API}/users/me/addresses", "POST"),
+        (f"{API}/users/me/addresses/abc", "PUT"),
+        (f"{API}/users/me/addresses/abc", "DELETE"),
+        (f"{API}/users/me/addresses/abc/default", "POST"),
+    ])
+    def test_my_account_routes_are_not_public(self, path, method):
+        assert self.mw.is_public_endpoint(path, method) is False
+
     def test_notifications_get_is_not_public(self):
         assert self.mw.is_public_endpoint(f"{API}/notifications", "GET") is False
 
