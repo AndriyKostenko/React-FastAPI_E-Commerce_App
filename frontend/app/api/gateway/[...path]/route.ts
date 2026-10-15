@@ -28,6 +28,28 @@ const API_PREFIX = `api/${settings.api.version}/`;
 // container's own address (http://0.0.0.0:3000), never what the browser sends.
 const APP_ORIGIN = new URL(settings.app.url).origin;
 
+/**
+ * Whether a write's Origin is the site the browser was on when it sent it.
+ *
+ * Compared with the Host header, the address the browser itself used: it is
+ * always set by the browser, and Traefik passes it through unchanged. So the
+ * same check holds on localhost, 127.0.0.1, a LAN address or the public domain.
+ * (request.nextUrl cannot be used: Next builds it from its own hostname and
+ * port, which behind a proxy is the container's address.) The configured
+ * public origin is accepted too, in case a proxy ever rewrites Host.
+ */
+const isSameOrigin = (request: NextRequest, origin: string): boolean => {
+  if (origin === APP_ORIGIN) return true;
+  let originHost: string;
+  try {
+    originHost = new URL(origin).host;
+  } catch {
+    // "null" (sandboxed frames, some redirects) or garbage: not our page.
+    return false;
+  }
+  return originHost === request.headers.get("host");
+};
+
 const forward = async (
   request: NextRequest,
   segments: string[],
@@ -47,15 +69,9 @@ const forward = async (
 
   // Session cookies are SameSite=Lax, which already blocks cross-site writes;
   // this rejects any write whose Origin says it came from another site.
-  // nextUrl is built from Next's own host and port, so it matches the browser
-  // only in local dev; the configured public origin covers the deployed site.
   if (!SAFE_METHODS.has(request.method)) {
     const origin = request.headers.get("origin");
-    if (
-      origin &&
-      origin !== APP_ORIGIN &&
-      origin !== request.nextUrl.origin
-    ) {
+    if (origin && !isSameOrigin(request, origin)) {
       return NextResponse.json(
         { detail: "Cross-site request refused" },
         { status: 403 },

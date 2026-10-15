@@ -256,6 +256,21 @@ describe("the gateway proxy", { concurrency: false }, () => {
         });
         assert.equal(response.status, 403);
     });
+
+    it("accepts a same-origin write on whichever address the shop was opened at", async () => {
+        // The same server reached as 127.0.0.1 instead of localhost: the page and
+        // the proxy share that origin, so the write is not cross-site. The check
+        // compares Origin with the Host the browser used, not a fixed list.
+        const alternate = new URL(FRONTEND);
+        alternate.hostname = alternate.hostname === "localhost" ? "127.0.0.1" : "localhost";
+        const response = await fetch(`${alternate.origin}/api/gateway/api/v1/orders/user/${a.id}`, {
+            method: "POST",
+            headers: { Cookie: a.cookies, Origin: alternate.origin, "Content-Type": "application/json" },
+            body: "{}",
+        });
+        // Past the origin check: whatever the gateway answers, it is not our 403.
+        assert.notEqual(response.status, 403, await response.text());
+    });
 });
 
 // Rate limits follow the browser's address. The frontend forwards the address
