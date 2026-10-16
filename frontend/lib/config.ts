@@ -85,6 +85,7 @@ class AppSettings {
             cancelOrder: (orderId: string) => string;
             ordersByUserId: (userId: string) => string;
             checkoutQuote: string;
+            cartPrices: string;
             checkout: string;
             productionJobs: string;
             productionJob: (jobId: string) => string;
@@ -151,6 +152,7 @@ class AppSettings {
             cancelOrder:          (orderId: string)   => AppSettings.joinUrl(baseUrl, `orders/${orderId}/cancel`),
             ordersByUserId:       (userId: string)    => AppSettings.joinUrl(baseUrl, `orders/user/${userId}`),
             checkoutQuote:        AppSettings.joinUrl(baseUrl, "checkout/quote"),
+            cartPrices:           AppSettings.joinUrl(baseUrl, "cart/prices"),
             checkout:             AppSettings.joinUrl(baseUrl, "checkout"),
             productionJobs:           AppSettings.joinUrl(baseUrl, "admin/production/jobs"),
             productionJob:            (jobId: string) => AppSettings.joinUrl(baseUrl, `admin/production/jobs/${jobId}`),

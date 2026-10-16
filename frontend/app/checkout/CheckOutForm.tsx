@@ -5,7 +5,6 @@ import {
     CheckoutFormProps,
     CheckoutQuote,
     CheckoutSession,
-    PendingCheckout,
 } from "@/types/cart";
 import type { SavedAddress } from "@/types/account";
 import { formatPrice } from "@/utils/formatPrice";
@@ -18,33 +17,27 @@ import Heading from "@/components/ui/Heading";
 import Button from "@/components/ui/Button";
 import { settings } from "@/lib/config";
 import { proxied } from "@/lib/gateway-proxy";
+import { pendingCheckoutStore, withCheckoutLock } from "@/lib/pending-checkout";
+import { isOrderPlaced, paymentOutcomeOf } from "@/lib/payment-outcome";
 
 // The browser never sends the token: the same-origin proxy adds it on the server.
 const JSON_HEADERS = { "Content-Type": "application/json" } as const;
-import { PENDING_CHECKOUT_STORAGE_KEY } from "@/utils/constants";
 
 const QUOTE_DEBOUNCE_MS = 500;
 
-const readPendingCheckout = (): PendingCheckout | null => {
-    try {
-        const raw = localStorage.getItem(PENDING_CHECKOUT_STORAGE_KEY);
-        return raw ? (JSON.parse(raw) as PendingCheckout) : null;
-    } catch {
-        return null;
-    }
-};
+// Where Stripe sends the customer back after a redirect (3-D Secure page, bank
+// or wallet); that page reads the payment's outcome (see app/checkout/complete).
+const RETURN_PATH = "/checkout/complete";
 
-const writePendingCheckout = (pending: PendingCheckout | null) => {
-    try {
-        if (pending) {
-            localStorage.setItem(PENDING_CHECKOUT_STORAGE_KEY, JSON.stringify(pending));
-        } else {
-            localStorage.removeItem(PENDING_CHECKOUT_STORAGE_KEY);
-        }
-    } catch {
-        // Storage can be unavailable (private mode); resuming is only a convenience.
-    }
-};
+/** The quote with the placed order's amounts, which are what the card is asked for. */
+const quoteWithOrderAmounts = (quote: CheckoutQuote, order: CheckoutSession): CheckoutQuote => ({
+    ...quote,
+    subtotal_amount: order.subtotal_amount ?? quote.subtotal_amount,
+    shipping_amount: order.shipping_amount ?? quote.shipping_amount,
+    tax_amount: order.tax_amount ?? quote.tax_amount,
+    amount: String(order.total_amount),
+    amount_cents: order.amount_cents,
+});
 
 const toOrderAddress = (address: CheckoutAddress) => ({
     street: address.line1,
@@ -95,6 +88,9 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({ products, onAmountChange, o
     // The client secret stays in memory only; after a reload it is fetched
     // again for the stored order instead of being persisted.
     const session = useRef<(CheckoutSession & { fingerprint: string }) | null>(null);
+    // Set synchronously on submit. `isSubmitting` disables the button only after
+    // the next render, so a quick second click would otherwise place a second order.
+    const submitInFlight = useRef(false);
 
 
     const handleAddressChange = (event: StripeAddressElementChangeEvent) => {
@@ -181,7 +177,11 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({ products, onAmountChange, o
     /**
      * Place the order once, or resume the one already placed for this exact cart.
      * Resolves to "already_placed" when that order was paid for in an earlier
-     * visit, so it is never placed a second time.
+     * visit or another tab, so it is never placed a second time.
+     *
+     * Run it under `withCheckoutLock`: it reads the pending checkout, may place an
+     * order, and writes the pending checkout back, which must not interleave
+     * with another tab doing the same.
      */
     const openCheckoutSession = async (
         fingerprint: string,
@@ -190,7 +190,7 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({ products, onAmountChange, o
             return session.current;
         }
 
-        const pending = readPendingCheckout();
+        const pending = pendingCheckoutStore.getSnapshot();
         if (pending && pending.fingerprint === fingerprint) {
             const resumed = await fetch(proxied(settings.api.endpoints.checkout), {
                 method: "POST",
@@ -202,7 +202,7 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({ products, onAmountChange, o
                 session.current = { ...data, fingerprint };
                 return data;
             }
-            writePendingCheckout(null);
+            pendingCheckoutStore.write(null);
             if (resumed.status === 409) {
                 const body = await resumed.json().catch(() => ({}));
                 if (body?.order_status !== "cancelled") {
@@ -213,7 +213,7 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({ products, onAmountChange, o
             // The cart, address, or shipping changed since that order was placed.
             await cancelOrder(session.current?.order_id ?? pending!.orderId);
             session.current = null;
-            writePendingCheckout(null);
+            pendingCheckoutStore.write(null);
         }
 
         const response = await fetch(proxied(settings.api.endpoints.checkout), {
@@ -235,16 +235,25 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({ products, onAmountChange, o
         }
         const data: CheckoutSession = await response.json();
         session.current = { ...data, fingerprint };
-        writePendingCheckout({ orderId: data.order_id, fingerprint });
+        pendingCheckoutStore.write({ orderId: data.order_id, fingerprint });
         return data;
+    };
+
+    /** The order is placed: forget the checkout and show the confirmation. */
+    const finishCheckout = (message: string) => {
+        session.current = null;
+        pendingCheckoutStore.write(null);
+        toast.success(message);
+        onPaid();
     };
 
     const handleSubmit = async (event: React.FormEvent) => {
         event.preventDefault();
-        if (!stripe || !elements || !address || !quote) {
+        if (submitInFlight.current || !stripe || !elements || !address || !quote) {
             return;
         }
 
+        submitInFlight.current = true;
         setIsSubmitting(true);
         try {
             const { error: submitError } = await elements.submit();
@@ -258,44 +267,68 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({ products, onAmountChange, o
                 address,
                 shipping: quote.shipping_logistic_name,
             });
-            const checkout = await openCheckoutSession(fingerprint);
+            const checkout = await withCheckoutLock(() => openCheckoutSession(fingerprint));
             if (checkout === "already_placed") {
-                session.current = null;
-                toast.success("This order was already placed.");
-                onPaid();
+                finishCheckout("This order was already placed.");
                 return;
             }
             if (!checkout) {
                 return;
             }
 
+            // The order is priced again when it is placed, and prices or freight
+            // can move after the quote. Never ask the card for a total the
+            // customer has not seen: show the order's amounts and stop. The order
+            // stays open, so the next click resumes it and, the totals now
+            // agreeing, pays it.
+            if (checkout.amount_cents !== quote.amount_cents) {
+                setQuote(quoteWithOrderAmounts(quote, checkout));
+                onAmountChange(checkout.amount_cents);
+                toast.error(
+                    `The total changed to ${formatPrice(checkout.total_amount)} since it was quoted. ` +
+                        "Please check it and place the order again.",
+                );
+                return;
+            }
+
             const result = await stripe.confirmPayment({
                 elements,
                 clientSecret: checkout.client_secret,
-                confirmParams: { return_url: `${window.location.origin}/orders` },
+                confirmParams: { return_url: `${window.location.origin}${RETURN_PATH}` },
                 redirect: "if_required",
             });
 
             if (result.error) {
+                // Another tab may have paid this same order a moment ago; its
+                // PaymentIntent is then past confirmation and Stripe says so.
+                const intentStatus = result.error.payment_intent?.status;
+                if (intentStatus && isOrderPlaced(paymentOutcomeOf(intentStatus))) {
+                    finishCheckout("This order was already placed.");
+                    return;
+                }
                 // A decline leaves the order and its PaymentIntent open, so the
                 // customer can simply try another card.
                 toast.error(result.error.message || "Payment failed. Please try another card.");
                 return;
             }
 
-            const status = result.paymentIntent.status;
-            if (status === "requires_capture" || status === "succeeded") {
-                session.current = null;
-                writePendingCheckout(null);
-                toast.success("Order placed.");
-                onPaid();
-            } else {
-                toast.success("Payment submitted. Your order will update after confirmation.");
+            switch (paymentOutcomeOf(result.paymentIntent.status)) {
+                case "placed":
+                    finishCheckout("Order placed.");
+                    break;
+                case "processing":
+                    finishCheckout("Payment submitted. Your order will update once it is confirmed.");
+                    break;
+                default:
+                    // Not paid and not declined, e.g. an authentication window the
+                    // customer closed. The order stays open for another try.
+                    toast.error("The payment was not completed. Please try again.");
             }
         } catch (error) {
             console.error("Checkout error:", error);
             toast.error("An unexpected error occurred. Please try again.");
         } finally {
+            submitInFlight.current = false;
             setIsSubmitting(false);
         }
     };

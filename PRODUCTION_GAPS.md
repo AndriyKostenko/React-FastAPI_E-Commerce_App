@@ -20,6 +20,7 @@ or recorded as decided. Merged so far: PR #41 (readiness, phases 2–5) and PR #
 (frontend session isolation, token off the browser, rate limits, lint, race test).
 
 **Needs you (infrastructure and account)**
+
 - Apply the Terraform change: `cd infra && tofu apply tfplan-phase5` (the plan is
   not saved any more; run `tofu plan -out=tfplan-phase5` first). It adds the build
   role and trims the deploy role.
@@ -39,6 +40,7 @@ or recorded as decided. Merged so far: PR #41 (readiness, phases 2–5) and PR #
   registrar's name servers. Also set `alert_email` for alarms and the budget warning.
 
 **Phase 6 (go-live), not started**
+
 - Import production secrets into Vault (shared-infra and each service's path), and
   move the three service keys (product-, order-, user-service) out of Terraform state into
   Vault. `tofu apply` first: the user-service IAM user (avatars/ only) is new.
@@ -52,12 +54,14 @@ or recorded as decided. Merged so far: PR #41 (readiness, phases 2–5) and PR #
 - admin-js is behind the `admin` profile until it reads Vault itself.
 
 **Backend and platform (decided, not started)**
+
 - Per-service Redis and RabbitMQ users (postponed in favour of deploying first).
 - Dependency upgrades (the 35–169 advisories per service, and the critical `proxy-addr`
   in admin-js); then make the audit blocking.
 - AI content moderation, GDPR and retention, legal pages (see §5 and §8).
 
 **Frontend**
+
 - Section 6 is done (2026-10-15), see §6. Left over: the header avatar comes from the
   sign-in token, so a newly uploaded picture shows there only after the next sign-in; a
   local `stripe listen` is needed for a browser checkout to move past "Order placed".
@@ -73,6 +77,7 @@ or recorded as decided. Merged so far: PR #41 (readiness, phases 2–5) and PR #
   behind Traefik before go-live.
 
 **Decisions taken (recorded so they are not re-opened)**
+
 - Deploy workflow off until `DEPLOY_ENABLED=true`; approval through the `production`
   environment; two roles (build from `main`, deploy from `production` only).
 - Storefront same-origin on the apex; gateway owns `/api/`, `/media/`, `/health`, `/docs`.
@@ -168,11 +173,11 @@ k6 load tests, Alembic per service. The large `shared/` refactor called out in
   lands; then `AUDIT_BLOCKING: "true"` in `ci.yml` makes it fail on them.
 - **Plan decided (2026-10-12): see "Deployment plan" at the end of this section.**
 - [x] **`order_service` Alembic setup — DONE (2026-09-09).** It was the only one
-  of the nine services without migrations, while relying on `init_db`/`create_all`,
-  whose own docstring says it "deliberately cannot alter existing columns". That
-  became acute with §2, which adds eleven columns to `custom_production_jobs`:
-  against any database with history they would simply not appear, and the queue
-  would fail at runtime on a service that reported a clean startup.
+      of the nine services without migrations, while relying on `init_db`/`create_all`,
+      whose own docstring says it "deliberately cannot alter existing columns". That
+      became acute with §2, which adds eleven columns to `custom_production_jobs`:
+      against any database with history they would simply not appear, and the queue
+      would fail at runtime on a service that reported a clean startup.
   - `b1f0c9d24a70` baselines the pre-migration schema exactly, so an existing
     database joins with `alembic stamp b1f0c9d24a70` and then upgrades normally
   - `e2c74b1a8f36` adds the production-queue lifecycle columns
@@ -189,8 +194,8 @@ k6 load tests, Alembic per service. The large `shared/` refactor called out in
     report permanent phantom drift, which would defeat the point of adding
     migration checking to CI.
 - [x] **All nine services now own their schema through Alembic — DONE (2026-09-09).**
-  Every service had been bolting Alembic beside `create_all`, and *not one of
-  them could rebuild its database from migrations*:
+      Every service had been bolting Alembic beside `create_all`, and _not one of
+      them could rebuild its database from migrations_:
   - `user_service` and `product_service` migrations altered tables (`users`,
     `products`) that no migration ever created, so `alembic upgrade head`
     failed outright. Their chains could not run, so each was squashed to a
@@ -200,7 +205,7 @@ k6 load tests, Alembic per service. The large `shared/` refactor called out in
     all** — an `alembic/` directory with an empty `versions/`. Each got a
     baseline.
   - `payment` was missing the outbox retry columns; `supplier` created a unique
-    *constraint* where the model declares a unique *index*. Each got a
+    _constraint_ where the model declares a unique _index_. Each got a
     corrective migration (supplier's fix went into its initial migration,
     since dropping the constraint would have broken a dependent foreign key).
   - The redundant `unique=True` on primary-key columns was removed in 16 places
@@ -334,17 +339,17 @@ monitoring stack all run on the host** (not RDS / SSM / Amplify / CloudWatch).
      - `.github/workflows/codeql.yml`: CodeQL for Python and TypeScript on
        pull requests, `main` and weekly; `.github/dependabot.yml`: weekly,
        grouped updates for actions, the ten uv projects and both npm apps.
-     Rehearsed off GitHub with the same script, from a copy of `backend/`
-     without the env file and with a clean environment per service: all ten
-     suites and migration checks pass (1,983 tests). The rehearsal caught
-     tests that only passed with the owner's local config, now independent
-     of it: the T-shirt price test reads the configured price, the CJ
-     open-id tool tests set their own API key, and payment's route tests
-     run with test Stripe secrets (the client is mocked); cart and
-     wishlist got a `.python-version` (3.12, as the images) instead of
-     whatever Python is newest.
-     Left to the owner: make these checks required on `main` (branch
-     protection) once the first run is green.
+       Rehearsed off GitHub with the same script, from a copy of `backend/`
+       without the env file and with a clean environment per service: all ten
+       suites and migration checks pass (1,983 tests). The rehearsal caught
+       tests that only passed with the owner's local config, now independent
+       of it: the T-shirt price test reads the configured price, the CJ
+       open-id tool tests set their own API key, and payment's route tests
+       run with test Stripe secrets (the client is mocked); cart and
+       wishlist got a `.python-version` (3.12, as the images) instead of
+       whatever Python is newest.
+       Left to the owner: make these checks required on `main` (branch
+       protection) once the first run is green.
   2. production images and compose: frontend image, slim monitoring (tracing
      profile), `mem_limit`s, images from ECR by tag, non-root checks.
      **Done (2026-10-14), not yet deployed:**
@@ -355,7 +360,7 @@ monitoring stack all run on the host** (not RDS / SSM / Amplify / CloudWatch).
        dependencies only and runs as `node`; it also ships `src/`, which
        AdminJS compiles at startup.
      - Compose: 30 built services are tagged `${IMAGE_REGISTRY}/ecommerce-<svc>:
-       ${IMAGE_TAG}` (ECR-ready; `local/…:dev` by default); every service has
+${IMAGE_TAG}` (ECR-ready; `local/…:dev` by default); every service has
        a `mem_limit` (ceilings, not yet measured under load: tune from
        `docker stats` on the host); `OTEL_TRACES_DISABLED` defaults to `true`;
        Tempo and the OTEL collector sit in the `tracing` profile; node-exporter
@@ -539,16 +544,16 @@ A job cancelled after printing still sends nothing: that is a human decision.
     missing-house-number rejection, optional country allow-list
   - Reports every problem at once and runs before any CJ call
 - [x] **No CJ order for a cancelled order (2026-10-05, PR #12).** `order.confirmed`
-  and `order.cancelled` arrive on separate queues; after a backlog the
-  cancellation could be handled first, leave nothing behind, and the
-  confirmation then submitted (and would have paid) a CJ order for an order
-  whose card hold was voided. `cj_order_attempts.cancelled_at` (migration
-  `a6d4e2f8c135`) is stamped by every cancellation; the confirm handler checks
-  it under the row lock before the CJ request, withdraws a CJ order created
-  meanwhile, and the CJ payment service never pays an attempt that has it.
-  CJ's code `1600300` ("order not found") is now an authoritative "not at CJ"
-  (`CJDropshippingNotFoundError`), so a create that failed (e.g. a 429) is
-  submitted again instead of sticking at `creating` until it is dead-lettered.
+      and `order.cancelled` arrive on separate queues; after a backlog the
+      cancellation could be handled first, leave nothing behind, and the
+      confirmation then submitted (and would have paid) a CJ order for an order
+      whose card hold was voided. `cj_order_attempts.cancelled_at` (migration
+      `a6d4e2f8c135`) is stamped by every cancellation; the confirm handler checks
+      it under the row lock before the CJ request, withdraws a CJ order created
+      meanwhile, and the CJ payment service never pays an attempt that has it.
+      CJ's code `1600300` ("order not found") is now an authoritative "not at CJ"
+      (`CJDropshippingNotFoundError`), so a create that failed (e.g. a 429) is
+      submitted again instead of sticking at `creating` until it is dead-lettered.
 
 Schema: `supplier_service` migration `c4a7f1d2e9b8` adds the tracking columns
 (it also creates `cj_order_attempts` when absent, since that table had only ever
@@ -580,7 +585,7 @@ been bootstrapped by `create_all`).
 - **Stock refresh (2026-09-29):** a product that sells out in the warehouse
   country drops out of the country-filtered listing, so the sync alone never zeroed it. An hourly
   supplier-service task (`tasks.stock_tasks.refresh_cj_stock`) now asks CJ about
-  every CJ product *we sell* (product-service's `GET /products/stock-keys/{supplier}`,
+  every CJ product _we sell_ (product-service's `GET /products/stock-keys/{supplier}`,
   supplier-service's signature only) and sends back the sellable US stock per
   variant (CJ's China stock less `CJ_DROPSHIPPING_INVENTORY_BUFFER`) in
   `supplier.stock.updated` batches. product-service sets each variant, the total
@@ -612,30 +617,30 @@ Branch `feature/checkout-payment-cj-flow`; diagram in `FLOWS.md` →
 "Checkout, Payment & CJ Fulfillment Flow".
 
 - [x] **CJ orders are actually paid.** They were created with `payType=3`
-  ("create only") and never confirmed or paid, so CJ never shipped anything.
-  `CJOrderPaymentService` now runs confirmOrder → cost-ceiling check → balance
-  check → payBalance as recorded steps (`CONFIRMED` / `AWAITING_FUNDS` / `PAID`),
-  emits `cj.order.paid`, and a taskiq job (`pay_unpaid_cj_orders`, every 5 min)
-  retries and gives up after `CJ_PAYMENT_MAX_WAIT_HOURS`.
+      ("create only") and never confirmed or paid, so CJ never shipped anything.
+      `CJOrderPaymentService` now runs confirmOrder → cost-ceiling check → balance
+      check → payBalance as recorded steps (`CONFIRMED` / `AWAITING_FUNDS` / `PAID`),
+      emits `cj.order.paid`, and a taskiq job (`pay_unpaid_cj_orders`, every 5 min)
+      retries and gives up after `CJ_PAYMENT_MAX_WAIT_HOURS`.
 - [x] **Authorize at checkout, capture after fulfillment is secured.**
-  PaymentIntents use `capture_method=manual`; `payment.authorized` gates the
-  Saga; capture is requested at confirmation (no CJ lines) or on `cj.order.paid`.
-  Pre-capture failures void the hold instead of refunding.
+      PaymentIntents use `capture_method=manual`; `payment.authorized` gates the
+      Saga; capture is requested at confirmation (no CJ lines) or on `cj.order.paid`.
+      Pre-capture failures void the hold instead of refunding.
 - [x] **Shipping is charged.** Live CJ freight (USD x `CJ_FREIGHT_PRICE_BUFFER`
-  x FX) for CJ lines plus `DOMESTIC_FLAT_SHIPPING_CAD` for in-house/catalog
-  lines; the order stores subtotal/shipping/tax and the chosen logistic, which
-  CJ ships with.
+      x FX) for CJ lines plus `DOMESTIC_FLAT_SHIPPING_CAD` for in-house/catalog
+      lines; the order stores subtotal/shipping/tax and the chosen logistic, which
+      CJ ships with.
 - [x] **CJ USD prices are no longer sold as CAD.** Storefront price =
-  max(suggested, cost x `CJ_PRICE_MARKUP_MULTIPLIER`) x `CJ_USD_TO_CAD_RATE`,
-  rounded up to .99, stored as `product_variants.retail_price` (backfilled).
+      max(suggested, cost x `CJ_PRICE_MARKUP_MULTIPLIER`) x `CJ_USD_TO_CAD_RATE`,
+      rounded up to .99, stored as `product_variants.retail_price` (backfilled).
 - [x] **Order before PaymentIntent.** `POST /checkout` creates the order and
-  opens the intent for the order's own `amount_cents`; the client-callable
-  `POST /payments/create-intent` is gone, and resuming checks ownership.
+      opens the intent for the order's own `amount_cents`; the client-callable
+      `POST /payments/create-intent` is gone, and resuming checks ownership.
 - [x] **No money kept without an order.** An authorization/capture for an
-  unknown or cancelled order sends `payment.release.requested`.
+      unknown or cancelled order sends `payment.release.requested`.
 - [x] **A card decline no longer cancels the order**; the customer retries.
 - [x] Cancelling a paid CJ order acks and flags reconciliation instead of
-  retrying `deleteOrder` into the DLQ.
+      retrying `deleteOrder` into the DLQ.
 
 Migrations: product `7c3e9a51d2f4`, order `3d8b6f0e2a91`, supplier `e5b21c7d9f60`.
 **Before going live:** set `CJ_USD_TO_CAD_RATE` / `CJ_PRICE_MARKUP_MULTIPLIER`
@@ -674,7 +679,7 @@ already correct; three remain.
 - [x] **Host-header validation, and a total user-service outage.** user-service
       had the newest, strictest middleware — an allowlist with no internal-mesh
       case — so every gateway-forwarded request was answered `400 Invalid Host
-      header`. Login, registration, activation and `/me` were all unreachable
+header`. Login, registration, activation and `/me` were all unreachable
       through the gateway. The other seven services had the opposite problem:
       they bypassed validation entirely for any RFC-1918 client, which accepts
       any Host header at all from inside the network; supplier-service had no
@@ -687,13 +692,13 @@ already correct; three remain.
 - [x] **IDOR: any user could read and modify any other user's notifications.**
       `GET /notifications/users/{user_id}`, `.../unread-count` and
       `PATCH .../read-all` took the subject from the path and required only
-      *authentication*. Now behind an ownership check (403 verified).
+      _authentication_. Now behind an ownership check (403 verified).
 - [x] **Review impersonation.** `POST /products/{id}/users/{user_id}/reviews`
       was unguarded, so any authenticated user could post a review attributed
       to someone else. Now ownership-checked (403 verified).
 - [x] **Authorization sourced from attacker-controlled input.** The review
       `PUT`/`DELETE` routes used `Depends(require_user_or_admin)`, but that
-      helper takes the caller as its *first argument*: FastAPI therefore
+      helper takes the caller as its _first argument_: FastAPI therefore
       resolved `current_user` from the **request body** and `target_user_id`
       from the **query string**. A caller could simply assert
       `{"current_user": {"role": "<admin>"}}` and pass. Replaced with a
@@ -709,16 +714,16 @@ already correct; three remain.
 
 - [x] **Session revocation is now immediate.** `token_version` was bumped and
       checked by user-service, but the gateway — which authenticates every
-      request that never reaches user-service — only *decoded* the token, so a
+      request that never reaches user-service — only _decoded_ the token, so a
       password reset left stolen access tokens working for their remaining
       20-minute lifetime. A shared `SessionRegistry` (its own Redis DB, written
       by user-service, read by the gateway) now carries the current session
       generation. Verified live: after a reset the old token is refused on
       `/me`, `/notifications/...` and `/wishlists/me`, while a fresh login
-      works. Refresh-token *reuse* — the signature of a stolen token — now also
+      works. Refresh-token _reuse_ — the signature of a stolen token — now also
       bumps the generation, not just the refresh family.
 - [x] **The remaining notification IDORs are closed.** `PATCH
-      /notifications/{id}/read` and `DELETE /notifications/{id}` are keyed on
+/notifications/{id}/read` and `DELETE /notifications/{id}` are keyed on
       the notification id, so the gateway could not check ownership. The
       gateway now asserts the caller (`X-Authenticated-User-*`, stripped from
       inbound requests so it cannot be forged) and notification-service uses it
@@ -758,7 +763,7 @@ already correct; three remain.
 
 **Resolved locally by §8.1 (Vault, 2026-10-08); compose still to do:**
 
-- ~~**Every service is still *given* every secret.**~~ Since 2026-10-08 every
+- ~~**Every service is still _given_ every secret.**~~ Since 2026-10-08 every
   process `dev.sh` starts reads only its own Vault path. Compose still loads
   the blanket `.env` (its containers would need Vault Agent); the deployment
   plan (§1) gives each container only its own AppRole. Original note: All 33
@@ -862,60 +867,60 @@ the services), not only in unit tests.
 ### 5. Payments & tax/legal
 
 - [x] Partial refunds (2026-09-25). `POST /admin/orders/{id}/refunds` refunds
-  chosen lines and optionally shipping, never above what was captured. Before
-  capture the card is simply charged less (`amount_to_capture`); after capture
-  a Stripe refund is keyed on the refund id, so a redelivery never refunds twice.
+      chosen lines and optionally shipping, never above what was captured. Before
+      capture the card is simply charged less (`amount_to_capture`); after capture
+      a Stripe refund is keyed on the refund id, so a redelivery never refunds twice.
 - [x] Disputes (2026-09-25). `charge.dispute.created/updated/closed` are stored in
-  `payment_disputes`, the order gets a `dispute_status`, and `ADMIN_ALERT_EMAIL`
-  is emailed. Nothing is decided automatically: evidence goes in through the
-  Stripe dashboard.
+      `payment_disputes`, the order gets a `dispute_status`, and `ADMIN_ALERT_EMAIL`
+      is emailed. Nothing is decided automatically: evidence goes in through the
+      Stripe dashboard.
 - [x] Stripe Tax (2026-09-26), behind `STRIPE_TAX_ENABLED` (default off).
-  order-service prices the lines + shipping, then asks payment-service
-  (`POST /payments/tax/calculate`, order-service's signature only) for a Tax
-  Calculation; the tax is added on top (prices are tax-exclusive) and the
-  calculation id is stored on the order and the payment. At capture
-  payment-service records the sale transaction, reversing whatever was taken off
-  before capture; every refund after capture records a flat-amount reversal. A
-  partial refund gives back the refunded part's share of the tax, and the last
-  refund takes whatever tax is left, so rounding never strands a cent. Recording
-  failures never undo money movement: they are logged `TAX RECORD REQUIRED`.
-  Migrations: order `d4a9c6e1f305`, payment `c5e2a8d4b716`.
-  **Before switching it on:** add the tax registrations in the Stripe dashboard
-  (Stripe only taxes where you are registered; every calculation is billed) and
-  set `STRIPE_TAX_PRODUCT_TAX_CODE` (t-shirts: `txcd_30011000`). The shipping
-  address needs `country_code` whenever tax is on.
-  **Not covered:** a lost dispute records no tax reversal (record it in the
-  dashboard); VAT / customs on non-Canadian destinations.
+      order-service prices the lines + shipping, then asks payment-service
+      (`POST /payments/tax/calculate`, order-service's signature only) for a Tax
+      Calculation; the tax is added on top (prices are tax-exclusive) and the
+      calculation id is stored on the order and the payment. At capture
+      payment-service records the sale transaction, reversing whatever was taken off
+      before capture; every refund after capture records a flat-amount reversal. A
+      partial refund gives back the refunded part's share of the tax, and the last
+      refund takes whatever tax is left, so rounding never strands a cent. Recording
+      failures never undo money movement: they are logged `TAX RECORD REQUIRED`.
+      Migrations: order `d4a9c6e1f305`, payment `c5e2a8d4b716`.
+      **Before switching it on:** add the tax registrations in the Stripe dashboard
+      (Stripe only taxes where you are registered; every calculation is billed) and
+      set `STRIPE_TAX_PRODUCT_TAX_CODE` (t-shirts: `txcd_30011000`). The shipping
+      address needs `country_code` whenever tax is on.
+      **Not covered:** a lost dispute records no tax reversal (record it in the
+      dashboard); VAT / customs on non-Canadian destinations.
 - [x] Partial refunds reach payment-service (2026-09-26). order-service had no
-  outbox route for `payment.refund.requested`, so every partial refund since
-  2026-09-25 sat in the outbox, retried and never sent. Routed now; a guard test
-  checks every event type written to the outbox has a route.
+      outbox route for `payment.refund.requested`, so every partial refund since
+      2026-09-25 sat in the outbox, retried and never sent. Routed now; a guard test
+      checks every event type written to the outbox has a route.
 - [x] Customer returns (2026-09-26, backend only). A customer asks for delivered
-  units back (`POST /orders/{id}/returns`, multipart: a JSON `request` field plus
-  up to 5 photos, JPEG/PNG/WebP checked from their bytes); an admin approves,
-  receives or rejects (`/admin/returns`). Rules, under the order's saga lock:
-  owner only, confirmed order, delivered line, within `RETURN_WINDOW_DAYS` (30)
-  of that line's `delivered_at`, and each unit at most once (refunded units and
-  units in an open return are taken). The reason decides the fault: the seller's
-  (defective / damaged / wrong item / misprint) needs a photo and refunds the
-  order's shipping once; a change of mind (changed mind / does not fit) does not.
-  Per fulfilment type: custom prints only for the seller's fault and never sent
-  back; CJ defects not sent back (claim from CJ by hand), CJ change of mind sent
-  back to the local address; catalog items always sent back. Returnless lines
-  are refunded on approval, the rest on receipt, always through
-  `OrderRefundService`, so its caps hold. The admin is emailed about each request
-  (`ADMIN_ALERT_EMAIL`); the customer is emailed the decision with
-  `RETURN_ADDRESS` when goods must come back. Photos are private
-  (`RETURN_EVIDENCE_ROOT`, never under `MEDIA_ROOT`), admin-only to view.
-  Email templates are now autoescaped. Migration: order `e7b3c1f9a482`.
-  **Before going live:** set `RETURN_ADDRESS` and `ADMIN_ALERT_EMAIL`; publish the
-  returns policy page (below) with the same rules.
-  **Not covered:** the frontend (return form, admin queue, regenerated types);
-  prepaid return labels; store credit; restocking a received catalog item
-  (adjust stock by hand); photos of a request that fails to commit stay in
-  storage. (S3 for the photos: done in §8.3.)
+      units back (`POST /orders/{id}/returns`, multipart: a JSON `request` field plus
+      up to 5 photos, JPEG/PNG/WebP checked from their bytes); an admin approves,
+      receives or rejects (`/admin/returns`). Rules, under the order's saga lock:
+      owner only, confirmed order, delivered line, within `RETURN_WINDOW_DAYS` (30)
+      of that line's `delivered_at`, and each unit at most once (refunded units and
+      units in an open return are taken). The reason decides the fault: the seller's
+      (defective / damaged / wrong item / misprint) needs a photo and refunds the
+      order's shipping once; a change of mind (changed mind / does not fit) does not.
+      Per fulfilment type: custom prints only for the seller's fault and never sent
+      back; CJ defects not sent back (claim from CJ by hand), CJ change of mind sent
+      back to the local address; catalog items always sent back. Returnless lines
+      are refunded on approval, the rest on receipt, always through
+      `OrderRefundService`, so its caps hold. The admin is emailed about each request
+      (`ADMIN_ALERT_EMAIL`); the customer is emailed the decision with
+      `RETURN_ADDRESS` when goods must come back. Photos are private
+      (`RETURN_EVIDENCE_ROOT`, never under `MEDIA_ROOT`), admin-only to view.
+      Email templates are now autoescaped. Migration: order `e7b3c1f9a482`.
+      **Before going live:** set `RETURN_ADDRESS` and `ADMIN_ALERT_EMAIL`; publish the
+      returns policy page (below) with the same rules.
+      **Not covered:** the frontend (return form, admin queue, regenerated types);
+      prepaid return labels; store credit; restocking a received catalog item
+      (adjust stock by hand); photos of a request that fails to commit stay in
+      storage. (S3 for the photos: done in §8.3.)
 - [x] Refund and cancellation fixes (2026-10-05 to 2026-10-07), all found by
-  running the paths live; details in §5a:
+      running the paths live; details in §5a:
   - **PR #12:** the `charge.refund.updated` webhook marked the whole payment
     refunded on any refund, so after one partial refund the customer was told
     the payment was refunded and every later refund was refused. The app's own
@@ -1020,6 +1025,7 @@ its create this way).
 ### 6. Frontend completeness
 
 DONE (2026-10-15):
+
 - `/account`: profile (name, phone), avatar (user-service re-encodes to a metadata-free
   WebP under `avatars/` in the catalogue bucket, its own S3 key), password change (ends
   every session, sends the "password changed" email), account deletion (addresses and
@@ -1048,7 +1054,7 @@ DONE (2026-10-15):
   on locally, 69 of them used to fail). Tax pricing keeps its own tests with
   explicit settings in `test_order_pricing_service.py`.
 - No coverage reports, no inter-service contract tests
-- No *automated* end-to-end buy-flow test (manual live runs passed — see §3b, §5a),
+- No _automated_ end-to-end buy-flow test (manual live runs passed — see §3b, §5a),
   no security testing (OWASP ZAP etc.)
 - No per-service READMEs, no overall architecture diagram (the refund and
   cancellation flows are drawn, §5a), OpenAPI not curated/published
@@ -1156,7 +1162,7 @@ approach; decisions are recorded here as they are made.
    Decisions: SeaweedFS as the local S3 server, run by `dev.sh` (Homebrew's
    `minio` is deprecated, its upstream archived); two buckets, never mixed
    (public-read catalogue; private for designs and return photos); the
-   database stores catalogue *keys* and responses add the public origin; all
+   database stores catalogue _keys_ and responses add the public origin; all
    four kinds of image in scope.
    - Settings: `OBJECT_STORAGE_BACKEND` (old name `ARTWORK_STORAGE_BACKEND`
      still read), `AWS_S3_CATALOGUE_BUCKET`, `AWS_S3_CATALOGUE_PUBLIC_BASE_URL`,
@@ -1226,7 +1232,7 @@ approach; decisions are recorded here as they are made.
      single-use challenge; `/login/passkey/verify` checks the signature, origin,
      RP id, user verification (PIN/biometric) and the sign counter (a clone is
      refused) before any token exists. Enrolment: `./local/dev.sh admin enrol
-     <email>` prints a 15-minute link (token in the URL fragment, spent only on
+<email>` prints a 15-minute link (token in the URL fragment, spent only on
      success); `admin list`, `admin revoke <email> <id>` (also ends every
      session). Settings: `WEBAUTHN_RP_ID` (default `localhost`),
      `WEBAUTHN_ORIGINS`, `ADMIN_PANEL_URL`.
@@ -1321,25 +1327,25 @@ approach; decisions are recorded here as they are made.
        paths stay as they are.
    - **Where each part goes.**
 
-     | `shared/` | Goes to | Phase |
-     | --- | --- | --- |
-     | `email_service/` (+ `email_links`), `templates/` | notification-service | 1 |
-     | `messaging/task_dead_letter.py` | notification-service | 1 |
-     | `managers/password_manager.py` | user-service | 1 |
-     | `utils/filter_parser.py` | product-service | 1 |
-     | `contracts/product.py` | supplier-service | 1 |
-     | `enums/auth_enums.py` (`AuthCookies`) | gateway | 1 |
-     | `logs/app.log`, `=0.27.0`, `shared_service_issues.txt`, `enums/supplier_service.py` (unused) | deleted | 1 |
-     | `settings.py` | each service's `settings.py`; the 23 fields nothing reads are dropped | 2 |
-     | `enums/status_enums.py` | order statuses, line fulfilment, production job → order; `PaymentStatus` → payment; `SyncStatus` (unused) dropped. Waits for phase 2 because `settings.py` imports them | 2 |
-     | `contracts/events.py`, `enums/event_enums.py`, `enums/services_enums.py` | `contracts/` of each publisher and consumer, trimmed to its events | 3 |
-     | `contracts/order`, `returns`, `artwork`, `supplier`, `tax`, `auth` | `contracts/` of the services that send or receive them | 3 |
-     | `contracts/shipping_region.py` | order + supplier (both enforce it) | 3 |
-     | `utils/supplier_pricing.py`, `exchange_rates.py`, `money.py` | product + order + supplier. The catalogue price and the order quote must agree, so a change lands in all three copies in one commit | 3 |
-     | `auth/user_tokens.py`, `managers/token_manager.py` | issuer + token manager → user; verifier → gateway. Waits for phase 4 because `testing/signing_keys.py` uses both | 4 |
-     | `app/`, `middleware/`, `auth/` (assertions, guards, keys), `utils/authenticated_caller`, `client_ip`, `customized_json_response`, `models_mixins`, `exceptions/`, `database_layer/`, `managers/` (DB session, test DB session, Redis base, cache, rate limit, session registry, logger), `idempotency/`, `outbox/`, `models/outbox_events.py`, `events/event_publisher.py`, `messaging/`, `resilience/`, `vault/`, `telemetry.py`, `admin/admin_tables.py`, `testing/` | `infrastructure/` of each service that reaches them | 4 |
-     | `messaging/dead_letter_replay.py` (the `dev.sh dlq` CLI) | order-service, whose venv `dev.sh` already runs it from | 4 |
-     | `tests/` | travel with their module into every service that carries it | 4 |
+     | `shared/`                                                                                                                                                                                                                                                                                                                                                                                                                                                              | Goes to                                                                                                                                                                 | Phase |
+     | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
+     | `email_service/` (+ `email_links`), `templates/`                                                                                                                                                                                                                                                                                                                                                                                                                       | notification-service                                                                                                                                                    | 1     |
+     | `messaging/task_dead_letter.py`                                                                                                                                                                                                                                                                                                                                                                                                                                        | notification-service                                                                                                                                                    | 1     |
+     | `managers/password_manager.py`                                                                                                                                                                                                                                                                                                                                                                                                                                         | user-service                                                                                                                                                            | 1     |
+     | `utils/filter_parser.py`                                                                                                                                                                                                                                                                                                                                                                                                                                               | product-service                                                                                                                                                         | 1     |
+     | `contracts/product.py`                                                                                                                                                                                                                                                                                                                                                                                                                                                 | supplier-service                                                                                                                                                        | 1     |
+     | `enums/auth_enums.py` (`AuthCookies`)                                                                                                                                                                                                                                                                                                                                                                                                                                  | gateway                                                                                                                                                                 | 1     |
+     | `logs/app.log`, `=0.27.0`, `shared_service_issues.txt`, `enums/supplier_service.py` (unused)                                                                                                                                                                                                                                                                                                                                                                           | deleted                                                                                                                                                                 | 1     |
+     | `settings.py`                                                                                                                                                                                                                                                                                                                                                                                                                                                          | each service's `settings.py`; the 23 fields nothing reads are dropped                                                                                                   | 2     |
+     | `enums/status_enums.py`                                                                                                                                                                                                                                                                                                                                                                                                                                                | order statuses, line fulfilment, production job → order; `PaymentStatus` → payment; `SyncStatus` (unused) dropped. Waits for phase 2 because `settings.py` imports them | 2     |
+     | `contracts/events.py`, `enums/event_enums.py`, `enums/services_enums.py`                                                                                                                                                                                                                                                                                                                                                                                               | `contracts/` of each publisher and consumer, trimmed to its events                                                                                                      | 3     |
+     | `contracts/order`, `returns`, `artwork`, `supplier`, `tax`, `auth`                                                                                                                                                                                                                                                                                                                                                                                                     | `contracts/` of the services that send or receive them                                                                                                                  | 3     |
+     | `contracts/shipping_region.py`                                                                                                                                                                                                                                                                                                                                                                                                                                         | order + supplier (both enforce it)                                                                                                                                      | 3     |
+     | `utils/supplier_pricing.py`, `exchange_rates.py`, `money.py`                                                                                                                                                                                                                                                                                                                                                                                                           | product + order + supplier. The catalogue price and the order quote must agree, so a change lands in all three copies in one commit                                     | 3     |
+     | `auth/user_tokens.py`, `managers/token_manager.py`                                                                                                                                                                                                                                                                                                                                                                                                                     | issuer + token manager → user; verifier → gateway. Waits for phase 4 because `testing/signing_keys.py` uses both                                                        | 4     |
+     | `app/`, `middleware/`, `auth/` (assertions, guards, keys), `utils/authenticated_caller`, `client_ip`, `customized_json_response`, `models_mixins`, `exceptions/`, `database_layer/`, `managers/` (DB session, test DB session, Redis base, cache, rate limit, session registry, logger), `idempotency/`, `outbox/`, `models/outbox_events.py`, `events/event_publisher.py`, `messaging/`, `resilience/`, `vault/`, `telemetry.py`, `admin/admin_tables.py`, `testing/` | `infrastructure/` of each service that reaches them                                                                                                                     | 4     |
+     | `messaging/dead_letter_replay.py` (the `dev.sh dlq` CLI)                                                                                                                                                                                                                                                                                                                                                                                                               | order-service, whose venv `dev.sh` already runs it from                                                                                                                 | 4     |
+     | `tests/`                                                                                                                                                                                                                                                                                                                                                                                                                                                               | travel with their module into every service that carries it                                                                                                             | 4     |
 
    - **Phases**, one PR each, every suite green after each:
      1. Code used by one service moves into it; dead files deleted.
@@ -1520,32 +1526,33 @@ approach; decisions are recorded here as they are made.
 
 Backend:
 
-| # | Question | Status |
-| --- | --- | --- |
-| 1 | Is the token decoded twice (gateway `AuthMiddleware` and user-service)? | **Done (2026-09-24).** Only the gateway decodes it; user-service reads the gateway's signed caller assertion and checks the account row |
-| 2 | Gateway strips auth and injects identity headers? | **Done (2026-09-24).** `Authorization` and `Cookie` stop at the gateway; identity travels only as the signed assertion |
-| 2b | Signing key out of the gateway, like Google login? | **Done (2026-09-24).** User tokens are EdDSA, private key in user-service only; the gateway signs 60s method+path-bound caller assertions (`X-Caller-Assertion`) that services verify with its public key |
-| 3 | `@public` decorator? | Superseded: `PublicRouteRegistry` (§4b). Secure-by-default router-level dependencies would remove the middleware entirely |
-| 4 | `self_or_admin` in the services? | **Done (2026-09-24).** `shared.auth.route_guards` on every non-public route; also closed payment/shipment reads by any user and an unguarded `GET /payments` |
-| 5 | Only the gateway may call services (`INTERNAL_HMAC_SECRET`, Vault)? | **Done (2026-09-25).** Only the gateway can assert a user; the three routes order-service calls directly (`/artwork/download-link`, `/products/order-quote`, `/cjdropshipping/freight/quote`) now accept only a request order-service signed with its own Ed25519 key (`X-Service-Assertion`, method+path bound, 60s). Anonymous, forged and user callers get 401 |
-| 6 | Signed header downstream; drop `oauth2_scheme` + `get_current_user()`? | **Done (2026-09-24)** |
-| 7 | Remove service ports from compose? | **Done (2026-09-25).** Worse than listed: Postgres, Redis, RabbitMQ, pgAdmin and the observability stack published on 0.0.0.0. The base file now binds every host port to 127.0.0.1 (`INTERNAL_BIND_HOST`) except Traefik's 80/443; `docker-compose.prod.yml` publishes nothing but Traefik |
-| 8 | NetworkPolicy? | **Done for compose (2026-09-25).** `usernet` split into `edge` (Traefik, socket-proxy + gateway/admin-js/Grafana/Prometheus) and `backend` (everything else); Traefik routes over `edge` and has no route to the databases. NetworkPolicy once on Kubernetes |
-| 9 | Token purposes? | **Done (2026-09-24).** `purpose`, `iss`, `aud`, `iat`, `jti` are required; only user-service holds the signing key (Ed25519) |
-| 10 | Remove `PUBLIC_ENDPOINTS` completely? | Done (§4b) |
-| 11 | OpenAPI → TypeScript? | **Done (2026-09-25).** `npm run gen:api` (frontend) writes `types/api/<service>.ts` from each running service's `/openapi.json` via openapi-typescript. Regenerate after a backend schema change; migrating the hand-written frontend types onto them is frontend work |
-| 12 | Order saga frozen while waiting on CJ stock? | **Done (2026-09-25).** The timeout worker only covered *pending* sagas; a confirmed order CJ never took on sat until the card hold lapsed. It is now cancelled after `ORDER_SUPPLIER_STALL_HOURS` (24h, hold released). A CJ outage during the stock check is retried, no longer an instant cancel + refund |
-| 13 | Session/transaction held open while awaiting services or queues? | **Done (2026-09-25).** Audited every external call. Fixed: production artwork download (read txn held across a 10s HTTP call — proven idle-in-transaction on Postgres), wishlist add (uncommitted INSERT across HTTP), image replace (rows deleted before uploads were written), notification emails enqueued before the row committed (duplicate emails on retry). `BaseRepository.end_read_phase()` for the read → remote → write pattern payment-service already used. Also fixed a lost update on concurrent add-to-cart (row lock) |
-| 14 | Value objects (frozen dataclasses)? | **Assessed, not adopted (2026-09-25).** Money is already exact where it is computed (Decimal, integer cents to Stripe, `to_cents` via `str`). `orders.amount` and `order_items.price` moved from float to `Numeric(10,2)` together with partial refunds (2026-09-25) |
-| 15 | Unit of Work? | **Assessed, not needed (2026-09-25).** The session is the unit of work and `database.transaction()` is its boundary: one per request, one per consumed event, outbox rows in the same transaction. A wrapper class would add a layer without adding safety. What *was* unsafe is fixed: the request's commit ran after the response was sent (a failed commit lost a write the client was told succeeded) — now `scope="function"` everywhere, with a guard test. Deliberate splits (payment read -> Stripe -> write, sync checkpoints) use named repository methods |
-| 16 | Circuit breaker / retries for CJ? | **Done (2026-09-25).** Per-service breakers in the gateway (503 + Retry-After); CJ reads retry with backoff, writes never do; a process-wide CJ breaker; 429/5xx are 'unavailable', not a rejection |
-| 17 | Process isolation: API, task queue, consumers, DB? | **Already in place.** Every service runs API, consumer, outbox worker, taskiq worker and scheduler as separate processes (dev.sh) / containers (compose), each with its own database. The single Postgres instance is #19 |
-| 18 | RabbitMQ ack policy + DLX? | **Done (2026-09-24).** Worse than open: every queue dead-lettered to a `dlx` exchange nothing declared, so RabbitMQ dropped every failed message. `shared.messaging.ConsumerTopology` now declares `dlx`, one DLQ per queue and 5s/30s/120s retry queues before consuming; `RetryDispatcher` retries transient failures and dead-letters payload errors at once. All 20 queues in 8 consumers, verified on the live broker |
-| 19 | One Postgres instance, one superuser? | **Done for Postgres (2026-10-14, §8.7).** One login per service, owning only its two databases, password in its own Vault path (static, not rotated: chosen over Vault's database engine). Redis / RabbitMQ users per service are the next step |
-| 19b | taskiq DLX? | **Done for notifications (2026-09-24).** taskiq acks a failed task (its result is saved), so its DLQ never saw one. `DeadLetteringRetryMiddleware` retries emails with backoff and jitter, then parks them in `taskiq.notifications.dead_letter`. Image generation (refunds quota) and the supplier cron jobs (next run is the retry) deliberately do not retry. Parked messages replay with `./local/dev.sh dlq list` / `dlq replay <queue>` |
-| 20 | `autoflush` / `expire_on_commit`; UoW transaction boundaries? | **Done (2026-09-25).** `expire_on_commit=False` is right for async; with `autoflush=False` the gap was deletes: they never flushed, so later reads saw deleted rows and constraint violations surfaced at commit as bare 500s. Deletes now flush; `IntegrityError` renders as 409. Deleting a category silently deleted all its products (ORM cascade) — now refused with 409 |
+| #   | Question                                                                | Status                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| --- | ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Is the token decoded twice (gateway `AuthMiddleware` and user-service)? | **Done (2026-09-24).** Only the gateway decodes it; user-service reads the gateway's signed caller assertion and checks the account row                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| 2   | Gateway strips auth and injects identity headers?                       | **Done (2026-09-24).** `Authorization` and `Cookie` stop at the gateway; identity travels only as the signed assertion                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| 2b  | Signing key out of the gateway, like Google login?                      | **Done (2026-09-24).** User tokens are EdDSA, private key in user-service only; the gateway signs 60s method+path-bound caller assertions (`X-Caller-Assertion`) that services verify with its public key                                                                                                                                                                                                                                                                                                                                                            |
+| 3   | `@public` decorator?                                                    | Superseded: `PublicRouteRegistry` (§4b). Secure-by-default router-level dependencies would remove the middleware entirely                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| 4   | `self_or_admin` in the services?                                        | **Done (2026-09-24).** `shared.auth.route_guards` on every non-public route; also closed payment/shipment reads by any user and an unguarded `GET /payments`                                                                                                                                                                                                                                                                                                                                                                                                         |
+| 5   | Only the gateway may call services (`INTERNAL_HMAC_SECRET`, Vault)?     | **Done (2026-09-25).** Only the gateway can assert a user; the three routes order-service calls directly (`/artwork/download-link`, `/products/order-quote`, `/cjdropshipping/freight/quote`) now accept only a request order-service signed with its own Ed25519 key (`X-Service-Assertion`, method+path bound, 60s). Anonymous, forged and user callers get 401                                                                                                                                                                                                    |
+| 6   | Signed header downstream; drop `oauth2_scheme` + `get_current_user()`?  | **Done (2026-09-24)**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| 7   | Remove service ports from compose?                                      | **Done (2026-09-25).** Worse than listed: Postgres, Redis, RabbitMQ, pgAdmin and the observability stack published on 0.0.0.0. The base file now binds every host port to 127.0.0.1 (`INTERNAL_BIND_HOST`) except Traefik's 80/443; `docker-compose.prod.yml` publishes nothing but Traefik                                                                                                                                                                                                                                                                          |
+| 8   | NetworkPolicy?                                                          | **Done for compose (2026-09-25).** `usernet` split into `edge` (Traefik, socket-proxy + gateway/admin-js/Grafana/Prometheus) and `backend` (everything else); Traefik routes over `edge` and has no route to the databases. NetworkPolicy once on Kubernetes                                                                                                                                                                                                                                                                                                         |
+| 9   | Token purposes?                                                         | **Done (2026-09-24).** `purpose`, `iss`, `aud`, `iat`, `jti` are required; only user-service holds the signing key (Ed25519)                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| 10  | Remove `PUBLIC_ENDPOINTS` completely?                                   | Done (§4b)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| 11  | OpenAPI → TypeScript?                                                   | **Done (2026-09-25).** `npm run gen:api` (frontend) writes `types/api/<service>.ts` from each running service's `/openapi.json` via openapi-typescript. Regenerate after a backend schema change; migrating the hand-written frontend types onto them is frontend work                                                                                                                                                                                                                                                                                               |
+| 12  | Order saga frozen while waiting on CJ stock?                            | **Done (2026-09-25).** The timeout worker only covered _pending_ sagas; a confirmed order CJ never took on sat until the card hold lapsed. It is now cancelled after `ORDER_SUPPLIER_STALL_HOURS` (24h, hold released). A CJ outage during the stock check is retried, no longer an instant cancel + refund                                                                                                                                                                                                                                                          |
+| 13  | Session/transaction held open while awaiting services or queues?        | **Done (2026-09-25).** Audited every external call. Fixed: production artwork download (read txn held across a 10s HTTP call — proven idle-in-transaction on Postgres), wishlist add (uncommitted INSERT across HTTP), image replace (rows deleted before uploads were written), notification emails enqueued before the row committed (duplicate emails on retry). `BaseRepository.end_read_phase()` for the read → remote → write pattern payment-service already used. Also fixed a lost update on concurrent add-to-cart (row lock)                              |
+| 14  | Value objects (frozen dataclasses)?                                     | **Assessed, not adopted (2026-09-25).** Money is already exact where it is computed (Decimal, integer cents to Stripe, `to_cents` via `str`). `orders.amount` and `order_items.price` moved from float to `Numeric(10,2)` together with partial refunds (2026-09-25)                                                                                                                                                                                                                                                                                                 |
+| 15  | Unit of Work?                                                           | **Assessed, not needed (2026-09-25).** The session is the unit of work and `database.transaction()` is its boundary: one per request, one per consumed event, outbox rows in the same transaction. A wrapper class would add a layer without adding safety. What _was_ unsafe is fixed: the request's commit ran after the response was sent (a failed commit lost a write the client was told succeeded) — now `scope="function"` everywhere, with a guard test. Deliberate splits (payment read -> Stripe -> write, sync checkpoints) use named repository methods |
+| 16  | Circuit breaker / retries for CJ?                                       | **Done (2026-09-25).** Per-service breakers in the gateway (503 + Retry-After); CJ reads retry with backoff, writes never do; a process-wide CJ breaker; 429/5xx are 'unavailable', not a rejection                                                                                                                                                                                                                                                                                                                                                                  |
+| 17  | Process isolation: API, task queue, consumers, DB?                      | **Already in place.** Every service runs API, consumer, outbox worker, taskiq worker and scheduler as separate processes (dev.sh) / containers (compose), each with its own database. The single Postgres instance is #19                                                                                                                                                                                                                                                                                                                                            |
+| 18  | RabbitMQ ack policy + DLX?                                              | **Done (2026-09-24).** Worse than open: every queue dead-lettered to a `dlx` exchange nothing declared, so RabbitMQ dropped every failed message. `shared.messaging.ConsumerTopology` now declares `dlx`, one DLQ per queue and 5s/30s/120s retry queues before consuming; `RetryDispatcher` retries transient failures and dead-letters payload errors at once. All 20 queues in 8 consumers, verified on the live broker                                                                                                                                           |
+| 19  | One Postgres instance, one superuser?                                   | **Done for Postgres (2026-10-14, §8.7).** One login per service, owning only its two databases, password in its own Vault path (static, not rotated: chosen over Vault's database engine). Redis / RabbitMQ users per service are the next step                                                                                                                                                                                                                                                                                                                      |
+| 19b | taskiq DLX?                                                             | **Done for notifications (2026-09-24).** taskiq acks a failed task (its result is saved), so its DLQ never saw one. `DeadLetteringRetryMiddleware` retries emails with backoff and jitter, then parks them in `taskiq.notifications.dead_letter`. Image generation (refunds quota) and the supplier cron jobs (next run is the retry) deliberately do not retry. Parked messages replay with `./local/dev.sh dlq list` / `dlq replay <queue>`                                                                                                                        |
+| 20  | `autoflush` / `expire_on_commit`; UoW transaction boundaries?           | **Done (2026-09-25).** `expire_on_commit=False` is right for async; with `autoflush=False` the gap was deletes: they never flushed, so later reads saw deleted rows and constraint violations surfaced at commit as bare 500s. Deletes now flush; `IntegrityError` renders as 409. Deleting a category silently deleted all its products (ORM cascade) — now refused with 409                                                                                                                                                                                        |
 
-Frontend, status (2026-10-15, uncommitted on main):
+Frontend, status (2026-10-15, merged in PRs #42 and #43):
+
 - Done: the server session is per request (it was a module-level object, so
   concurrent requests could read each other's session); the order page sends the
   owner's token (it could never show an order) and asks for sign-in without one;
@@ -1595,15 +1602,19 @@ Frontend, status (2026-10-15, uncommitted on main):
   pattern back fails 4 of the 6 tests on every run; the fix passes all 6. The
   production decoder is loaded lazily, so the test does not pull in the auth
   configuration.
-Frontend:
-/order/orderid is open for anyone?
-signout() doesn't clear the localstorage?
-SessionManager() should not be a singleton?
-money calculations is inconsistent?
-useCart mutates the state in place?
-ProductDetails and Addreview returned early before the hooks?
-useCart() re-render the entire provider subtree twice on every cart change?
-is checkout client stripe memorized? do clicking the size/color/qty re-render the panel?
-9. Cookie-based session, not a JWT in localStorage. Your gateway already sets HttpOnly — trust it and stop carrying tokens in JS? Removing NextAuth Dumb frontend, cookies are the session?
-10. TanStack Query for any client-side caching / refetch / optimistic UI. Not Redux.?
-11. Inspect carefully the creatin of Payment Intent using the stripe? Is it flow correct and all potential bugs are noticed?
+  Frontend (triage updated 2026-10-16; the work above is merged in PRs #42–#44):
+
+| #   | Question                                                                                   | Status                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| --- | ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | `/order/[orderId]` open to anyone?                                                         | **Done (PR #42, params fix in #43).** The page reads the caller's session and asks for sign-in without one; the order is fetched with the owner's token, and the gateway proxy keeps users to their own orders (covered by `npm run test:session`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| 2   | `signOut()` doesn't clear localStorage?                                                    | **Done (PR #42).** Sign-out and session expiry clear the payment intent, pending checkout and generation state (`utils/client-storage.ts`). The cart is kept on purpose                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| 3   | `SessionManager` should not be a singleton?                                                | **Done (PR #42).** One instance is still exported (`actions/getCurrentUser.ts`), but it is stateless: every call reads and decodes its own request's cookie, nothing is stored on the object. Cookie reader and decoder are injected; `npm run test:race` fails 4 of 6 with the old shared-state pattern put back                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| 4   | Money calculations inconsistent?                                                           | **Done (PR #42).** Cart totals and the hero's unit price are summed in cents (`utils/money.ts`); checkout shows the server's quote, never a client total                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| 5   | `useCart` mutates state in place?                                                          | **Done (PR #42).** Every change writes a new array and new line objects through an external store (`lib/local-storage-store.ts`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| 6   | `ProductDetails` / `AddReview` return before their hooks?                                  | **Done (PR #42)**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| 7   | `useCart` re-renders the whole provider subtree twice per cart change?                     | **Done (PR #42/#43).** No hydration effect any more (`useSyncExternalStore`), and the context value is memoized, so a change is one render and unrelated provider renders don't reach consumers                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| 8   | Is the checkout's Stripe instance memoized? Do size/colour/qty clicks re-render the panel? | **Mostly fine; one cleanup open.** `loadStripe` runs once at module level. The `Elements` `options` object is rebuilt on every render; react-stripe-js diffs it and only calls `elements.update` on a real change, so it is harmless, but it should be a `useMemo`. On the product page, size/colour/qty are local state of `ProductDetails`, so a click re-renders that component and its children (nothing is `React.memo`, React Compiler is off) but not the cart provider or other consumers. Not measured as a problem; leave unless profiling says otherwise                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| 9   | Cookie session instead of a JWT in JS; drop NextAuth, "dumb" frontend?                     | **Half done (PR #42).** The token no longer reaches the browser: it lives in NextAuth's encrypted HttpOnly cookie, `/api/auth/session` and the HTML don't carry it, and browser calls go through the same-origin proxy (`app/api/gateway/[...path]/route.ts`), which adds it server-side and refuses cross-site writes (judged by the browser's `Host`, PR #44). **Open:** removing NextAuth so the gateway's own HttpOnly cookies are the session. That is a decision (Google sign-in, refresh and the admin-token refusal all go through NextAuth today), not a fix                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| 10  | TanStack Query for client-side caching / refetch / optimistic UI (not Redux)?              | **Open, not started.** Not a dependency. Client data is plain `fetch` in hooks and effects (checkout quote, account, address book, wishlist); none of it caches or dedupes. Worth adopting before more client-side data screens are added                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| 11  | Is the Stripe PaymentIntent flow correct?                                                  | **Done (2026-10-16).** Sound before: the gateway creates the order first and reads the intent's amount from it (`api_gateway/routes/checkout_routes.py`), so the client never states an amount; payment-service creates, captures and refunds with per-order Stripe idempotency keys and `capture_method: manual`, matching the Element's `captureMethod`; the client secret stays in memory, a reload resumes the stored order, a changed cart/address/shipping cancels the old order, a decline leaves it open for another card, and a 409 tells "already paid" from "cancelled". Fixed: (a) a ref blocks a second submit at once, and placing/resuming the order runs under a Web Lock (`withCheckoutLock`, `lib/pending-checkout.ts`) so a second tab waits and resumes the first tab's order; a confirm that Stripe refuses because another tab already paid the intent counts as placed; (b) `return_url` is now `/checkout/complete`, which reads the PaymentIntent's status from Stripe (`retrievePaymentIntent`, not `redirect_status`), clears the cart and pending checkout when placed, keeps both and links back to checkout when not, and strips the client secret from the address bar; (c) when the placed order's `amount_cents` differs from the quote, the form shows the order's amounts, updates the Element's amount and stops; the next click resumes the same order and pays it; (d) the `paymentIntent` store, its type and its storage key are gone; (e) the pending checkout is a `LocalStorageStore`. **Verified live (Chrome, Stripe test mode):** two submits in one tick made one `POST /checkout`; a quote tampered to $1 under the order showed the order's $39.25 and made no confirm call; the return page with that unpaid intent showed the failure and kept cart and pending; back at checkout the same order was resumed and paid in-page; the return page with the paid intent showed "Order placed" and cleared both. **Not exercised:** a real 3-D Secure redirect, two real tabs racing, the "already paid in another tab" confirm error. **Left as is:** the superseded-order cancel stays best effort (the saga timeout is the backstop) |
+| 12  | Cart page shows the price an item had when it was added? | **Done (2026-10-16).** A cart line saved `variant.retail_price ?? product.price` once and nothing refreshed it, so a catalogue reprice (e.g. the CJ price refresh) left the cart page showing an old price while checkout charged the new one. The cart page now prices its lines on the server (`useCartPricing` → public, rate-limited `POST /api/v1/cart/prices` → order-service `POST /orders/price-items`, the item half of `OrderPricingService.build_quote`, so cart and checkout cannot disagree) and saves those prices into the cart. All or nothing for now: one unsellable line fails the whole cart with a message. Order-service no longer passes product-service's internal URL in a refused quote's error. Tests: `npm run test:cart-pricing` (4 tests, live stack, no mocks; the leak and public-route checks fail with the fixes reverted). Not covered: custom t-shirt lines (need image-service-signed artwork), and per-line availability |

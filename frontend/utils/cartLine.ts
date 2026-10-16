@@ -1,5 +1,6 @@
 import type { ImageProps } from "@/types/image";
 import type { ProductProps, ProductVariantProps } from "@/types/product";
+import type { OrderProductInput } from "@/types/cart";
 
 /**
  * A catalogue product as a cart line: one unit of the given variant (or of
@@ -32,3 +33,25 @@ export const toCartLine = (
 
 export const activeVariantsOf = (product: ProductProps): ProductVariantProps[] =>
   product.variants?.filter((variant) => variant.active) ?? [];
+
+/**
+ * Cart lines as the server prices and orders them: identity, variant, quantity
+ * and customization, never the price. The cart page's pricing and checkout send
+ * exactly this, so both are priced alike.
+ */
+export const buildOrderProducts = (products: ProductProps[]): OrderProductInput[] =>
+  products.map((product) =>
+    product.fulfillment_type === "custom"
+      ? {
+          id: product.id,
+          quantity: product.quantity,
+          fulfillment_type: "custom" as const,
+          customization: product.customization,
+        }
+      : {
+          id: product.id,
+          variant_id: product.selected_variant_id ?? undefined,
+          quantity: product.quantity,
+          fulfillment_type: product.fulfillment_type ?? "catalog",
+        },
+  );

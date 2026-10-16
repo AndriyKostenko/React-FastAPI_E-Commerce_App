@@ -2,6 +2,7 @@
 
 import { CartClientProps } from "@/types/cart";
 import { useCart } from "@/hooks/useCart";
+import { useCartPricing } from "@/hooks/useCartPricing";
 import Link from "next/link";
 import { MdArrowBack } from "react-icons/md";
 import Heading from "@/components/ui/Heading";
@@ -13,6 +14,8 @@ import { useCurrentUserTokenExpiryCheck } from "@/hooks/useCurrentUserToken";
 
 const CartClient: React.FC<CartClientProps> = ({currentUser, expiryToken}) => {
     const {cartProducts, handleClearCart, cartTotalAmount} = useCart();
+    // The saved line prices can be stale; the server's replace them as soon as it answers.
+    const { isPricing, serverSubtotal, changedLines, error: pricingError } = useCartPricing();
 
     const router = useRouter()
 
@@ -54,8 +57,20 @@ const CartClient: React.FC<CartClientProps> = ({currentUser, expiryToken}) => {
                 <div className="text-sm flex flex-col gap-1 items-start">
                         <div className="flex justify-between w-full text-base font-semibold">
                             <span>Subtotal</span>
-                            <span>{formatPrice(cartTotalAmount)}</span>
+                            <span>{formatPrice(serverSubtotal ?? cartTotalAmount)}</span>
                         </div>
+                        {isPricing && <p className="text-slate-500">Checking current prices…</p>}
+                        {changedLines > 0 && (
+                            <p className="text-slate-600">
+                                {changedLines === 1 ? "A price has" : "Some prices have"} changed since you added
+                                {changedLines === 1 ? " that item" : " these items"}; the cart shows the current ones.
+                            </p>
+                        )}
+                        {pricingError && (
+                            <p className="text-rose-500">
+                                {pricingError} An item may no longer be available as it is; remove or change it to check out.
+                            </p>
+                        )}
                         <p className="text-slate-500">
                             Taxes abd shipping calculate at checkout
                         </p>

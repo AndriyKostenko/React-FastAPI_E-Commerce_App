@@ -9,7 +9,7 @@ from uuid import UUID, uuid4
 from httpx import AsyncClient, HTTPStatusError, RequestError
 from pydantic import BaseModel
 
-from schemas.order_schemas import CreateOrder, ShippingOption
+from schemas.order_schemas import CreateOrder, OrderProductItem, ShippingOption
 from contracts.order import CustomTshirtSpecification, FulfillmentType
 from contracts.artwork import verify_artwork_asset
 from contracts.tax import (
@@ -113,10 +113,21 @@ class CatalogQuoteClient:
                 f"{self.settings.FULL_PRODUCT_SERVICE_URL}/products/order-quote",
                 json={"items": items},
             )
+        except RequestError as exc:
+            _logger.warning("Catalog quote request failed: %s", exc)
+            raise OrderQuoteError("Prices are unavailable right now; please try again") from exc
+        if response.is_client_error:
+            # product-service says why a line cannot be sold (missing, inactive,
+            # out of stock); pass that on. The exception text would carry its
+            # internal URL, which the public cart-pricing route must not show.
+            detail = response.json().get("detail") or "An item in the cart cannot be sold"
+            raise OrderQuoteError(str(detail))
+        try:
             response.raise_for_status()
-            return response.json()
-        except (RequestError, HTTPStatusError) as exc:
-            raise OrderQuoteError(f"Unable to build catalog quote: {exc}") from exc
+        except HTTPStatusError as exc:
+            _logger.warning("Catalog quote failed: %s", exc)
+            raise OrderQuoteError("Prices are unavailable right now; please try again") from exc
+        return response.json()
 
 
 class FreightQuoteClient:
@@ -281,12 +292,19 @@ class OrderPricingService:
         self.freight_client = freight_client
         self.tax_client = tax_client
 
-    async def build_quote(self, order_data: CreateOrder) -> CanonicalOrderQuote:
+    async def price_items(self, products: list[OrderProductItem]) -> list[QuotedOrderLine]:
+        """Unit prices for order lines, in the order given.
+
+        The item half of ``build_quote``: no address, so no shipping or tax.
+        The cart page prices with it too, so the cart shows what the order will
+        charge. A line that cannot be sold fails the whole call, as it would
+        fail the order.
+        """
         catalog_requests: list[dict[str, Any]] = []
         catalog_positions: list[int] = []
         quoted_by_position: dict[int, QuotedOrderLine] = {}
 
-        for position, item in enumerate(order_data.products):
+        for position, item in enumerate(products):
             if item.fulfillment_type == "custom":
                 specification = item.customization
                 assert specification is not None
@@ -322,11 +340,19 @@ class OrderPricingService:
             for position, line in zip(catalog_positions, catalog_lines, strict=True):
                 quoted_by_position[position] = QuotedOrderLine(**line)
 
-        quoted_items = [quoted_by_position[index] for index in range(len(order_data.products))]
-        subtotal = sum(
-            (line.unit_price * line.quantity for line in quoted_items),
+        return [quoted_by_position[index] for index in range(len(products))]
+
+    @staticmethod
+    def subtotal_of(lines: list[QuotedOrderLine]) -> Decimal:
+        """The lines' unit prices times their quantities, to the cent."""
+        return sum(
+            (line.unit_price * line.quantity for line in lines),
             start=Decimal("0.00"),
         ).quantize(CENT, rounding=ROUND_HALF_UP)
+
+    async def build_quote(self, order_data: CreateOrder) -> CanonicalOrderQuote:
+        quoted_items = await self.price_items(order_data.products)
+        subtotal = self.subtotal_of(quoted_items)
         shipping_options, selected = await self._quote_cj_shipping(order_data, quoted_items)
         shipping = self._domestic_shipping(quoted_items)
         if selected is not None:

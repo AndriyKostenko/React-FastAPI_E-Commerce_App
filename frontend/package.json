@@ -10,7 +10,8 @@
     "gen:api": "node scripts/generate-api-types.mjs",
     "test:session": "node --test --test-concurrency=1 tests/session-isolation.test.mjs",
     "seed:session-users": "node tests/seed-session-users.mjs",
-    "test:race": "node --import tsx --test tests/session-race.test.ts"
+    "test:race": "node --import tsx --test tests/session-race.test.ts",
+    "test:cart-pricing": "node --test --test-concurrency=1 tests/cart-pricing.test.mjs"
   },
   "dependencies": {
     "@mui/x-data-grid": "^7.6.2",
