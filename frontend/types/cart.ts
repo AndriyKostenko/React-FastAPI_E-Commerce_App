@@ -12,8 +12,23 @@ export interface CartContextType {
     handleCartQtyIncrease: (product: ProductProps) => void;
     handleCartQtyDecrease: (product: ProductProps) => void;
     handleClearCart: () => void;
-    paymentIntent: string | null;
-    handleSetPaymentIntent: (val: string | null) => void;
+    /** Saves the server's unit prices (cart order); returns how many lines changed. */
+    handleApplyServerPrices: (unitPrices: readonly number[]) => number;
+}
+
+/** One cart line as the server prices it; money arrives as a decimal string. */
+export interface CartPriceLine {
+    product_id: string;
+    variant_id: string | null;
+    quantity: number;
+    unit_price: string;
+}
+
+/** The cart priced as an order would price it, lines in the cart's order. */
+export interface CartPrices {
+    currency: string;
+    items: CartPriceLine[];
+    subtotal_amount: string;
 }
 
 export interface CartClientProps {
@@ -54,12 +69,23 @@ export interface CheckoutQuote {
     shipping_logistic_name: string | null;
 }
 
+/**
+ * The placed order and its PaymentIntent. The amounts are the order's own,
+ * priced again when it was placed, so they can differ from the earlier quote.
+ */
 export interface CheckoutSession {
     order_id: string;
     client_secret: string;
     payment_intent_id: string;
     amount_cents: number;
     currency: string;
+    /** The order total in dollars (a JSON number). */
+    total_amount: number;
+    /** Decimal strings; null only on orders placed before they were recorded. */
+    subtotal_amount: string | null;
+    shipping_amount: string | null;
+    tax_amount: string | null;
+    shipping_logistic_name: string | null;
 }
 
 /** What survives a reload: the order to resume and the cart it was placed for. */

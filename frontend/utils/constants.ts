@@ -151,7 +151,6 @@ export const DEFAULT_GENERATION_LIMIT = 10;
 export const GENERATION_COUNTER_STORAGE_KEY = "guest-image-generation-counter";
 export const GENERATION_STATE_STORAGE_KEY = "guest-image-generation-state";
 export const PENDING_CHECKOUT_STORAGE_KEY = "eShopPendingCheckout";
-export const PAYMENT_INTENT_STORAGE_KEY = "eShopPaymentIntent";
 
 export const PRESET_PROMPTS: Array<{prompt: string; style: "None" | keyof typeof STYLE_PREVIEWS;}> = [
   {

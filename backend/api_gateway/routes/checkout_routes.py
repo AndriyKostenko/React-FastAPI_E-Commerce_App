@@ -57,6 +57,28 @@ async def quote_checkout(
     return JSONResponse(content=response.json(), status_code=200)
 
 
+@checkout_proxy.post("/cart/prices", summary="Price cart lines as an order would (no shipping or tax)")
+@rate_limited(times=60, seconds=60)
+async def price_cart(request: Request) -> JSONResponse:
+    """PUBLIC - guests have carts too; it reads prices and writes nothing.
+
+    The cart page shows these instead of the prices saved when each item was
+    added, which go stale when the catalogue is repriced.
+    """
+    payload: dict[str, object] = await request.json()
+    response = await api_gateway_manager.request_service(
+        request,
+        Services.ORDER_SERVICE,
+        "/orders/price-items",
+        method="POST",
+        # Only the lines; order-service validates them as it would an order's.
+        json={"products": payload.get("products")},
+    )
+    if not response.is_success:
+        return _upstream_error(response)
+    return JSONResponse(content=response.json(), status_code=200)
+
+
 @checkout_proxy.post("/checkout", summary="Place the order and open its payment")
 @rate_limited(times=10, seconds=60)
 async def start_checkout(

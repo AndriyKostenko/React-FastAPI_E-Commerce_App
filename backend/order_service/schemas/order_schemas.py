@@ -163,6 +163,25 @@ class QuoteOrderRequest(BaseModel):
     shipping_logistic_name: str | None = Field(default=None, max_length=200)
 
 
+class PriceItemsRequest(BaseModel):
+    products: list[OrderProductItem] = Field(min_length=1, max_length=50)
+
+
+class PricedItem(BaseModel):
+    product_id: UUID
+    variant_id: UUID | None = None
+    quantity: int
+    unit_price: Decimal
+
+
+class PriceItemsResponse(BaseModel):
+    """Cart lines priced as an order would price them, in the request's order."""
+
+    currency: str
+    items: list[PricedItem]
+    subtotal_amount: Decimal
+
+
 class QuoteOrderResponse(BaseModel):
     subtotal_amount: Decimal
     shipping_amount: Decimal

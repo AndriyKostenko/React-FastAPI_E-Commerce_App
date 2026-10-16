@@ -10,7 +10,11 @@ from schemas.order_schemas import (
     CancelOrder,
     QuoteOrderRequest,
     QuoteOrderResponse,
+    PriceItemsRequest,
+    PriceItemsResponse,
+    PricedItem,
 )
+from service_layer.order_pricing_service import OrderPricingService
 from dependencies.dependencies import order_service_dependency
 from infrastructure.auth.route_guards import AdminDep, CallerDep, SelfOrAdminDep, ensure_owner_or_admin
 
@@ -48,6 +52,35 @@ async def quote_order(
         products=[line.model_dump(mode="json") for line in quote.items],
         shipping_options=quote.shipping_options,
         shipping_logistic_name=quote.shipping_logistic_name,
+    )
+
+
+@order_routes.post(
+    "/orders/price-items",
+    response_model=PriceItemsResponse,
+    summary="Price cart lines as an order would, without shipping or tax",
+)
+async def price_items(
+    order_service: order_service_dependency,
+    body: PriceItemsRequest,
+) -> PriceItemsResponse:
+    # No caller guard: guests have carts too, and this reads prices and writes
+    # nothing. The gateway exposes it as the rate-limited public /cart/prices.
+    if order_service.pricing_service is None:
+        raise RuntimeError("Order pricing service is unavailable")
+    lines = await order_service.pricing_service.price_items(body.products)
+    return PriceItemsResponse(
+        currency="cad",
+        items=[
+            PricedItem(
+                product_id=line.product_id,
+                variant_id=line.variant_id,
+                quantity=line.quantity,
+                unit_price=line.unit_price,
+            )
+            for line in lines
+        ],
+        subtotal_amount=OrderPricingService.subtotal_of(lines),
     )
 
 

@@ -1,39 +1,20 @@
 "use client";
 
-import { CheckoutClientProps, OrderProductInput } from "@/types/cart";
+import { CheckoutClientProps } from "@/types/cart";
 import { useCart } from "@/hooks/useCart";
 import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
-import { StripeElementsOptions, loadStripe } from "@stripe/stripe-js";
+import type { StripeElementsOptions } from "@stripe/stripe-js";
 import { Elements } from "@stripe/react-stripe-js";
 import CheckoutForm from "./CheckOutForm";
 import Button from "@/components/ui/Button";
 import Link from "next/link";
 import { MdArrowBack } from "react-icons/md";
-import { ProductProps } from "@/types/product";
-import { settings } from "@/lib/config";
-
-const stripePromise = loadStripe(settings.stripe.publishableKey);
-
-const buildOrderProducts = (products: ProductProps[]): OrderProductInput[] =>
-    products.map((product) =>
-        product.fulfillment_type === "custom"
-            ? {
-                  id: product.id,
-                  quantity: product.quantity,
-                  fulfillment_type: "custom" as const,
-                  customization: product.customization,
-              }
-            : {
-                  id: product.id,
-                  variant_id: product.selected_variant_id ?? undefined,
-                  quantity: product.quantity,
-                  fulfillment_type: product.fulfillment_type ?? "catalog",
-              },
-    );
+import { buildOrderProducts } from "@/utils/cartLine";
+import { stripePromise } from "@/lib/stripe";
 
 const CheckoutClient: React.FC<CheckoutClientProps> = ({ isSignedIn, defaultAddress }) => {
-    const { cartProducts, cartTotalAmount, handleClearCart, handleSetPaymentIntent } = useCart();
+    const { cartProducts, cartTotalAmount, handleClearCart } = useCart();
     const [quotedAmountCents, setQuotedAmountCents] = useState<number | null>(null);
     const [paymentSuccess, setPaymentSuccess] = useState(false);
     const router = useRouter();
@@ -60,9 +41,8 @@ const CheckoutClient: React.FC<CheckoutClientProps> = ({ isSignedIn, defaultAddr
 
     const handlePaid = useCallback(() => {
         handleClearCart();
-        handleSetPaymentIntent(null);
         setPaymentSuccess(true);
-    }, [handleClearCart, handleSetPaymentIntent]);
+    }, [handleClearCart]);
 
     if (paymentSuccess) {
         return (

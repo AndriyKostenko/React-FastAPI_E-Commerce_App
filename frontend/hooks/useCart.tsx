@@ -4,22 +4,17 @@ import { CartContextType } from '@/types/cart';
 import { ProductProps } from '@/types/product';
 import { createContext, useContext, useCallback, useMemo, useSyncExternalStore } from 'react';
 import { toast } from 'react-hot-toast';
-import { PAYMENT_INTENT_STORAGE_KEY } from '@/utils/constants';
 import { fromCents, toCents } from '@/utils/money';
 import { LocalStorageStore, decodeJson } from '@/lib/local-storage-store';
 
 const CART_STORAGE_KEY = 'eShopCartItems';
 
-// Module-level stores: the cart belongs to the browser, and the stores touch
-// localStorage only when the browser reads or writes them. The server renders
-// with the null snapshots.
+// Module-level store: the cart belongs to the browser, and the store touches
+// localStorage only when the browser reads or writes it. The server renders
+// with the null snapshot.
 const cartStore = new LocalStorageStore<ProductProps[]>(
     CART_STORAGE_KEY,
     (raw) => decodeJson<ProductProps[]>(raw),
-);
-const paymentIntentStore = new LocalStorageStore<string>(
-    PAYMENT_INTENT_STORAGE_KEY,
-    (raw) => decodeJson<string>(raw),
 );
 
 export const CartContext = createContext<CartContextType | null>(null);
@@ -40,7 +35,7 @@ const changeCart = (change: (previous: ProductProps[] | null) => ProductProps[] 
 /**
  * Cart state for the whole app.
  *
- * The saved cart and checkout intent are read with `useSyncExternalStore`, so no
+ * The saved cart is read with `useSyncExternalStore`, so no
  * effect copies storage into state and no first render can overwrite a saved
  * cart. Every change writes a new array and new line objects; nothing already
  * saved is edited in place. Totals are derived from the cart and summed in cents
@@ -51,11 +46,6 @@ export const CartContextProvider = (props: Props) => {
         cartStore.subscribe,
         cartStore.getSnapshot,
         cartStore.getServerSnapshot,
-    );
-    const paymentIntent = useSyncExternalStore(
-        paymentIntentStore.subscribe,
-        paymentIntentStore.getSnapshot,
-        paymentIntentStore.getServerSnapshot,
     );
 
     const { cartTotalQty, cartTotalAmount } = useMemo(() => {
@@ -127,8 +117,27 @@ export const CartContextProvider = (props: Props) => {
         cartStore.write(null);
     }, []);
 
-    const handleSetPaymentIntent = useCallback((val: string | null) => {
-        paymentIntentStore.write(val);
+    /**
+     * Replaces each line's saved price with the server's. `unitPrices` follows
+     * the cart's order (see useCartPricing). Lines whose price is unchanged keep
+     * their object, and nothing is written when no price changed, so applying
+     * the same prices twice does not re-render the cart.
+     */
+    const handleApplyServerPrices = useCallback((unitPrices: readonly number[]): number => {
+        const previous = cartStore.getSnapshot();
+        // A cart that changed while the prices were on their way is priced
+        // again by the caller; never pair prices with the wrong lines.
+        if (!previous || previous.length !== unitPrices.length) return 0;
+        let changedLines = 0;
+        const next = previous.map((item, index) => {
+            if (toCents(item.price) === toCents(unitPrices[index])) return item;
+            changedLines += 1;
+            return { ...item, price: unitPrices[index] };
+        });
+        if (changedLines > 0) {
+            cartStore.write(next);
+        }
+        return changedLines;
     }, []);
 
     // Memoized so that a consumer re-renders only when the cart really changes,
@@ -142,9 +151,8 @@ export const CartContextProvider = (props: Props) => {
             handleCartQtyIncrease,
             handleCartQtyDecrease,
             handleClearCart,
+            handleApplyServerPrices,
             cartTotalAmount,
-            paymentIntent,
-            handleSetPaymentIntent,
         }),
         [
             cartTotalQty,
@@ -154,9 +162,8 @@ export const CartContextProvider = (props: Props) => {
             handleCartQtyIncrease,
             handleCartQtyDecrease,
             handleClearCart,
+            handleApplyServerPrices,
             cartTotalAmount,
-            paymentIntent,
-            handleSetPaymentIntent,
         ],
     );
 
