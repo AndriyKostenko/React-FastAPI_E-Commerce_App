@@ -5,6 +5,8 @@ import { settings } from "@/lib/config";
 import { ApiError } from "@/lib/api-error";
 import { AUTH_ERROR_PARAM, AUTH_ERROR_MAX_LENGTH } from "@/utils/constants";
 import { clientAddressHeaders } from "@/lib/client-address";
+import { GatewayAuthClient, type BackendTokens, type SignedInBody } from "@/lib/gateway-auth-client";
+import { SessionCookie } from "@/lib/session-cookie";
 
 const LOGIN_FALLBACK = "Sign-in failed. Please try again.";
 const GOOGLE_FALLBACK = "Google sign-in failed. Please try again.";
@@ -13,21 +15,37 @@ const GOOGLE_FALLBACK = "Google sign-in failed. Please try again.";
 const loginErrorUrl = (message: string): string =>
     `/login?${AUTH_ERROR_PARAM}=${encodeURIComponent(message.slice(0, AUTH_ERROR_MAX_LENGTH))}`;
 
-// adding jwt, user role and token expiry to the User object
+// Refresh and logout from the Next server; the proxy refreshes with its own client (proxy.ts).
+const gatewayAuth = new GatewayAuthClient({
+    refresh: settings.api.endpoints.authRefresh,
+    logout: settings.api.endpoints.authLogout,
+});
+
+// The backend session kept in the encrypted session cookie, never in the browser.
 interface CustomUser extends User {
     id: string;
     jwt: string;
     role: string;
     token_expiry: number;
+    refresh_token: string;
+    refresh_expiry: number;
 }
 
-// What the browser may see. The access token is deliberately not here: it
-// stays in the encrypted session cookie and is read on the server only
-// (actions/getCurrentUser.ts), so no script on the page can take it.
+/** The session fields for a signed-in response's tokens. */
+const sessionTokens = (tokens: BackendTokens) => ({
+    jwt: tokens.accessToken,
+    token_expiry: tokens.accessExpiry,
+    refresh_token: tokens.refreshToken,
+    refresh_expiry: tokens.refreshExpiry,
+});
+
+// What the browser may see. The access and refresh tokens are deliberately not
+// here: they stay in the encrypted session cookie and are read on the server
+// only (actions/getCurrentUser.ts, lib/session-proxy.ts), so no script on the
+// page can take them.
 declare module "next-auth" {
     interface Session {
         role: string;
-        token_expiry: number;
         user: DefaultSession["user"] & {
             id: string;
         };
@@ -77,21 +95,24 @@ export const authOptions: AuthOptions = {
                 throw apiError;
             }
 
-            const data = await response.json();
+            const data = (await response.json()) as SignedInBody;
 
-            // access_token is returned in the body by the gateway (alongside the HttpOnly cookie).
-            // refresh_token is cookie-only and never exposed here.
-            const jwt = data['access_token'];
-            const role = data['user_role'];
-            const token_expiry = data['token_expiry'];
-            const userId = data['user_id'];
-
-            if (!jwt) {
-                console.error('authorize(): no access_token in response body');
+            // The access token comes in the body, the refresh token only as the
+            // gateway's Set-Cookie, which this server call receives instead of
+            // the browser. Both go into the encrypted session cookie.
+            const tokens = gatewayAuth.tokensFrom(response, data);
+            if (!tokens) {
+                console.error('authorize(): the gateway sent no access token or no refresh cookie');
                 throw new Error(LOGIN_FALLBACK);
             }
 
-            return { id: userId, email: credentials.email, jwt, role, token_expiry } as CustomUser;
+            const user: CustomUser = {
+                id: data.user_id,
+                email: credentials.email,
+                role: data.user_role,
+                ...sessionTokens(tokens),
+            };
+            return user;
         },
     }),
   ],
@@ -116,13 +137,14 @@ export const authOptions: AuthOptions = {
 
                 if (!response.ok) throw await ApiError.fromResponse(response, GOOGLE_FALLBACK);
 
-                const data = await response.json();
+                const data = (await response.json()) as SignedInBody;
+                const tokens = gatewayAuth.tokensFrom(response, data);
+                if (!tokens) throw new Error(GOOGLE_FALLBACK);
 
                 // Attach backend data to account so the jwt callback can pick it up
-                (account as Record<string, unknown>).backendJwt = data['access_token'];
-                (account as Record<string, unknown>).backendRole = data['user_role'];
-                (account as Record<string, unknown>).backendTokenExpiry = data['token_expiry'];
-                (account as Record<string, unknown>).backendUserId = data['user_id'];
+                (account as Record<string, unknown>).backendTokens = tokens;
+                (account as Record<string, unknown>).backendRole = data.user_role;
+                (account as Record<string, unknown>).backendUserId = data.user_id;
             } catch (error) {
                 const apiError = ApiError.from(error, GOOGLE_FALLBACK);
                 console.error('signIn(google): backend exchange failed', apiError.status, apiError.message);
@@ -134,13 +156,15 @@ export const authOptions: AuthOptions = {
 
     jwt: async ({ token, user, account }) => {
         // Google sign-in: backend data was fetched in signIn callback and attached to account
-        if (account?.provider === 'google' && (account as Record<string, unknown>).backendJwt) {
+        const backendTokens = (account as Record<string, unknown> | null | undefined)?.backendTokens as
+            | BackendTokens
+            | undefined;
+        if (account?.provider === 'google' && backendTokens) {
             return {
                 ...token,
                 id: (account as Record<string, unknown>).backendUserId,
-                jwt: (account as Record<string, unknown>).backendJwt,
                 role: (account as Record<string, unknown>).backendRole,
-                token_expiry: (account as Record<string, unknown>).backendTokenExpiry,
+                ...sessionTokens(backendTokens),
             };
         }
 
@@ -150,9 +174,11 @@ export const authOptions: AuthOptions = {
             return {
                 ...token,
                 id: customUser.id,
-                jwt: customUser.jwt,
                 role: customUser.role,
+                jwt: customUser.jwt,
                 token_expiry: customUser.token_expiry,
+                refresh_token: customUser.refresh_token,
+                refresh_expiry: customUser.refresh_expiry,
             };
         }
         return token;
@@ -161,13 +187,23 @@ export const authOptions: AuthOptions = {
     session: async ({ session, token }) => {
         if (token) {
             session.role = token.role as string;
-            session.token_expiry = token.token_expiry as number;
             session.user.id = token.id as string;
         }
         return session;
     },
   },
-  secret: process.env.NEXTAUTH_SECRET || process.env.SECRET_KEY,
+  events: {
+    // Sign-out revokes the backend refresh token too, so the session cannot be
+    // revived from it. The proxy never refreshes on NextAuth's own routes, so
+    // this is the token the cookie holds right now.
+    signOut: async ({ token }) => {
+        if (typeof token?.refresh_token === 'string') {
+            await gatewayAuth.logout(token.refresh_token);
+        }
+    },
+  },
+  secret: SessionCookie.secret(),
+  session: { strategy: 'jwt', maxAge: SessionCookie.MAX_AGE_SECONDS },
   pages: {
     signIn: '/login',
   },

@@ -1,7 +1,7 @@
 "use client";
 
 import Heading from "@/components/ui/Heading";
-import { useCurrentUserTokenExpiryCheck } from "@/hooks/useCurrentUserToken";
+import { useSessionExpiryCheck } from "@/hooks/useSessionExpiryCheck";
 import type { AccountProfile, SavedAddress } from "@/types/account";
 import AddressBook from "./AddressBook";
 import DeleteAccountSection from "./DeleteAccountSection";
@@ -11,11 +11,11 @@ import ProfileSection from "./ProfileSection";
 interface AccountClientProps {
   profile: AccountProfile;
   addresses: SavedAddress[];
-  tokenExpiry: number | null;
+  sessionExpiry: number | null;
 }
 
-const AccountClient: React.FC<AccountClientProps> = ({ profile, addresses, tokenExpiry }) => {
-  useCurrentUserTokenExpiryCheck(tokenExpiry);
+const AccountClient: React.FC<AccountClientProps> = ({ profile, addresses, sessionExpiry }) => {
+  useSessionExpiryCheck(sessionExpiry);
 
   return (
     <div className="max-w-4xl mx-auto flex flex-col gap-6">

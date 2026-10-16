@@ -10,7 +10,7 @@ const Orders = async () => {
 
   const currentUser = await sessionManagaer.getCurrentUser();
   const currentUserToken = await sessionManagaer.getCurrentUserJWT();
-  const expiryToken = await sessionManagaer.getCurrentUserTokenExpiry();
+  const sessionExpiry = await sessionManagaer.getSessionExpiry();
 
     if (!currentUser || !currentUserToken) {
         return <NullData title="Sign in to see your orders." action={{ href: "/login", label: "Sign in" }} />
@@ -26,7 +26,7 @@ const Orders = async () => {
     return (
         <div className="pt-8">
             <Container>
-                <OrdersClient userOrders={orders} expiryToken={expiryToken}/>
+                <OrdersClient userOrders={orders} sessionExpiry={sessionExpiry}/>
             </Container>
 
         </div>

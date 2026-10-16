@@ -788,15 +788,38 @@ class TestRefreshAccessToken:
 
 
 class TestLogoutUser:
-    async def test_deletes_refresh_token_from_redis(
+    async def test_revokes_a_valid_refresh_token_for_the_user_it_names(
         self,
         user_service,
+        mock_token_manager: MagicMock,
         mock_redis: AsyncMock,
     ) -> None:
+        user_id = uuid4()
+        mock_token_manager.decode_token.return_value = TokenClaims(
+            email="test@example.com", id=user_id, role="user", purpose="refresh", token_version=1
+        )
+
         await user_service.logout_user("some_refresh_token")
 
+        mock_token_manager.decode_token.assert_called_once_with(
+            "some_refresh_token", required_purpose="refresh"
+        )
         token_hash = hashlib.sha256(b"some_refresh_token").hexdigest()
         mock_redis.delete.assert_awaited_once_with(f"refresh:{token_hash}")
+        mock_redis.srem.assert_awaited_once_with(f"refresh:user:{user_id}", token_hash)
+
+    async def test_a_token_that_does_not_verify_revokes_nothing(
+        self,
+        user_service,
+        mock_token_manager: MagicMock,
+        mock_redis: AsyncMock,
+    ) -> None:
+        mock_token_manager.decode_token.side_effect = HTTPException(status_code=401, detail="Invalid token")
+
+        await user_service.logout_user("not-a-refresh-token")
+
+        mock_redis.delete.assert_not_awaited()
+        mock_redis.srem.assert_not_awaited()
 
 
 # ---------------------------------------------------------------------------

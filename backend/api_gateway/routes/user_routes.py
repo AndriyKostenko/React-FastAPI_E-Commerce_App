@@ -1,3 +1,4 @@
+from logging import getLogger
 from uuid import UUID
 
 from orjson import loads
@@ -14,6 +15,7 @@ from enums.auth_enums import AuthCookies
 
 
 user_proxy = APIRouter(tags=["User Service Proxy"])
+_logger = getLogger("api-gateway.user-routes")
 
 # ==================== PUBLIC ENDPOINTS (No Auth) ====================
 
@@ -149,11 +151,15 @@ async def logout(request: Request) -> JSONResponse:
     """
     refresh = request.cookies.get(AuthCookies.REFRESH_COOKIE)
     if refresh:
-        await api_gateway_manager.forward_request(
+        upstream = await api_gateway_manager.forward_request(
             request=request,
             service_name=Services.USER_SERVICE,
             override_body={"refresh_token": refresh},
         )
+        # The browser is signed out either way (the cookies are cleared below);
+        # a failed revoke leaves the token valid until it expires, so say so.
+        if upstream.status_code != status.HTTP_200_OK:
+            _logger.warning("Logout could not revoke the refresh token: user-service answered %s", upstream.status_code)
     response = JSONResponse(content={"detail": "Logged out successfully"}, status_code=status.HTTP_200_OK)
     get_api_gateway_resources(request).auth.clear_auth_cookies(response)
     return response

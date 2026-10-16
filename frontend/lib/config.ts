@@ -58,6 +58,8 @@ class AppSettings {
         /** Gateway endpoints (go through /api/v1/) */
         endpoints: {
             authLogin: string;
+            authRefresh: string;
+            authLogout: string;
             authRegister: string;
             googleLogin: string;
             activate: string;
@@ -125,6 +127,8 @@ class AppSettings {
             root:      (path: string) => AppSettings.joinUrl(origin,  path),
             endpoints: {
             authLogin:            AppSettings.joinUrl(baseUrl, "login"),
+            authRefresh:          AppSettings.joinUrl(baseUrl, "refresh"),
+            authLogout:           AppSettings.joinUrl(baseUrl, "logout"),
             authRegister:         AppSettings.joinUrl(baseUrl, "register"),
             googleLogin:          AppSettings.joinUrl(baseUrl, "google-login"),
             activate:             AppSettings.joinUrl(baseUrl, "activate"),

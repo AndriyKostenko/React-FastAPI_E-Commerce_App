@@ -6,12 +6,12 @@ import CartClient from "./CartClient";
 const Cart = async() => {
 
     const currentUser = await sessionManagaer.getCurrentUser()
-    const expiryToken = await sessionManagaer.getCurrentUserTokenExpiry()
+    const sessionExpiry = await sessionManagaer.getSessionExpiry()
 
     return ( 
         <div className="pt-8">
             <Container>
-                <CartClient currentUser={currentUser} expiryToken={expiryToken}/>
+                <CartClient currentUser={currentUser} sessionExpiry={sessionExpiry}/>
             </Container>
         </div>
      );

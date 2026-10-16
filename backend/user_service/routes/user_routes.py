@@ -161,9 +161,10 @@ async def refresh_token(request: Request, data: RefreshTokenRequest,
                   status_code=status.HTTP_200_OK)
 async def logout(request: Request,
                  data: RefreshTokenRequest,
-                 current_user: current_user_dependency,
                  user_service: user_service_dependency):
-    await user_service.logout_user(data.refresh_token, user_id=current_user.id)
+    # No signed-in caller required: the refresh token itself proves which
+    # session ends (see UserService.logout_user).
+    await user_service.logout_user(data.refresh_token)
     return {"detail": "Logged out successfully"}
 
 @user_routes.get("/me", response_model=CurrentUserInfo, status_code=status.HTTP_200_OK)
