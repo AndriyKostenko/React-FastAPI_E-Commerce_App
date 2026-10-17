@@ -831,6 +831,33 @@ class TestRefreshAccessToken:
 
 
 # ---------------------------------------------------------------------------
+# end_all_sessions (and every other path that revokes the whole family)
+# ---------------------------------------------------------------------------
+
+
+class TestEndAllSessions:
+    async def test_marks_every_live_refresh_token_as_signed_out(
+        self,
+        user_service,
+        mock_redis: AsyncMock,
+        mock_user_orm: MagicMock,
+    ) -> None:
+        mock_user_orm.token_version = 1
+        mock_redis.smembers.return_value = {"hash_a", "hash_b"}
+
+        await user_service.end_all_sessions(mock_user_orm)
+
+        pipe = mock_redis.pipeline.return_value
+        ttl = user_service.session_issuer.refresh_ttl_seconds
+        # Marked, so a tab refreshing with one later is not read as theft.
+        marked = {c.args for c in pipe.setex.call_args_list}
+        assert marked == {("refresh:signed_out:hash_a", ttl, "1"), ("refresh:signed_out:hash_b", ttl, "1")}
+        deleted = {c.args[0] for c in pipe.delete.call_args_list}
+        assert deleted == {"refresh:hash_a", "refresh:hash_b", f"refresh:user:{mock_user_orm.id}"}
+        pipe.execute.assert_awaited_once()
+
+
+# ---------------------------------------------------------------------------
 # logout_user
 # ---------------------------------------------------------------------------
 

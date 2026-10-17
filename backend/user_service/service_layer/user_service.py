@@ -131,13 +131,23 @@ class UserService:
             await self.session_registry.publish_generation(user_id, token_version)
 
     async def _revoke_all_refresh_for_user(self, user_id: UUID | str) -> None:
-        """Revoke all active refresh tokens for a given user (family invalidation)."""
+        """Revoke all active refresh tokens for a given user (family invalidation).
+
+        Each is marked as signed out, as a sign-out does, not just deleted: a
+        tab still holding one would otherwise refresh with it afterwards, read
+        as theft, and end the session the user has just signed in with (after
+        a password change, say) by bumping the generation again. These
+        sessions are over already, so answering their tokens with a plain 401
+        hides nothing a second revocation would have caught.
+        """
         set_key = self._user_refresh_set_key(user_id)
         token_hashes = await self.cache_manager.redis.smembers(set_key)
         if token_hashes:
+            ttl_seconds = self.session_issuer.refresh_ttl_seconds
             pipe = self.cache_manager.redis.pipeline()
             for th in token_hashes:
                 th_str = th.decode("utf-8") if isinstance(th, bytes) else str(th)
+                pipe.setex(SessionIssuer.signed_out_key(th_str), ttl_seconds, "1")
                 pipe.delete(self._refresh_key(th_str))
             pipe.delete(set_key)
             await pipe.execute()

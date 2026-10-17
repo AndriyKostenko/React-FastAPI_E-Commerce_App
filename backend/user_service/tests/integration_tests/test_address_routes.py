@@ -288,6 +288,36 @@ class TestChangePassword:
         )
         assert refresh.status_code == status.HTTP_401_UNAUTHORIZED
 
+    async def test_a_late_refresh_with_a_pre_change_token_leaves_the_new_session_alone(
+        self, integration_client: AsyncClient, get_outbox_event
+    ):
+        """
+        Another tab still holds the refresh token from before the change.
+
+        Its refresh used to read as theft of a spent token, bump the session
+        generation again and end the session the user had just signed in to
+        with the new password.
+        """
+        login = await _setup_authenticated_user(integration_client, get_outbox_event)
+        caller = _Caller(integration_client, str(login["access_token"]))
+        changed = await caller.post(
+            PASSWORD_PATH,
+            json={"current_password": test_settings.TEST_PASSWORD, "new_password": NEW_PASSWORD},
+        )
+        assert changed.status_code == status.HTTP_200_OK, changed.text
+        relogin = await _login(integration_client, password=NEW_PASSWORD)
+        assert relogin.status_code == status.HTTP_200_OK
+
+        late = await integration_client.post(f"{API}/refresh", json={"refresh_token": login["refresh_token"]})
+        assert late.status_code == status.HTTP_401_UNAUTHORIZED
+        assert late.json()["detail"] == "Session signed out"
+
+        # Refresh succeeds only while the generation is unchanged.
+        fresh = await integration_client.post(
+            f"{API}/refresh", json={"refresh_token": relogin.json()["refresh_token"]}
+        )
+        assert fresh.status_code == status.HTTP_200_OK
+
     async def test_wrong_current_password_is_refused_without_signing_out(
         self, integration_client: AsyncClient, get_outbox_event
     ):
