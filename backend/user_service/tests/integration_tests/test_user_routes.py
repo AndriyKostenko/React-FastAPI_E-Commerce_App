@@ -339,15 +339,30 @@ class TestLogoutEndpoint:
         self, integration_client: AsyncClient, get_outbox_event
     ):
         login_data = await _setup_authenticated_user(integration_client, get_outbox_event)
-        # Revoking a refresh token requires proving who you are, so the access
-        # token issued at login has to travel with the request.
+        # No access token: the refresh token itself proves which session ends,
+        # so a sign-out still works after the access token has expired.
         response = await integration_client.post(
             f"{test_settings.API}/logout",
             json={"refresh_token": login_data["refresh_token"]},
-            headers=as_gateway(login_data["access_token"], "POST", f"{test_settings.API}/logout"),
         )
         assert response.status_code == status.HTTP_200_OK
         assert response.json()["detail"] == "Logged out successfully"
+
+        # Revoked: it no longer refreshes.
+        refresh = await integration_client.post(
+            f"{test_settings.API}/refresh",
+            json={"refresh_token": login_data["refresh_token"]},
+        )
+        assert refresh.status_code == status.HTTP_401_UNAUTHORIZED
+
+    async def test_logout_with_a_token_that_does_not_verify_returns_200(
+        self, integration_client: AsyncClient
+    ):
+        response = await integration_client.post(
+            f"{test_settings.API}/logout",
+            json={"refresh_token": "not-a-refresh-token"},
+        )
+        assert response.status_code == status.HTTP_200_OK
 
 
 # ===========================================================================

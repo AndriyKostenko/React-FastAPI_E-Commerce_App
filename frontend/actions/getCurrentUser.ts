@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
-import { decode, type JWT } from "next-auth/jwt";
+import type { JWT } from "next-auth/jwt";
+import { SessionCookie } from "@/lib/session-cookie";
 
 //to get the current user among all app we have to create session with our currently logged in user,
 //which will be detected in our authorize() function in auth0ptions in app/middleware/NextAuth.ts
@@ -14,7 +15,10 @@ export interface CurrentSession {
   };
   jwt: string;
   role: string;
+  /** When the access token expires (unix seconds); the proxy refreshes it before then. */
   token_expiry: number;
+  /** When the session itself ends: the refresh token's expiry (unix seconds). */
+  session_expiry: number;
 }
 
 /** The raw session cookie by name, or undefined when the request has none. */
@@ -35,20 +39,8 @@ export interface SessionDependencies {
 
 const requestDependencies: SessionDependencies = {
   readCookie: async (name) => (await cookies()).get(name)?.value,
-  // Loaded on first use, so importing this module (a test injects its own
-  // decoder) does not pull in the whole auth configuration.
-  decodeToken: async (raw) => {
-    const { authOptions } = await import("@/lib/auth");
-    return decode({ token: raw, secret: authOptions.secret ?? "" });
-  },
+  decodeToken: (raw) => SessionCookie.decode(raw),
 };
-
-// next-auth names the session cookie after the scheme of NEXTAUTH_URL (see
-// getToken in next-auth/jwt); mirrored here so the decode uses the same cookie.
-const sessionCookieName = (): string =>
-  process.env.NEXTAUTH_URL?.startsWith("https://")
-    ? "__Secure-next-auth.session-token"
-    : "next-auth.session-token";
 
 /**
  * Reads the signed-in user's session on the server.
@@ -60,6 +52,10 @@ const sessionCookieName = (): string =>
  * The access token lives in that encrypted cookie and is returned only to
  * server code (page rendering, the gateway proxy). It is never sent to the
  * browser: the session endpoint and the rendered HTML do not carry it.
+ *
+ * The request proxy (lib/session-proxy.ts) refreshes the access token before
+ * anything here reads it; an expired one is still treated as signed out, which
+ * is what a session whose refresh failed looks like.
  */
 export class SessionManager {
   constructor(
@@ -67,7 +63,7 @@ export class SessionManager {
   ) {}
 
   private async readSession(): Promise<CurrentSession | null> {
-    const raw = await this.deps.readCookie(sessionCookieName());
+    const raw = await this.deps.readCookie(SessionCookie.cookieName());
     if (!raw) {
       return null;
     }
@@ -97,6 +93,8 @@ export class SessionManager {
       jwt: token.jwt,
       role: typeof token.role === "string" ? token.role : "",
       token_expiry: Number(token.token_expiry),
+      // Sessions signed in before refresh tokens were kept end with their access token.
+      session_expiry: Number(token.refresh_expiry ?? token.token_expiry),
     };
 
     if (this.isExpired(session)) {
@@ -138,12 +136,13 @@ export class SessionManager {
     return session.jwt;
   }
 
-  public async getCurrentUserTokenExpiry() {
+  /** When the session ends (unix seconds), for the page's sign-out timer. */
+  public async getSessionExpiry() {
     const session = await this.readSession();
-    if (!session?.token_expiry) {
+    if (!session?.session_expiry) {
       return null;
     }
-    return session.token_expiry;
+    return session.session_expiry;
   }
 }
 

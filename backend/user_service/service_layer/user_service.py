@@ -652,12 +652,23 @@ class UserService:
         session = await self.session_issuer.issue(user, token_data.amr)
         return self._unpack(session)
 
-    async def logout_user(self, refresh_token: str, user_id: UUID | None = None) -> None:
-        """Revoke a refresh token and remove from user's active set."""
+    async def logout_user(self, refresh_token: str) -> None:
+        """
+        Revoke a refresh token and remove it from its user's active set.
+
+        Holding the token is the proof: whoever has it could already exchange
+        it for a session, so letting them revoke it gives nothing away, and a
+        sign-out must work after the 20-minute access token has expired. The
+        token's signature and purpose are checked; one that does not verify
+        names no session, so there is nothing to revoke.
+        """
+        try:
+            claims = self.token_manager.decode_token(refresh_token, required_purpose="refresh")
+        except HTTPException:
+            return
         token_hash = self._token_hash(refresh_token)
         await self.cache_manager.redis.delete(self._refresh_key(token_hash))
-        if user_id:
-            await self.cache_manager.redis.srem(self._user_refresh_set_key(user_id), token_hash)
+        await self.cache_manager.redis.srem(self._user_refresh_set_key(claims.id), token_hash)
 
     async def get_active_user(self, user_id: UUID | None) -> CurrentUserInfo:
         """

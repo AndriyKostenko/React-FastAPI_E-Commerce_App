@@ -10,16 +10,16 @@ import Button from "@/components/ui/Button";
 import ItemContent from "./ItemContent";
 import { formatPrice } from "@/utils/formatPrice";
 import { useRouter } from "next/navigation";
-import { useCurrentUserTokenExpiryCheck } from "@/hooks/useCurrentUserToken";
+import { useSessionExpiryCheck } from "@/hooks/useSessionExpiryCheck";
 
-const CartClient: React.FC<CartClientProps> = ({currentUser, expiryToken}) => {
+const CartClient: React.FC<CartClientProps> = ({currentUser, sessionExpiry}) => {
     const {cartProducts, handleClearCart, cartTotalAmount} = useCart();
     // The saved line prices can be stale; the server's replace them as soon as it answers.
     const { isPricing, serverSubtotal, changedLines, error: pricingError } = useCartPricing();
 
     const router = useRouter()
 
-    useCurrentUserTokenExpiryCheck(expiryToken)
+    useSessionExpiryCheck(sessionExpiry)
 
     if (!cartProducts || cartProducts.length === 0) {
         return (

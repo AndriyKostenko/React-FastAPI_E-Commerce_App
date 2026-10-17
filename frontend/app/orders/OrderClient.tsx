@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { MdChevronRight } from "react-icons/md";
 import Heading from "@/components/ui/Heading";
-import { useCurrentUserTokenExpiryCheck } from "@/hooks/useCurrentUserToken";
+import { useSessionExpiryCheck } from "@/hooks/useSessionExpiryCheck";
 import type { UserOrdersClientProps } from "@/types/cart";
 import type { OrderDeliveryStatus, OrderStatus } from "@/types/order";
 import { formatPrice } from "@/utils/formatPrice";
@@ -21,8 +21,8 @@ const dateOnly = (value: string): string =>
   new Date(value).toLocaleDateString("en-CA", { year: "numeric", month: "short", day: "numeric" });
 
 /** The customer's orders, newest first, each linking to its detail and tracking page. */
-const OrdersClient: React.FC<UserOrdersClientProps> = ({ userOrders, expiryToken }) => {
-  useCurrentUserTokenExpiryCheck(expiryToken);
+const OrdersClient: React.FC<UserOrdersClientProps> = ({ userOrders, sessionExpiry }) => {
+  useSessionExpiryCheck(sessionExpiry);
   const orders = [...userOrders].sort((a, b) => b.date_created.localeCompare(a.date_created));
 
   return (

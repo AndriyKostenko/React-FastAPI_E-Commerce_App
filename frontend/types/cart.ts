@@ -33,7 +33,7 @@ export interface CartPrices {
 
 export interface CartClientProps {
     currentUser: CurrentUserShape | null;
-    expiryToken: number | null;
+    sessionExpiry: number | null;
 }
 
 export interface ItemContentProps {
@@ -117,5 +117,5 @@ export interface CheckoutClientProps {
 
 export interface UserOrdersClientProps {
     userOrders: OrderProps[];
-    expiryToken: number | null;
+    sessionExpiry: number | null;
 }

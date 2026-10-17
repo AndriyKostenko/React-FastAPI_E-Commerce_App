@@ -30,7 +30,7 @@ const AccountPage = async () => {
         <AccountClient
           profile={profile}
           addresses={addresses}
-          tokenExpiry={await sessionManagaer.getCurrentUserTokenExpiry()}
+          sessionExpiry={await sessionManagaer.getSessionExpiry()}
         />
       </Container>
     </div>
