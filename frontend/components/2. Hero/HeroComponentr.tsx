@@ -10,14 +10,15 @@ import {
     TSHIRT_PLACEMENT_SURCHARGES,
 	TSHIRT_SIZE_PRICE_MULTIPLIERS,
 	FALLBACK_SIZE_PRICE_MULTIPLIERS,
-	DEFAULT_PLACEHOLDER_IMAGE
+	DEFAULT_PLACEHOLDER_IMAGE,
+	GENERATION_COUNTDOWN_SECONDS
 } from "@/utils/constants";
+import { useCountdown } from "@/hooks/useCountdown";
 import type { ProductProps } from "@/types/product";
 import type { GeneratedArtworkAsset, GeneratedDesignPayload, StyleOption } from "@/types/generation";
 import TShirtPreview from "./TShirtPreview";
 import HeroText from "./HeroText";
 import GenerationPanel from "./GenerationPanel";
-import TshirtMeasurement from "./TshirtMeasurement";
 import HeroBottomBar from "./HeroBottomBar";
 import { fromCents, toCents } from "@/utils/money";
 
@@ -32,6 +33,7 @@ const HeroSection = ({isRegisteredUser}: HeroSectionProps) => {
 	const { handleAddProductToCart } = useCart();
     const [placement, setPlacement] = useState("Center Chest");
     const [isGenerating, setIsGenerating] = useState(false);
+    const [generationStartedAt, setGenerationStartedAt] = useState<number | null>(null);
     const [currentDesign, setCurrentDesign] = useState<Design>(DEFAULT_PLACEHOLDER_IMAGE);
 	const [selectedPrompt, setSelectedPrompt] = useState("");
     const [selectedStyle, setSelectedStyle] = useState<StyleOption>("None");
@@ -131,43 +133,56 @@ const HeroSection = ({isRegisteredUser}: HeroSectionProps) => {
         handleAddProductToCart(customCartProduct);
     };
 
+    // The countdown starts with a generation and is dropped the moment the
+    // generation ends, so a design that arrives early stops it.
+    const handleGeneratingChange = (value: boolean) => {
+        setIsGenerating(value);
+        setGenerationStartedAt(value ? Date.now() : null);
+    };
+    const secondsLeft = useCountdown(generationStartedAt, GENERATION_COUNTDOWN_SECONDS);
+
     const handleDesignGenerated = ({design,prompt,style}: GeneratedDesignPayload) => {
         setCurrentDesign(design);
         setSelectedPrompt(prompt);
         setSelectedStyle(style);
 	};
 
+    // The section is at least one screen tall on desktop but never shorter than
+    // its content: a fixed height clipped the prompt and style away on short
+    // windows (the generation panel shrank to nothing to fit).
     return (
         <section
             id="create-design"
-            className="glass-card scroll-mt-8 p-6 md:p-8 grid grid-cols-1 lg:grid-cols-2 lg:grid-rows-[minmax(0,1fr)_auto] gap-6 lg:h-[calc(100vh-12rem)] overflow-hidden"
+            className="glass-card scroll-mt-8 p-6 md:p-8 grid grid-cols-1 lg:grid-cols-2 lg:grid-rows-[1fr_auto] gap-6 lg:min-h-[calc(100vh-12rem)] overflow-hidden"
         >
             {/* ── Left col: hero text + generation panel ── */}
             <div className="lg:col-span-1 flex flex-col gap-6 min-h-0">
                 <HeroText />
                 <GenerationPanel
                     isGenerating={isGenerating}
-                    setIsGenerating={setIsGenerating}
+                    setIsGenerating={handleGeneratingChange}
                     onDesignGenerated={handleDesignGenerated}
                     isRegisteredUser={isRegisteredUser}
+                    secondsLeft={secondsLeft}
                 />
             </div>
             {/* ── Right col: t-shirt mockup (grid-stretch makes it match left col height) ── */}
-            <div className="lg:col-span-1 relative group rounded-3xl min-h-[280px] lg:min-h-0">
+            <div className="lg:col-span-1 relative group rounded-3xl min-h-[440px] lg:min-h-[460px]">
                 {/* Backdrop */}
                 <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-neutral-100/60 via-neutral-200/40 to-neutral-300/30 backdrop-blur-sm" />
-                {/* T-shirt fills full column height */}
+                {/* T-shirt fills the column; absolute, so it never sets the column's
+                    height (the left column and the min-height decide that). */}
                 <div
-                    className={`relative h-full flex items-center justify-center p-8 rounded-3xl overflow-hidden transition-all duration-500 ${isGenerating ? "scale-[0.98]" : "scale-100"}`}
+                    className={`absolute inset-0 flex items-center justify-center px-6 pt-8 pb-4 rounded-3xl overflow-hidden transition-all duration-500 ${isGenerating ? "scale-[0.98]" : "scale-100"}`}
                 >
                     <TShirtPreview
                         color={garmentColor}
+                        size={size}
                         placement={placement}
                         designUrl={currentDesign.image}
                         isGenerating={isGenerating}
+                        secondsLeft={secondsLeft}
                     />
-                    {/* SVG measurement lines */}
-                    <TshirtMeasurement size={size} />
                 </div>
             </div>
             {/* ── Bottom bar (full width): selectors left, CTA right matching preview width ── */}

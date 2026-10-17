@@ -5,6 +5,8 @@ export interface GenerationPanelProps {
   setIsGenerating: (value: boolean) => void;
   onDesignGenerated: (payload: GeneratedDesignPayload) => void;
   isRegisteredUser: boolean;
+  /** Seconds left on the generation countdown; null when none is running. */
+  secondsLeft: number | null;
 }
 
 export interface GenerationSession {

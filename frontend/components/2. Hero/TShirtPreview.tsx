@@ -2,18 +2,34 @@
 
 import { useState } from "react";
 import { TShirtPreviewProps } from "@/types/banner";
-import { COLOR_MAP, SHIRT_PATH_BACK, SHIRT_PATH_FRONT } from "@/utils/constants";
+import { GENERATION_COUNTDOWN_SECONDS, SIZE_MEASUREMENTS } from "@/utils/constants";
+import ShirtMeasurements from "./ShirtMeasurements";
 import { placementZone, type ShirtSide } from "@/utils/printAreas";
 import { resolveImageUrl } from "@/utils/resolveImageUrl";
+import {
+  ARMHOLE_SEAMS,
+  COLLAR,
+  FOLDS,
+  HEM_STITCHES,
+  INNER_BACK_COLLAR,
+  NECK_INSIDE,
+  SHIRT_OUTLINE,
+  SHIRT_PALETTES,
+} from "@/utils/shirtShape";
 
 const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 3;
 const ZOOM_STEP = 0.1;
 
-const COLLAR = {
-  front: { band: "M 160,80 C 175,112 225,112 240,80", sheen: "M 163,83 C 178,110 222,110 237,83" },
-  back: { band: "M 160,80 Q 200,68 240,80", sheen: "M 163,80 Q 200,71 237,80" },
-} as const;
+// Fitted to the shirt (x -4..404, y 62..480) and its measurements (the width
+// line under the hem, the length line right of the sleeve), so the shirt fills
+// the preview instead of sitting low in an oversized canvas.
+const VIEW_BOX = "-40 44 500 480";
+
+// The countdown ring: a circle of this radius, drawn as a stroke whose visible
+// length is the share of time left.
+const RING_RADIUS = 26;
+const RING_LENGTH = 2 * Math.PI * RING_RADIUS;
 
 /**
  * How the print sits on the fabric (Strategy by garment colour). On a light
@@ -26,7 +42,14 @@ const PRINT_BLEND: Readonly<Record<TShirtPreviewProps["color"], React.CSSPropert
   "bg-black": "normal",
 };
 
-export default function TShirtPreview({ color, placement, designUrl, isGenerating = false }: TShirtPreviewProps) {
+export default function TShirtPreview({
+  color,
+  size,
+  placement,
+  designUrl,
+  isGenerating = false,
+  secondsLeft = null,
+}: TShirtPreviewProps) {
   const [zoom, setZoom] = useState(1);
   // The side the customer flipped to, remembered per placement: choosing a
   // new placement shows the side it prints on, without an effect to sync it.
@@ -37,16 +60,16 @@ export default function TShirtPreview({ color, placement, designUrl, isGeneratin
   const showsPrint = side === zone.side;
   const isBack = side === "back";
   const isBlack = color === "bg-black";
-  const c = COLOR_MAP[color] ?? COLOR_MAP["bg-white"];
+  const palette = SHIRT_PALETTES[color] ?? SHIRT_PALETTES["bg-white"];
   const previewImageUrl = designUrl ? resolveImageUrl(designUrl) : "";
-  const shirtPath = isBack ? SHIRT_PATH_BACK : SHIRT_PATH_FRONT;
+  const outline = SHIRT_OUTLINE[side];
   const collar = COLLAR[side];
 
   const flip = () => setFlipped({ placement, side: side === "front" ? "back" : "front" });
 
   return (
     <div className="relative w-full h-full flex flex-col">
-      <div className="absolute top-2 right-2 z-10 flex rounded-full bg-white/60 border border-white/40 p-0.5 text-xs font-label-bold">
+      <div className="absolute top-0 right-0 z-10 flex rounded-full bg-white/60 border border-white/40 p-0.5 text-xs font-label-bold">
         {(["front", "back"] as const).map((option) => (
           <button
             key={option}
@@ -60,8 +83,9 @@ export default function TShirtPreview({ color, placement, designUrl, isGeneratin
         ))}
       </div>
 
-      <div className="flex-1 flex items-center justify-center overflow-auto">
+      <div className="relative flex-1 min-h-0 flex items-center justify-center overflow-hidden">
         <div
+          className="h-full w-full flex items-center justify-center"
           style={{
             transform: `scale(${zoom})`,
             transformOrigin: "center center",
@@ -69,15 +93,19 @@ export default function TShirtPreview({ color, placement, designUrl, isGeneratin
           }}
         >
           <svg
-            viewBox="-67 -80 534 640"
+            viewBox={VIEW_BOX}
             xmlns="http://www.w3.org/2000/svg"
-            className="w-full h-full scale-[1.5] origin-center"
+            className="h-full w-full max-h-full"
+            preserveAspectRatio="xMidYMid meet"
             role="img"
             aria-label={`T-shirt ${side} preview${showsPrint ? `, print ${zone.widthIn} by ${zone.heightIn} inches` : ""}`}
           >
             <defs>
-              <filter id="shirtShadow" x="-8%" y="-4%" width="116%" height="116%">
-                <feDropShadow dx="0" dy="10" stdDeviation="14" floodColor="rgba(0,0,0,0.22)" />
+              <filter id="shirtShadow" x="-10%" y="-6%" width="120%" height="120%">
+                <feDropShadow dx="0" dy="8" stdDeviation="10" floodColor="rgba(0,0,0,0.16)" />
+              </filter>
+              <filter id="foldBlur" x="-20%" y="-20%" width="140%" height="140%">
+                <feGaussianBlur stdDeviation="6" />
               </filter>
               {/* A fine woven grain, laid over the shirt and the print alike so
                   the artwork reads as printed into the fabric, not pasted on. */}
@@ -85,41 +113,71 @@ export default function TShirtPreview({ color, placement, designUrl, isGeneratin
                 <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="7" result="noise" />
                 <feColorMatrix type="saturate" values="0" />
               </filter>
-              {/* Soft folds: lighter down the middle, darker toward the sides. */}
-              <linearGradient id="fabricFolds" x1="0" x2="1" y1="0" y2="0">
-                <stop offset="0" stopColor="#000" stopOpacity="0.10" />
-                <stop offset="0.3" stopColor="#000" stopOpacity="0" />
-                <stop offset="0.5" stopColor="#fff" stopOpacity="0.06" />
-                <stop offset="0.7" stopColor="#000" stopOpacity="0" />
-                <stop offset="1" stopColor="#000" stopOpacity="0.12" />
+              {/* The body is rounder than the drawing: darker toward the sides. */}
+              <linearGradient id="fabricRound" x1="0" x2="1" y1="0" y2="0">
+                <stop offset="0" stopColor="#000" stopOpacity="0.09" />
+                <stop offset="0.22" stopColor="#000" stopOpacity="0" />
+                <stop offset="0.78" stopColor="#000" stopOpacity="0" />
+                <stop offset="1" stopColor="#000" stopOpacity="0.10" />
+              </linearGradient>
+              {/* Light from above: the hem a touch darker than the chest. */}
+              <linearGradient id="fabricLight" x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0" stopColor="#fff" stopOpacity="0.06" />
+                <stop offset="0.6" stopColor="#000" stopOpacity="0" />
+                <stop offset="1" stopColor="#000" stopOpacity="0.06" />
               </linearGradient>
               <clipPath id="shirtClip">
-                <path d={shirtPath} />
+                <path d={outline} />
               </clipPath>
             </defs>
 
-            <path d={shirtPath} fill={c.base} filter="url(#shirtShadow)" style={{ transition: "fill 0.45s ease" }} />
+            <path
+              d={outline}
+              fill={palette.fabric}
+              stroke={palette.edge}
+              strokeWidth="1.2"
+              strokeLinejoin="round"
+              filter="url(#shirtShadow)"
+              style={{ transition: "fill 0.45s ease" }}
+            />
 
-            <path d={collar.band} fill="none" stroke={c.collarBand} strokeWidth="9" strokeLinecap="round" />
-            <path d={collar.sheen} fill="none" stroke={c.collarSheen} strokeWidth="2.5" strokeLinecap="round" opacity="0.8" />
+            {/* Folds, seams and stitching belong to the cloth: kept inside it. */}
+            <g clipPath="url(#shirtClip)" pointerEvents="none">
+              <g filter="url(#foldBlur)" opacity={palette.foldOpacity}>
+                {FOLDS.map((fold) => (
+                  <path key={fold.d} d={fold.d} fill="none" stroke={palette.fold} strokeWidth={fold.width} strokeLinecap="round" />
+                ))}
+              </g>
+              {ARMHOLE_SEAMS.map((seam) => (
+                <path key={seam} d={seam} fill="none" stroke={palette.seam} strokeWidth="1.4" />
+              ))}
+              {HEM_STITCHES.map((stitch) => (
+                <path key={stitch} d={stitch} fill="none" stroke={palette.stitch} strokeWidth="0.9" strokeDasharray="3 2" />
+              ))}
+            </g>
+
+            {/* Through the front neckline: the inside of the back and its collar band. */}
+            {!isBack && (
+              <>
+                <path d={NECK_INSIDE} fill={palette.neckInside} />
+                <path d={INNER_BACK_COLLAR} fill="none" stroke={palette.collarBand} strokeWidth="6" strokeLinecap="round" />
+              </>
+            )}
+            <path d={collar.band} fill="none" stroke={palette.collarBand} strokeWidth="8" strokeLinecap="round" />
+            <path d={collar.sheen} fill="none" stroke={palette.collarSheen} strokeWidth="2" strokeLinecap="round" opacity="0.8" />
 
             {isBack && (
               <rect
                 x="193"
-                y="76"
+                y="74"
                 width="14"
-                height="20"
-                fill={isBlack ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.07)"}
+                height="18"
+                fill={isBlack ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.06)"}
                 stroke={isBlack ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)"}
                 strokeWidth="1"
                 rx="1.5"
               />
             )}
-
-            <line x1="160" y1="80" x2="76" y2="70" stroke={c.seam} strokeWidth="1.5" />
-            <line x1="240" y1="80" x2="324" y2="70" stroke={c.seam} strokeWidth="1.5" />
-            <path d="M 44,202 L 6,188" fill="none" stroke={c.seam} strokeWidth="2" />
-            <path d="M 356,202 L 394,188" fill="none" stroke={c.seam} strokeWidth="2" />
 
             {showsPrint && (
               <g clipPath="url(#shirtClip)">
@@ -130,7 +188,7 @@ export default function TShirtPreview({ color, placement, designUrl, isGeneratin
                   width={zone.w}
                   height={zone.h}
                   fill="none"
-                  stroke={isBlack ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.18)"}
+                  stroke={isBlack ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.16)"}
                   strokeWidth="1.2"
                   strokeDasharray="6 5"
                   style={{ transition: "all 0.5s ease" }}
@@ -153,25 +211,66 @@ export default function TShirtPreview({ color, placement, designUrl, isGeneratin
               </g>
             )}
 
-            {/* Fabric over everything on the shirt, print included. */}
+            {/* Light and grain over everything on the shirt, print included. */}
             <g clipPath="url(#shirtClip)" pointerEvents="none">
-              <rect x="0" y="60" width="400" height="420" fill="url(#fabricFolds)" />
+              <rect x="-10" y="60" width="420" height="420" fill="url(#fabricRound)" />
+              <rect x="-10" y="60" width="420" height="420" fill="url(#fabricLight)" />
               <rect
-                x="0"
+                x="-10"
                 y="60"
-                width="400"
+                width="420"
                 height="420"
                 filter="url(#fabricGrain)"
-                opacity={isBlack ? 0.07 : 0.1}
-                style={{ mixBlendMode: isBlack ? "screen" : "multiply" }}
+                opacity={palette.grainOpacity}
+                style={{ mixBlendMode: palette.grainBlend }}
               />
             </g>
 
+            <ShirtMeasurements
+              widthCm={SIZE_MEASUREMENTS[size].width}
+              lengthCm={SIZE_MEASUREMENTS[size].height}
+            />
+
             {isGenerating && (
-              <path d={shirtPath} fill={isBlack ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.55)"} className="animate-pulse" />
+              <path d={outline} fill={isBlack ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.55)"} className="animate-pulse" />
             )}
           </svg>
         </div>
+
+        {secondsLeft !== null && (
+          <div
+            className="absolute inset-0 flex items-center justify-center pointer-events-none"
+            role="timer"
+            aria-live="polite"
+            aria-label={secondsLeft > 0 ? `About ${secondsLeft} seconds left` : "Almost there"}
+          >
+            <div className="glass-card flex flex-col items-center gap-1 px-5 py-4">
+              <svg width="64" height="64" viewBox="0 0 64 64" aria-hidden="true">
+                <circle cx="32" cy="32" r={RING_RADIUS} fill="none" stroke="rgba(0,0,0,0.08)" strokeWidth="5" />
+                <circle
+                  cx="32"
+                  cy="32"
+                  r={RING_RADIUS}
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="5"
+                  strokeLinecap="round"
+                  strokeDasharray={RING_LENGTH}
+                  strokeDashoffset={RING_LENGTH * (1 - secondsLeft / GENERATION_COUNTDOWN_SECONDS)}
+                  transform="rotate(-90 32 32)"
+                  className="text-primary"
+                  style={{ transition: "stroke-dashoffset 0.9s linear" }}
+                />
+                <text x="32" y="38" textAnchor="middle" className="fill-primary font-label-bold" fontSize="18">
+                  {secondsLeft > 0 ? secondsLeft : "…"}
+                </text>
+              </svg>
+              <span className="text-xs font-label-bold text-primary">
+                {secondsLeft > 0 ? "Generating your design" : "Almost there…"}
+              </span>
+            </div>
+          </div>
+        )}
       </div>
 
       <p className="text-center text-xs text-secondary mt-1">
@@ -180,9 +279,9 @@ export default function TShirtPreview({ color, placement, designUrl, isGeneratin
           : `Your print is on the ${zone.side}.`}
       </p>
 
-      {/* Zoom controls stay inside the preview (not fixed to the screen). */}
-      <div className="absolute bottom-6 left-0 right-0 z-10 flex justify-center pointer-events-none">
-        <div className="glass-card p-2 flex justify-between items-center gap-2 pointer-events-auto">
+      {/* Zoom controls under the shirt, so they never cover its hem. */}
+      <div className="mt-2 flex justify-center">
+        <div className="glass-card p-2 flex justify-between items-center gap-2">
           <div className="flex gap-1">
             <button
               type="button"
