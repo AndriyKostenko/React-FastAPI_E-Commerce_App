@@ -13,7 +13,7 @@ import { useRouter } from "next/navigation";
 import { ProductProps } from "@/types/product";
 import { ImageProps } from "@/types/image";
 import { formatPrice } from "@/utils/formatPrice";
-import { getColorSwatch, getVariantOption } from "@/utils/productVariants";
+import { compareSizes, getColorSwatch, getVariantOption } from "@/utils/productVariants";
 import { toCartLine } from "@/utils/cartLine";
 
 // Only the not-found check lives here. The hooks live in
@@ -136,13 +136,15 @@ const ProductDetailsContent: React.FC<{ product: ProductProps; titleAction?: Rea
         )),
         [variantOptions],
     );
+    // The selected colour's variants, smallest size first (suppliers list them in any order).
     const variantsForSelectedColor = useMemo(
-        () => selectedColor
-            ? variantOptions
-                .filter((option) => option.color === selectedColor)
-                .map((option) => option.variant)
-            : activeVariants,
-        [activeVariants, selectedColor, variantOptions],
+        () => (selectedColor
+            ? variantOptions.filter((option) => option.color === selectedColor)
+            : variantOptions
+        )
+            .toSorted((left, right) => compareSizes(left.size, right.size))
+            .map((option) => option.variant),
+        [selectedColor, variantOptions],
     );
 
     const handleVariantColorSelect = useCallback((color: string) => {
