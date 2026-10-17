@@ -1,5 +1,6 @@
 import type { ProductProps } from "@/types/product";
 import { activeVariantsOf } from "@/utils/cartLine";
+import { canonicalSize, compareSizes, isApparelSize, parseVariantKey } from "@/utils/productVariants";
 
 export type SortKey = "featured" | "price-asc" | "price-desc" | "newest";
 
@@ -44,21 +45,11 @@ export const sortProducts = (products: ProductProps[], key: SortKey): ProductPro
 
 // ── Reading supplier variant keys ────────────────────────────────────────────
 //
-// CJ variant keys come as "Black-XL", "Army green XXXL" (space, multi-word
-// colour) or "1 Style-M" (a style, not a colour); some name a print or a code
-// instead of a colour. The filter reads them its own way: the size from the
-// end of the key, the colour as a family found by keyword, and anything else
-// (styles, codes, print names) as no colour at all, so it never shows as a chip.
-
-// Apparel sizes in wearing order; X-runs are written as numbers (XXL is 2XL).
-const SIZE_ORDER = ["XXS", "XS", "S", "M", "L", "XL", "2XL", "3XL", "4XL", "5XL", "6XL", "7XL"];
-const SIZE_PATTERN = /^(XXS|XS|S|M|L|XL|X{2,5}L|[2-7]XL)$/i;
-
-/** "xxl" -> "2XL", "XXXXL" -> "4XL", "m" -> "M". */
-const canonicalSize = (token: string): string => {
-    const upper = token.toUpperCase();
-    return /^X{2,5}L$/.test(upper) ? `${upper.length - 1}XL` : upper;
-};
+// The key is split by parseVariantKey (utils/productVariants), as on the
+// product page. On top of that the filter keeps only apparel sizes, written one
+// way (XXL is 2XL), and reads the colour as a family found by keyword: styles,
+// codes and print names ("1 Style", "W7331942bk") belong to no family, so they
+// never show as a chip.
 
 /** Colour families and the words that place a variant in them; the order is the chips' order. */
 const COLOR_FAMILIES: ReadonlyArray<{ family: string; words: readonly string[] }> = [
@@ -90,24 +81,15 @@ interface VariantFacet {
 
 /** A variant key's colour families and canonical size; either may be empty. */
 const facetOfKey = (key: string): VariantFacet => {
-    const trimmed = key.trim();
-    for (const separator of ["-", " "]) {
-        const at = trimmed.lastIndexOf(separator);
-        if (at === -1) continue;
-        const sizePart = trimmed.slice(at + 1).trim();
-        if (SIZE_PATTERN.test(sizePart)) {
-            return { families: colorFamiliesOf(trimmed.slice(0, at)), size: canonicalSize(sizePart) };
-        }
-    }
-    return SIZE_PATTERN.test(trimmed)
-        ? { families: [], size: canonicalSize(trimmed) }
-        : { families: colorFamiliesOf(trimmed), size: null };
+    const { color, size } = parseVariantKey(key);
+    const apparelSize = size !== null && isApparelSize(size) ? canonicalSize(size) : null;
+    // A key with no apparel size may still name a colour ("Red", "Black-One Size").
+    const colorText = [color, apparelSize === null ? size : null].filter(Boolean).join(" ");
+    return { families: colorFamiliesOf(colorText), size: apparelSize };
 };
 
 const variantFacetsOf = (product: ProductProps): VariantFacet[] =>
     activeVariantsOf(product).map((variant) => facetOfKey(variant.variant_key ?? ""));
-
-const bySizeOrder = (left: string, right: string): number => SIZE_ORDER.indexOf(left) - SIZE_ORDER.indexOf(right);
 
 const byFamilyOrder = (left: string, right: string): number =>
     COLOR_FAMILIES.findIndex(({ family }) => family === left) - COLOR_FAMILIES.findIndex(({ family }) => family === right);
@@ -127,7 +109,7 @@ export const facetsOf = (products: ProductProps[]): ProductFacets => {
     const prices = products.map((product) => product.price);
     return {
         colors: Array.from(colors).sort(byFamilyOrder),
-        sizes: Array.from(sizes).sort(bySizeOrder),
+        sizes: Array.from(sizes).sort(compareSizes),
         minPrice: prices.length ? Math.min(...prices) : 0,
         maxPrice: prices.length ? Math.max(...prices) : 0,
     };
