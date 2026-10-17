@@ -63,7 +63,9 @@ async def price_cart(request: Request) -> JSONResponse:
     """PUBLIC - guests have carts too; it reads prices and writes nothing.
 
     The cart page shows these instead of the prices saved when each item was
-    added, which go stale when the catalogue is repriced.
+    added, which go stale when the catalogue is repriced. A line that cannot be
+    sold comes back marked unavailable with the reason, so the page can say
+    which one to change; the other lines are still priced.
     """
     payload: dict[str, object] = await request.json()
     response = await api_gateway_manager.request_service(

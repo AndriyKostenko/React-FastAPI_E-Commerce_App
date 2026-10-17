@@ -12,16 +12,24 @@ export interface CartContextType {
     handleCartQtyIncrease: (product: ProductProps) => void;
     handleCartQtyDecrease: (product: ProductProps) => void;
     handleClearCart: () => void;
-    /** Saves the server's unit prices (cart order); returns how many lines changed. */
-    handleApplyServerPrices: (unitPrices: readonly number[]) => number;
+    /**
+     * Saves the server's unit prices (cart order; null keeps a line's saved
+     * price); returns how many lines changed.
+     */
+    handleApplyServerPrices: (unitPrices: readonly (number | null)[]) => number;
 }
 
 /** One cart line as the server prices it; money arrives as a decimal string. */
 export interface CartPriceLine {
-    product_id: string;
+    /** Null only for a custom line sent without an id that cannot be sold. */
+    product_id: string | null;
     variant_id: string | null;
     quantity: number;
-    unit_price: string;
+    /** Null when the line cannot be bought as it is. */
+    unit_price: string | null;
+    available: boolean;
+    /** product-service's or order-service's reason; names ids, so not for the customer. */
+    unavailable_reason: string | null;
 }
 
 /** The cart priced as an order would price it, lines in the cart's order. */
@@ -38,6 +46,8 @@ export interface CartClientProps {
 
 export interface ItemContentProps {
     item: ProductProps;
+    /** The server says this line cannot be bought as it is. */
+    unavailable?: boolean;
 }
 
 export type CheckoutAddress = {
@@ -92,6 +102,8 @@ export interface CheckoutSession {
 export interface PendingCheckout {
     orderId: string;
     fingerprint: string;
+    /** The order's PaymentIntent, so the page Stripe returns to can forget it; absent on older entries. */
+    paymentIntentId?: string;
 }
 
 export type OrderProductInput = {

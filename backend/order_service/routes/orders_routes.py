@@ -68,19 +68,30 @@ async def price_items(
     # nothing. The gateway exposes it as the rate-limited public /cart/prices.
     if order_service.pricing_service is None:
         raise RuntimeError("Order pricing service is unavailable")
-    lines = await order_service.pricing_service.price_items(body.products)
+    outcomes = await order_service.pricing_service.price_cart_lines(body.products)
     return PriceItemsResponse(
         currency="cad",
         items=[
             PricedItem(
-                product_id=line.product_id,
-                variant_id=line.variant_id,
-                quantity=line.quantity,
-                unit_price=line.unit_price,
+                product_id=outcome.line.product_id,
+                variant_id=outcome.line.variant_id,
+                quantity=outcome.line.quantity,
+                unit_price=outcome.line.unit_price,
             )
-            for line in lines
+            if outcome.line is not None
+            else PricedItem(
+                product_id=outcome.item.id,
+                variant_id=outcome.item.variant_id,
+                quantity=outcome.item.quantity,
+                unit_price=None,
+                available=False,
+                unavailable_reason=outcome.unavailable_reason,
+            )
+            for outcome in outcomes
         ],
-        subtotal_amount=OrderPricingService.subtotal_of(lines),
+        subtotal_amount=OrderPricingService.subtotal_of(
+            [outcome.line for outcome in outcomes if outcome.line is not None]
+        ),
     )
 
 

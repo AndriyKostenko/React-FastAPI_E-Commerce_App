@@ -28,16 +28,21 @@ const CheckoutClient: React.FC<CheckoutClientProps> = ({ isSignedIn, defaultAddr
     // deferred-intent mode). The card is only authorized here; the server
     // captures it once the goods are secured, so the Element must be told
     // captureMethod "manual" to match the PaymentIntent the server opens.
-    const options: StripeElementsOptions = {
-        mode: "payment",
-        amount: quotedAmountCents ?? Math.max(Math.round(cartTotalAmount * 100), 50),
-        currency: "cad",
-        captureMethod: "manual",
-        appearance: {
-            theme: "stripe",
-            labels: "floating",
-        },
-    };
+    // Memoized so Elements sees a new object only when the amount changes.
+    const amount = quotedAmountCents ?? Math.max(Math.round(cartTotalAmount * 100), 50);
+    const options = useMemo<StripeElementsOptions>(
+        () => ({
+            mode: "payment",
+            amount,
+            currency: "cad",
+            captureMethod: "manual",
+            appearance: {
+                theme: "stripe",
+                labels: "floating",
+            },
+        }),
+        [amount],
+    );
 
     const handlePaid = useCallback(() => {
         handleClearCart();

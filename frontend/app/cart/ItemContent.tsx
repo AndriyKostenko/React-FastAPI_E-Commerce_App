@@ -9,7 +9,7 @@ import SetQuantity from "@/components/4. Featured Collections/SetQuantity";
 import { useCart } from "@/hooks/useCart";
 import { resolveImageUrl } from "@/utils/resolveImageUrl";
 
-const ItemContent:React.FC<ItemContentProps> = ({item}) => {
+const ItemContent:React.FC<ItemContentProps> = ({item, unavailable = false}) => {
     const {handleRemoveProductFromCart, handleCartQtyIncrease, handleCartQtyDecrease} = useCart();
 
     return <div className="grid
@@ -32,6 +32,11 @@ const ItemContent:React.FC<ItemContentProps> = ({item}) => {
                     {truncateText(item.name)}
                     <div>{item.selected_image.image_color}</div>
                 </Link>
+                {unavailable && (
+                    <p className="text-rose-500">
+                        No longer available as chosen. Remove it, or pick another size or colour.
+                    </p>
+                )}
 
                 <div className="w-[70px]">
                         <button className="text-lsate-500 underline" onClick={() => handleRemoveProductFromCart(item)}>Remove</button>

@@ -1,6 +1,9 @@
 import { settings } from "@/lib/config";
 import { clientAddressHeaders } from "@/lib/client-address";
+import { sessionManagaer } from "@/actions/getCurrentUser";
+import { headerProfileCache, type HeaderProfile } from "@/lib/header-profile-cache";
 import type { AccountProfile, SavedAddress } from "@/types/account";
+import type { CurrentUserShape } from "@/types/auth";
 
 /**
  * Server-side reads of the signed-in user's own account, with their token.
@@ -38,3 +41,27 @@ export const fetchSavedAddresses = async (token: string): Promise<SavedAddress[]
 /** The default address checkout starts from, or null when there is none. */
 export const fetchDefaultAddress = async (token: string): Promise<SavedAddress | null> =>
   (await fetchSavedAddresses(token)).find((address) => address.is_default) ?? null;
+
+/**
+ * The name and picture the header shows, read from the stored profile.
+ *
+ * The session cookie holds only what sign-in knew (Google's picture, or none
+ * for a password sign-in), so an avatar uploaded later would show only after
+ * the next sign-in. The header sits in the root layout, which is rendered on a
+ * full page load and on router.refresh(), not on every client-side navigation.
+ * The read is cached per user for a minute (headerProfileCache), and the cache
+ * is cleared when the user changes their profile through the site. When
+ * user-service cannot answer, the session's own copy is shown.
+ */
+export const fetchHeaderUser = async (): Promise<CurrentUserShape | null> => {
+  const [user, token] = await Promise.all([sessionManagaer.getCurrentUser(), sessionManagaer.getCurrentUserJWT()]);
+  if (!user || !token) return null;
+
+  let profile: HeaderProfile | null | undefined = headerProfileCache.get(user.id);
+  if (!profile) {
+    const stored = await fetchAccountProfile(user.id, token);
+    profile = stored ? { name: stored.name, image: stored.image } : null;
+    if (profile) headerProfileCache.set(user.id, profile);
+  }
+  return profile ? { ...user, name: profile.name, image: profile.image } : user;
+};

@@ -199,24 +199,85 @@ describe("cart pricing", { concurrency: false }, () => {
         });
     });
 
-    it("refuses an unsellable line with product-service's reason and no internal address", async () => {
+    it("marks an unsellable line with product-service's reason and still prices the others", async () => {
         const cjLine = lines.find(({ line }) => line.fulfillment_type === "cj").line;
         const cases = [
             { name: "inactive variant", line: { ...cjLine, variant_id: UNKNOWN_ID }, reason: /not active/ },
             { name: "unknown product", line: { ...cjLine, id: UNKNOWN_ID }, reason: /not found/ },
         ];
         for (const { name, line, reason } of cases) {
-            // All or nothing: one bad line fails the whole cart, as it would fail the order.
             const response = await priceCart([lines[0].line, line]);
-            assert.equal(response.status, 422, `${name}: answered ${response.status}`);
-            const { detail } = await response.json();
-            assert.equal(typeof detail, "string", `${name}: no reason given`);
-            assert.match(detail, reason, `${name}: unexpected reason "${detail}"`);
+            assert.equal(response.status, 200, `${name}: answered ${response.status}`);
+            const prices = await response.json();
+            assert.equal(prices.items.length, 2, `${name}: a line is missing`);
+
+            const [sellable, unsellable] = prices.items;
+            assert.equal(sellable.available, true, `${name}: the sellable line was marked unavailable`);
+            assert.equal(toCents(sellable.unit_price), lines[0].unitCents, `${name}: the sellable line lost its price`);
+
+            assert.equal(unsellable.available, false, `${name}: the unsellable line was priced`);
+            assert.equal(unsellable.unit_price, null);
+            assert.equal(unsellable.product_id, line.id, `${name}: the unavailable line is not the one sent`);
+            assert.match(unsellable.unavailable_reason ?? "", reason, `${name}: unexpected reason "${unsellable.unavailable_reason}"`);
             // The public route must not show where the services live.
             for (const leak of ["http", "127.0.0.1", "localhost", ":800", "order-quote"]) {
-                assert.ok(!detail.includes(leak), `${name}: reason leaks "${leak}": ${detail}`);
+                assert.ok(!unsellable.unavailable_reason.includes(leak), `${name}: reason leaks "${leak}"`);
             }
+
+            // The subtotal counts only what can be bought.
+            assert.equal(
+                toCents(prices.subtotal_amount),
+                lines[0].unitCents * lines[0].line.quantity,
+                `${name}: the subtotal includes the unavailable line`,
+            );
         }
+    });
+
+    it("marks a custom line whose design the image service did not issue", async () => {
+        // Well-formed but unsigned: the token is not the image service's signature.
+        const forged = {
+            quantity: 1,
+            fulfillment_type: "custom",
+            customization: {
+                design_asset: {
+                    key: `generated-designs/2026/10/${"a".repeat(32)}.png`,
+                    width_px: 4096,
+                    height_px: 4096,
+                    embedded_dpi: 300,
+                    sha256: "b".repeat(64),
+                    token: "0".repeat(43),
+                },
+                prompt: "A mountain at sunrise",
+                style: "Watercolor",
+                size: "M",
+                garment_color: "black",
+                placement: "Full Back",
+                gender: "X",
+            },
+        };
+        const response = await priceCart([lines[0].line, forged]);
+        assert.equal(response.status, 200, `answered ${response.status}: ${await response.clone().text()}`);
+        const prices = await response.json();
+        assert.equal(prices.items[0].available, true);
+        assert.equal(prices.items[1].available, false, "a forged design was priced");
+        assert.equal(prices.items[1].unit_price, null);
+        assert.match(prices.items[1].unavailable_reason ?? "", /not issued by the image service/);
+    });
+
+    it("keeps the checkout quote all or nothing for the same unsellable line", async () => {
+        const cjLine = lines.find(({ line }) => line.fulfillment_type === "cj").line;
+        const cookies = await signIn(ACCOUNT);
+        const response = await fetch(`${FRONTEND}/api/gateway/api/v1/checkout/quote`, {
+            method: "POST",
+            headers: { Cookie: cookies, Origin: FRONTEND, "Content-Type": "application/json" },
+            body: JSON.stringify({
+                products: [lines[0].line, { ...cjLine, variant_id: UNKNOWN_ID }],
+                address: ADDRESS,
+                shipping_logistic_name: null,
+            }),
+        });
+        // An order cannot be placed without the line, so it is not quoted without it.
+        assert.equal(response.status, 422, `the checkout quote answered ${response.status}`);
     });
 
     it("refuses an empty cart and a line without a product", async () => {
