@@ -15,7 +15,9 @@ import { useSessionExpiryCheck } from "@/hooks/useSessionExpiryCheck";
 const CartClient: React.FC<CartClientProps> = ({currentUser, sessionExpiry}) => {
     const {cartProducts, handleClearCart, cartTotalAmount} = useCart();
     // The saved line prices can be stale; the server's replace them as soon as it answers.
-    const { isPricing, serverSubtotal, changedLines, error: pricingError } = useCartPricing();
+    const { isPricing, serverSubtotal, changedLines, unavailableLines, error: pricingError } = useCartPricing();
+    // Checkout would refuse these lines; the customer has to change them first.
+    const hasUnavailableLines = unavailableLines.size > 0;
 
     const router = useRouter()
 
@@ -46,8 +48,8 @@ const CartClient: React.FC<CartClientProps> = ({currentUser, sessionExpiry}) => 
                 <div className="justify-self-end">TOTAL</div>
             </div>
             <div>
-                {cartProducts && cartProducts.map((item) => {
-                    return <ItemContent key={item.id} item={item} />
+                {cartProducts && cartProducts.map((item, index) => {
+                    return <ItemContent key={item.id} item={item} unavailable={unavailableLines.has(index)} />
                 })}
             </div>
             <div className="border-t-[1.5px] border-slate-200 py-4 flex justify-between gap-4">
@@ -66,18 +68,26 @@ const CartClient: React.FC<CartClientProps> = ({currentUser, sessionExpiry}) => 
                                 {changedLines === 1 ? " that item" : " these items"}; the cart shows the current ones.
                             </p>
                         )}
+                        {hasUnavailableLines && (
+                            <p className="text-rose-500">
+                                {unavailableLines.size === 1 ? "An item is" : "Some items are"} no longer
+                                available as chosen; the subtotal leaves {unavailableLines.size === 1 ? "it" : "them"} out.
+                                Remove or change {unavailableLines.size === 1 ? "it" : "them"} to check out.
+                            </p>
+                        )}
                         {pricingError && (
                             <p className="text-rose-500">
                                 {pricingError} An item may no longer be available as it is; remove or change it to check out.
                             </p>
                         )}
                         <p className="text-slate-500">
-                            Taxes abd shipping calculate at checkout
+                            Taxes and shipping are calculated at checkout
                         </p>
 
                         <Button label={currentUser ? 'Checkout' : 'Login to Checkout'}
                                 variant="keyboard"
                                 size="md"
+                                disabled={hasUnavailableLines}
                                 onClick={() => router.push(currentUser ? '/checkout' : '/login')}>
                         </Button>
 

@@ -1,3 +1,5 @@
+from asyncio import Semaphore, gather
+from dataclasses import dataclass
 from logging import getLogger
 
 from infrastructure.auth.service_assertion import ServiceAssertionAuth
@@ -31,6 +33,12 @@ class OrderQuoteError(BaseAPIException):
         super().__init__(status_code=422, detail=detail)
 
 
+class LineNotSellableError(OrderQuoteError):
+    """A line cannot be bought as it is: the product, variant or stock is gone,
+    or a custom design is invalid. Unlike an outage, asking again will not help;
+    the customer has to change or remove the line."""
+
+
 class _QuotedTax(BaseModel):
     amount: Decimal
     calculation_id: str
@@ -46,6 +54,16 @@ class QuotedOrderLine(BaseModel):
     supplier_id: str | None = None
     customization: CustomTshirtSpecification | None = None
     variant_snapshot: dict[str, Any] | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class CartLinePrice:
+    """One cart line as the cart page shows it: its price, or why it cannot be
+    bought as it is (then ``line`` is None)."""
+
+    item: OrderProductItem
+    line: QuotedOrderLine | None
+    unavailable_reason: str | None = None
 
 
 class CanonicalOrderQuote(BaseModel):
@@ -121,7 +139,7 @@ class CatalogQuoteClient:
             # out of stock); pass that on. The exception text would carry its
             # internal URL, which the public cart-pricing route must not show.
             detail = response.json().get("detail") or "An item in the cart cannot be sold"
-            raise OrderQuoteError(str(detail))
+            raise LineNotSellableError(str(detail))
         try:
             response.raise_for_status()
         except HTTPStatusError as exc:
@@ -342,6 +360,54 @@ class OrderPricingService:
 
         return [quoted_by_position[index] for index in range(len(products))]
 
+    async def price_cart_lines(self, products: list[OrderProductItem]) -> list[CartLinePrice]:
+        """Prices for the cart page, in the order given, one outcome per line.
+
+        Unlike ``price_items``, a line that cannot be sold does not fail the
+        call: it comes back with the reason, and the other lines keep their
+        prices, so the cart can say which item to change. The order and the
+        checkout quote stay all or nothing (``price_items``). A failure to price
+        at all (product-service down) still fails the call.
+        """
+        try:
+            lines = await self.price_items(products)
+        except LineNotSellableError as refusal:
+            return await self._price_lines_one_by_one(products, refusal)
+        return [
+            CartLinePrice(item=item, line=line)
+            for item, line in zip(products, lines, strict=True)
+        ]
+
+    # product-service is asked about at most this many lines at once.
+    _CART_LINE_CONCURRENCY = 5
+
+    async def _price_lines_one_by_one(
+        self,
+        products: list[OrderProductItem],
+        refusal: LineNotSellableError,
+    ) -> list[CartLinePrice]:
+        """The whole cart was refused: price each line alone to find which ones.
+
+        Only taken after a refusal, so the usual cart costs one call. If every
+        line sells on its own, the lines are refused only together (two lines
+        of one product asking for more than its stock), and no single line is
+        to blame: the cart's refusal stands.
+        """
+        semaphore = Semaphore(self._CART_LINE_CONCURRENCY)
+
+        async def price_one(item: OrderProductItem) -> CartLinePrice:
+            async with semaphore:
+                try:
+                    [line] = await self.price_items([item])
+                except LineNotSellableError as exc:
+                    return CartLinePrice(item=item, line=None, unavailable_reason=str(exc.detail))
+                return CartLinePrice(item=item, line=line)
+
+        outcomes = await gather(*(price_one(item) for item in products))
+        if all(outcome.line is not None for outcome in outcomes):
+            raise refusal
+        return list(outcomes)
+
     @staticmethod
     def subtotal_of(lines: list[QuotedOrderLine]) -> Decimal:
         """The lines' unit prices times their quantities, to the cent."""
@@ -511,7 +577,7 @@ class OrderPricingService:
     ) -> CustomTshirtSpecification:
         asset = specification.design_asset
         if not verify_artwork_asset(asset, self.settings.ARTWORK_SIGNING_KEY):
-            raise OrderQuoteError(
+            raise LineNotSellableError(
                 "Custom design metadata is invalid or was not issued by the image service"
             )
 
@@ -524,7 +590,7 @@ class OrderPricingService:
         )
         minimum_dpi = self.settings.PRINT_IMAGE_MIN_EFFECTIVE_DPI
         if effective_dpi < minimum_dpi:
-            raise OrderQuoteError(
+            raise LineNotSellableError(
                 "Custom design resolution is too low for the selected print area "
                 f"({effective_dpi:.0f} DPI; minimum {minimum_dpi} DPI)"
             )

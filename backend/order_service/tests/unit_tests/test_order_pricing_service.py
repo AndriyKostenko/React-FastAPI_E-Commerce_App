@@ -6,7 +6,11 @@ from uuid import uuid4
 import pytest
 
 from schemas.order_schemas import AddressType, CreateOrder, OrderProductItem
-from service_layer.order_pricing_service import OrderPricingService, OrderQuoteError
+from service_layer.order_pricing_service import (
+    LineNotSellableError,
+    OrderPricingService,
+    OrderQuoteError,
+)
 from contracts.tax import TaxCalculationResult
 from contracts.artwork import GeneratedArtworkAsset, sign_artwork_asset
 from contracts.order import CustomTshirtSpecification
@@ -368,3 +372,103 @@ async def test_an_address_without_a_country_is_taxed_as_canadian():
 
     address = tax_client.calculate.await_args.args[0].address
     assert (address.country, address.state) == ("CA", "AB")
+
+
+class _RefusingCatalogClient:
+    """Answers like product-service's order-quote: all or nothing.
+
+    A request that names any refused product is refused as a whole with
+    product-service's reason; anything else is priced at a fixed price.
+    """
+
+    UNIT_PRICE = "20.00"
+
+    def __init__(self, refused: set[str] | None = None, together_only: bool = False):
+        self.refused = refused or set()
+        # Refuse any request for more than one line, as two lines of one
+        # product asking for more than its stock would be.
+        self.together_only = together_only
+        self.requests: list[list[dict]] = []
+
+    async def quote(self, items: list[dict]) -> dict:
+        self.requests.append(items)
+        for item in items:
+            if item["product_id"] in self.refused:
+                raise LineNotSellableError(f"Product with id {item['product_id']} not found")
+        if self.together_only and len(items) > 1:
+            raise LineNotSellableError("Insufficient inventory for product")
+        return {
+            "items": [
+                {
+                    "product_id": item["product_id"],
+                    "variant_id": item["variant_id"],
+                    "product_name": "Shirt",
+                    "quantity": item["quantity"],
+                    "unit_price": self.UNIT_PRICE,
+                    "fulfillment_type": "catalog",
+                }
+                for item in items
+            ]
+        }
+
+
+async def test_cart_lines_are_priced_in_one_catalog_call_when_all_sell():
+    catalog = _RefusingCatalogClient()
+    service = OrderPricingService(settings=_settings(), catalog_client=catalog)
+    products = [OrderProductItem(id=uuid4(), quantity=2), OrderProductItem(id=uuid4(), quantity=1)]
+
+    outcomes = await service.price_cart_lines(products)
+
+    assert [outcome.line.unit_price for outcome in outcomes] == [Decimal("20.00")] * 2
+    assert all(outcome.unavailable_reason is None for outcome in outcomes)
+    assert len(catalog.requests) == 1
+
+
+async def test_an_unsellable_cart_line_is_named_and_the_others_keep_their_prices():
+    sold, gone = uuid4(), uuid4()
+    catalog = _RefusingCatalogClient(refused={str(gone)})
+    service = OrderPricingService(settings=_settings(), catalog_client=catalog)
+    tampered = _asset().model_copy(update={"width_px": 5000})
+    products = [
+        OrderProductItem(id=sold, quantity=2),
+        OrderProductItem(id=gone, quantity=1),
+        OrderProductItem(quantity=1, fulfillment_type="custom", customization=_custom_spec()),
+        OrderProductItem(quantity=1, fulfillment_type="custom", customization=_custom_spec(tampered)),
+    ]
+
+    outcomes = await service.price_cart_lines(products)
+
+    # Request order kept: the cart pairs outcomes with its lines by position.
+    assert [outcome.item for outcome in outcomes] == products
+    assert outcomes[0].line.unit_price == Decimal("20.00")
+    assert outcomes[1].line is None
+    assert outcomes[1].unavailable_reason == f"Product with id {gone} not found"
+    # Size M is 19.00 x 1.12 plus the Full Back surcharge of 3.00.
+    assert outcomes[2].line.unit_price == Decimal("24.28")
+    assert outcomes[3].line is None
+    assert "metadata is invalid" in outcomes[3].unavailable_reason
+    assert OrderPricingService.subtotal_of(
+        [outcome.line for outcome in outcomes if outcome.line is not None]
+    ) == Decimal("64.28")
+
+
+async def test_lines_refused_only_together_keep_the_carts_refusal():
+    catalog = _RefusingCatalogClient(together_only=True)
+    service = OrderPricingService(settings=_settings(), catalog_client=catalog)
+    products = [OrderProductItem(id=uuid4(), quantity=5), OrderProductItem(id=uuid4(), quantity=5)]
+
+    with pytest.raises(LineNotSellableError, match="Insufficient inventory"):
+        await service.price_cart_lines(products)
+
+
+async def test_cart_pricing_fails_as_a_whole_when_prices_are_unavailable():
+    catalog = SimpleNamespace(
+        quote=AsyncMock(side_effect=OrderQuoteError("Prices are unavailable right now; please try again"))
+    )
+    service = OrderPricingService(settings=_settings(), catalog_client=catalog)
+
+    with pytest.raises(OrderQuoteError, match="unavailable right now") as raised:
+        await service.price_cart_lines([OrderProductItem(id=uuid4(), quantity=1)])
+    assert not isinstance(raised.value, LineNotSellableError)
+    # An outage is not retried line by line.
+    assert catalog.quote.await_count == 1

@@ -13,7 +13,10 @@ interface PricedCart {
     body: string;
     subtotal: number;
     changedLines: number;
+    unavailableLines: ReadonlySet<number>;
 }
+
+const NO_LINES: ReadonlySet<number> = new Set();
 
 interface PricingFailure {
     body: string;
@@ -22,11 +25,13 @@ interface PricingFailure {
 
 export interface CartPricing {
     isPricing: boolean;
-    /** The server's subtotal for the cart as it is now, or null until it answers. */
+    /** The server's subtotal for the lines that can be bought, or null until it answers. */
     serverSubtotal: number | null;
     /** How many lines had a saved price the server no longer charges. */
     changedLines: number;
-    /** Why the cart could not be priced, e.g. an item that can no longer be sold. */
+    /** Positions (cart order) of the lines that cannot be bought as they are. */
+    unavailableLines: ReadonlySet<number>;
+    /** Why the cart could not be priced at all, e.g. prices are unavailable right now. */
     error: string | null;
 }
 
@@ -36,6 +41,8 @@ export interface CartPricing {
  *
  * A cart line keeps the price it had when it was added, which goes stale when
  * the catalogue is repriced; the server prices lines exactly as an order would.
+ * A line that can no longer be bought (variant gone, out of stock, invalid
+ * design) is marked, and the others are still priced.
  *
  * The request body doubles as the effect's key. It holds product, variant,
  * quantity and customization, never the price, so saving the server's prices
@@ -78,10 +85,23 @@ export const useCartPricing = (): CartPricing => {
                     return;
                 }
                 const prices: CartPrices = await response.json();
+                const unavailableLines = new Set<number>();
+                prices.items.forEach((line, index) => {
+                    if (!line.available) {
+                        unavailableLines.add(index);
+                        // The reason names ids; the page says what to do instead.
+                        console.warn('Cart line cannot be sold:', line.unavailable_reason);
+                    }
+                });
                 const changedLines = handleApplyServerPrices(
-                    prices.items.map((line) => Number(line.unit_price)),
+                    prices.items.map((line) => (line.unit_price === null ? null : Number(line.unit_price))),
                 );
-                setPriced({ body: requestBody, subtotal: Number(prices.subtotal_amount), changedLines });
+                setPriced({
+                    body: requestBody,
+                    subtotal: Number(prices.subtotal_amount),
+                    changedLines,
+                    unavailableLines,
+                });
             } catch (error) {
                 if ((error as Error).name !== 'AbortError') {
                     setFailure({ body: requestBody, message: PRICING_FAILED });
@@ -99,6 +119,7 @@ export const useCartPricing = (): CartPricing => {
         isPricing: requestBody !== null && !answered && !failed,
         serverSubtotal: answered ? priced.subtotal : null,
         changedLines: answered ? priced.changedLines : 0,
+        unavailableLines: answered ? priced.unavailableLines : NO_LINES,
         error: failed ? failure.message : null,
     };
 };

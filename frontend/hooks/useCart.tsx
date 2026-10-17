@@ -123,16 +123,18 @@ export const CartContextProvider = (props: Props) => {
      * their object, and nothing is written when no price changed, so applying
      * the same prices twice does not re-render the cart.
      */
-    const handleApplyServerPrices = useCallback((unitPrices: readonly number[]): number => {
+    const handleApplyServerPrices = useCallback((unitPrices: readonly (number | null)[]): number => {
         const previous = cartStore.getSnapshot();
         // A cart that changed while the prices were on their way is priced
         // again by the caller; never pair prices with the wrong lines.
         if (!previous || previous.length !== unitPrices.length) return 0;
         let changedLines = 0;
         const next = previous.map((item, index) => {
-            if (toCents(item.price) === toCents(unitPrices[index])) return item;
+            const unitPrice = unitPrices[index];
+            // No price for a line that cannot be sold: it keeps the saved one.
+            if (unitPrice === null || toCents(item.price) === toCents(unitPrice)) return item;
             changedLines += 1;
-            return { ...item, price: unitPrices[index] };
+            return { ...item, price: unitPrice };
         });
         if (changedLines > 0) {
             cartStore.write(next);

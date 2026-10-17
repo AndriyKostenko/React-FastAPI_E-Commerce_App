@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { settings } from "@/lib/config";
 import { sessionManagaer } from "@/actions/getCurrentUser";
+import { headerProfileCache } from "@/lib/header-profile-cache";
 
 /**
  * Same-origin proxy to the API gateway. The browser calls it with its session
@@ -24,6 +25,8 @@ const FORWARDED_RESPONSE_HEADERS = [
 ] as const;
 const SAFE_METHODS = new Set(["GET", "HEAD"]);
 const API_PREFIX = `api/${settings.api.version}/`;
+// Profile, avatar, password and address writes all live under here.
+const USERS_PREFIX = `${API_PREFIX}users/`;
 // The storefront's public origin. Behind Traefik, request.nextUrl.origin is the
 // container's own address (http://0.0.0.0:3000), never what the browser sends.
 const APP_ORIGIN = new URL(settings.app.url).origin;
@@ -101,6 +104,16 @@ const forward = async (
       redirect: "manual",
     },
   );
+
+  // A profile or avatar change: the header reads the profile again on the next render.
+  if (
+    upstream.ok &&
+    !SAFE_METHODS.has(request.method) &&
+    upstreamPath.startsWith(USERS_PREFIX)
+  ) {
+    const userId = await sessionManagaer.getCurrentUserId();
+    if (userId) headerProfileCache.forget(userId);
+  }
 
   const responseHeaders = new Headers();
   for (const name of FORWARDED_RESPONSE_HEADERS) {

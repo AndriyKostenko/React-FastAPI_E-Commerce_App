@@ -17,7 +17,7 @@ import Heading from "@/components/ui/Heading";
 import Button from "@/components/ui/Button";
 import { settings } from "@/lib/config";
 import { proxied } from "@/lib/gateway-proxy";
-import { pendingCheckoutStore, withCheckoutLock } from "@/lib/pending-checkout";
+import { OrderClaims, pendingCheckouts, withCheckoutLock } from "@/lib/pending-checkout";
 import { isOrderPlaced, paymentOutcomeOf } from "@/lib/payment-outcome";
 
 // The browser never sends the token: the same-origin proxy adds it on the server.
@@ -91,7 +91,10 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({ products, onAmountChange, o
     // Set synchronously on submit. `isSubmitting` disables the button only after
     // the next render, so a quick second click would otherwise place a second order.
     const submitInFlight = useRef(false);
-
+    // The orders this tab is using, which other tabs must not cancel; let go
+    // of all of them when the form goes away.
+    const [claims] = useState(() => new OrderClaims());
+    useEffect(() => () => claims.releaseAll(), [claims]);
 
     const handleAddressChange = (event: StripeAddressElementChangeEvent) => {
         if (!event.complete) {
@@ -190,8 +193,17 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({ products, onAmountChange, o
             return session.current;
         }
 
-        const pending = pendingCheckoutStore.getSnapshot();
-        if (pending && pending.fingerprint === fingerprint) {
+        // This tab's order was for another cart, address or shipping. Let go of
+        // it, so the sweep below cancels it like any other superseded order.
+        if (session.current) {
+            claims.release(session.current.order_id);
+            session.current = null;
+        }
+
+        const pending = pendingCheckouts.find(fingerprint);
+        if (pending) {
+            // Claimed before resuming, so no other tab cancels it from here on.
+            await claims.claim(pending.orderId);
             const resumed = await fetch(proxied(settings.api.endpoints.checkout), {
                 method: "POST",
                 headers: JSON_HEADERS,
@@ -202,19 +214,17 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({ products, onAmountChange, o
                 session.current = { ...data, fingerprint };
                 return data;
             }
-            pendingCheckoutStore.write(null);
+            claims.release(pending.orderId);
+            pendingCheckouts.removeOrder(pending.orderId);
             if (resumed.status === 409) {
                 const body = await resumed.json().catch(() => ({}));
                 if (body?.order_status !== "cancelled") {
                     return "already_placed";
                 }
             }
-        } else if (pending || session.current) {
-            // The cart, address, or shipping changed since that order was placed.
-            await cancelOrder(session.current?.order_id ?? pending!.orderId);
-            session.current = null;
-            pendingCheckoutStore.write(null);
         }
+
+        await cancelSupersededOrders(fingerprint);
 
         const response = await fetch(proxied(settings.api.endpoints.checkout), {
             method: "POST",
@@ -234,15 +244,43 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({ products, onAmountChange, o
             return null;
         }
         const data: CheckoutSession = await response.json();
+        // Claimed before it is recorded: from the moment other tabs can see it,
+        // they also see that this tab is using it.
+        await claims.claim(data.order_id);
         session.current = { ...data, fingerprint };
-        pendingCheckoutStore.write({ orderId: data.order_id, fingerprint });
+        pendingCheckouts.save({
+            orderId: data.order_id,
+            fingerprint,
+            paymentIntentId: data.payment_intent_id,
+        });
         return data;
+    };
+
+    /**
+     * Cancels every pending order placed for another cart, address or shipping
+     * that no open tab is using: they can no longer be paid from here, and an
+     * unpaid order holds stock until it is cancelled. An order another tab
+     * holds is left alone, since that tab may be paying it right now.
+     *
+     * Run it under `withCheckoutLock`, like `openCheckoutSession`.
+     */
+    const cancelSupersededOrders = async (fingerprint: string) => {
+        for (const entry of pendingCheckouts.all()) {
+            if (entry.fingerprint === fingerprint) continue;
+            await claims.ifUnclaimed(entry.orderId, async () => {
+                await cancelOrder(entry.orderId);
+                pendingCheckouts.removeOrder(entry.orderId);
+            });
+        }
     };
 
     /** The order is placed: forget the checkout and show the confirmation. */
     const finishCheckout = (message: string) => {
+        if (session.current) {
+            pendingCheckouts.removeOrder(session.current.order_id);
+            claims.release(session.current.order_id);
+        }
         session.current = null;
-        pendingCheckoutStore.write(null);
         toast.success(message);
         onPaid();
     };

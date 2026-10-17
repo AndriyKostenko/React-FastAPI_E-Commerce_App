@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { useCart } from "@/hooks/useCart";
 import { keycapClassName } from "@/components/ui/Button";
 import { stripePromise } from "@/lib/stripe";
-import { pendingCheckoutStore } from "@/lib/pending-checkout";
+import { pendingCheckouts } from "@/lib/pending-checkout";
 import { type PaymentOutcome, isOrderPlaced, paymentOutcomeOf } from "@/lib/payment-outcome";
 
 /** `unknown`: Stripe could not be asked, so the orders page is the place to look. */
@@ -77,11 +77,13 @@ const CheckoutComplete = () => {
 
         const readOutcome = async () => {
             let next: ReturnOutcome = "unknown";
+            let paymentIntentId: string | null = null;
             try {
                 const stripe = await stripePromise;
                 const result = stripe ? await stripe.retrievePaymentIntent(clientSecret) : null;
                 if (result?.paymentIntent) {
                     next = paymentOutcomeOf(result.paymentIntent.status);
+                    paymentIntentId = result.paymentIntent.id;
                 }
             } catch (error) {
                 console.error("Could not read the payment after the redirect:", error);
@@ -90,7 +92,12 @@ const CheckoutComplete = () => {
 
             if (next !== "unknown" && isOrderPlaced(next)) {
                 handleClearCart();
-                pendingCheckoutStore.write(null);
+                // Only this payment's order: another tab may still be checking
+                // out its own. Entries saved before the intent was recorded
+                // cannot be told apart, so those are all cleared, as before.
+                if (!paymentIntentId || !pendingCheckouts.removePayment(paymentIntentId)) {
+                    pendingCheckouts.clear();
+                }
             }
             setOutcome(next);
             // The client secret can complete this payment: keep it out of the

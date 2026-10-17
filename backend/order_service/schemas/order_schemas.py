@@ -168,14 +168,22 @@ class PriceItemsRequest(BaseModel):
 
 
 class PricedItem(BaseModel):
-    product_id: UUID
+    # None only for a custom line sent without an id that cannot be sold.
+    product_id: UUID | None
     variant_id: UUID | None = None
     quantity: int
-    unit_price: Decimal
+    # None when the line cannot be bought as it is; see unavailable_reason.
+    unit_price: Decimal | None
+    available: bool = True
+    unavailable_reason: str | None = None
 
 
 class PriceItemsResponse(BaseModel):
-    """Cart lines priced as an order would price them, in the request's order."""
+    """Cart lines priced as an order would price them, in the request's order.
+
+    A line that cannot be sold comes back with ``available`` false and the
+    reason; ``subtotal_amount`` counts the available lines only.
+    """
 
     currency: str
     items: list[PricedItem]

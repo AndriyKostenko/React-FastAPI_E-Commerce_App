@@ -1,14 +1,14 @@
 import Link from "next/link";
 import CartCount from "./CartCount";
 import UserMenu from "./UserMenu";
-import { sessionManagaer } from "@/actions/getCurrentUser";
+import { fetchHeaderUser } from "@/actions/getAccount";
 import SearchBar from "./SearchBar";
 import { Suspense } from "react";
 import HeaderNavLinks from "./HeaderNavLinks";
 
 const NavBar = async () => {
-    // getting current user from the server session
-    const currentUser = await sessionManagaer.getCurrentUser();
+    // The signed-in user's current profile, so a new avatar shows at once.
+    const currentUser = await fetchHeaderUser();
 
     return (
         <header className="w-full z-50 px-margin-desktop py-6">
