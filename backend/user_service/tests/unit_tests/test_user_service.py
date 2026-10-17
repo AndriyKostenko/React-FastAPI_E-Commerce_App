@@ -782,6 +782,54 @@ class TestRefreshAccessToken:
         mock_repository.commit.assert_awaited_once()
 
 
+    async def test_a_signed_out_token_is_refused_without_ending_other_sessions(
+        self,
+        user_service,
+        mock_token_manager: MagicMock,
+        mock_redis: AsyncMock,
+        mock_user_orm: MagicMock,
+        mock_repository: MagicMock,
+    ) -> None:
+        mock_token_manager.decode_token.return_value = TokenClaims(
+            email="test@example.com", id=mock_user_orm.id, role="user", purpose="refresh", token_version=1
+        )
+        token_hash = hashlib.sha256(b"signed_out_refresh_tok").hexdigest()
+        mock_redis.getdel.return_value = None
+        mock_redis.get.side_effect = lambda key: "1" if key == f"refresh:signed_out:{token_hash}" else None
+
+        with pytest.raises(HTTPException) as exc_info:
+            await user_service.refresh_access_token("signed_out_refresh_tok")
+
+        assert exc_info.value.status_code == 401
+        assert exc_info.value.detail == "Session signed out"
+        # No generation bump and no family revocation: that is for theft.
+        mock_repository.update_by_id.assert_not_awaited()
+        mock_redis.smembers.assert_not_awaited()
+
+    async def test_a_rotation_links_the_spent_token_to_the_new_one(
+        self,
+        user_service,
+        mock_token_manager: MagicMock,
+        mock_redis: AsyncMock,
+        mock_user_orm: MagicMock,
+        mock_repository: MagicMock,
+    ) -> None:
+        mock_token_manager.decode_token.return_value = TokenClaims(
+            email="test@example.com", id=mock_user_orm.id, role="user", purpose="refresh", token_version=1
+        )
+        mock_redis.getdel.return_value = str(mock_user_orm.id)
+        mock_repository.get_by_id.return_value = mock_user_orm
+        mock_token_manager.create_refresh_token.return_value = ("rotated_refresh_tok", 19999)
+
+        await user_service.refresh_access_token("spent_refresh_tok")
+
+        spent_hash = hashlib.sha256(b"spent_refresh_tok").hexdigest()
+        new_hash = hashlib.sha256(b"rotated_refresh_tok").hexdigest()
+        mock_redis.pipeline.return_value.setex.assert_any_call(
+            f"refresh:rotated:{spent_hash}", user_service.session_issuer.refresh_ttl_seconds, new_hash
+        )
+
+
 # ---------------------------------------------------------------------------
 # logout_user
 # ---------------------------------------------------------------------------
@@ -805,8 +853,33 @@ class TestLogoutUser:
             "some_refresh_token", required_purpose="refresh"
         )
         token_hash = hashlib.sha256(b"some_refresh_token").hexdigest()
-        mock_redis.delete.assert_awaited_once_with(f"refresh:{token_hash}")
-        mock_redis.srem.assert_awaited_once_with(f"refresh:user:{user_id}", token_hash)
+        pipe = mock_redis.pipeline.return_value
+        # Marked as signed out, so a refresh racing the sign-out is not read as theft.
+        pipe.setex.assert_called_once_with(
+            f"refresh:signed_out:{token_hash}", user_service.session_issuer.refresh_ttl_seconds, "1"
+        )
+        pipe.delete.assert_called_once_with(f"refresh:{token_hash}")
+        pipe.srem.assert_called_once_with(f"refresh:user:{user_id}", token_hash)
+        pipe.execute.assert_awaited_once()
+
+    async def test_also_ends_the_tokens_refreshed_from_the_one_given(
+        self,
+        user_service,
+        mock_token_manager: MagicMock,
+        mock_redis: AsyncMock,
+    ) -> None:
+        user_id = uuid4()
+        mock_token_manager.decode_token.return_value = TokenClaims(
+            email="test@example.com", id=user_id, role="user", purpose="refresh", token_version=1
+        )
+        first = hashlib.sha256(b"stale_refresh_token").hexdigest()
+        rotations = {f"refresh:rotated:{first}": "second_hash", "refresh:rotated:second_hash": "third_hash"}
+        mock_redis.get.side_effect = rotations.get
+
+        await user_service.logout_user("stale_refresh_token")
+
+        ended = [c.args[0] for c in mock_redis.pipeline.return_value.delete.call_args_list]
+        assert ended == [f"refresh:{first}", "refresh:second_hash", "refresh:third_hash"]
 
     async def test_a_token_that_does_not_verify_revokes_nothing(
         self,
@@ -818,8 +891,7 @@ class TestLogoutUser:
 
         await user_service.logout_user("not-a-refresh-token")
 
-        mock_redis.delete.assert_not_awaited()
-        mock_redis.srem.assert_not_awaited()
+        mock_redis.pipeline.assert_not_called()
 
 
 # ---------------------------------------------------------------------------

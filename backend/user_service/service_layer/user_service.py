@@ -77,6 +77,11 @@ class UserService:
         self.session_registry = session_registry
         self.session_issuer = SessionIssuer(token_manager, cache_manager, settings)
 
+    # A sign-out follows at most this many refreshes from the token it is given.
+    # A browser holds a token a refresh or two old at most; the cap only bounds
+    # the loop.
+    _MAX_SIGN_OUT_ROTATIONS = 20
+
     def _token_hash(self, token: str) -> str:
         """Compute SHA-256 hash of a token for secure Redis storage."""
         return SessionIssuer.token_hash(token)
@@ -86,6 +91,23 @@ class UserService:
 
     def _user_refresh_set_key(self, user_id: UUID | str) -> str:
         return SessionIssuer.user_refresh_set_key(user_id)
+
+    async def _is_signed_out(self, token_hash: str) -> bool:
+        return await self.cache_manager.redis.get(SessionIssuer.signed_out_key(token_hash)) is not None
+
+    async def _sign_out_refresh(self, token_hash: str, user_id: UUID | str) -> None:
+        """End one refresh token, marking it as signed out rather than just deleting it.
+
+        A refresh that finds its token gone treats that as theft and ends every
+        session the user has; the mark tells it the token was signed out. Both
+        commands go in one transaction, so a refresh sees either the live token
+        or the mark, never neither.
+        """
+        pipe = self.cache_manager.redis.pipeline()
+        pipe.setex(SessionIssuer.signed_out_key(token_hash), self.session_issuer.refresh_ttl_seconds, "1")
+        pipe.delete(self._refresh_key(token_hash))
+        pipe.srem(self._user_refresh_set_key(user_id), token_hash)
+        await pipe.execute()
 
     def _verify_token_key(self, token: str) -> str:
         return f"verify_email:{self._token_hash(token)}"
@@ -611,6 +633,10 @@ class UserService:
         stored_user_id = await self.cache_manager.redis.getdel(self._refresh_key(token_hash))
 
         if not stored_user_id:
+            if await self._is_signed_out(token_hash):
+                # Signed out, not stolen: a request that refreshes just as the
+                # user signs out lands here, and must not end their other sessions.
+                raise HTTPException(status_code=401, detail="Session signed out")
             # Reuse of a refresh token that was already spent is the signature
             # of a stolen token, so the whole family goes — including the
             # access tokens the thief may already hold.
@@ -649,12 +675,21 @@ class UserService:
         if self.is_admin(user) and AuthMethod.PASSKEY not in token_data.amr:
             raise HTTPException(status_code=401, detail="Admin sessions must be signed in with a passkey")
 
-        session = await self.session_issuer.issue(user, token_data.amr)
+        session = await self.session_issuer.issue(user, token_data.amr, rotated_from=token_hash)
+        # A sign-out with the old token may have run while this refresh was in
+        # flight, before the link to the new token existed, so it could not
+        # reach the new one. The sign-out marks the old token before it looks
+        # for the link; this checks for the mark after writing the link. So
+        # whichever runs second sees the other, and the new token never
+        # outlives the sign-out.
+        if await self._is_signed_out(token_hash):
+            await self._sign_out_refresh(self._token_hash(session.refresh_token), token_data.id)
+            raise HTTPException(status_code=401, detail="Session signed out")
         return self._unpack(session)
 
     async def logout_user(self, refresh_token: str) -> None:
         """
-        Revoke a refresh token and remove it from its user's active set.
+        End a refresh token, and every token refreshed from it since, as signed out.
 
         Holding the token is the proof: whoever has it could already exchange
         it for a session, so letting them revoke it gives nothing away, and a
@@ -666,9 +701,16 @@ class UserService:
             claims = self.token_manager.decode_token(refresh_token, required_purpose="refresh")
         except HTTPException:
             return
-        token_hash = self._token_hash(refresh_token)
-        await self.cache_manager.redis.delete(self._refresh_key(token_hash))
-        await self.cache_manager.redis.srem(self._user_refresh_set_key(claims.id), token_hash)
+        # The token given and every token rotated from it since: a refresh that
+        # finished just before the sign-out issued a newer token, which would
+        # otherwise stay live, held by no one, for the rest of its life.
+        token_hash: str | None = self._token_hash(refresh_token)
+        for _ in range(self._MAX_SIGN_OUT_ROTATIONS):
+            if token_hash is None:
+                return
+            await self._sign_out_refresh(token_hash, claims.id)
+            # Read only after the mark is written (see refresh_access_token).
+            token_hash = await self.cache_manager.redis.get(SessionIssuer.rotated_key(token_hash))
 
     async def get_active_user(self, user_id: UUID | None) -> CurrentUserInfo:
         """

@@ -13,13 +13,17 @@ test methods short and readable without tying state to fixture order.
 from collections.abc import Awaitable, Callable
 from typing import Any
 
-from httpx import AsyncClient
+import pytest
+from httpx import AsyncClient, Response
 from fastapi import status
 
 from settings import get_test_settings
 from contracts.event_enums import UserEvents
 from tests.conftest import SIGNING_KEYS, as_gateway
 from infrastructure.testing.signing_keys import EphemeralSigningKeys
+from models.user_models import User
+from contracts.auth import AuthMethod
+from service_layer.session_issuer import IssuedSession, SessionIssuer
 
 test_settings = get_test_settings()
 
@@ -363,6 +367,102 @@ class TestLogoutEndpoint:
             json={"refresh_token": "not-a-refresh-token"},
         )
         assert response.status_code == status.HTTP_200_OK
+
+
+async def _refresh(client: AsyncClient, refresh_token: str) -> Response:
+    return await client.post(f"{test_settings.API}/refresh", json={"refresh_token": refresh_token})
+
+
+async def _logout(client: AsyncClient, refresh_token: str) -> Response:
+    return await client.post(f"{test_settings.API}/logout", json={"refresh_token": refresh_token})
+
+
+class TestSignOutRacingRefresh:
+    """
+    A page can refresh its session at the moment the user signs out.
+
+    The sign-out used to delete the token outright, so a refresh arriving just
+    after it read the missing token as a stolen one and ended every session the
+    user had. And a refresh finishing just before it left the token it issued
+    live, with no one holding it. Either order must end this session only.
+    """
+
+    async def test_a_refresh_after_the_sign_out_leaves_other_sessions_alone(
+        self, integration_client: AsyncClient, get_outbox_event
+    ):
+        login_data = await _setup_authenticated_user(integration_client, get_outbox_event)
+        signed_out = str(login_data["refresh_token"])
+        other_device = (await _login(integration_client)).json()
+
+        assert (await _logout(integration_client, signed_out)).status_code == status.HTTP_200_OK
+        # Two late requests from the signed-out page: neither is read as theft.
+        for _ in range(2):
+            late = await _refresh(integration_client, signed_out)
+            assert late.status_code == status.HTTP_401_UNAUTHORIZED
+            assert late.json()["detail"] == "Session signed out"
+
+        # Refresh succeeds only while the generation is unchanged, so this
+        # proves no session-wide revocation ran.
+        assert (await _refresh(integration_client, other_device["refresh_token"])).status_code == status.HTTP_200_OK
+
+    async def test_a_sign_out_with_the_token_a_refresh_just_spent_ends_the_new_one(
+        self, integration_client: AsyncClient, get_outbox_event
+    ):
+        login_data = await _setup_authenticated_user(integration_client, get_outbox_event)
+        spent = str(login_data["refresh_token"])
+        other_device = (await _login(integration_client)).json()
+
+        rotated = await _refresh(integration_client, spent)
+        assert rotated.status_code == status.HTTP_200_OK
+        # The page signed out with the token it had, before the refresh's
+        # answer reached it.
+        assert (await _logout(integration_client, spent)).status_code == status.HTTP_200_OK
+
+        orphan = await _refresh(integration_client, rotated.json()["refresh_token"])
+        assert orphan.status_code == status.HTTP_401_UNAUTHORIZED
+        assert orphan.json()["detail"] == "Session signed out"
+        assert (await _refresh(integration_client, other_device["refresh_token"])).status_code == status.HTTP_200_OK
+
+    @pytest.mark.parametrize("sign_out_lands", ["before_the_link", "after_the_link"])
+    async def test_a_sign_out_in_the_middle_of_a_refresh_ends_the_token_it_issues(
+        self, integration_client: AsyncClient, get_outbox_event, monkeypatch: pytest.MonkeyPatch, sign_out_lands: str
+    ):
+        """
+        The refresh has already spent the old token when the sign-out runs.
+
+        "before_the_link": the sign-out finds no link to follow, so the
+        refresh must notice the sign-out itself. "after_the_link": the
+        sign-out follows the link and ends the new token.
+        """
+        login_data = await _setup_authenticated_user(integration_client, get_outbox_event)
+        spent = str(login_data["refresh_token"])
+        other_device = (await _login(integration_client)).json()
+
+        original_issue = SessionIssuer.issue
+        issued: list[IssuedSession] = []
+
+        async def issue_with_a_sign_out(
+            issuer: SessionIssuer, user: User, methods: list[AuthMethod], rotated_from: str | None = None
+        ) -> IssuedSession:
+            if rotated_from != SessionIssuer.token_hash(spent):
+                return await original_issue(issuer, user, methods, rotated_from)
+            if sign_out_lands == "before_the_link":
+                await _logout(integration_client, spent)
+            session = await original_issue(issuer, user, methods, rotated_from)
+            issued.append(session)
+            if sign_out_lands == "after_the_link":
+                await _logout(integration_client, spent)
+            return session
+
+        monkeypatch.setattr(SessionIssuer, "issue", issue_with_a_sign_out)
+
+        refresh = await _refresh(integration_client, spent)
+        assert refresh.status_code == status.HTTP_401_UNAUTHORIZED
+        assert refresh.json()["detail"] == "Session signed out"
+        # The token the refresh minted never reached anyone, and is dead.
+        assert len(issued) == 1
+        assert (await _refresh(integration_client, issued[0].refresh_token)).status_code == status.HTTP_401_UNAUTHORIZED
+        assert (await _refresh(integration_client, other_device["refresh_token"])).status_code == status.HTTP_200_OK
 
 
 # ===========================================================================
