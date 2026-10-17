@@ -199,44 +199,14 @@ export const PRESET_PROMPTS: Array<{prompt: string; style: "None" | keyof typeof
   },
 ];
 
-export const COLOR_MAP: Record<string,{ base: string;
-									    seam: string;
-									    collarBand: string;
-									    collarSheen: string;}> = {
-  "bg-white": {
-    base: "#F4F4F4",
-    seam: "rgba(0,0,0,0.07)",
-    collarBand: "rgba(0,0,0,0.09)",
-    collarSheen: "rgba(255,255,255,0.80)",
-  },
-  "bg-black": {
-    base: "#1A1A1A",
-    seam: "rgba(255,255,255,0.06)",
-    collarBand: "rgba(255,255,255,0.08)",
-    collarSheen: "rgba(255,255,255,0.06)",
-  },
-};
+// The preview shirt's shape and colours live in utils/shirtShape.ts; its
+// placement rectangles in utils/printAreas.ts (true print sizes).
 
-// Placement rectangles now come from utils/printAreas.ts (true print sizes).
-
-const BODY_PATH = [
-  "L 324,70",
-  "C 366,52 400,112 394,188",
-  "L 356,202",
-  "Q 338,194 320,170",
-  "L 320,460",
-  "Q 315,472 300,472",
-  "L 100,472",
-  "Q 85,472 80,460",
-  "L 80,170",
-  "Q 62,194 44,202",
-  "L 6,188",
-  "C 0,112 34,52 76,70",
-  "Z",
-].join(" ");
-
-export const SHIRT_PATH_FRONT = `M 160,80 C 175,112 225,112 240,80 ${BODY_PATH}`;
-export const SHIRT_PATH_BACK = `M 160,80 Q 200,68 240,80 ${BODY_PATH}`;
+/**
+ * The countdown shown while a design is generated. The provider usually
+ * answers within it; when it answers sooner the countdown simply stops.
+ */
+export const GENERATION_COUNTDOWN_SECONDS = 15;
 
 export const colors = [
   { color: "Black", colorCode: "#000000", image: null },
