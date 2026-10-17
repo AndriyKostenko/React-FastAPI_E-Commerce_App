@@ -17,6 +17,7 @@ from contracts.events import (
     PasswordResetRequestedEvent,
     UserLoginEvent,
     PasswordResetSuccessEvent,
+    ExistingAccountRegistrationEvent,
     OrderCreatedEvent,
     OrderConfirmedEvent,
     OrderCancelledEvent,
@@ -169,6 +170,21 @@ class UserRelatedNotifications(EmailService):
             template_name="password_reset_confirmation.html"
         )
         self.logger.info("Sending password reset confirmation email")
+
+    async def send_existing_account_notice(self, event: ExistingAccountRegistrationEvent) -> None:
+        """Someone tried to open an account with this address; the sign-up form did not say it was taken."""
+        await self.send_email_async(
+            subject="Someone tried to create an account with your email",
+            template_body={
+                "app_name": self.settings.MAIL_FROM_NAME,
+                "email": event.user_email,
+                "login_url": self.links.login(),
+                "forgot_password_url": self.links.forgot_password(),
+            },
+            recipients=[event.user_email],
+            template_name="existing_account_registration.html"
+        )
+        self.logger.info("Sending existing-account registration notice")
 
     async def send_login_notification_email(self, event: UserLoginEvent) -> None:
         """Send login notification email."""

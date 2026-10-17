@@ -46,6 +46,15 @@ class PasswordResetSuccessEvent(UserBaseEvent):
     event_type: str = Field(default_factory=lambda: UserEvents.USER_PASSWORD_RESET_SUCCESS)
 
 
+class ExistingAccountRegistrationEvent(UserBaseEvent):
+    """Event published when someone registers with the email of a verified account.
+
+    The sign-up form answers the same either way (it must not reveal who has
+    an account), so the owner is told by email instead.
+    """
+    event_type: str = Field(default_factory=lambda: UserEvents.USER_REGISTRATION_EXISTING)
+
+
 class EmailVerificationEvent(UserBaseEvent):
     """Event published when email verification is proceeded"""
     event_type: str = Field(default_factory=lambda: UserEvents.USER_EMAIL_VERIFIED)

@@ -29,6 +29,10 @@ import { SessionCookie } from "@/lib/session-cookie";
 import { SessionProxy } from "@/lib/session-proxy";
 import { SessionRefresher } from "@/lib/session-refresher";
 
+// The token Cloudflare's test widget issues. Locally user-service holds the
+// always-pass test secret (dev.sh), so it is accepted; a real secret refuses it.
+const CAPTCHA_TOKEN = "XXXX.DUMMY.TOKEN.XXXX";
+
 // This suite's own cookie key (see the header). Read when a cookie is encoded.
 process.env.NEXTAUTH_SECRET = randomBytes(32).toString("hex");
 
@@ -58,7 +62,7 @@ const signIn = async (): Promise<BackendTokens> => {
     const response = await fetch(`${GATEWAY}/login`, {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded", "X-Forwarded-For": nextAddress() },
-        body: new URLSearchParams({ username: ACCOUNT.email, password: ACCOUNT.password }),
+        body: new URLSearchParams({ username: ACCOUNT.email, password: ACCOUNT.password, captcha_token: CAPTCHA_TOKEN }),
     });
     assert.equal(response.status, 200, `sign-in failed with ${response.status}; seed the account first`);
     const tokens = client.tokensFrom(response, (await response.json()) as SignedInBody);

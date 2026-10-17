@@ -63,6 +63,8 @@ export const authOptions: AuthOptions = {
         credentials: {
             email: { label: "Email", type: "email" },
             password: { label: "Password", type: "password" },
+            // The login form's Turnstile token, passed on to the gateway.
+            captchaToken: { label: "Verification", type: "text" },
         },
         async authorize(credentials) {
             if (!credentials?.email || !credentials?.password) {
@@ -72,6 +74,7 @@ export const authOptions: AuthOptions = {
             const formData = new URLSearchParams();
             formData.append('username', credentials.email);
             formData.append('password', credentials.password);
+            if (credentials.captchaToken) formData.append('captcha_token', credentials.captchaToken);
 
             let response: Response;
             try {

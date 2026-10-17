@@ -12,6 +12,7 @@ import { signIn } from "next-auth/react";
 import { MdAutoAwesome, MdVisibility, MdVisibilityOff } from "react-icons/md";
 import { FcGoogle } from "react-icons/fc";
 import { NEXTAUTH_ERROR_MESSAGES } from "@/utils/constants";
+import { useHumanCheck } from "@/hooks/useHumanCheck";
 
 const LoginForm:React.FC<LoginFormProps> = ({currentUser, authError}) => {
     const [isLoading, setIsLoading] = useState(false);
@@ -24,6 +25,7 @@ const LoginForm:React.FC<LoginFormProps> = ({currentUser, authError}) => {
     });
 
     const router = useRouter();
+    const humanCheck = useHumanCheck("login");
 
     useEffect(() => {
         if (currentUser) {
@@ -48,9 +50,12 @@ const LoginForm:React.FC<LoginFormProps> = ({currentUser, authError}) => {
 
         signIn('credentials', {
             ...data,
+            captchaToken: humanCheck.token ?? "",
             redirect: false
         }).then((callback) => {
             setIsLoading(false);
+            // A token is spent by the request, whatever its answer.
+            humanCheck.reset();
 
             if (callback?.ok) {
                 router.push("/cart");
@@ -144,10 +149,12 @@ const LoginForm:React.FC<LoginFormProps> = ({currentUser, authError}) => {
                 </Link>
             </div>
 
+            {humanCheck.widget}
+
             {/* CTA */}
             <Button
                 onClick={handleSubmit(onSubmit)}
-                disabled={isLoading}
+                disabled={isLoading || !humanCheck.token}
                 variant="keyboard"
                 size="xl"
             >

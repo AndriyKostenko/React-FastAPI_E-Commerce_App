@@ -25,10 +25,10 @@ export class AuthApi {
         );
     }
 
-    static requestPasswordReset(email: string): Promise<ForgotPasswordResponse> {
+    static requestPasswordReset(email: string, captchaToken: string | null): Promise<ForgotPasswordResponse> {
         return AuthApi.post<ForgotPasswordRequest, ForgotPasswordResponse>(
             settings.api.endpoints.forgotPassword,
-            { email },
+            { email, captcha_token: captchaToken },
             "Could not send the reset email. Please try again.",
         );
     }

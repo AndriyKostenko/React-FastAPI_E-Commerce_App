@@ -366,7 +366,9 @@ class ApiGateway:
                 if path == "/login":
                     form_data = {
                         "username": form_data.get("email") or form_data.get("username"),
-                        "password": form_data.get("password")
+                        "password": form_data.get("password"),
+                        # The Turnstile token user-service checks before the password.
+                        "captcha_token": form_data.get("captcha_token"),
                     }
                     return form_data, "application/x-www-form-urlencoded"
 

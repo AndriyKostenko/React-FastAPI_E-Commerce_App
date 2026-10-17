@@ -122,6 +122,36 @@ class TestPrepareHeaders:
         assert result["X-Forwarded-For"] == "198.51.100.7"
 
 
+class TestLoginFormBody:
+    """The gateway rebuilds the login form; whatever it leaves out never reaches user-service."""
+
+    @staticmethod
+    def _login_request(body: bytes) -> Request:
+        async def receive() -> dict[str, object]:
+            return {"type": "http.request", "body": body, "more_body": False}
+
+        return Request({
+            "type": "http",
+            "method": "POST",
+            "scheme": "http",
+            "path": "/api/v1/login",
+            "raw_path": b"/api/v1/login",
+            "query_string": b"",
+            "root_path": "",
+            "headers": [(b"content-type", b"application/x-www-form-urlencoded")],
+            "client": ("203.0.113.9", 51234),
+            "server": ("localhost", 8000),
+        }, receive)
+
+    async def test_the_captcha_token_is_passed_on(self):
+        request = self._login_request(b"email=a%40b.com&password=secret&captcha_token=XXXX.DUMMY.TOKEN.XXXX")
+
+        body, content_type = await _make_gateway()._detect_and_prepare_body(request, "/login")
+
+        assert content_type == "application/x-www-form-urlencoded"
+        assert body == {"username": "a@b.com", "password": "secret", "captcha_token": "XXXX.DUMMY.TOKEN.XXXX"}
+
+
 class TestForwardRequest:
     def setup_method(self):
         self.gw = _make_gateway()

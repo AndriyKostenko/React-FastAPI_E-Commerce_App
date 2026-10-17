@@ -15,7 +15,7 @@ from fastapi import Depends
 from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from main import app
 from database_layer.user_repository import UserRepository
@@ -46,12 +46,36 @@ from infrastructure.testing.signing_keys import EphemeralSigningKeys
 SIGNING_KEYS = EphemeralSigningKeys()
 from managers.password_manager import PasswordManager
 from schemas.user_schemas import CurrentUserInfo, UserInfo
+from exceptions.user_exceptions import HumanCheckFailedError
+from service_layer.email_policy import DisposableDomainRule, EmailAddressPolicy
+from service_layer.user_service import RegistrationOutcome
 
 
 from infrastructure.testing.helpers import allow_testserver_host
 
 
 test_settings = get_test_settings()
+
+
+class DummyTokenHumanCheck:
+    """
+    Accepts only the token Cloudflare's test widget issues (stricter than
+    Cloudflare's always-pass test secret, which accepts any token), without a
+    network call per request.
+
+    TurnstileHumanCheck itself is tested against Cloudflare's real siteverify
+    with its test secrets (tests/integration_tests/test_human_check.py).
+    """
+
+    async def verify(self, token: str | None) -> None:
+        if token != test_settings.CAPTCHA_TOKEN:
+            raise HumanCheckFailedError()
+
+
+# Throwaway domains refused for real; no DNS lookups, since the suites register
+# @example.com addresses (a domain that accepts no mail). MailDomainRule has its
+# own tests against real DNS (tests/integration_tests/test_email_policy.py).
+TEST_EMAIL_POLICY = EmailAddressPolicy([DisposableDomainRule()])
 
 TEST_USER_INFO = UserInfo(
     id=test_settings.TEST_USER_ID,
@@ -144,6 +168,7 @@ def mock_repository() -> MagicMock:
     repo.get_verified_users = AsyncMock()
     repo.get_users_by_role = AsyncMock()
     repo.commit = AsyncMock()
+    repo.add_unless_email_taken = AsyncMock()
     return repo
 
 # ---------------------------------------------------------------------------
@@ -255,7 +280,7 @@ def normal_user() -> dict[str, str|int]:
 def mock_route_service() -> MagicMock:
     """Full mock of UserService for use via app.dependency_overrides in route tests."""
     svc = MagicMock()
-    svc.create_user = AsyncMock(return_value=(TEST_USER_INFO, "verification_token_abc"))
+    svc.register_user = AsyncMock(return_value=RegistrationOutcome.CREATED)
     svc.verify_email = AsyncMock(return_value=TEST_USER_INFO)
     svc.request_password_reset = AsyncMock(return_value=(TEST_USER_INFO, "reset_token_abc"))
     svc.reset_password_with_token = AsyncMock(return_value=TEST_USER_INFO)
@@ -316,6 +341,8 @@ async def client_for_unit_testing(mock_route_service: MagicMock) -> AsyncGenerat
             publish_generation=AsyncMock(return_value=None),
             is_revoked=AsyncMock(return_value=False),
         ),
+        human_check=DummyTokenHumanCheck(),
+        email_policy=TEST_EMAIL_POLICY,
     )
     ResourceManager.attach(app, test_resources)
 
@@ -351,6 +378,21 @@ async def get_outbox_event(
             return event.payload if event else None
 
     yield _query
+
+
+@pytest.fixture
+async def count_outbox_events(
+    test_database_session_manager: TestDatabaseSessionManager,
+) -> AsyncGenerator[Callable[[str], Awaitable[int]], Any]:
+    """Return a helper counting the outbox events of one type."""
+    async def _count(event_type: str) -> int:
+        async with test_database_session_manager.transaction() as session:
+            result = await session.execute(
+                select(func.count()).select_from(OutboxEvent).where(OutboxEvent.event_type == event_type)
+            )
+            return result.scalar_one()
+
+    yield _count
 
 
 # ---------------------------------------------------------------------------
@@ -429,6 +471,13 @@ async def integration_client(
     async def _redis_expire(key, ttl):
         return key in _redis_store
 
+    async def _redis_set(key, value, nx=False, ex=None):
+        """SET with NX: refused (None) while the key exists, as Redis answers."""
+        if nx and key in _redis_store:
+            return None
+        _redis_store[key] = value
+        return True
+
     class _FakePipeline:
         """Buffers commands and applies them on execute(), like redis-py.
 
@@ -473,6 +522,7 @@ async def integration_client(
     _mock_redis.srem     = _redis_srem
     _mock_redis.smembers = _redis_smembers
     _mock_redis.expire   = _redis_expire
+    _mock_redis.set      = _redis_set
     _mock_redis.pipeline = MagicMock(side_effect=_FakePipeline)
 
     _mock_redis_manager = MagicMock()
@@ -516,6 +566,8 @@ async def integration_client(
             publish_generation=AsyncMock(return_value=None),
             is_revoked=AsyncMock(return_value=False),
         ),
+        human_check=DummyTokenHumanCheck(),
+        email_policy=TEST_EMAIL_POLICY,
     ))
 
     # The /users endpoints sit behind role checks. Override only the

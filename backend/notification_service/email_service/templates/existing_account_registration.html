@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Someone tried to create an account with your email</title>
+</head>
+<body>
+    <h1>You already have an account</h1>
+    <p>Someone just tried to create a {{ app_name }} account with {{ email }}, which already has one.</p>
+    <p>If that was you, sign in instead. If you have forgotten your password, you can reset it.</p>
+    <a href="{{ login_url }}" style="display: inline-block; background-color: #007BFF; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px;">
+        Sign in
+    </a>
+    <p><a href="{{ forgot_password_url }}">Reset your password</a></p>
+    <p>If it was not you, you can ignore this email: nothing was changed, and no one can use your account without your password.</p>
+    <p>Best regards,</p>
+    <p>The Team</p>
+</body>
+</html>

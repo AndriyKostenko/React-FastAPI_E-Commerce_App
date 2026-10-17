@@ -42,6 +42,7 @@ dependencies = [
     "cryptography>=45.0",
     "boto3>=1.40.0,<2",
     "pillow==10.2.0",
+    "disposable-email-domains>=0.0.272",
 ]
 
 [tool.pytest.ini_options]

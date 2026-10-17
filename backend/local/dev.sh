@@ -321,6 +321,19 @@ pg_roles_sync() {
   done
 }
 
+# Locally the storefront shows Cloudflare's test captcha widget, whose token
+# Cloudflare's always-pass test secret accepts; user-service needs a secret
+# to start. Stored once, only when the path has none, so a real secret put
+# there by hand is never replaced. Never use the test secret where real
+# customers sign up: it lets every request through.
+turnstile_test_secret_sync() {
+  local path="secret/$VAULT_PREFIX/user-service"
+  if [ -z "$(vault_op kv get -field=TURNSTILE_SECRET_KEY "$path" 2>/dev/null || true)" ]; then
+    printf '%s' "1x0000000000000000000000000000000AA" | vault_op kv patch "$path" TURNSTILE_SECRET_KEY=- >/dev/null
+    say "user-service: Cloudflare Turnstile test secret stored in Vault"
+  fi
+}
+
 # Once: the superuser's password leaves shared-infra, which every service may
 # read, for postgres-admin, which only the root token reads. Services no
 # longer need it: each connects with its own login (pg_roles_sync first).
@@ -666,7 +679,7 @@ cmd_vault() {
 
 cmd_infra() {
   case "${1:-up}" in
-    up)     vault_start; load_infra_secrets; pg_start; pg_roles_sync; vault_move_postgres_admin
+    up)     vault_start; load_infra_secrets; pg_start; pg_roles_sync; vault_move_postgres_admin; turnstile_test_secret_sync
             redis_start; rabbit_start; seaweed_start ;;
     down)   if vault_running && [ -f "$VAULT_INIT_FILE" ]; then load_infra_secrets; fi
             seaweed_stop; rabbit_stop; redis_stop; pg_stop; vault_stop ;;

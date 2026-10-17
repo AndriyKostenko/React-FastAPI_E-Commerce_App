@@ -13,6 +13,10 @@ import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
+// The token Cloudflare's test widget issues. Locally user-service holds the
+// always-pass test secret (dev.sh), so it is accepted; a real secret refuses it.
+const CAPTCHA_TOKEN = "XXXX.DUMMY.TOKEN.XXXX";
+
 const here = path.dirname(fileURLToPath(import.meta.url));
 const SOCKET_DIR = process.env.LOCAL_PG_SOCKET_DIR
     ?? path.resolve(here, "../../backend/local/run");
@@ -36,12 +40,11 @@ const register = async ({ name, email, password }) => {
     const response = await fetch(`${USER_SERVICE}/api/v1/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, password }),
+        body: JSON.stringify({ name, email, password, captcha_token: CAPTCHA_TOKEN }),
     });
-    if (response.status === 201) {
-        console.log(`registered ${email}`);
-    } else if (response.status === 409 || response.status === 400) {
-        console.log(`${email} already exists`);
+    // 202 either way: registration never says whether the email was taken.
+    if (response.status === 202) {
+        console.log(`registered ${email} (or it already existed)`);
     } else {
         throw new Error(`register ${email} failed with ${response.status}: ${await response.text()}`);
     }

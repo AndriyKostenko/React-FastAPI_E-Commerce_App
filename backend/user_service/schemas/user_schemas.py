@@ -29,6 +29,9 @@ class UserSignUp(BaseModel):
     name: str = Field(..., min_length=2, max_length=50, description="User's name")
     email: EmailStr = Field(..., description="User's email")
     password: str = Field(..., min_length=8, max_length=100,description="User's password")
+    # The Turnstile widget's token; checked, never stored. Optional here so a
+    # missing one is answered "complete the verification", not "field required".
+    captcha_token: str | None = Field(default=None, max_length=2048, description="Turnstile token")
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -121,6 +124,11 @@ class EmailVerificationResponse(BaseModel):
     email: str
     verified: bool
 
+class RegistrationAccepted(BaseModel):
+    """The one answer to every registration, whether or not the email had an account."""
+    detail: str
+
+
 class ActivationRequest(BaseModel):
     token: str = Field(..., min_length=32, max_length=512)
 
@@ -137,6 +145,7 @@ class EmailSchema(BaseModel):
 
 class ForgotPasswordRequest(BaseModel):
     email: EmailStr
+    captcha_token: str | None = Field(default=None, max_length=2048, description="Turnstile token")
 
     @field_validator("email")
     @classmethod

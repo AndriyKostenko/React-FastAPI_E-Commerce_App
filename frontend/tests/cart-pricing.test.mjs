@@ -19,6 +19,10 @@
 import { describe, it, before } from "node:test";
 import assert from "node:assert/strict";
 
+// The token Cloudflare's test widget issues. Locally user-service holds the
+// always-pass test secret (dev.sh), so it is accepted; a real secret refuses it.
+const CAPTCHA_TOKEN = "XXXX.DUMMY.TOKEN.XXXX";
+
 const FRONTEND = process.env.FRONTEND_URL ?? "http://localhost:30000";
 const GATEWAY = `${process.env.GATEWAY_URL ?? "http://127.0.0.1:8000"}/api/v1`;
 const ACCOUNT = {
@@ -122,7 +126,7 @@ const signIn = async ({ email, password }) => {
         method: "POST",
         redirect: "manual",
         headers: { "Content-Type": "application/x-www-form-urlencoded", Cookie: cookies },
-        body: new URLSearchParams({ csrfToken, email, password, json: "true" }),
+        body: new URLSearchParams({ csrfToken, email, password, captchaToken: CAPTCHA_TOKEN, json: "true" }),
     });
     cookies = cookieHeader(response, cookies);
     assert.equal(

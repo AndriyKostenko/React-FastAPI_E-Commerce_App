@@ -1,5 +1,6 @@
 from typing import Any
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.user_models import User
@@ -32,6 +33,25 @@ class UserRepository(AdvancedQueryMixin[User], BaseRepository[User]):
             select(User).where(getattr(User, field_name) == value, User.deleted_at.is_(None))
         )
         return result.scalar_one_or_none()
+
+    async def add_unless_email_taken(self, user: User) -> User | None:
+        """
+        Insert a new user, or return None when the email already has a row.
+
+        The insert runs in a savepoint: a duplicate email rolls back only the
+        savepoint, so the request's transaction stays usable for whatever the
+        caller does instead. The unique index decides, not a lookup first, so
+        two registrations racing for one email cannot both get through.
+        Soft-deleted rows keep their email too, and count as taken.
+        """
+        try:
+            async with self.session.begin_nested():
+                self.session.add(user)
+                await self.session.flush()
+        except IntegrityError:
+            return None
+        await self.session.refresh(user)
+        return user
 
     async def search(self,
                     filters: dict[str, Any],

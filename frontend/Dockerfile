@@ -18,12 +18,14 @@ WORKDIR /app
 # NEXT_PUBLIC_* values are inlined into the JavaScript bundle at build time,
 # so they are build arguments, not runtime environment. The publishable Stripe
 # key has no default: the build fails (lib/config.ts validates it) rather than
-# shipping a bundle without a payment key.
+# shipping a bundle without a payment key. The same goes for the Turnstile site
+# key: a production bundle without one would refuse every sign-in.
 ARG NEXT_PUBLIC_APP_URL=http://localhost:30000
 ARG NEXT_PUBLIC_API_ORIGIN
 ARG NEXT_PUBLIC_API_VERSION=v1
 ARG NEXT_PUBLIC_STRIPE_TEST_PUBLISHABLE_KEY
 ARG NEXT_PUBLIC_STRIPE_PROD_PUBLISHABLE_KEY
+ARG NEXT_PUBLIC_TURNSTILE_SITE_KEY
 ARG CATALOGUE_IMAGE_HOST
 
 ENV NEXT_TELEMETRY_DISABLED=1

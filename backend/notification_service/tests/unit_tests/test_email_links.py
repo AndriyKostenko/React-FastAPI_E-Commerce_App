@@ -16,6 +16,7 @@ from contracts.events import (
     OrderDeliveredBaseEvent,
     PasswordResetRequestedEvent,
     PasswordResetSuccessEvent,
+    ExistingAccountRegistrationEvent,
     UserRegisteredEvent,
 )
 from email_service.email_links import EmailLinks
@@ -29,6 +30,7 @@ FRONTEND_ROUTES = (
     re.compile(r"/activate"),
     re.compile(r"/password-reset"),
     re.compile(r"/login"),
+    re.compile(r"/forgot-password"),
     re.compile(r"/order/[0-9a-f-]{36}"),
 )
 
@@ -84,8 +86,10 @@ def test_order_links_use_the_singular_frontend_route() -> None:
          f"{FRONTEND}/login"),
         ("send_password_reset_success_email", PasswordResetSuccessEvent(user_email="a@example.com"),
          f"{FRONTEND}/login"),
+        ("send_existing_account_notice", ExistingAccountRegistrationEvent(user_email="a@example.com"),
+         f"{FRONTEND}/forgot-password"),
     ],
-    ids=["verification", "password-reset", "email-verified", "reset-done"],
+    ids=["verification", "password-reset", "email-verified", "reset-done", "existing-account"],
 )
 async def test_account_emails_link_to_frontend_pages(settings, send: str, event, expected: str) -> None:
     service = UserRelatedNotifications(settings, getLogger("t"))

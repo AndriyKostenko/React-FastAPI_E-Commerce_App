@@ -5,36 +5,35 @@ All external dependencies (repository, password manager, token manager,
 Redis) are mocked so every test runs without a live database or cache.
 Tests are grouped by service method using classes for readability.
 """
-from datetime import datetime
 import hashlib
+from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
 from fastapi import HTTPException
-from sqlalchemy.exc import IntegrityError
 
+# What TokenManager.decode_token returns.
+from contracts.auth import TokenClaims
+from contracts.event_enums import UserEvents
 from exceptions.user_exceptions import (
-    UserAlreadyExistsError,
     UserNotFoundError,
     UserUpdateError,
 )
 from schemas.user_schemas import (
     UserBasicUpdate,
-    UserSignUp,
     UsersFilterParams,
+    UserSignUp,
 )
-# What TokenManager.decode_token returns.
-from contracts.auth import TokenClaims
-
+from service_layer.user_service import RegistrationOutcome
 
 # ---------------------------------------------------------------------------
-# create_user
+# register_user
 # ---------------------------------------------------------------------------
 
 
-class TestCreateUser:
-    async def test_creates_user_and_returns_verification_token(
+class TestRegisterUser:
+    async def test_a_new_account_gets_a_verification_link(
         self,
         user_service,
         mock_repository: MagicMock,
@@ -42,55 +41,125 @@ class TestCreateUser:
         mock_redis: AsyncMock,
         mock_outbox_event_service: MagicMock,
     ) -> None:
-        mock_repository.create.return_value = mock_user_orm
+        mock_repository.add_unless_email_taken.return_value = mock_user_orm
 
         data = UserSignUp(name="Test User", email="test@example.com", password="password123")
         with patch("service_layer.user_service.secrets.token_urlsafe", return_value="verify_tok"):
-            user_info, token = await user_service.create_user(data)
+            outcome = await user_service.register_user(data)
 
-        assert user_info.email == "test@example.com"
-        assert token == "verify_tok"
-        token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+        assert outcome is RegistrationOutcome.CREATED
+        token_hash = hashlib.sha256(b"verify_tok").hexdigest()
         mock_redis.setex.assert_awaited_once_with(
             f"verify_email:{token_hash}",
             user_service.settings.VERIFICATION_TOKEN_EXPIRY_MINUTES * 60,
             str(mock_user_orm.id),
         )
+        # The unique index decides, not a lookup first.
         mock_repository.get_by_field.assert_not_awaited()
-        mock_repository.create.assert_awaited_once()
-        mock_outbox_event_service.add_outbox_event.assert_awaited_once()
+        event_type = mock_outbox_event_service.add_outbox_event.await_args.kwargs["event_type"]
+        assert event_type == UserEvents.USER_REGISTERED
 
-    async def test_raises_when_email_already_registered(
-        self,
-        user_service,
-        mock_repository: MagicMock,
-    ) -> None:
-        mock_repository.create.side_effect = IntegrityError(
-            "duplicate email", params={}, orig=Exception("unique constraint")
-        )
-
-        data = UserSignUp(name="Test User", email="test@example.com", password="password123")
-        with pytest.raises(UserAlreadyExistsError):
-            await user_service.create_user(data)
-
-        mock_repository.get_by_field.assert_not_awaited()
-
-    async def test_hashes_plain_password_before_saving(
+    async def test_hashes_the_password_whichever_way_it_goes(
         self,
         user_service,
         mock_repository: MagicMock,
         mock_user_orm: MagicMock,
         mock_password_manager: MagicMock,
-        mock_outbox_event_service: MagicMock,
     ) -> None:
-        mock_repository.get_by_field.return_value = None
-        mock_repository.create.return_value = mock_user_orm
+        # Taken: the hash is still computed, so timing does not tell the two apart.
+        mock_repository.add_unless_email_taken.return_value = None
+        mock_user_orm.is_active, mock_user_orm.is_verified = True, True
+        mock_repository.get_by_field.return_value = mock_user_orm
 
-        data = UserSignUp(name="Test User", email="test@example.com", password="plain_pw")
-        await user_service.create_user(data)
+        await user_service.register_user(UserSignUp(name="Test User", email="test@example.com", password="plain_pw"))
 
         mock_password_manager.hash_password.assert_called_once_with("plain_pw")
-        mock_outbox_event_service.add_outbox_event.assert_awaited_once()
+
+    async def test_a_verified_owner_is_told_instead(
+        self,
+        user_service,
+        mock_repository: MagicMock,
+        mock_user_orm: MagicMock,
+        mock_redis: AsyncMock,
+        mock_outbox_event_service: MagicMock,
+    ) -> None:
+        mock_repository.add_unless_email_taken.return_value = None
+        mock_user_orm.is_active, mock_user_orm.is_verified = True, True
+        mock_repository.get_by_field.return_value = mock_user_orm
+        mock_redis.set.return_value = True
+
+        outcome = await user_service.register_user(
+            UserSignUp(name="Test User", email="test@example.com", password="password123")
+        )
+
+        assert outcome is RegistrationOutcome.NOTIFIED_OWNER
+        email_hash = hashlib.sha256(b"test@example.com").hexdigest()
+        mock_redis.set.assert_awaited_once_with(
+            f"signup_notice:{email_hash}", "1", nx=True,
+            ex=user_service.settings.SIGNUP_NOTICE_INTERVAL_MINUTES * 60,
+        )
+        event_type = mock_outbox_event_service.add_outbox_event.await_args.kwargs["event_type"]
+        assert event_type == UserEvents.USER_REGISTRATION_EXISTING
+
+    async def test_an_unverified_account_gets_a_fresh_link(
+        self,
+        user_service,
+        mock_repository: MagicMock,
+        mock_user_orm: MagicMock,
+        mock_redis: AsyncMock,
+        mock_outbox_event_service: MagicMock,
+    ) -> None:
+        mock_repository.add_unless_email_taken.return_value = None
+        mock_user_orm.is_active, mock_user_orm.is_verified = True, False
+        mock_repository.get_by_field.return_value = mock_user_orm
+        mock_redis.set.return_value = True
+
+        outcome = await user_service.register_user(
+            UserSignUp(name="Test User", email="test@example.com", password="password123")
+        )
+
+        assert outcome is RegistrationOutcome.RESENT_VERIFICATION
+        event_type = mock_outbox_event_service.add_outbox_event.await_args.kwargs["event_type"]
+        assert event_type == UserEvents.USER_REGISTERED
+
+    async def test_nothing_is_sent_twice_within_the_interval(
+        self,
+        user_service,
+        mock_repository: MagicMock,
+        mock_user_orm: MagicMock,
+        mock_redis: AsyncMock,
+        mock_outbox_event_service: MagicMock,
+    ) -> None:
+        mock_repository.add_unless_email_taken.return_value = None
+        mock_user_orm.is_active, mock_user_orm.is_verified = True, True
+        mock_repository.get_by_field.return_value = mock_user_orm
+        mock_redis.set.return_value = None  # SET NX refused: a notice went out recently
+
+        outcome = await user_service.register_user(
+            UserSignUp(name="Test User", email="test@example.com", password="password123")
+        )
+
+        assert outcome is RegistrationOutcome.THROTTLED
+        mock_outbox_event_service.add_outbox_event.assert_not_awaited()
+
+    async def test_a_deleted_or_deactivated_account_gets_nothing(
+        self,
+        user_service,
+        mock_repository: MagicMock,
+        mock_user_orm: MagicMock,
+        mock_outbox_event_service: MagicMock,
+    ) -> None:
+        mock_repository.add_unless_email_taken.return_value = None
+        for owner in (None, mock_user_orm):
+            mock_user_orm.is_active = False
+            mock_repository.get_by_field.return_value = owner
+
+            outcome = await user_service.register_user(
+                UserSignUp(name="Test User", email="test@example.com", password="password123")
+            )
+
+            assert outcome is RegistrationOutcome.IGNORED
+        mock_outbox_event_service.add_outbox_event.assert_not_awaited()
 
 
 # ---------------------------------------------------------------------------

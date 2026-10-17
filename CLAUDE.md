@@ -135,6 +135,16 @@ openId from CJ into Vault without printing it; restart supplier-service after.
 Only subscribed products push: the hourly `reconcile_cj_stock_subscriptions`
 task (and `cj-webhook subscribe`) keeps the subscriptions equal to what we sell.
 
+**Sign-up, sign-in and forgot-password carry a Cloudflare Turnstile token**, checked by
+user-service before anything else (`service_layer/human_check.py`). Locally the frontend
+shows Cloudflare's always-pass test widget and `infra up` stores the matching test secret
+in user-service's Vault path, so the forms work offline from Cloudflare's real checks;
+scripts that call `/login`, `/register` or `/forgot-password` directly send the test
+widget's token `XXXX.DUMMY.TOKEN.XXXX` as `captcha_token` (NextAuth: `captchaToken`).
+Registration also refuses throwaway-inbox domains and domains that cannot receive mail
+(`service_layer/email_policy.py`), and answers 202 "check your email" whether or not the
+address already has an account.
+
 A single process by name — `frontend` included:
 
 ```bash

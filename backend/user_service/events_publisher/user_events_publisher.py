@@ -7,6 +7,7 @@ from infrastructure.events.event_publisher import BaseEventPublisher
 from contracts.events import (
     PasswordResetRequestedEvent,
     PasswordResetSuccessEvent,
+    ExistingAccountRegistrationEvent,
     UserLoginEvent,
     UserRegisteredEvent,
     EmailVerificationEvent,
@@ -57,6 +58,11 @@ class UserEventPublisher(BaseEventPublisher):
         event = PasswordResetSuccessEvent(**event_data)
         await self.publish_an_event(event=event, exchange=self.exchange, routing_key=event.event_type)
         self.logger.info(f"Published password.reset.success event for {event.user_email}")
+
+    async def publish_registration_existing(self, event_data: dict[str, Any]):
+        event = ExistingAccountRegistrationEvent(**event_data)
+        await self.publish_an_event(event=event, exchange=self.exchange, routing_key=event.event_type)
+        self.logger.info(f"Published registration.existing event for {event.user_email}")
 
     async def publish_email_verified(self, event_data: dict[str, Any]):
         event = EmailVerificationEvent(**event_data)

@@ -156,6 +156,24 @@ class Settings(BaseSettings):
     # Google OAuth
     GOOGLE_CLIENT_ID: str
 
+    # Cloudflare Turnstile: register, login and forgot-password must carry a
+    # token the storefront's widget issued (service_layer/human_check.py). The
+    # secret is in this service's Vault path; locally dev.sh stores Cloudflare's
+    # always-pass test secret there (it accepts any token, the test widget's
+    # dummy one included). Production needs the site's own secret, which
+    # refuses dummy tokens, and the matching site key in the frontend's
+    # NEXT_PUBLIC_TURNSTILE_SITE_KEY.
+    TURNSTILE_SECRET_KEY: SecretStr | None = None
+
+    # New accounts: refuse throwaway-inbox domains and, with the check on,
+    # domains that cannot receive mail (a DNS lookup, at most this many seconds).
+    EMAIL_DELIVERABILITY_CHECK: bool = True
+    EMAIL_DNS_TIMEOUT_SECONDS: float = Field(default=3.0, gt=0, le=10)
+    # A registration for an email that already has an account mails that
+    # account (a fresh verification link, or "someone tried to sign up") at
+    # most once in this many minutes, so the form cannot be used to flood it.
+    SIGNUP_NOTICE_INTERVAL_MINUTES: int = Field(default=60, ge=1)
+
     # Admin passkeys (WebAuthn), checked by user-service. Admin accounts sign
     # in only with a passkey, and only on the admin panel's own origin: a
     # passkey is bound to WEBAUTHN_RP_ID (a host name, ports ignored) and every
@@ -219,6 +237,10 @@ class Settings(BaseSettings):
         return self._reveal(self.USER_TOKEN_PUBLIC_KEY, "USER_TOKEN_PUBLIC_KEY")
 
     @property
+    def TURNSTILE_SECRET(self) -> str:
+        return self._reveal(self.TURNSTILE_SECRET_KEY, "TURNSTILE_SECRET_KEY")
+
+    @property
     def GATEWAY_ASSERTION_VERIFYING_KEY_PEM(self) -> str:
         return self._reveal(
             self.GATEWAY_ASSERTION_PUBLIC_KEY, "GATEWAY_ASSERTION_PUBLIC_KEY"
@@ -273,15 +295,21 @@ class TestSettings(BaseSettings):
     TEST_PASSWORD: str = "Password123!"
     TEST_HASHED_PW: str = "$2b$12$fakehashfortesting000000000000000000"
 
+    # ── Human check ──────────────────────────────────────────────────────────
+    # The token Cloudflare's test widget issues; production secrets refuse it.
+    CAPTCHA_TOKEN: str = "XXXX.DUMMY.TOKEN.XXXX"
+
     # ── Auth request payload helpers ─────────────────────────────────────────
     REGISTER_PAYLOAD: dict[str, str] = {
         "name": "Test User",
         "email": "test@example.com",
         "password": "Password123!",
+        "captcha_token": "XXXX.DUMMY.TOKEN.XXXX",
     }
     LOGIN_DATA: dict[str, str] = {
         "username": "test@example.com",
         "password": "secret123",
+        "captcha_token": "XXXX.DUMMY.TOKEN.XXXX",
     }
 
 

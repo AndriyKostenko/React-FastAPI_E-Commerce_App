@@ -10,6 +10,7 @@ import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
 import { settings } from "@/lib/config";
 import { ApiError } from "@/lib/api-error";
+import { useHumanCheck } from "@/hooks/useHumanCheck";
 import { MdAutoAwesome, MdVisibility, MdVisibilityOff } from "react-icons/md";
 
 // Backend field names that have an input of the same id on this form.
@@ -30,6 +31,7 @@ const RegisterForm:React.FC<LoginFormProps> = ({currentUser}) => {
     });
 
     const router = useRouter();
+    const humanCheck = useHumanCheck("register");
 
     useEffect(() => {
         if (currentUser) {
@@ -47,12 +49,14 @@ const RegisterForm:React.FC<LoginFormProps> = ({currentUser}) => {
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify(data)
+                body: JSON.stringify({ ...data, captcha_token: humanCheck.token }),
             });
 
             if (!response.ok) throw await ApiError.fromResponse(response, 'Registration failed. Please try again.');
 
-            toast.success('Registration successful! Please check your email to verify your account before logging in.');
+            // The same answer whether or not the email already had an account:
+            // the backend never says, and emails the address either way.
+            toast.success('Check your email to finish creating your account.');
             router.push('/login');
         } catch (error) {
             const apiError = ApiError.from(error, 'Registration failed. Please try again.');
@@ -66,6 +70,8 @@ const RegisterForm:React.FC<LoginFormProps> = ({currentUser}) => {
             console.error('registration failed', apiError.status, apiError.message);
         } finally {
             setIsLoading(false);
+            // A token is spent by the request, whatever its answer.
+            humanCheck.reset();
         }
     };
 
@@ -159,10 +165,12 @@ const RegisterForm:React.FC<LoginFormProps> = ({currentUser}) => {
                 </button>
             </div>
 
+            {humanCheck.widget}
+
             {/* CTA */}
             <Button
                 onClick={handleSubmit(onSubmit)}
-                disabled={isLoading}
+                disabled={isLoading || !humanCheck.token}
                 variant="keyboard"
                 size="xl"
             >

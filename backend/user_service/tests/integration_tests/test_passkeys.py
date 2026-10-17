@@ -197,7 +197,8 @@ async def test_enrolment_answer_needs_the_link_it_was_started_with(
 
 async def test_admin_password_login_is_refused(integration_client: AsyncClient, enrolled: SoftwareAuthenticator) -> None:
     response = await integration_client.post(
-        f"{API}/login", data={"username": ADMIN_EMAIL, "password": ADMIN_PASSWORD}
+        f"{API}/login",
+        data={"username": ADMIN_EMAIL, "password": ADMIN_PASSWORD, "captcha_token": "XXXX.DUMMY.TOKEN.XXXX"}
     )
     assert response.status_code == 403
     assert "passkey" in response.json()["detail"]
@@ -349,7 +350,8 @@ async def test_shopper_password_login_still_works(
     integration_client: AsyncClient, test_database_session_manager: TestDatabaseSessionManager
 ) -> None:
     await _create_user(test_database_session_manager, USER_EMAIL, USER_PASSWORD, "user")
-    response = await integration_client.post(f"{API}/login", data={"username": USER_EMAIL, "password": USER_PASSWORD})
+    response = await integration_client.post(f"{API}/login", data={"username": USER_EMAIL, "password": USER_PASSWORD,
+                                                                   "captcha_token": "XXXX.DUMMY.TOKEN.XXXX"})
     assert response.status_code == 200, response.text
     claims = SIGNING_KEYS.user_token_verifier().decode(response.json()["access_token"])
     assert claims.amr == [AuthMethod.PASSWORD]

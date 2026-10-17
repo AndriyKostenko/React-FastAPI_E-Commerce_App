@@ -17,10 +17,10 @@ from uuid import uuid4
 from httpx import AsyncClient
 
 from exceptions.user_exceptions import (
-    UserAlreadyExistsError,
     UserAuthenticationError,
     UserNotFoundError,
 )
+from service_layer.user_service import RegistrationOutcome
 from settings import get_test_settings
 
 test_settings = get_test_settings()
@@ -36,18 +36,24 @@ class TestHealthEndpoint:
 
 
 class TestRegisterEndpoint:
-    async def test_register_success(self, client_for_unit_testing: AsyncClient):
+    async def test_register_is_accepted(self, client_for_unit_testing: AsyncClient):
         response = await client_for_unit_testing.post(f"{test_settings.API}/register", json=test_settings.REGISTER_PAYLOAD)
-        assert response.status_code == 201
-        body = response.json()
-        assert body["email"] == "test@example.com"
+        assert response.status_code == 202
+        assert response.json() == {"detail": "Check your email to finish creating your account."}
 
-    async def test_register_duplicate_email_returns_409(self, client_for_unit_testing: AsyncClient, mock_route_service):
-        mock_route_service.create_user = AsyncMock(
-            side_effect=UserAlreadyExistsError("Email already registered")
-        )
-        response = await client_for_unit_testing.post(f"{test_settings.API}/register", json=test_settings.REGISTER_PAYLOAD)
-        assert response.status_code == 409
+    async def test_every_outcome_gets_the_same_answer(self, client_for_unit_testing: AsyncClient, mock_route_service):
+        answers = []
+        for outcome in RegistrationOutcome:
+            mock_route_service.register_user = AsyncMock(return_value=outcome)
+            response = await client_for_unit_testing.post(f"{test_settings.API}/register", json=test_settings.REGISTER_PAYLOAD)
+            answers.append((response.status_code, response.json()))
+        assert len(set(map(str, answers))) == 1
+
+    async def test_register_without_the_verification_is_refused(self, client_for_unit_testing: AsyncClient, mock_route_service):
+        payload = {k: v for k, v in test_settings.REGISTER_PAYLOAD.items() if k != "captcha_token"}
+        response = await client_for_unit_testing.post(f"{test_settings.API}/register", json=payload)
+        assert response.status_code == 400
+        mock_route_service.register_user.assert_not_awaited()
 
     async def test_register_invalid_payload_returns_422(self, client_for_unit_testing: AsyncClient):
         response = await client_for_unit_testing.post(f"{test_settings.API}/register", json={"name": "x"})
@@ -88,7 +94,7 @@ class TestVerifyEmailEndpoint:
 class TestForgotPasswordEndpoint:
     async def test_forgot_password_success(self, client_for_unit_testing: AsyncClient):
         response = await client_for_unit_testing.post(
-            f"{test_settings.API}/forgot-password", json={"email": "test@example.com"}
+            f"{test_settings.API}/forgot-password", json={"email": "test@example.com", "captcha_token": test_settings.CAPTCHA_TOKEN}
         )
 
         assert response.status_code == 200
@@ -98,7 +104,7 @@ class TestForgotPasswordEndpoint:
     async def test_forgot_password_unknown_email_returns_generic_200(self, client_for_unit_testing: AsyncClient, mock_route_service):
         mock_route_service.request_password_reset = AsyncMock(return_value=(None, ""))
         response = await client_for_unit_testing.post(
-            f"{test_settings.API}/forgot-password", json={"email": "nobody@example.com"}
+            f"{test_settings.API}/forgot-password", json={"email": "nobody@example.com", "captcha_token": test_settings.CAPTCHA_TOKEN}
         )
         assert response.status_code == 200
         assert response.json()["detail"] == "If that email exists, a password reset email has been sent."
