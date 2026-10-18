@@ -1,6 +1,7 @@
 """Tests for the sliding-window rate limiter against an in-memory Redis double."""
 
 from logging import getLogger
+from typing import TYPE_CHECKING
 from unittest.mock import patch
 
 import pytest
@@ -8,6 +9,10 @@ from starlette.requests import Request
 
 from infrastructure.exceptions.base_exceptions import RateLimitExceededError
 from infrastructure.managers.ratelimit_manager import RateLimitManager
+
+# Only for the annotation: the test imports the middleware where it builds it.
+if TYPE_CHECKING:
+    from middleware.cache_middleware import GatewayRequestMiddleware
 
 
 TRUSTED = ["172.16.0.0/12"]
