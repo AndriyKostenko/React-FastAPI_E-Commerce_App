@@ -307,6 +307,8 @@ class OrderRelatedNotifications(EmailService):
                 "return_address": event.return_address,
                 "fault": event.fault,
                 "admin_note": event.admin_note,
+                "order_url": self.links.order(event.order_id),
+                "user_email": event.user_email,
                 "app_name": self.settings.MAIL_FROM_NAME,
             },
         )

@@ -1,31 +1,106 @@
 <!DOCTYPE html>
-<html>
-  <body style="font-family: Arial, sans-serif; color: #222; line-height: 1.6;">
-    <h2>Your return is approved</h2>
-    <p>We have approved your return for order <strong>{{ order_id }}</strong>:</p>
-    <ul>
-      {% for line in lines %}
-      <li>{{ line.quantity }} x {{ line.product_name }}</li>
-      {% endfor %}
-    </ul>
-    {% if kept_lines %}
-    <p>You don't need to send back:
-      {% for line in kept_lines %}{{ line.product_name }}{% if not loop.last %}, {% endif %}{% endfor %}.
-      Its refund is on its way to your original payment method.</p>
-    {% endif %}
-    {% if returned_lines %}
-    <p>Please post back:
-      {% for line in returned_lines %}{{ line.quantity }} x {{ line.product_name }}{% if not loop.last %}, {% endif %}{% endfor %}.
-      We refund it as soon as the parcel arrives and has been checked.</p>
-    {% if return_address %}
-    <p>Send it to:<br><strong>{{ return_address }}</strong></p>
-    {% else %}
-    <p>Our support team will email you the return address.</p>
-    {% endif %}
-    <p>Please include your order number in the parcel.
-      {% if fault == "customer" %}Return postage is at your cost.{% else %}Keep the postage receipt: we refund it.{% endif %}</p>
-    {% endif %}
-    {% if admin_note %}<p>Note from our team: {{ admin_note }}</p>{% endif %}
-    <p>{{ app_name }}</p>
-  </body>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Your return is approved</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        .container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+        }
+        .content {
+            color: #666;
+            font-size: 16px;
+        }
+        .panel {
+            background-color: #f8f9fa;
+            border-left: 4px solid #007bff;
+            padding: 12px 16px;
+            margin: 16px 0;
+        }
+        .button {
+            display: inline-block;
+            background-color: #007bff;
+            color: white !important;
+            padding: 12px 30px;
+            text-decoration: none;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 30px;
+            font-size: 14px;
+            color: #999;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Your return is approved ✅</h1>
+        </div>
+
+        <div class="content">
+            <p>We have approved your return for order <strong>{{ order_id }}</strong>:</p>
+            <ul>
+                {% for line in lines %}
+                <li>{{ line.quantity }} x {{ line.product_name }}</li>
+                {% endfor %}
+            </ul>
+
+            {% if kept_lines %}
+            <div class="panel">
+                <p>You don't need to send back:
+                    {% for line in kept_lines %}{{ line.product_name }}{% if not loop.last %}, {% endif %}{% endfor %}.
+                    Its refund is on its way to your original payment method.</p>
+            </div>
+            {% endif %}
+
+            {% if returned_lines %}
+            <div class="panel">
+                <p>Please post back:
+                    {% for line in returned_lines %}{{ line.quantity }} x {{ line.product_name }}{% if not loop.last %}, {% endif %}{% endfor %}.
+                    We refund it as soon as the parcel arrives and has been checked.</p>
+                {% if return_address %}
+                <p>Send it to:<br><strong>{{ return_address }}</strong></p>
+                {% else %}
+                <p>Our support team will email you the return address.</p>
+                {% endif %}
+                <p>Please include your order number in the parcel.
+                    {% if fault == "customer" %}Return postage is at your cost.{% else %}Keep the postage receipt: we refund it.{% endif %}</p>
+            </div>
+            {% endif %}
+
+            {% if admin_note %}<p>Note from our team: <em>{{ admin_note }}</em></p>{% endif %}
+
+            <div style="text-align: center;">
+                <a href="{{ order_url }}" class="button">View your order</a>
+            </div>
+
+            <p>Best regards,<br>The {{ app_name }} Team</p>
+        </div>
+
+        <div class="footer">
+            <p>© {{ app_name }}. All rights reserved.</p>
+            <p>This email was sent to {{ user_email }}</p>
+        </div>
+    </div>
+</body>
 </html>

@@ -97,9 +97,8 @@ async def test_an_approval_says_what_to_keep_and_where_to_post_the_rest() -> Non
     notifications = OrderRelatedNotifications(settings=get_settings(), logger=getLogger("test"))
     notifications.fast_mail.send_message = AsyncMock()
 
-    await notifications.send_return_decision(_event(
-        OrderEvents.RETURN_APPROVED, return_address="Returns, 1 Main St, Calgary AB"
-    ))
+    event = _event(OrderEvents.RETURN_APPROVED, return_address="Returns, 1 Main St, Calgary AB")
+    await notifications.send_return_decision(event)
 
     body = _sent_body(notifications)
     message = notifications.fast_mail.send_message.await_args.args[0]
@@ -108,6 +107,9 @@ async def test_an_approval_says_what_to_keep_and_where_to_post_the_rest() -> Non
     assert "2 x Hoodie" in body and "Returns, 1 Main St, Calgary AB" in body
     # Our fault: the customer's postage is refunded.
     assert "we refund it" in body
+    # The account emails' layout, with a link to the order's page.
+    assert 'class="container"' in body
+    assert f"/order/{event.order_id}" in body
 
 
 async def test_a_change_of_mind_approval_leaves_postage_with_the_customer() -> None:
@@ -128,8 +130,11 @@ async def test_a_rejection_carries_the_reason() -> None:
     notifications = OrderRelatedNotifications(settings=get_settings(), logger=getLogger("test"))
     notifications.fast_mail.send_message = AsyncMock()
 
-    await notifications.send_return_decision(_event(OrderEvents.RETURN_REJECTED, admin_note="Worn and washed"))
+    event = _event(OrderEvents.RETURN_REJECTED, admin_note="Worn and washed")
+    await notifications.send_return_decision(event)
 
     message = notifications.fast_mail.send_message.await_args.args[0]
+    body = _sent_body(notifications)
     assert "not accepted" in message.subject
-    assert "Worn and washed" in _sent_body(notifications)
+    assert "Worn and washed" in body
+    assert f"/order/{event.order_id}" in body

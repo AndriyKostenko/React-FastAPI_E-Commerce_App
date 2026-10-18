@@ -1,21 +1,85 @@
 <!DOCTYPE html>
-<html>
-  <body style="font-family: Arial, sans-serif; color: #222;">
-    <h2>Return requested - order {{ order_id }}</h2>
-    <p>{{ customer_email }} asked to return:</p>
-    <ul>
-      {% for line in lines %}
-      <li>{{ line.quantity }} x {{ line.product_name }}{% if not line.ships_back %} (no need to send back){% endif %}</li>
-      {% endfor %}
-    </ul>
-    <ul>
-      <li>Reason: {{ reason }} ({{ fault }})</li>
-      <li>Photos attached: {{ photo_count }}</li>
-      <li>Return: {{ return_id }}</li>
-    </ul>
-    <p>Customer's description:</p>
-    <blockquote>{{ description }}</blockquote>
-    <p>Approve or reject it in the returns queue (/admin/returns).</p>
-    <p>{{ app_name }}</p>
-  </body>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Return requested</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        .container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+        }
+        .content {
+            color: #666;
+            font-size: 16px;
+        }
+        .details {
+            background-color: #f8f9fa;
+            padding: 12px 16px;
+            margin: 16px 0;
+        }
+        blockquote {
+            border-left: 4px solid #ffc107;
+            margin: 8px 0 16px;
+            padding: 8px 16px;
+            color: #333;
+            white-space: pre-wrap;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 30px;
+            font-size: 14px;
+            color: #999;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Return requested 📦</h1>
+            <p>Order <strong>{{ order_id }}</strong></p>
+        </div>
+
+        <div class="content">
+            <p><strong>{{ customer_email }}</strong> asked to return:</p>
+            <ul>
+                {% for line in lines %}
+                <li>{{ line.quantity }} x {{ line.product_name }}{% if not line.ships_back %} (no need to send back){% endif %}</li>
+                {% endfor %}
+            </ul>
+
+            <div class="details">
+                <ul>
+                    <li>Reason: {{ reason }} ({{ fault }})</li>
+                    <li>Photos attached: {{ photo_count }}</li>
+                    <li>Return: {{ return_id }}</li>
+                </ul>
+            </div>
+
+            <p>Customer's description:</p>
+            <blockquote>{{ description }}</blockquote>
+
+            <p>Approve or reject it in AdminJS, under Returns.</p>
+        </div>
+
+        <div class="footer">
+            <p>{{ app_name }} operations alert</p>
+        </div>
+    </div>
+</body>
 </html>
