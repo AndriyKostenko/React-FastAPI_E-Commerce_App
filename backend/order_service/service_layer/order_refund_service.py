@@ -14,8 +14,9 @@ from models.order_models import Order
 from models.order_refund_models import OrderRefund
 from schemas.order_refund_schemas import OrderRefundSchema, RefundLineRequest, RefundRequest
 from service_layer.outbox_event_service import OutboxEventService
-from contracts.events import PaymentRefundRequested
-from contracts.event_enums import PaymentCommands
+from contracts.events import OrderReturnRefundedEvent, PaymentRefundRequested
+from contracts.event_enums import OrderEvents, PaymentCommands
+from contracts.returns import RefundedLineSummary
 from contracts.services_enums import Services
 from enums.status_enums import OrderStatus
 from utils.money import CENT, to_cents
@@ -119,6 +120,39 @@ class OrderRefundService:
         refund.failure_reason = None if succeeded else (failure_reason or "")[:500]
         refund.settled_at = datetime.now(UTC)
         await self._refunds.update(refund)
+        if succeeded and refund.return_request_id is not None:
+            await self._announce_return_refund(refund)
+
+    async def _announce_return_refund(self, refund: OrderRefund) -> None:
+        """
+        A return's money is on its way back: tell the customer (notification-
+        service emails it). Written to the outbox in the same transaction as
+        the result, so the email goes out exactly when the refund is recorded.
+        """
+        order = await self._orders.get_with_fulfillment(refund.order_id)
+        if order is None:
+            return
+        names = {item.id: item.fulfillment.product_name for item in order.items}
+        await self._outbox.add_outbox_event(
+            event_type=OrderEvents.RETURN_REFUNDED,
+            payload=OrderReturnRefundedEvent(
+                order_id=order.id,
+                user_id=order.user_id,
+                user_email=order.user_email,
+                return_id=refund.return_request_id,
+                refund_id=refund.id,
+                amount=refund.amount,
+                includes_shipping=refund.includes_shipping,
+                lines=[
+                    RefundedLineSummary(
+                        product_name=names.get(UUID(str(line["order_item_id"])), "item"),
+                        quantity=int(line["quantity"]),
+                        amount=Decimal(str(line["amount"])),
+                    )
+                    for line in refund.lines
+                ],
+            ),
+        )
 
     async def list_for_order(self, order_id: UUID) -> list[OrderRefundSchema]:
         return [OrderRefundSchema.model_validate(r) for r in await self._refunds.list_for_order(order_id)]

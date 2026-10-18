@@ -37,6 +37,7 @@ async def route_order_event(
         OrderEvents.RETURN_REQUESTED: publisher.publish_order_return_event,
         OrderEvents.RETURN_APPROVED: publisher.publish_order_return_event,
         OrderEvents.RETURN_REJECTED: publisher.publish_order_return_event,
+        OrderEvents.RETURN_REFUNDED: publisher.publish_order_return_refunded,
     }
     publish = routes.get(event_type)
     if not publish:

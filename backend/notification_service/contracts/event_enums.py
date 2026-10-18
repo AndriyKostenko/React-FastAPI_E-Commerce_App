@@ -43,6 +43,8 @@ class OrderEvents(StrEnum):
     RETURN_REQUESTED = "order.return.requested"
     RETURN_APPROVED = "order.return.approved"
     RETURN_REJECTED = "order.return.rejected"
+    # A return's refund went through at the card (payment-service confirmed it).
+    RETURN_REFUNDED = "order.return.refunded"
 
 
 class PaymentEvents(StrEnum):

@@ -6,7 +6,7 @@ from enum import StrEnum
 from pydantic import BaseModel, EmailStr, PositiveFloat, PositiveInt, Field, model_validator
 
 from contracts.order import ConfirmedOrderAddress, ConfirmedOrderItem, OrderItem
-from contracts.returns import ReturnFault, ReturnLineSummary, ReturnReason
+from contracts.returns import RefundedLineSummary, ReturnFault, ReturnLineSummary, ReturnReason
 from contracts.services_enums import Services
 from contracts.event_enums import OrderEvents, PaymentEvents, ProductionEvents, UserEvents
 
@@ -187,6 +187,22 @@ class OrderReturnEvent(OrderBaseEvent):
     @property
     def ships_back(self) -> bool:
         return any(line.ships_back for line in self.lines)
+
+
+class OrderReturnRefundedEvent(OrderBaseEvent):
+    """
+    The refund for a customer return went through: payment-service confirmed
+    it to order-service, which tells the customer (notification-service
+    emails it). One event per refund; a return refunded in two steps
+    (returnless lines on approval, the rest on receipt) sends two.
+    """
+    event_type: str = Field(default_factory=lambda: OrderEvents.RETURN_REFUNDED)
+    return_id: UUID
+    refund_id: UUID
+    # What went back: the lines, the shipping when included, and their tax (CAD).
+    amount: Decimal
+    includes_shipping: bool
+    lines: list[RefundedLineSummary]
 
 
 # ============== SHIPPING SAGA EVENTS ==============

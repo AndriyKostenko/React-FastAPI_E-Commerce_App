@@ -8,6 +8,7 @@ from taskiq import AsyncTaskiqDecoratedTask
 from contracts.events import (
     PaymentDisputeEvent,
     OrderReturnEvent,
+    OrderReturnRefundedEvent,
     CJOrderDeliveredEvent,
     CJOrderShippedEvent,
     ProductionJobCancelledEvent,
@@ -31,6 +32,8 @@ from tasks.email_tasks import (
     send_admin_dispute_alert,
     send_admin_return_alert,
     send_return_decision_email,
+    send_return_refunded_email,
+    send_return_requested_email,
     send_verification_email,
     send_email_verified_notification,
     send_login_notification,
@@ -170,9 +173,10 @@ class OrderEventHandler(BaseEventHandler):
         try:
             user_id = self._parse_user_id(message)
             order_id: str | None = message.get("order_id")
-            notification_message: str
+            # None: the event is told in-app elsewhere, so only emails go out.
+            notification_message: str | None
 
-            email_task: EmailTask | None = None
+            email_tasks: list[EmailTask] = []
 
             match event_type:
                 case OrderEvents.ORDER_CREATED:
@@ -180,34 +184,40 @@ class OrderEventHandler(BaseEventHandler):
                     await self._mark_processed(event_id=event_id, event_type=event_type, order_id=order_id, result="skipped")
                     return
                 case OrderEvents.ORDER_CONFIRMED:
-                    email_task = send_order_confirmed_email
+                    email_tasks = [send_order_confirmed_email]
                     notification_message = f"Your order #{order_id} has been confirmed."
                 case OrderEvents.ORDER_CANCELLED:
-                    email_task = send_order_cancelled_email
+                    email_tasks = [send_order_cancelled_email]
                     notification_message = f"Your order #{order_id} has been cancelled."
                 case OrderEvents.RETURN_REQUESTED:
                     _ = OrderReturnEvent(**message)
-                    # The customer sees the request in-app; the admin is emailed to decide it.
-                    email_task = send_admin_return_alert
+                    # The customer is told it arrived; the admin is emailed to decide it.
+                    email_tasks = [send_return_requested_email, send_admin_return_alert]
                     notification_message = f"We received your return request for order #{order_id}."
                 case OrderEvents.RETURN_APPROVED:
                     _ = OrderReturnEvent(**message)
-                    email_task = send_return_decision_email
+                    email_tasks = [send_return_decision_email]
                     notification_message = f"Your return for order #{order_id} was approved."
                 case OrderEvents.RETURN_REJECTED:
                     _ = OrderReturnEvent(**message)
-                    email_task = send_return_decision_email
+                    email_tasks = [send_return_decision_email]
                     notification_message = f"Your return for order #{order_id} was not accepted."
+                case OrderEvents.RETURN_REFUNDED:
+                    _ = OrderReturnRefundedEvent(**message)
+                    email_tasks = [send_return_refunded_email]
+                    # The same refund's payment.refunded already says so in-app.
+                    notification_message = None
                 case _:
                     self._logger.warning(f"Unhandled order event type: {event_type}")
                     await self._mark_processed(event_id=event_id, event_type=event_type, order_id=order_id, result="skipped")
                     return
 
-            await self._save_notification(user_id=user_id,message=notification_message,notification_type=event_type)
+            if notification_message is not None:
+                await self._save_notification(user_id=user_id,message=notification_message,notification_type=event_type)
 
             # Enqueued only once the notification is committed: a failed save used to
             # release the claim after the email was already queued, so the retry sent it twice.
-            if email_task is not None:
+            for email_task in email_tasks:
                 await email_task.kiq(message)
             await self._mark_processed(event_id=event_id, event_type=event_type, order_id=order_id)
 

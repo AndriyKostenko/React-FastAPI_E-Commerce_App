@@ -13,6 +13,7 @@ from contracts.events import (
     OrderCancelledEvent,
     OrderConfirmedEvent,
     OrderReturnEvent,
+    OrderReturnRefundedEvent,
     InventoryReserveRequested,
     PaymentCaptureRequested,
     PaymentRefundRequested,
@@ -140,3 +141,9 @@ class OrderEventPublisher(BaseEventPublisher):
         event = OrderReturnEvent(**event_data)
         await self.publish_an_event(event=event, exchange=self.order_exchange, routing_key=event.event_type)
         self.logger.info(f"Published {event.event_type} for return {event.return_id} (order {event.order_id})")
+
+    async def publish_order_return_refunded(self, event_data: dict[str, Any]):
+        """A return's refund went through (notification-service emails the customer)"""
+        event = OrderReturnRefundedEvent(**event_data)
+        await self.publish_an_event(event=event, exchange=self.order_exchange, routing_key=event.event_type)
+        self.logger.info(f"Published {event.event_type} for refund {event.refund_id} of return {event.return_id}")

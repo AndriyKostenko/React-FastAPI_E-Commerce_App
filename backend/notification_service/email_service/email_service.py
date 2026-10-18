@@ -23,9 +23,11 @@ from contracts.events import (
     OrderShippedBaseEvent,
     OrderDeliveredBaseEvent,
     OrderReturnEvent,
+    OrderReturnRefundedEvent,
     ProductionJobCancelledEvent,
 )
 from contracts.event_enums import OrderEvents
+from contracts.returns import ReturnReason
 
 # The email templates ship with this service, next to the code that renders them.
 TEMPLATES_DIR: Path = Path(__file__).parent / "templates"
@@ -290,6 +292,56 @@ class OrderRelatedNotifications(EmailService):
         )
         self.logger.info(f"Sent delivery notification for order: {event.order_id}")
 
+
+    # How each return reason reads to the customer (the storefront's wording).
+    _RETURN_REASON_LABELS: dict[ReturnReason, str] = {
+        ReturnReason.DEFECTIVE: "It is defective",
+        ReturnReason.DAMAGED: "It arrived damaged",
+        ReturnReason.WRONG_ITEM: "I received the wrong item",
+        ReturnReason.MISPRINT: "The print is wrong",
+        ReturnReason.CHANGED_MIND: "I changed my mind",
+        ReturnReason.DOES_NOT_FIT: "It does not fit",
+    }
+
+    async def send_return_requested(self, event: OrderReturnEvent) -> None:
+        """Confirm to the customer that their return request arrived, and what happens next."""
+        await self.send_email_async(
+            recipients=[event.user_email],
+            subject=f"We received your return request for order {event.order_id}",
+            template_name="return_requested.html",
+            template_body={
+                "order_id": str(event.order_id),
+                "lines": [line.model_dump() for line in event.lines],
+                "reason_label": self._RETURN_REASON_LABELS[event.reason],
+                "fault": event.fault,
+                "order_url": self.links.order(event.order_id),
+                "user_email": event.user_email,
+                "app_name": self.settings.MAIL_FROM_NAME,
+            },
+        )
+        self.logger.info(f"Sent return request confirmation for return {event.return_id} of order {event.order_id}")
+
+    async def send_return_refunded(self, event: OrderReturnRefundedEvent) -> None:
+        """A return's refund went through: tell the customer how much is coming back."""
+        await self.send_email_async(
+            recipients=[event.user_email],
+            subject=f"Your refund for order {event.order_id} is on its way",
+            template_name="return_refunded.html",
+            template_body={
+                "order_id": str(event.order_id),
+                # Orders are priced in CAD only (Canada-only selling).
+                "amount": f"{event.amount:.2f}",
+                "lines": [
+                    {"product_name": line.product_name, "quantity": line.quantity, "amount": f"{line.amount:.2f}"}
+                    for line in event.lines
+                ],
+                "includes_shipping": event.includes_shipping,
+                "order_url": self.links.order(event.order_id),
+                "user_email": event.user_email,
+                "app_name": self.settings.MAIL_FROM_NAME,
+            },
+        )
+        self.logger.info(f"Sent refund confirmation for refund {event.refund_id} of return {event.return_id}")
 
     async def send_return_decision(self, event: OrderReturnEvent) -> None:
         """Tell the customer whether their return was approved, and what to do next."""
