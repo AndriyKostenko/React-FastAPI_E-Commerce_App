@@ -680,3 +680,58 @@ async def test_a_failed_return_refund_is_not_announced(
         await _refund_service(session).record_result(refund.id, succeeded=False, failure_reason="card closed")
 
     assert await _events(test_database_session_manager, OrderEvents.RETURN_REFUNDED) == []
+
+
+async def test_nothing_is_refunded_again_after_a_return_refund_went_through(
+    integration_client: AsyncClient,
+    queued_job: dict,
+    test_database_session_manager,  # noqa: F811
+) -> None:
+    """Once a whole line's return is paid out, neither the customer nor an admin can refund it again."""
+    order_id = queued_job["order"]["id"]
+    item_id, quantity = await _line(test_database_session_manager, order_id)
+    await _deliver(test_database_session_manager, order_id)
+    created = (
+        await _ask(
+            integration_client, order_id, [(item_id, quantity)], "defective", [JPEG]
+        )
+    ).json()
+    approved = await integration_client.post(_admin(created["id"], "approve"), json={})
+    assert approved.json()["status"] == "completed"
+    [refund] = await _refunds(test_database_session_manager)
+    async with test_database_session_manager.transaction() as session:
+        await _refund_service(session).record_result(refund.id, succeeded=True)
+
+    eligibility = (
+        await integration_client.get(f"{_returns_url(order_id)}/eligibility", auth=OWNER)
+    ).json()
+    asked_again = await _ask(
+        integration_client, order_id, [(item_id, 1)], "damaged", [JPEG]
+    )
+    approved_again = await integration_client.post(_admin(created["id"], "approve"), json={})
+    received = await integration_client.post(_admin(created["id"], "receive"), json={})
+    admin_refund = await integration_client.post(
+        f"{TEST_API}/admin/orders/{order_id}/refunds",
+        json={
+            "lines": [{"order_item_id": item_id, "quantity": 1}],
+            "include_shipping": True,
+            "reason": "goodwill",
+        },
+    )
+
+    [line] = eligibility["lines"]
+    assert line["returnable_quantity"] == 0
+    assert line["unavailable_reason"] == "every unit has already been returned or refunded"
+    assert asked_again.status_code == 422, asked_again.text
+    assert approved_again.status_code == 409 and received.status_code == 409
+    assert admin_refund.status_code == 422, admin_refund.text
+    # Still the one refund and the one command to payment-service.
+    assert [r.id for r in await _refunds(test_database_session_manager)] == [refund.id]
+    assert (
+        len(
+            await _events(
+                test_database_session_manager, PaymentCommands.REFUND_REQUESTED
+            )
+        )
+        == 1
+    )
