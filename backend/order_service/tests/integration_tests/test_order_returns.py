@@ -10,6 +10,7 @@ the local S3 server's private test bucket under ``dev.sh test``.
 
 import json
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from uuid import UUID, uuid4
 
 import pytest
@@ -19,6 +20,11 @@ from httpx import AsyncClient
 from main import app
 from models.order_refund_models import OrderRefund
 from models.outbox_models import OutboxEvent
+from database_layer.order_refund_repository import OrderRefundRepository
+from database_layer.order_saga_repository import OrderSagaRepository
+from infrastructure.database_layer.outbox_repository import OutboxRepository
+from service_layer.order_refund_service import OrderRefundService
+from service_layer.outbox_event_service import OutboxEventService
 from service_layer.order_fulfillment_status_service import OrderFulfillmentStatusService
 from contracts.event_enums import OrderEvents, PaymentCommands
 from enums.status_enums import LineFulfillmentStatus
@@ -605,3 +611,127 @@ async def test_the_admin_queue_lists_requests_oldest_first(
 
     assert [r["id"] for r in requested.json()] == [created["id"]]
     assert completed.json() == []
+
+
+# ------------------------------------------------------- refund went through
+
+
+def _refund_service(session) -> OrderRefundService:
+    return OrderRefundService(
+        order_repository=OrderRepository(session=session),
+        saga_repository=OrderSagaRepository(session),
+        refund_repository=OrderRefundRepository(session),
+        outbox_event_service=OutboxEventService(OutboxRepository(session=session, model=OutboxEvent)),
+    )
+
+
+async def _approved_returnless_refund(
+    client: AsyncClient, order_id: str, db: TestDatabaseSessionManager
+) -> tuple[dict, OrderRefund]:
+    """A defect approved with nothing to send back: its refund is requested at once."""
+    item_id, _ = await _line(db, order_id)
+    await _deliver(db, order_id)
+    created = (await _ask(client, order_id, [(item_id, 1)], "defective", [JPEG])).json()
+    response = await client.post(_admin(created["id"], "approve"), json={"note": None})
+    assert response.status_code == 200, response.text
+    [refund] = await _refunds(db)
+    return created, refund
+
+
+async def test_a_return_refund_that_went_through_is_announced_to_the_customer(
+    integration_client: AsyncClient,
+    queued_job: dict,
+    test_database_session_manager,  # noqa: F811
+) -> None:
+    order_id = queued_job["order"]["id"]
+    created, refund = await _approved_returnless_refund(
+        integration_client, order_id, test_database_session_manager
+    )
+    # Nothing is announced before payment-service confirms the refund.
+    assert await _events(test_database_session_manager, OrderEvents.RETURN_REFUNDED) == []
+
+    async with test_database_session_manager.transaction() as session:
+        await _refund_service(session).record_result(refund.id, succeeded=True)
+    # A redelivered result changes nothing and announces nothing twice.
+    async with test_database_session_manager.transaction() as session:
+        await _refund_service(session).record_result(refund.id, succeeded=True)
+
+    [event] = await _events(test_database_session_manager, OrderEvents.RETURN_REFUNDED)
+    assert event["return_id"] == created["id"] and event["refund_id"] == str(refund.id)
+    assert event["order_id"] == order_id and event["user_email"]
+    assert Decimal(event["amount"]) == refund.amount
+    assert event["includes_shipping"] is refund.includes_shipping
+    [line] = event["lines"]
+    assert line["quantity"] == 1 and line["product_name"] != "item"
+    assert Decimal(line["amount"]) == Decimal(refund.lines[0]["amount"])
+
+
+async def test_a_failed_return_refund_is_not_announced(
+    integration_client: AsyncClient,
+    queued_job: dict,
+    test_database_session_manager,  # noqa: F811
+) -> None:
+    order_id = queued_job["order"]["id"]
+    _, refund = await _approved_returnless_refund(
+        integration_client, order_id, test_database_session_manager
+    )
+
+    async with test_database_session_manager.transaction() as session:
+        await _refund_service(session).record_result(refund.id, succeeded=False, failure_reason="card closed")
+
+    assert await _events(test_database_session_manager, OrderEvents.RETURN_REFUNDED) == []
+
+
+async def test_nothing_is_refunded_again_after_a_return_refund_went_through(
+    integration_client: AsyncClient,
+    queued_job: dict,
+    test_database_session_manager,  # noqa: F811
+) -> None:
+    """Once a whole line's return is paid out, neither the customer nor an admin can refund it again."""
+    order_id = queued_job["order"]["id"]
+    item_id, quantity = await _line(test_database_session_manager, order_id)
+    await _deliver(test_database_session_manager, order_id)
+    created = (
+        await _ask(
+            integration_client, order_id, [(item_id, quantity)], "defective", [JPEG]
+        )
+    ).json()
+    approved = await integration_client.post(_admin(created["id"], "approve"), json={})
+    assert approved.json()["status"] == "completed"
+    [refund] = await _refunds(test_database_session_manager)
+    async with test_database_session_manager.transaction() as session:
+        await _refund_service(session).record_result(refund.id, succeeded=True)
+
+    eligibility = (
+        await integration_client.get(f"{_returns_url(order_id)}/eligibility", auth=OWNER)
+    ).json()
+    asked_again = await _ask(
+        integration_client, order_id, [(item_id, 1)], "damaged", [JPEG]
+    )
+    approved_again = await integration_client.post(_admin(created["id"], "approve"), json={})
+    received = await integration_client.post(_admin(created["id"], "receive"), json={})
+    admin_refund = await integration_client.post(
+        f"{TEST_API}/admin/orders/{order_id}/refunds",
+        json={
+            "lines": [{"order_item_id": item_id, "quantity": 1}],
+            "include_shipping": True,
+            "reason": "goodwill",
+        },
+    )
+
+    [line] = eligibility["lines"]
+    assert line["returnable_quantity"] == 0
+    assert line["unavailable_reason"] == "every unit has already been returned or refunded"
+    assert asked_again.status_code == 422, asked_again.text
+    assert approved_again.status_code == 409 and received.status_code == 409
+    assert admin_refund.status_code == 422, admin_refund.text
+    # Still the one refund and the one command to payment-service.
+    assert [r.id for r in await _refunds(test_database_session_manager)] == [refund.id]
+    assert (
+        len(
+            await _events(
+                test_database_session_manager, PaymentCommands.REFUND_REQUESTED
+            )
+        )
+        == 1
+    )

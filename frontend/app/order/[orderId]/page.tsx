@@ -1,4 +1,5 @@
 import fetchOrderById from "@/actions/getOrderById";
+import fetchOrderReturns from "@/actions/getOrderReturns";
 import { sessionManagaer } from "@/actions/getCurrentUser";
 import OrderDetails from "./OrderDetails";
 import Container from "@/components/ui/Container";
@@ -25,10 +26,13 @@ const Order = async ({ params }: { params: Promise<IDParameters> }) => {
     return <NullData title="No orders found."></NullData>;
   }
 
+  // Only a paid (confirmed) order can have returns; the others skip the two reads.
+  const returns = order.status === "confirmed" ? await fetchOrderReturns(orderId, currentUserToken) : null;
+
   return (
     <div className="py-4 sm:p-8">
       <Container>
-        <OrderDetails order={order} />
+        <OrderDetails order={order} returns={returns} />
       </Container>
     </div>
   );

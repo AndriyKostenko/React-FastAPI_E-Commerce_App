@@ -5,6 +5,7 @@ from the customer. Fault decides who pays: the seller's fault is refunded in
 full (shipping included) and needs a photo, a change of mind is not.
 """
 
+from decimal import Decimal
 from enum import StrEnum
 
 from pydantic import BaseModel
@@ -48,3 +49,12 @@ class ReturnLineSummary(BaseModel):
     product_name: str
     quantity: int
     ships_back: bool
+
+
+class RefundedLineSummary(BaseModel):
+    """One line a return's refund paid back, as the customer's email lists it."""
+
+    product_name: str
+    quantity: int
+    # The line's price for those units, before tax.
+    amount: Decimal

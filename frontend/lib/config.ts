@@ -85,6 +85,9 @@ class AppSettings {
             orderById: (orderId: string) => string;
             orderDetails: (orderId: string) => string;
             cancelOrder: (orderId: string) => string;
+            returnEligibility: (orderId: string) => string;
+            orderReturns: (orderId: string) => string;
+            cancelReturn: (orderId: string, returnId: string) => string;
             ordersByUserId: (userId: string) => string;
             checkoutQuote: string;
             cartPrices: string;
@@ -154,6 +157,9 @@ class AppSettings {
             orderById:            (orderId: string)   => AppSettings.joinUrl(baseUrl, `orders/${orderId}`),
             orderDetails:         (orderId: string)   => AppSettings.joinUrl(baseUrl, `orders/${orderId}/details`),
             cancelOrder:          (orderId: string)   => AppSettings.joinUrl(baseUrl, `orders/${orderId}/cancel`),
+            returnEligibility:    (orderId: string)   => AppSettings.joinUrl(baseUrl, `orders/${orderId}/returns/eligibility`),
+            orderReturns:         (orderId: string)   => AppSettings.joinUrl(baseUrl, `orders/${orderId}/returns`),
+            cancelReturn:         (orderId: string, returnId: string) => AppSettings.joinUrl(baseUrl, `orders/${orderId}/returns/${returnId}/cancel`),
             ordersByUserId:       (userId: string)    => AppSettings.joinUrl(baseUrl, `orders/user/${userId}`),
             checkoutQuote:        AppSettings.joinUrl(baseUrl, "checkout/quote"),
             cartPrices:           AppSettings.joinUrl(baseUrl, "cart/prices"),

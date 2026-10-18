@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>We received your return request</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        .container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+        }
+        .content {
+            color: #666;
+            font-size: 16px;
+        }
+        .panel {
+            background-color: #f8f9fa;
+            border-left: 4px solid #007bff;
+            padding: 12px 16px;
+            margin: 16px 0;
+        }
+        .button {
+            display: inline-block;
+            background-color: #007bff;
+            color: white !important;
+            padding: 12px 30px;
+            text-decoration: none;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 30px;
+            font-size: 14px;
+            color: #999;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>We received your return request 📦</h1>
+        </div>
+
+        <div class="content">
+            <p>Thanks for letting us know. You asked to return from order <strong>{{ order_id }}</strong>:</p>
+            <ul>
+                {% for line in lines %}
+                <li>{{ line.quantity }} x {{ line.product_name }}</li>
+                {% endfor %}
+            </ul>
+            <p>Reason: <strong>{{ reason_label }}</strong></p>
+
+            <div class="panel">
+                <p>We review every request and email you our decision. Please don't send anything back until then:
+                    if an item has to come back, that email tells you where to post it.</p>
+                {% if fault == "seller" %}
+                <p>If we approve it, you are refunded in full, shipping included.</p>
+                {% else %}
+                <p>If we approve it, the original shipping is not refunded, and sending the items back is at your cost.</p>
+                {% endif %}
+            </div>
+
+            <p>You can follow the request, or withdraw it while it waits for review, on your order's page.</p>
+
+            <div style="text-align: center;">
+                <a href="{{ order_url }}" class="button">View your order</a>
+            </div>
+
+            <p>Best regards,<br>The {{ app_name }} Team</p>
+        </div>
+
+        <div class="footer">
+            <p>© {{ app_name }}. All rights reserved.</p>
+            <p>This email was sent to {{ user_email }}</p>
+        </div>
+    </div>
+</body>
+</html>

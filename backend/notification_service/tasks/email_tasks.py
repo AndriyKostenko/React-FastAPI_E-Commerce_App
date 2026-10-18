@@ -5,6 +5,7 @@ from email_service.email_service import AdminAlerts, OrderRelatedNotifications, 
 from contracts.events import (
     PaymentDisputeEvent,
     OrderReturnEvent,
+    OrderReturnRefundedEvent,
     UserRegisteredEvent,
     EmailVerificationEvent,
     PasswordResetRequestedEvent,
@@ -118,6 +119,20 @@ async def send_production_job_cancelled_email(payload: dict[str, Any]) -> None:
     event = ProductionJobCancelledEvent(**payload)
     await order_notification_email_service.send_production_job_cancelled(event)
     logger.info(f"Production job cancelled email sent to {event.user_email} for order {event.order_id}")
+
+@taskiq_broker.task
+async def send_return_requested_email(payload: dict[str, Any]) -> None:
+    event = OrderReturnEvent(**payload)
+    await order_notification_email_service.send_return_requested(event)
+    logger.info(f"Return request confirmation sent to {event.user_email} for order {event.order_id}")
+
+
+@taskiq_broker.task
+async def send_return_refunded_email(payload: dict[str, Any]) -> None:
+    event = OrderReturnRefundedEvent(**payload)
+    await order_notification_email_service.send_return_refunded(event)
+    logger.info(f"Return refund email sent to {event.user_email} for order {event.order_id}")
+
 
 @taskiq_broker.task
 async def send_return_decision_email(payload: dict[str, Any]) -> None:

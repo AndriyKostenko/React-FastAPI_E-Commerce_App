@@ -2,6 +2,8 @@ import Link from "next/link";
 import { MdCheckCircle, MdLocalShipping, MdOpenInNew, MdRadioButtonUnchecked } from "react-icons/md";
 import Heading from "@/components/ui/Heading";
 import type { OrderDetail, OrderLineView } from "@/types/order";
+import type { OrderReturnsData } from "@/types/returns";
+import OrderReturns from "./OrderReturns";
 import { formatPrice } from "@/utils/formatPrice";
 import { FULFILLMENT_LABEL, LINE_STATUS, orderProgress, PROGRESS_STEPS } from "@/utils/orderProgress";
 
@@ -91,7 +93,7 @@ const LineRow: React.FC<{ line: OrderLineView }> = ({ line }) => {
   );
 };
 
-const OrderDetails: React.FC<{ order: OrderDetail }> = ({ order }) => {
+const OrderDetails: React.FC<{ order: OrderDetail; returns: OrderReturnsData | null }> = ({ order, returns }) => {
   const totals: [string, string | null][] = [
     ["Subtotal", money(order.subtotal_amount)],
     ["Shipping", money(order.shipping_amount)],
@@ -122,6 +124,8 @@ const OrderDetails: React.FC<{ order: OrderDetail }> = ({ order }) => {
           ))}
         </ul>
       </section>
+
+      {returns && <OrderReturns orderId={order.id} lines={order.lines} data={returns} />}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <section className="glass-card p-6 text-sm flex flex-col gap-1">
