@@ -9,7 +9,7 @@ import {
 import type { SavedAddress } from "@/types/account";
 import { formatPrice } from "@/utils/formatPrice";
 import { useElements, useStripe, PaymentElement, AddressElement } from "@stripe/react-stripe-js";
-import type { StripeAddressElementChangeEvent } from "@stripe/stripe-js";
+import type { PaymentIntentResult, StripeAddressElementChangeEvent } from "@stripe/stripe-js";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
@@ -17,7 +17,13 @@ import Heading from "@/components/ui/Heading";
 import Button from "@/components/ui/Button";
 import { settings } from "@/lib/config";
 import { proxied } from "@/lib/gateway-proxy";
-import { OrderClaims, pendingCheckouts, withCheckoutLock } from "@/lib/pending-checkout";
+import {
+    OrderClaims,
+    PAYMENT_AWAY_MS,
+    isAwayForPayment,
+    pendingCheckouts,
+    withCheckoutLock,
+} from "@/lib/pending-checkout";
 import { isOrderPlaced, paymentOutcomeOf } from "@/lib/payment-outcome";
 
 // The browser never sends the token: the same-origin proxy adds it on the server.
@@ -260,13 +266,17 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({ products, onAmountChange, o
      * Cancels every pending order placed for another cart, address or shipping
      * that no open tab is using: they can no longer be paid from here, and an
      * unpaid order holds stock until it is cancelled. An order another tab
-     * holds is left alone, since that tab may be paying it right now.
+     * holds is left alone, since that tab may be paying it right now, and so
+     * is one whose tab went to a 3-D Secure, bank or wallet page to pay it.
      *
      * Run it under `withCheckoutLock`, like `openCheckoutSession`.
      */
     const cancelSupersededOrders = async (fingerprint: string) => {
         for (const entry of pendingCheckouts.all()) {
             if (entry.fingerprint === fingerprint) continue;
+            // Its tab left for the payment and took its claim with it; the
+            // mark is what says the order is still in use.
+            if (isAwayForPayment(entry)) continue;
             await claims.ifUnclaimed(entry.orderId, async () => {
                 await cancelOrder(entry.orderId);
                 pendingCheckouts.removeOrder(entry.orderId);
@@ -329,12 +339,27 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({ products, onAmountChange, o
                 return;
             }
 
-            const result = await stripe.confirmPayment({
-                elements,
-                clientSecret: checkout.client_secret,
-                confirmParams: { return_url: `${window.location.origin}${RETURN_PATH}` },
-                redirect: "if_required",
-            });
+            // Stripe may leave this page to take the payment (3-D Secure, a bank
+            // or a wallet), and the browser then drops this tab's claim on the
+            // order. Mark the order first, so another tab checking out
+            // meanwhile does not cancel it; the return page clears the mark.
+            // When no redirect happens, confirmPayment resolves here, the
+            // claim was never lost, and the mark is cleared at once.
+            const orderId = checkout.order_id;
+            await withCheckoutLock(async () =>
+                pendingCheckouts.markAway(orderId, Date.now() + PAYMENT_AWAY_MS),
+            );
+            let result: PaymentIntentResult;
+            try {
+                result = await stripe.confirmPayment({
+                    elements,
+                    clientSecret: checkout.client_secret,
+                    confirmParams: { return_url: `${window.location.origin}${RETURN_PATH}` },
+                    redirect: "if_required",
+                });
+            } finally {
+                await withCheckoutLock(async () => pendingCheckouts.clearAway(orderId));
+            }
 
             if (result.error) {
                 // Another tab may have paid this same order a moment ago; its

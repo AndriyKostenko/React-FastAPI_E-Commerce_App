@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { useCart } from "@/hooks/useCart";
 import { keycapClassName } from "@/components/ui/Button";
 import { stripePromise } from "@/lib/stripe";
-import { pendingCheckouts } from "@/lib/pending-checkout";
+import { pendingCheckouts, withCheckoutLock } from "@/lib/pending-checkout";
 import { type PaymentOutcome, isOrderPlaced, paymentOutcomeOf } from "@/lib/payment-outcome";
 
 /** `unknown`: Stripe could not be asked, so the orders page is the place to look. */
@@ -98,6 +98,17 @@ const CheckoutComplete = () => {
                 if (!paymentIntentId || !pendingCheckouts.removePayment(paymentIntentId)) {
                     pendingCheckouts.clear();
                 }
+            } else if (next !== "unknown" && paymentIntentId) {
+                // Back without paying: the order stays open for another try,
+                // but it is no longer being paid elsewhere, so drop the mark
+                // that kept other tabs from cancelling it. When Stripe could not
+                // be asked the mark stays, since the payment may have gone
+                // through, and lapses with the order's payment timeout.
+                const intentId = paymentIntentId;
+                await withCheckoutLock(async () => {
+                    const entry = pendingCheckouts.findPayment(intentId);
+                    if (entry) pendingCheckouts.clearAway(entry.orderId);
+                });
             }
             setOutcome(next);
             // The client secret can complete this payment: keep it out of the
