@@ -916,7 +916,8 @@ the services), not only in unit tests.
       Email templates are now autoescaped. Migration: order `e7b3c1f9a482`.
       **Before going live:** set `RETURN_ADDRESS` and `ADMIN_ALERT_EMAIL`; publish the
       returns policy page (below) with the same rules.
-      **Not covered:** the frontend (return form, admin queue, regenerated types);
+      **Frontend (2026-10-18):** the order page (`/order/[id]`) lists the order's returns (with Withdraw while undecided) and has the request form: lines and units from `/returns/eligibility`, reasons narrowed to what every chosen line allows, photos required for the seller's fault, multipart through the proxy (`lib/returns-api.ts`, rules in `lib/return-draft.ts`). The admin queue is AdminJS. Types are hand-written (`types/returns.ts`), not regenerated.
+      **Not covered:**
       prepaid return labels; store credit; restocking a received catalog item
       (adjust stock by hand); photos of a request that fails to commit stay in
       storage. (S3 for the photos: done in §8.3.)
