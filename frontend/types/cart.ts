@@ -104,6 +104,11 @@ export interface PendingCheckout {
     fingerprint: string;
     /** The order's PaymentIntent, so the page Stripe returns to can forget it; absent on older entries. */
     paymentIntentId?: string;
+    /**
+     * Until when (epoch ms) the order is being paid on a page away from this
+     * site (3-D Secure, a bank or a wallet); absent while no payment is under way.
+     */
+    awayUntil?: number;
 }
 
 export type OrderProductInput = {

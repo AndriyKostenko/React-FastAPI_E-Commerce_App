@@ -6,9 +6,24 @@ const isPendingCheckout = (value: unknown): value is PendingCheckout => {
   if (typeof value !== "object" || value === null) return false;
   const entry = value as Partial<PendingCheckout>;
   return (
-    typeof entry.orderId === "string" && typeof entry.fingerprint === "string"
+    typeof entry.orderId === "string" &&
+    typeof entry.fingerprint === "string" &&
+    (entry.awayUntil === undefined || typeof entry.awayUntil === "number")
   );
 };
+
+/**
+ * How long an order stays marked as being paid away from the site. Matches
+ * order-service's ORDER_SAGA_TIMEOUT_SECONDS: an order still unpaid by then is
+ * cancelled by the server anyway, so a longer mark would protect nothing.
+ */
+export const PAYMENT_AWAY_MS = 30 * 60 * 1000;
+
+/** Whether the entry's order is being paid on a 3-D Secure, bank or wallet page right now. */
+export const isAwayForPayment = (
+  entry: PendingCheckout,
+  now: number = Date.now(),
+): boolean => entry.awayUntil !== undefined && entry.awayUntil > now;
 
 /** The stored list; a value saved when only one was kept (a single object) reads as a list of one. */
 const decodePendingCheckouts = (raw: string): PendingCheckout[] | null => {
@@ -56,6 +71,30 @@ export class PendingCheckouts {
     this.write(this.all().filter((entry) => entry.orderId !== orderId));
   }
 
+  findPayment(paymentIntentId: string): PendingCheckout | undefined {
+    return this.all().find(
+      (entry) => entry.paymentIntentId === paymentIntentId,
+    );
+  }
+
+  /**
+   * Marks `orderId` as being paid away from this site until `until`.
+   *
+   * A redirect to a 3-D Secure, bank or wallet page unloads the tab, and with
+   * it the tab's claim on the order (OrderClaims); the mark stands in for the
+   * claim while the customer is away. Call it under `withCheckoutLock`, since
+   * it rewrites the list other tabs also write.
+   */
+  markAway(orderId: string, until: number): void {
+    this.update(orderId, (entry) => ({ ...entry, awayUntil: until }));
+  }
+
+  /** The customer is back on this site: the order is no longer paid elsewhere. */
+  clearAway(orderId: string): void {
+    // An undefined field is left out when the list is saved as JSON.
+    this.update(orderId, (entry) => ({ ...entry, awayUntil: undefined }));
+  }
+
   /**
    * Forgets the order paid by this PaymentIntent. Returns false when no entry
    * names it (entries saved before the intent was recorded), so the caller can
@@ -72,6 +111,18 @@ export class PendingCheckouts {
 
   clear(): void {
     this.store.write(null);
+  }
+
+  /** Rewrites the entry for `orderId`; nothing happens when there is none. */
+  private update(
+    orderId: string,
+    change: (entry: PendingCheckout) => PendingCheckout,
+  ): void {
+    const entries = this.all();
+    if (!entries.some((entry) => entry.orderId === orderId)) return;
+    this.write(
+      entries.map((entry) => (entry.orderId === orderId ? change(entry) : entry)),
+    );
   }
 
   private write(entries: PendingCheckout[]): void {
@@ -126,6 +177,9 @@ const orderLockName = (orderId: string): string =>
  * Claims are taken inside `withCheckoutLock`, so this tab never claims and
  * checks the same order at once, and other tabs see a claim as soon as the
  * checkout lock is released.
+ *
+ * A claim ends when its tab leaves the page, including for a payment redirect;
+ * `PendingCheckouts.markAway` covers the order while the customer is away.
  */
 export class OrderClaims {
   private readonly held = new Map<string, () => void>();
