@@ -2,7 +2,7 @@
 
 import { FeaturedCollectionProps, FilterTab } from "@/types/product";
 import { HOW_IT_WORKS } from "@/utils/constants";
-import calculateAverageRating from "@/utils/productRating";
+import { COLLECTION_TABS, selectCollection, slugForTab, tabForSlug } from "@/utils/collectionTabs";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
 import { MdTune } from "react-icons/md";
@@ -19,31 +19,34 @@ import {
     type SortKey,
 } from "@/utils/productFilters";
 
-const NEW_ARRIVAL_WINDOW_DAYS = 30;
 const FILTERS_PANEL_ID = "featured-filters";
-
-const getTabFromQuery = (collection: string | null): FilterTab => {
-    if (collection === "trending") return "Trending";
-    if (collection === "new-arrivals") return "New Arrivals";
-    return "All";
-};
+const TABS: FilterTab[] = COLLECTION_TABS.map(({ tab }) => tab);
 
 const FeaturedCollection: React.FC<FeaturedCollectionProps> = ({
     products,
+    bestSellers,
 }) => {
+    // The URL is the only record of the open tab, so a header link that names
+    // a collection always opens it, whatever was clicked before.
     const searchParams = useSearchParams();
-    const collection = searchParams.get("collection");
-    const queryTab = getTabFromQuery(collection);
-    // A click is remembered for the collection it was made in, so a new query
-    // falls back to the tab the link names.
-    const [selection, setSelection] = useState<{ tab: FilterTab; collection: string | null } | null>(null);
-    const activeTab = selection && selection.collection === collection ? selection.tab : queryTab;
+    const activeTab = tabForSlug(searchParams.get("collection"));
     const setActiveTab = useCallback(
-        (tab: FilterTab) => setSelection({ tab, collection }),
-        [collection],
+        (tab: FilterTab) => {
+            const params = new URLSearchParams(searchParams.toString());
+            const slug = slugForTab(tab);
+            if (slug === null) params.delete("collection");
+            else params.set("collection", slug);
+            const query = params.toString();
+            // Native history keeps useSearchParams in sync without a server
+            // round trip; the products are already on the page.
+            window.history.replaceState(
+                null,
+                "",
+                `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`,
+            );
+        },
+        [searchParams],
     );
-
-    const tabs: FilterTab[] = ["All", "Trending", "New Arrivals"];
 
     // The clock is read once per mount, so the list does not depend on render timing.
     const [now] = useState(() => Date.now());
@@ -55,37 +58,10 @@ const FeaturedCollection: React.FC<FeaturedCollectionProps> = ({
     // The panel offers every colour and size in the catalogue, whichever tab is open.
     const facets = useMemo(() => facetsOf(products), [products]);
 
-    const tabProducts = useMemo(() => {
-        if (activeTab === "Trending") {
-            return products
-                .filter(
-                    (product) =>
-                        calculateAverageRating(product.reviews ?? []) >= 4.5,
-                )
-                .toSorted(
-                    (left, right) =>
-                        calculateAverageRating(right.reviews ?? []) -
-                        calculateAverageRating(left.reviews ?? []),
-                );
-        }
-
-        if (activeTab === "New Arrivals") {
-            const cutoff = now - NEW_ARRIVAL_WINDOW_DAYS * 86_400_000;
-
-            return products
-                .filter(
-                    (product) =>
-                        new Date(product.date_created).getTime() >= cutoff,
-                )
-                .toSorted(
-                    (left, right) =>
-                        new Date(right.date_created).getTime() -
-                        new Date(left.date_created).getTime(),
-                );
-        }
-
-        return products;
-    }, [activeTab, products, now]);
+    const tabProducts = useMemo(
+        () => selectCollection(activeTab, { products, bestSellers, now }),
+        [activeTab, products, bestSellers, now],
+    );
 
     // The tab picks the collection, the filters narrow it, the sort orders it
     // ("Featured" keeps the tab's own order).
@@ -107,12 +83,14 @@ const FeaturedCollection: React.FC<FeaturedCollectionProps> = ({
                         </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-3">
-                        <div className="flex bg-white/40 p-1 rounded-full border border-white/40">
-                            {tabs.map((tab) => (
+                        <div className="flex max-w-full overflow-x-auto bg-white/40 p-1 rounded-full border border-white/40">
+                            {TABS.map((tab) => (
                                 <button
                                     key={tab}
+                                    type="button"
+                                    aria-pressed={activeTab === tab}
                                     onClick={() => setActiveTab(tab)}
-                                    className={`px-4 sm:px-6 py-2 font-label-bold rounded-full transition-all ${
+                                    className={`shrink-0 whitespace-nowrap px-2 sm:px-6 py-2 text-sm sm:text-base font-label-bold rounded-full transition-all ${
                                         activeTab === tab
                                             ? "bg-brand-lime text-primary"
                                             : "hover:bg-white/60 text-secondary"

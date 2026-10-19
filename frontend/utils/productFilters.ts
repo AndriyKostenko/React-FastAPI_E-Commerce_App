@@ -27,8 +27,8 @@ const createdAt = (product: ProductProps): number => new Date(product.date_creat
 
 /**
  * The orders a shopper can pick (Strategy). "Featured" has no comparator: it
- * keeps the order the active tab produced (rating for Trending, newest first
- * for New Arrivals, the catalogue's own order for All).
+ * keeps the order the active tab produced (units sold for Best Sellers, rating
+ * for Top Rated, newest first for New Arrivals, the catalogue's own order for All).
  */
 export const SORT_OPTIONS: ReadonlyArray<{ key: SortKey; label: string; compare: Comparator | null }> = [
     { key: "featured", label: "Featured", compare: null },

@@ -77,8 +77,16 @@ export interface SetQtyProps {
     handleQtyDecrease: () => void;
 }
 
-export type FilterTab = "All" | "Trending" | "New Arrivals";
+export type FilterTab = "All" | "Best Sellers" | "Top Rated" | "New Arrivals";
+
+/** GET /best-sellers (gateway): a product and its units sold, net of refunds, in the last 30 days. */
+export interface BestSeller {
+    units_sold: number;
+    product: ProductProps;
+}
 
 export interface FeaturedCollectionProps {
     products: ProductProps[];
+    /** Ranked, most units first; empty when nothing sold or the ranking could not be read. */
+    bestSellers: BestSeller[];
 }

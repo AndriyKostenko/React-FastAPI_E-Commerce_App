@@ -3,6 +3,8 @@ import FeaturedCollection from "@/components/4. Featured Collections/FeaturedCol
 import Testimonials from "@/components/5. Testimonials/Testimonials";
 import fetchProductsFromBackend from "../actions/getProducts";
 import fetchFeaturedReviews from "@/actions/getFeaturedReviews";
+import fetchBestSellers from "@/actions/getBestSellers";
+import { BEST_SELLERS_SIZE } from "@/utils/collectionTabs";
 import { Params, SearchParams } from "../types/params";
 import HeroSection from "@/components/2. Hero/HeroComponentr";
 import { sessionManagaer } from "@/actions/getCurrentUser";
@@ -12,9 +14,10 @@ export default async function Home(props: {params: Params, searchParams: SearchP
 	const searchParams = await props.searchParams
     const searchTerm = searchParams['searchTerm'] as string | undefined;
     const category = searchParams['category'] as string | undefined;
-    const [products, reviews] = await Promise.all([
+    const [products, reviews, bestSellers] = await Promise.all([
         fetchProductsFromBackend(category, searchTerm),
         fetchFeaturedReviews(),
+        fetchBestSellers(BEST_SELLERS_SIZE),
     ]);
 	const currentUserJWT = await sessionManagaer.getCurrentUserJWT();
 
@@ -26,7 +29,7 @@ export default async function Home(props: {params: Params, searchParams: SearchP
         <div className="space-y-8">
 			<HeroSection isRegisteredUser={Boolean(currentUserJWT)} />
             <CommunityGallery />
-            <FeaturedCollection products={products} />
+            <FeaturedCollection products={products} bestSellers={bestSellers} />
             <Testimonials reviews={reviews} />
         </div>
     )
