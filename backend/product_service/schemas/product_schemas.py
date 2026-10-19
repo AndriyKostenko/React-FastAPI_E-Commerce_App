@@ -206,6 +206,41 @@ class ProductSchema(ProductBase):
     variants: List[ProductVariantBase] = []
 
 
+# --- Product Card Schemas ---
+#
+# GET /products/cards lists the whole shop in one call, so each product carries
+# only what a shop card, its tabs (rating, date) and its filters (price, variant
+# colour and size) read: about 1.5 KB instead of the ~20 KB of ProductSchema.
+
+class ProductCardCategory(BaseModel):
+    id: UUID
+    name: str
+
+
+class ProductCardReview(BaseModel):
+    rating: float = Field(..., ge=0, le=5)
+
+
+class ProductCardVariant(BaseModel):
+    """An active variant's key ("Black-XL"); the filters read its colour and size."""
+
+    variant_key: str | None = None
+    active: Literal[True] = True
+
+
+class ProductCardSchema(BaseModel):
+    id: UUID
+    supplier_id: str | None = None
+    name: str
+    price: Decimal
+    in_stock: bool
+    image_url: CatalogueImageUrl | None = None
+    date_created: datetime
+    category: ProductCardCategory
+    reviews: list[ProductCardReview]
+    variants: list[ProductCardVariant]
+
+
 class CreatedProduct(ProductBase):
     id: UUID
     date_created: datetime
@@ -270,6 +305,11 @@ class ProductsFilterParams(BaseFilters):
             except ValueError:
                 return None
         return value
+
+
+class ProductCardsFilterParams(ProductsFilterParams):
+    # The shop loads every card at once (the CJ sync keeps about 200 products).
+    limit: int = Field(default=500, gt=0, le=500, description="Maximum number of records to return")
 
 
 class CJDropshippingFilterParams(BaseModel):

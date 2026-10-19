@@ -31,8 +31,10 @@ export const toCartLine = (
   fulfillment_type: product.supplier_id === "cjdropshipping" ? "cj" : "catalog",
 });
 
-export const activeVariantsOf = (product: ProductProps): ProductVariantProps[] =>
-  product.variants?.filter((variant) => variant.active) ?? [];
+/** A product's active variants, whichever variant shape it carries (full or card). */
+export const activeVariantsOf = <V extends Pick<ProductVariantProps, "active">>(product: {
+  variants?: V[];
+}): V[] => product.variants?.filter((variant) => variant.active) ?? [];
 
 /**
  * Cart lines as the server prices and orders them: identity, variant, quantity

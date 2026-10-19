@@ -41,6 +41,8 @@ export interface ProductProps {
     in_stock: boolean;
     date_created: string;
     selected_image: ImageProps;
+    /** The main image; the gallery (`images`) holds it and the others. */
+    image_url?: string | null;
     category: CategoryProps;
     reviews: ReviewProps[];
     images: ImageProps[];
@@ -54,8 +56,26 @@ export interface AllProductsProps {
     products: ProductProps[];
 }
 
+/**
+ * GET /products/cards: what a shop card, the collection tabs and the filters
+ * read of a product. A full ProductProps satisfies it too (Best Sellers).
+ */
+export interface ProductSummary {
+    id: string;
+    name: string;
+    price: number;
+    in_stock: boolean;
+    supplier_id?: string | null;
+    image_url?: string | null;
+    date_created: string;
+    category: Pick<CategoryProps, "id" | "name">;
+    reviews: Pick<ReviewProps, "rating">[];
+    /** Active variants only. */
+    variants?: Pick<ProductVariantProps, "variant_key" | "active">[];
+}
+
 export interface ProductCardProps {
-    product: ProductProps;
+    product: ProductSummary;
 }
 
 export interface ProductImageProps {
@@ -86,7 +106,9 @@ export interface BestSeller {
 }
 
 export interface FeaturedCollectionProps {
-    products: ProductProps[];
+    products: ProductSummary[];
     /** Ranked, most units first; empty when nothing sold or the ranking could not be read. */
     bestSellers: BestSeller[];
+    /** What the shopper searched for, when the list is a search result. */
+    searchTerm?: string;
 }

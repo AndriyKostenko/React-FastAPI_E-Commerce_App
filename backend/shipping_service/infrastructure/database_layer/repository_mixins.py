@@ -158,6 +158,11 @@ class AdvancedQueryMixin(Generic[ModelType]):
         if sort_by and hasattr(self.model, sort_by):
             order_func = asc if sort_order == "asc" else desc
             query = query.order_by(order_func(getattr(self.model, sort_by)))
+        # The primary key breaks ties (rows written in one transaction share a
+        # timestamp) and orders an unsorted query, so consecutive pages of the
+        # same query never repeat or skip a row.
+        if hasattr(self.model, "id"):
+            query = query.order_by(asc(getattr(self.model, "id")))
 
         # Pagination
         if offset is not None:

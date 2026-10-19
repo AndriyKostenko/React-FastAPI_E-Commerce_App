@@ -8,6 +8,7 @@ import { useCallback, useMemo, useState } from "react";
 import { MdTune } from "react-icons/md";
 import ProductCard from "@/components/4. Featured Collections/ProductCard";
 import ProductFiltersPanel from "@/components/4. Featured Collections/ProductFiltersPanel";
+import { useIncrementalReveal } from "@/hooks/useIncrementalReveal";
 import {
     EMPTY_FILTERS,
     SORT_OPTIONS,
@@ -20,11 +21,16 @@ import {
 } from "@/utils/productFilters";
 
 const FILTERS_PANEL_ID = "featured-filters";
+// 20 cards, then 20 more each time the shopper nears the end, 3 times (80
+// cards); after that a "Load more" button adds 20 at a time.
+const SHOP_PAGE_SIZE = 20;
+const SHOP_AUTO_STEPS = 3;
 const TABS: FilterTab[] = COLLECTION_TABS.map(({ tab }) => tab);
 
 const FeaturedCollection: React.FC<FeaturedCollectionProps> = ({
     products,
     bestSellers,
+    searchTerm,
 }) => {
     // The URL is the only record of the open tab, so a header link that names
     // a collection always opens it, whatever was clicked before.
@@ -69,6 +75,10 @@ const FeaturedCollection: React.FC<FeaturedCollectionProps> = ({
         () => sortProducts(applyProductFilters(tabProducts, filters), sort),
         [tabProducts, filters, sort],
     );
+    const { shown, hasMore, autoRevealing, revealMore, sentinelRef } = useIncrementalReveal(visibleProducts, {
+        pageSize: SHOP_PAGE_SIZE,
+        autoSteps: SHOP_AUTO_STEPS,
+    });
 
     return (
         <>
@@ -79,7 +89,7 @@ const FeaturedCollection: React.FC<FeaturedCollectionProps> = ({
                             Featured Selection
                         </h2>
                         <p className="text-secondary">
-                            Premium pre-designed collections
+                            {searchTerm ? `Results for “${searchTerm}”` : "Premium pre-designed collections"}
                         </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-3">
@@ -148,7 +158,11 @@ const FeaturedCollection: React.FC<FeaturedCollectionProps> = ({
                 {visibleProducts.length === 0 ? (
                     <div className="flex flex-col items-center gap-3 py-12 text-center">
                         <p className="text-secondary">
-                            {activeFilterCount > 0 ? "No products match these filters." : "Nothing here yet."}
+                            {activeFilterCount > 0
+                                ? "No products match these filters."
+                                : searchTerm
+                                  ? `No products match “${searchTerm}”.`
+                                  : "Nothing here yet."}
                         </p>
                         {activeFilterCount > 0 && (
                             <button
@@ -161,11 +175,28 @@ const FeaturedCollection: React.FC<FeaturedCollectionProps> = ({
                         )}
                     </div>
                 ) : (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6 lg:gap-8">
-                        {visibleProducts.map((product) => (
-                            <ProductCard key={product.id} product={product} />
-                        ))}
-                    </div>
+                    <>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6 lg:gap-8">
+                            {shown.map((product) => (
+                                <ProductCard key={product.id} product={product} />
+                            ))}
+                        </div>
+                        {autoRevealing && <div ref={sentinelRef} aria-hidden="true" className="h-px" />}
+                        {hasMore && !autoRevealing && (
+                            <div className="mt-10 flex flex-col items-center gap-3">
+                                <p className="text-sm text-secondary" aria-live="polite">
+                                    Showing {shown.length} of {visibleProducts.length}
+                                </p>
+                                <button
+                                    type="button"
+                                    onClick={revealMore}
+                                    className="rounded-full border border-primary/20 bg-white/40 px-8 py-3 font-label-bold text-primary transition-all hover:bg-white/60 active:scale-95"
+                                >
+                                    Load more
+                                </button>
+                            </div>
+                        )}
+                    </>
                 )}
             </section>
 

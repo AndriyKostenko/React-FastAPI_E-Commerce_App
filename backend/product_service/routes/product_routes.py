@@ -17,6 +17,8 @@ from schemas.product_schemas import (
     ProductSchema,
     ProductUploadForm,
     ProductsFilterParams,
+    ProductCardSchema,
+    ProductCardsFilterParams,
     UpdateProduct,
     OrderQuoteRequest,
     OrderQuoteResponse,
@@ -123,6 +125,19 @@ async def get_all_products_detailed(
     return await product_service.get_all_products_with_relations(
         filters_query=filters_query
     )
+
+
+@product_routes.get(
+    "/products/cards",
+    response_model=list[ProductCardSchema],
+    response_description="Every product as a shop card",
+    status_code=status.HTTP_200_OK
+)
+async def get_product_cards(
+    product_service: product_service_dependency,
+    filters_query: Annotated[ProductCardsFilterParams, Query()],
+) -> list[ProductCardSchema]:
+    return await product_service.get_product_cards(filters_query=filters_query)
 
 
 @product_routes.get(

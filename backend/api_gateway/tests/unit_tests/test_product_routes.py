@@ -25,6 +25,12 @@ class TestPublicProductRoutes:
         response = await client.get(f"{TEST_API}/products/detailed")
         mock_forward.assert_awaited_once()
 
+    async def test_get_product_cards_calls_forward(self, client: AsyncClient, mock_forward: AsyncMock):
+        # Declared before /products/{product_id}, so "cards" is never read as an id.
+        response = await client.get(f"{TEST_API}/products/cards")
+        mock_forward.assert_awaited_once()
+        assert response.status_code == 200
+
     async def test_get_all_categories_calls_forward(self, client: AsyncClient, mock_forward: AsyncMock):
         response = await client.get(f"{TEST_API}/categories")
         mock_forward.assert_awaited_once()
