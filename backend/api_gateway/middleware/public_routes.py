@@ -107,6 +107,8 @@ class PublicRouteRegistry:
             # stays behind a session (it lives under /products/.../reviews).
             PublicRoute(f"{api}/reviews", get, PathScope.TREE, cacheable=True),
             PublicRoute(f"{api}/customization/pricing", get, cacheable=True),
+            # The home page's Best Sellers: product ids and unit counts only
+            PublicRoute(f"{api}/best-sellers", get, cacheable=True),
             # Cart page prices, guests included; reads only, rate-limited
             PublicRoute(f"{api}/cart/prices", post),
             # Stripe authenticates itself with the webhook signature

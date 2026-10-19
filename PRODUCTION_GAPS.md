@@ -100,10 +100,20 @@ or recorded as decided. Merged so far: PR #41 (readiness, phases 2–5) and PR #
   Footer links all go somewhere real. Social links read `NEXT_PUBLIC_INSTAGRAM_URL` and
   `NEXT_PUBLIC_FACEBOOK_URL` (repository variables for the deploy build) and stay hidden
   until set. Still placeholder, by decision: the community gallery (invented handles and
-  stock images) until it shows the owner's own generated designs. Also still open: the
-  header's Best Sellers link (`?collection=trending` is ignored by the home page), the
-  "240gsm organic cotton / carbon-neutral packaging" claim in the process steps, and
-  `GET /reviews` returns every review (fine now, needs paging or a featured endpoint later).
+  stock images) until it shows the owner's own generated designs. Still open: `GET /reviews`
+  returns every review (fine now, needs paging or a featured endpoint later).
+- Best Sellers (2026-10-19): real sales now. order-service `GET /best-sellers` ranks
+  products by units in confirmed orders of the last 30 days, less units refunded (returns
+  included; a failed refund does not count), custom designs left out; the gateway's public,
+  cached `GET /best-sellers` joins the ranking to the products (a deleted product is
+  dropped, any other product lookup failure fails the answer so a short list is never
+  cached). The shop tabs are All, Best Sellers, Top Rated (the old rating-based
+  "Trending"), New Arrivals; Best Sellers shows up to 8, topped up with top rated when
+  fewer have sold. The open tab lives in the URL (`?collection=`, old `trending` links
+  open Best Sellers), so the header link always opens it; it used to look dead when
+  clicked again after picking another tab, or from another tab under the same `#shop`.
+  The process steps no longer claim 240gsm organic cotton, carbon-neutral packaging, a
+  material-weight choice or a "bespoke AI engine".
 - Section 6 is done (2026-10-15), see §6. The header avatar now comes from the stored
   profile (2026-10-17: `fetchHeaderUser`, cached per user for a minute and cleared by the
   proxy route on any write under `users/`), so a new picture shows at once. Left over: a
