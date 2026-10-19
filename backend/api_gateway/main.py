@@ -20,6 +20,7 @@ from app_config import (
 )
 from resources import ApiGatewayResources, get_api_gateway_resources, logger, settings
 from routes.admin_table_routes import admin_table_proxy
+from routes.best_seller_routes import best_seller_proxy
 from routes.cart_routes import cart_proxy
 from routes.checkout_routes import checkout_proxy
 from routes.notification_routes import notification_proxy
@@ -40,6 +41,7 @@ PROXIES = (
     (notification_proxy, "Notification Service Proxy"),
     (payment_proxy, "Payment Service Proxy"),
     (checkout_proxy, "Checkout"),
+    (best_seller_proxy, "Best Sellers"),
     (cart_proxy, "Cart Service Proxy"),
     (shipping_proxy, "Shipping Service Proxy"),
     (wishlist_proxy, "Wishlist Service Proxy"),

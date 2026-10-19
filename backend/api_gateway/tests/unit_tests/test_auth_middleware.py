@@ -100,6 +100,11 @@ class TestIsPublicEndpoint:
     def test_changing_a_review_is_not_public(self, method):
         assert self.mw.is_public_endpoint(f"{API}/reviews/{uuid4()}", method) is False
 
+    def test_best_sellers_get_is_public(self):
+        assert self.mw.is_public_endpoint(f"{API}/best-sellers", "GET") is True
+        assert self.mw.is_public_endpoint(f"{API}/best-sellers", "POST") is False
+        assert self.mw.is_public_endpoint(f"{API}/best-sellers/{uuid4()}", "GET") is False
+
     def test_customization_pricing_get_is_public(self):
         assert self.mw.is_public_endpoint(f"{API}/customization/pricing", "GET") is True
 
@@ -340,6 +345,7 @@ class TestCacheableRoutes:
         f"{API}/categories/abc",
         f"{API}/customization/pricing",
         f"{API}/shipping/methods",
+        f"{API}/best-sellers",
     ])
     def test_declared_caller_invariant_routes_are_cacheable(self, path):
         assert self.mw.is_cacheable_endpoint(path, "GET") is True
