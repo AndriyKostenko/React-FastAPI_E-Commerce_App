@@ -119,6 +119,56 @@ or recorded as decided. Merged so far: PR #41 (readiness, phases 2–5) and PR #
   proxy's anonymous calls depend on the forwarded address. Confirm this in production
   behind Traefik before go-live.
 
+**Planned next (added 2026-10-19, not started)**
+
+Catalogue size first: the CJ sync keeps 200 T-shirts (`CJ_DROPSHIPPING_SYNC_MAX_PRODUCTS`,
+hourly sync, about 19% of the CJ call budget). Grow it by syncing less often, not by
+fetching more per run.
+
+Frontend:
+
+1. **Load more products as the shopper scrolls.** The shop shows 20 products, then
+   loads 20 more each time the shopper nears the end of the list, at most 3 times
+   (80 products). After that, a "Load more" button takes over. Today the home page
+   fetches only 20 (`limit=20`), so most of the 200 synced products can be reached only
+   through search or a category.
+2. **Show at most 100 as a product's quantity.** Any product with more than 100 units
+   in stock shows 100.
+3. **Variant selection must follow what exists.** Some CJ products have empty variant
+   fields (size or colour). Only real, available combinations may be offered and
+   selected, and a product with an empty field must still be buyable when a variant
+   exists.
+4. **Input sanitising and the other browser-side protections that apply to us**: every
+   form and query parameter, what is rendered from API data (product names and
+   descriptions from CJ, reviews), the content security policy and the other security
+   headers.
+5. **Measure and improve performance with the standard browser tools** (Lighthouse,
+   Chrome DevTools Performance, Core Web Vitals): measure first, then fix what the
+   measurements show (images, bundle size, render-blocking work).
+6. **End-to-end tests with Playwright**, plus any other frontend tests that fit (unit
+   and component tests). There is no frontend test runner yet; today CI runs only the
+   lint and `test:race`.
+
+Backend:
+
+1. **Protection against the attacks that apply to this project**: SQL injection,
+   header manipulation (Host, forwarded headers, CRLF), and the rest of the relevant
+   OWASP Top 10 across the gateway and every service.
+2. **Store users' emails encoded, not in plain text.** Look for a very small, fast
+   library to encode and decode them, so that only the encoded email is in the
+   database. Login, password reset and "email already registered" still need to find
+   a user by email, so lookups need a deterministic part (for example a keyed hash
+   stored beside the encrypted value).
+3. **An AI check between fetching a CJ product and storing it.** A new class runs
+   before the import writes a product. It asks an OpenRouter model whether the product
+   image clearly shows what is printed on the T-shirt. If not, the image is not stored
+   in our store; if it is, the model writes a description from the image, which
+   replaces CJ's. The OpenRouter client already exists in product-service.
+4. **Limits on every database model**: maximum lengths and sizes, how many rows or
+   items are accepted, and any other restriction that makes sense, in every service.
+5. **Limits on every Pydantic model**: types, lengths, ranges and how many items are
+   accepted, so that every API input and event payload is bounded.
+
 **Decisions taken (recorded so they are not re-opened)**
 
 - Deploy workflow off until `DEPLOY_ENABLED=true`; approval through the `production`
@@ -126,6 +176,14 @@ or recorded as decided. Merged so far: PR #41 (readiness, phases 2–5) and PR #
 - Storefront same-origin on the apex; gateway owns `/api/`, `/media/`, `/health`, `/docs`.
 - Token never reaches the browser; browser calls go through the proxy route.
 - Race test uses the approved seam (dependency injection), verified by mutation.
+
+**CJ sync paging fixed (2026-10-19).** Every hourly CJ sync fetched only page 1
+(10 products): the mapper read `totalRecords`/`totalPages` from `content[0].page`, where
+CJ's listV2 has none (they are on `data`), so the sync treated page 1 as the last. With
+paging working, CJ's keyword search reports 6,000 T-shirts (its ceiling, not a count),
+so a run is now capped: `CJ_DROPSHIPPING_SYNC_MAX_PRODUCTS` (default 200), overridable
+per supplier with `"max_products"` in `supplier_configs.config`. The cap fixes the run's
+batch count up front, since completion is counted against `total_batches`.
 
 ## Open backend items (2026-10-13)
 
