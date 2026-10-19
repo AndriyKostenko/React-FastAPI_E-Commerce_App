@@ -303,3 +303,90 @@ async def test_an_import_holds_back_the_same_buffer_as_the_hourly_refresh() -> N
     emitted = outbox.add_outbox_event.await_args.kwargs["payload"].products[0]
     assert {v.vid: v.inventory_num for v in emitted.variants} == {"V-S": 8, "V-M": 0}
     assert (emitted.quantity, emitted.in_stock) == (8, True)
+
+
+def _paged_search(provider: FakeCJProvider, total_pages: int) -> list[int]:
+    """CJ answering ``total_pages`` pages of ``size`` products, each pid named after its page."""
+    requested_pages: list[int] = []
+
+    async def search_products(filters: CJProductsFilterParams) -> SupplierProductsPage:
+        requested_pages.append(filters.page)
+        products = [_product(f"p{filters.page}-{n}") for n in range(filters.size)]
+        for product in products:
+            provider.details[product.supplier_pid] = _product(product.supplier_pid)
+        return SupplierProductsPage(page=filters.page, page_size=filters.size, total_pages=total_pages, products=products)
+
+    provider.search_products = AsyncMock(side_effect=search_products)
+    return requested_pages
+
+
+@pytest.mark.asyncio
+async def test_sync_reads_every_page_cj_reports_under_the_cap() -> None:
+    provider = FakeCJProvider({}, list_products=[])
+    orchestrator, _, sync_state_repository, outbox_event_service = _orchestrator(provider)
+    requested_pages = _paged_search(provider, total_pages=3)
+
+    await orchestrator.run_sync("cjdropshipping", filters=CJProductsFilterParams(size=2))
+
+    assert requested_pages == [1, 2, 3]
+    sync_state = sync_state_repository.create.await_args.args[0]
+    assert sync_state.total_batches == 3 and sync_state.products_fetched == 6
+    events = [call.kwargs["payload"] for call in outbox_event_service.add_outbox_event.await_args_list]
+    assert [event.batch_number for event in events] == [1, 2, 3]
+    assert {event.total_batches for event in events} == {3}
+
+
+@pytest.mark.asyncio
+async def test_sync_stops_at_the_configured_product_cap() -> None:
+    provider = FakeCJProvider({}, list_products=[])
+    orchestrator, config_repository, sync_state_repository, outbox_event_service = _orchestrator(provider)
+    config_repository.get_by_supplier_id.return_value.config["max_products"] = 5
+    requested_pages = _paged_search(provider, total_pages=600)
+    detailed: list[str] = []
+    original_details = provider.get_mapped_product_details
+
+    async def details(pid: str) -> GenericSupplierProduct:
+        detailed.append(pid)
+        return await original_details(pid)
+
+    provider.get_mapped_product_details = details
+
+    await orchestrator.run_sync("cjdropshipping", filters=CJProductsFilterParams(size=2))
+
+    # 600 pages exist; five products need three pages, and the last is cut to one.
+    assert requested_pages == [1, 2, 3]
+    assert detailed == ["p1-0", "p1-1", "p2-0", "p2-1", "p3-0"]
+    sync_state = sync_state_repository.create.await_args.args[0]
+    assert sync_state.products_fetched == 5 and sync_state.products_emitted == 5
+    # Exactly the batches the run said it would send, or it would never complete.
+    assert sync_state.total_batches == 3
+    events = [call.kwargs["payload"] for call in outbox_event_service.add_outbox_event.await_args_list]
+    assert [len(event.products) for event in events] == [2, 2, 1]
+    assert {event.total_batches for event in events} == {3}
+
+
+@pytest.mark.asyncio
+async def test_the_service_setting_caps_a_supplier_without_its_own_limit() -> None:
+    provider = FakeCJProvider({}, list_products=[])
+    orchestrator, _, sync_state_repository, _ = _orchestrator(provider)
+    orchestrator.settings.CJ_DROPSHIPPING_SYNC_MAX_PRODUCTS = 3
+    requested_pages = _paged_search(provider, total_pages=600)
+
+    await orchestrator.run_sync("cjdropshipping", filters=CJProductsFilterParams(size=10))
+
+    assert requested_pages == [1]
+    assert sync_state_repository.create.await_args.args[0].products_fetched == 3
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("max_products", [0, -1, "many"])
+async def test_an_invalid_product_cap_is_refused(max_products: object) -> None:
+    provider = FakeCJProvider({}, list_products=[])
+    orchestrator, config_repository, sync_state_repository, _ = _orchestrator(provider)
+    config_repository.get_by_supplier_id.return_value.config["max_products"] = max_products
+    _paged_search(provider, total_pages=1)
+
+    with pytest.raises(SupplierSyncConfigurationError):
+        await orchestrator.run_sync("cjdropshipping")
+
+    assert sync_state_repository.create.await_args.args[0].status == "failed"

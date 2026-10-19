@@ -208,6 +208,11 @@ class Settings(BaseSettings):
     )
     CJ_DROPSHIPPING_DEFAULT_CATEGORY_NAME: str = "t-shirts"
     CJ_DROPSHIPPING_TSHIRT_CATEGORY_IDS: list[str] = Field(default_factory=list)
+    # The most CJ list products one sync run examines (and so at most imports);
+    # supplier config "max_products" overrides it. Each costs two CJ calls per
+    # run (details, China stock) and one more every hour (the stock refresh),
+    # all from the one ~1 call/1.1 s budget checkout shares.
+    CJ_DROPSHIPPING_SYNC_MAX_PRODUCTS: int = Field(default=200, ge=1)
 
     # Storefront pricing of supplier goods. CJ prices in USD while the store
     # sells in CAD; keep the rate current, since it also converts freight.

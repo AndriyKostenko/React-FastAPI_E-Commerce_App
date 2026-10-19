@@ -13,16 +13,19 @@ def mapper() -> CJToSupplierMapper:
 
 class TestCJToSupplierMapperList:
     def test_maps_list_response(self, mapper: CJToSupplierMapper) -> None:
+        # The shape CJ's listV2 answers with (checked live 2026-10-19): the
+        # totals sit on "data", next to "content", not inside it.
         data = {
             "data": {
+                "pageSize": 10,
+                "pageNumber": 1,
+                "totalRecords": 6000,
+                "totalPages": 600,
                 "content": [
                     {
-                        "page": {
-                            "pageNumber": 1,
-                            "pageSize": 10,
-                            "totalRecords": 1,
-                            "totalPages": 1,
-                        },
+                        "keyWord": "t shirt",
+                        "keyWordOld": "t-shirt",
+                        "relatedCategoryList": [{"id": "BE11EEDB-B765-4A39-8A3D-F6015FC7A846", "name": "Print", "currentLevel": 3}],
                         "productList": [
                             {
                                 "id": "1372719597450563584",
@@ -39,7 +42,9 @@ class TestCJToSupplierMapperList:
             }
         }
         page = mapper.map_products_page(data, page=1, page_size=10)
-        assert page.total_records == 1
+        assert page.total_records == 6000
+        # Read from anywhere else, this was None and the sync stopped after page 1.
+        assert page.total_pages == 600
         assert len(page.products) == 1
         product = page.products[0]
         assert product.supplier_id == "cjdropshipping"
