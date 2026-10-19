@@ -1173,6 +1173,8 @@ services:
         NEXT_PUBLIC_STRIPE_TEST_PUBLISHABLE_KEY:
         NEXT_PUBLIC_STRIPE_PROD_PUBLISHABLE_KEY:
         CATALOGUE_IMAGE_HOST:
+        NEXT_PUBLIC_INSTAGRAM_URL:
+        NEXT_PUBLIC_FACEBOOK_URL:
     image: ${IMAGE_REGISTRY:-local}/ecommerce-frontend:${IMAGE_TAG:-dev}
     mem_limit: 256m
     restart: unless-stopped

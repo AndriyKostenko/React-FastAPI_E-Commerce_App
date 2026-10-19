@@ -63,6 +63,8 @@ jobs:
           NEXT_PUBLIC_STRIPE_TEST_PUBLISHABLE_KEY: ${{ vars.NEXT_PUBLIC_STRIPE_TEST_PUBLISHABLE_KEY }}
           NEXT_PUBLIC_STRIPE_PROD_PUBLISHABLE_KEY: ${{ vars.NEXT_PUBLIC_STRIPE_PROD_PUBLISHABLE_KEY }}
           CATALOGUE_IMAGE_HOST: ${{ vars.CATALOGUE_IMAGE_HOST }}
+          NEXT_PUBLIC_INSTAGRAM_URL: ${{ vars.NEXT_PUBLIC_INSTAGRAM_URL }}
+          NEXT_PUBLIC_FACEBOOK_URL: ${{ vars.NEXT_PUBLIC_FACEBOOK_URL }}
         run: docker compose -f docker-compose.yml -f docker-compose.prod.yml build
 
       - name: Push images
