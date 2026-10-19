@@ -79,6 +79,8 @@ class AppSettings {
             customizationPricing: string;
             productsDetailed: string;
             productDetailed: (productId: string) => string;
+            reviews: string;
+            productReview: (productId: string, userId: string) => string;
             imageGenerations: string;
             imageGenerationsStatus: (jobId: string) => string;
             orders: string;
@@ -107,7 +109,6 @@ class AppSettings {
         deleteProduct: (id: string) => string;
         orderById: (orderId: string) => string;
         updateOrder: (orderId: string) => string;
-        reviewProduct: (productId: string) => string;
     };
     };
 
@@ -151,6 +152,8 @@ class AppSettings {
             customizationPricing: AppSettings.joinUrl(baseUrl, "customization/pricing"),
             productsDetailed:     AppSettings.joinUrl(baseUrl, "products/detailed"),
             productDetailed:      (productId: string) => AppSettings.joinUrl(baseUrl, `products/${productId}/detailed`),
+            reviews:              AppSettings.joinUrl(baseUrl, "reviews"),
+            productReview:        (productId: string, userId: string) => AppSettings.joinUrl(baseUrl, `products/${productId}/users/${userId}/reviews`),
             imageGenerations: AppSettings.joinUrl(baseUrl, "images/generations"),
             imageGenerationsStatus: (jobId: string) => AppSettings.joinUrl(baseUrl, `images/generations/${jobId}/status`),
             orders:               AppSettings.joinUrl(baseUrl, "orders"),
@@ -178,7 +181,6 @@ class AppSettings {
             deleteProduct:              (id: string)      => AppSettings.joinUrl(origin, `delete_product/${id}`),
             orderById:                  (orderId: string) => AppSettings.joinUrl(origin, `orders/${orderId}`),
             updateOrder:                (orderId: string) => AppSettings.joinUrl(origin, `orders/${orderId}`),
-            reviewProduct:              (productId: string) => AppSettings.joinUrl(origin, `review/product/${productId}`),
             },
             };
 

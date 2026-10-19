@@ -7,11 +7,3 @@ export interface GalleryItem {
         style: string;
     };
 }
-
-export interface Testimonial {
-    quote: string;
-    name: string;
-    role: string;
-    avatar: string;
-    stars: number;
-}

@@ -92,6 +92,14 @@ class TestIsPublicEndpoint:
     def test_categories_get_is_public(self):
         assert self.mw.is_public_endpoint(f"{API}/categories", "GET") is True
 
+    def test_reviews_get_is_public(self):
+        assert self.mw.is_public_endpoint(f"{API}/reviews", "GET") is True
+        assert self.mw.is_public_endpoint(f"{API}/reviews/{uuid4()}", "GET") is True
+
+    @pytest.mark.parametrize("method", ["POST", "PUT", "PATCH", "DELETE"])
+    def test_changing_a_review_is_not_public(self, method):
+        assert self.mw.is_public_endpoint(f"{API}/reviews/{uuid4()}", method) is False
+
     def test_customization_pricing_get_is_public(self):
         assert self.mw.is_public_endpoint(f"{API}/customization/pricing", "GET") is True
 
@@ -328,6 +336,7 @@ class TestCacheableRoutes:
     @pytest.mark.parametrize("path", [
         f"{API}/products",
         f"{API}/products/abc/reviews",
+        f"{API}/reviews",
         f"{API}/categories/abc",
         f"{API}/customization/pricing",
         f"{API}/shipping/methods",
