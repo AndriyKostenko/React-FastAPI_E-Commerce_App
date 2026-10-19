@@ -103,6 +103,9 @@ class PublicRouteRegistry:
             # Catalogue browsing
             PublicRoute(f"{api}/products", get, PathScope.TREE, cacheable=True),
             PublicRoute(f"{api}/categories", get, PathScope.TREE, cacheable=True),
+            # Reviews are shown on product pages and the home page; writing one
+            # stays behind a session (it lives under /products/.../reviews).
+            PublicRoute(f"{api}/reviews", get, PathScope.TREE, cacheable=True),
             PublicRoute(f"{api}/customization/pricing", get, cacheable=True),
             # Cart page prices, guests included; reads only, rate-limited
             PublicRoute(f"{api}/cart/prices", post),

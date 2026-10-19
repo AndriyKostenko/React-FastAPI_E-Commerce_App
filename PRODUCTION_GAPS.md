@@ -48,7 +48,7 @@ or recorded as decided. Merged so far: PR #41 (readiness, phases 2–5) and PR #
   external checks: the full stack under compose with real secrets, Traefik routing
   live, and memory limits measured with `docker stats` (they are first-cut ceilings).
 - Stripe and CJ webhooks to the production URL; the Stripe Tax registrations if tax is
-  switched on; RETURN_ADDRESS and ADMIN_ALERT_EMAIL; the returns policy page; a runbook
+  switched on; RETURN_ADDRESS and ADMIN_ALERT_EMAIL; a runbook
   (deploy, rollback, restore, rotate a secret).
 - Vault still serves plain HTTP on the Docker bridges; TLS is a later step.
 - admin-js is behind the `admin` profile until it reads Vault itself.
@@ -58,10 +58,23 @@ or recorded as decided. Merged so far: PR #41 (readiness, phases 2–5) and PR #
 - Per-service Redis and RabbitMQ users (postponed in favour of deploying first).
 - Dependency upgrades (the 35–169 advisories per service, and the critical `proxy-addr`
   in admin-js); then make the audit blocking.
-- AI content moderation, GDPR and retention, legal pages (see §5 and §8).
+- AI content moderation, GDPR and retention (see §5 and §8). The legal pages are done
+  (2026-10-18, below), pending a lawyer's review.
 
 **Frontend**
 
+- Storefront content (2026-10-18): the fake newsletter form and the invented testimonials
+  are gone; the home page shows real reviews (4+ stars with a comment, newest first) and
+  hides the section when there are none. The gateway now serves `GET /reviews` publicly.
+  Writing a review never worked before this (stale `/review/product/` URL, and the
+  delivered check read an `items` field the orders list does not have); both fixed.
+  Footer links all go somewhere real. Social links read `NEXT_PUBLIC_INSTAGRAM_URL` and
+  `NEXT_PUBLIC_FACEBOOK_URL` (repository variables for the deploy build) and stay hidden
+  until set. Still placeholder, by decision: the community gallery (invented handles and
+  stock images) until it shows the owner's own generated designs. Also still open: the
+  header's Best Sellers link (`?collection=trending` is ignored by the home page), the
+  "240gsm organic cotton / carbon-neutral packaging" claim in the process steps, and
+  `GET /reviews` returns every review (fine now, needs paging or a featured endpoint later).
 - Section 6 is done (2026-10-15), see §6. The header avatar now comes from the stored
   profile (2026-10-17: `fetchHeaderUser`, cached per user for a minute and cleared by the
   proxy route on any write under `users/`), so a new picture shows at once. Left over: a
@@ -942,7 +955,12 @@ the services), not only in unit tests.
     footer under the subject "Refund Initiated"; it now gives the reason and
     what happens to the money, with a separate wording when goods were already
     made or posted.
-- Terms / privacy / returns policy pages
+- ~~Terms / privacy / returns policy pages~~ DONE (2026-10-18): `/terms`, `/privacy`,
+  `/returns`, `/shipping`, with the business details in `frontend/lib/business.ts`. The
+  wording follows the code (30-day per-unit returns, custom prints defects only, card
+  hold then capture, Canada only, CJ ships from China) and needs a lawyer's review.
+  Open: whether import duties on parcels from China are paid by us or the customer
+  (not stated anywhere yet), GST/HST once tax is switched on.
 - GDPR data export, audit logging, data retention (checklist §13). Deletion
   exists only in part: `UserService.delete_user_by_id` anonymises the account
   (name, email, phone, image, password), ends its sessions and publishes

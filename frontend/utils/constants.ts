@@ -1,4 +1,4 @@
-import { GalleryItem, Testimonial } from "@/types/sections";
+import { GalleryItem } from "@/types/sections";
 import { MdInventory, MdPsychology, MdTune } from "react-icons/md";
 import defaultImage from '../public/default_image.webp'
 
@@ -82,27 +82,6 @@ export const GALLERY_ITEMS: GalleryItem[] = [
       "https://lh3.googleusercontent.com/aida-public/AB6AXuBD93P4ICOi1onTopU6Eero_Ae7oukd9li7g-zhZdjNsjBQ6FUawvD_ezZJoha7W66Qbi_4qOnxscSszQMhjMC8DrDF1pfa3KGiX_tcpKMsLkioZA8sHOoPFHmJSQUAslyKuTlwlgjkiXMpd10TYDMbL9er2s4ZZ1G2RxzUZJBK7yLdpYpnYYxb3EBJL2Dyv85XKq6o-5GLpGTxFNJPRI3gzMmEWnDjIQNAIzi1yV6E0Ero6CskTP444qzZlRz7vG-ZTfsc3mtEJQ",
     alt: "Geometric Wolf by LoboCraft",
     author: "@LoboCraft",
-  },
-];
-
-export const TESTIMONIALS: Testimonial[] = [
-  {
-    quote:
-      "The print quality is indistinguishable from high-end luxury brands. Generating my own design felt like having a personal artist.",
-    name: "Marcus Chen",
-    role: "Creative Director",
-    avatar:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuAzWGlOMNQI2W5jOR_t5l2bjZ0w0j94iiK0L5QOAlELQmzLbLAXDz10jXc3sVajdlyOh-oAWHI-BIIfyBE96s2twyp9iBlaQI8KfZf0XDu-X8airfVAGjUbAZDdtBIQMi2WCNkKz6U6XjvuadvQyfdD4Fy5M3Sxr12uAV7Sxqq0CmF9nx9Yt981Btb21uhV-rgGhFkJb3053QvTRKflQNsiIHkDoldcrPSddsJS8Z3zZutBdDZmjSEZqNeuZGiUmvkaNAySdQo13w",
-    stars: 5,
-  },
-  {
-    quote:
-      "AIGEN is addictive. I've designed five shirts already. Every single one became a conversation starter. Truly innovative tech.",
-    name: "Sarah Jenkins",
-    role: "Influencer",
-    avatar:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuB0-2lrx6_s35VBc0LfFO8DeNXJbd19GPVpSDYEcH9kMRz52s6VJR3glRA0EbtggfV_rLVcd4ienaHldCgtzeV9Vhsa6vE6daeLC1kgiVeHVGugA5MxYwT-3m3h92Dd4z_M6DAiX1hFG9ATEXtzcwNSr-6z8LwQTGhf1RIuY-ON_NmpZrRMFymIV9UXK3giPYUiyLyZ9mRZeiUENtnu4FTqYC_hOu1nEzO5PPUql_ipuG0LYNpdu35pXEy9-IVOuFfMw3lpaux9dw",
-    stars: 4,
   },
 ];
 

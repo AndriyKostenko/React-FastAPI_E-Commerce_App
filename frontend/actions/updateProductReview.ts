@@ -9,17 +9,14 @@ const updateProductReview = async (review: ReviewUpsertPayload) => {
     const { rating, comment } = review;
 
     try {
-        const response = await fetch(proxied(settings.api.backendEndpoints.reviewProduct(product_id)), {
+        const response = await fetch(proxied(settings.api.endpoints.productReview(product_id, user_id)), {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({
-                rating: rating,
-                comment: comment,
-                user_id: user_id,
-                product_id: product_id
-            }),
+            // The product and the author are in the path; product-service
+            // checks the author is the signed-in user.
+            body: JSON.stringify({ rating, comment }),
         });
 
         if (!response.ok) {

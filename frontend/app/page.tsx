@@ -2,6 +2,7 @@ import CommunityGallery from "@/components/3. Community Gallery/CommunityGallery
 import FeaturedCollection from "@/components/4. Featured Collections/FeaturedCollection";
 import Testimonials from "@/components/5. Testimonials/Testimonials";
 import fetchProductsFromBackend from "../actions/getProducts";
+import fetchFeaturedReviews from "@/actions/getFeaturedReviews";
 import { Params, SearchParams } from "../types/params";
 import HeroSection from "@/components/2. Hero/HeroComponentr";
 import { sessionManagaer } from "@/actions/getCurrentUser";
@@ -11,7 +12,10 @@ export default async function Home(props: {params: Params, searchParams: SearchP
 	const searchParams = await props.searchParams
     const searchTerm = searchParams['searchTerm'] as string | undefined;
     const category = searchParams['category'] as string | undefined;
-    const products = await fetchProductsFromBackend(category, searchTerm);
+    const [products, reviews] = await Promise.all([
+        fetchProductsFromBackend(category, searchTerm),
+        fetchFeaturedReviews(),
+    ]);
 	const currentUserJWT = await sessionManagaer.getCurrentUserJWT();
 
     // if (!products || products.length === 0) {
@@ -23,7 +27,7 @@ export default async function Home(props: {params: Params, searchParams: SearchP
 			<HeroSection isRegisteredUser={Boolean(currentUserJWT)} />
             <CommunityGallery />
             <FeaturedCollection products={products} />
-            <Testimonials />
+            <Testimonials reviews={reviews} />
         </div>
     )
 };

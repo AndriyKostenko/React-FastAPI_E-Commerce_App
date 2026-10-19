@@ -1,9 +1,9 @@
-import Image from "next/image";
-import { MdStar, MdStarHalf, MdGroup } from "react-icons/md";
-import { TESTIMONIALS } from "@/utils/constants";
+import Link from "next/link";
+import { MdStar, MdStarHalf, MdBrush } from "react-icons/md";
+import type { FeaturedReview } from "@/types/review";
 
 const StarRating = ({ count }: { count: number }) => (
-    <div className="flex gap-1 text-brand-lime">
+    <div className="flex gap-1 text-brand-lime" aria-label={`Rated ${count} out of 5`}>
         {Array.from({ length: 5 }).map((_, i) => {
             if (i < Math.floor(count)) return <MdStar key={i} size={20} />;
             if (i < count) return <MdStarHalf key={i} size={20} />;
@@ -12,80 +12,73 @@ const StarRating = ({ count }: { count: number }) => (
     </div>
 );
 
-const Testimonials = () => (
-    <section className="grid grid-cols-1 md:grid-cols-3 gap-8">
-        <div className="glass-card p-8 space-y-6 flex flex-col justify-between">
-            <div className="space-y-4">
-                <StarRating count={TESTIMONIALS[0].stars} />
-                <p className="font-body-lg italic text-primary">
-                    &ldquo;{TESTIMONIALS[0].quote}&rdquo;
-                </p>
-            </div>
-            <div className="flex items-center gap-4 pt-4 border-t border-white/30">
-                <div className="w-12 h-12 rounded-full overflow-hidden relative flex-shrink-0">
-                    <Image
-                        src={TESTIMONIALS[0].avatar}
-                        alt={TESTIMONIALS[0].name}
-                        fill
-                        className="object-cover"
-                    />
-                </div>
-                <div>
-                    <p className="font-label-bold text-primary">
-                        {TESTIMONIALS[0].name}
-                    </p>
-                    <p className="text-xs text-secondary">
-                        {TESTIMONIALS[0].role}
-                    </p>
-                </div>
-            </div>
-        </div>
+const reviewDate = (iso: string): string =>
+    new Date(iso).toLocaleDateString("en-CA", { year: "numeric", month: "long", day: "numeric" });
 
-        <div className="glass-card bg-brand-lime p-8 space-y-6 flex flex-col justify-center items-center text-center">
-            <div className="w-20 h-20 bg-black text-white rounded-full flex items-center justify-center">
-                <MdGroup size={40} />
-            </div>
-            <div className="space-y-2">
-                <h3 className="font-headline-lg text-black">
-                    Join 50k+ Creators
-                </h3>
-                <p className="text-black/70 font-body-md">
-                    Be part of the future of fashion. Start generating your own
-                    unique styles today.
-                </p>
-            </div>
-            <button className="bg-black text-white px-8 py-3 rounded-full font-label-bold hover:shadow-lg hover:bg-neutral-800 transition-all active:scale-95">
-                Get Started
-            </button>
+const ReviewCard = ({ review }: { review: FeaturedReview }) => (
+    <div className="glass-card p-8 space-y-6 flex flex-col justify-between">
+        <div className="space-y-4">
+            <StarRating count={review.rating} />
+            <p className="font-body-lg italic text-primary line-clamp-6">
+                &ldquo;{review.comment}&rdquo;
+            </p>
         </div>
-
-        <div className="glass-card p-8 space-y-6 flex flex-col justify-between">
-            <div className="space-y-4">
-                <StarRating count={TESTIMONIALS[1].stars} />
-                <p className="font-body-lg italic text-primary">
-                    &ldquo;{TESTIMONIALS[1].quote}&rdquo;
-                </p>
-            </div>
-            <div className="flex items-center gap-4 pt-4 border-t border-white/30">
-                <div className="w-12 h-12 rounded-full overflow-hidden relative flex-shrink-0">
-                    <Image
-                        src={TESTIMONIALS[1].avatar}
-                        alt={TESTIMONIALS[1].name}
-                        fill
-                        className="object-cover"
-                    />
-                </div>
-                <div>
-                    <p className="font-label-bold text-primary">
-                        {TESTIMONIALS[1].name}
-                    </p>
-                    <p className="text-xs text-secondary">
-                        {TESTIMONIALS[1].role}
-                    </p>
-                </div>
-            </div>
+        <div className="pt-4 border-t border-white/30 space-y-1">
+            <p className="font-label-bold text-primary">Customer review</p>
+            <p className="text-xs text-secondary">
+                <Link href={`/products/${review.product.id}`} className="underline hover:text-primary">
+                    {review.product.name}
+                </Link>
+                {" · "}
+                {reviewDate(review.date_created)}
+            </p>
         </div>
-    </section>
+    </div>
 );
+
+const DesignCallToAction = () => (
+    <div className="glass-card bg-brand-lime p-8 space-y-6 flex flex-col justify-center items-center text-center">
+        <div className="w-20 h-20 bg-black text-white rounded-full flex items-center justify-center">
+            <MdBrush size={40} />
+        </div>
+        <div className="space-y-2">
+            <h3 className="font-headline-lg text-black">Design your own</h3>
+            <p className="text-black/70 font-body-md">
+                Describe an idea and our AI turns it into a print for your own T-shirt.
+            </p>
+        </div>
+        <Link
+            href="/#create-design"
+            className="bg-black text-white px-8 py-3 rounded-full font-label-bold hover:shadow-lg hover:bg-neutral-800 transition-all active:scale-95"
+        >
+            Start designing
+        </Link>
+    </div>
+);
+
+// Tailwind only ships classes it can see written out, so no template string.
+const COLUMNS: Record<number, string> = {
+    1: "md:grid-cols-2",
+    2: "md:grid-cols-3",
+};
+
+/**
+ * Real customer reviews around a design call to action. With no reviews the
+ * section is not shown at all: nothing here is ever invented.
+ */
+const Testimonials = ({ reviews }: { reviews: FeaturedReview[] }) => {
+    if (reviews.length === 0) return null;
+    const [first, ...rest] = reviews;
+
+    return (
+        <section className={`grid grid-cols-1 ${COLUMNS[reviews.length] ?? "md:grid-cols-3"} gap-8`}>
+            <ReviewCard review={first} />
+            <DesignCallToAction />
+            {rest.map((review) => (
+                <ReviewCard key={review.id} review={review} />
+            ))}
+        </section>
+    );
+};
 
 export default Testimonials;
