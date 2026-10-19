@@ -31,6 +31,8 @@ from database_layer.order_saga_repository import OrderSagaRepository
 from database_layer.order_return_repository import ReturnRequestRepository
 from service_layer.order_return_service import OrderReturnService
 from service_layer.return_evidence_storage import ReturnEvidenceStorage, ReturnEvidenceStorageFactory
+from database_layer.sales_ranking_repository import SalesRankingRepository
+from service_layer.best_seller_service import BestSellerService
 
 
 def get_api_resources(request: Request) -> OrderApiResources:
@@ -192,3 +194,13 @@ def get_order_return_service(
 
 
 order_return_service_dependency = Annotated[OrderReturnService, Depends(get_order_return_service)]
+
+
+def get_best_seller_service(
+    session: AsyncSession = Depends(get_db_session, scope="function"),
+) -> BestSellerService:
+    """Ranks products by net units sold; reads only."""
+    return BestSellerService(repository=SalesRankingRepository(session=session))
+
+
+best_seller_service_dependency = Annotated[BestSellerService, Depends(get_best_seller_service)]
