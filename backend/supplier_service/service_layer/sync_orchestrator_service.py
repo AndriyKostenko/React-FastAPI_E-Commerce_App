@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from math import ceil
 from uuid import uuid4
 from sqlalchemy.exc import IntegrityError
 
@@ -125,29 +126,35 @@ class SupplierSyncOrchestrator:
 
             current_page = filters.page or 1
             first_page = current_page
-            total_pages: int | None = None
+            max_products = self._get_max_products(config)
             detail_errors: list[str] = []
 
             while True:
                 page_filters = filters.model_copy(update={"page": current_page})
                 page = await provider.search_products(page_filters)
-                if total_pages is None:
-                    total_pages = max(int(page.total_pages or current_page), current_page)
-                    sync_state.total_batches = max(total_pages - first_page + 1, 1)
+                if current_page == first_page:
+                    # Every batch counts towards completion (the importer's
+                    # feedback is matched against total_batches), so the run
+                    # fixes its batch count now and emits exactly that many:
+                    # the pages CJ has, or as many as the cap needs if fewer.
+                    available_pages = max(int(page.total_pages or current_page) - first_page + 1, 1)
+                    sync_state.total_batches = min(available_pages, ceil(max_products / filters.size))
 
-                sync_state.products_fetched += len(page.products)
+                # The cap counts products examined, so a run's CJ calls stay bounded.
+                listed = page.products[: max_products - sync_state.products_fetched]
+                sync_state.products_fetched += len(listed)
                 page_errors: list[str] = []
-                if fetch_details and page.products:
+                if fetch_details and listed:
                     products, page_errors = await self._fetch_product_details(
                         provider=provider,
-                        products=page.products,
+                        products=listed,
                         default_category_name=config.default_category_name,
                         allowed_category_ids=allowed_category_ids,
                     )
                 else:
                     products = [
                         product
-                        for product in page.products
+                        for product in listed
                         if product.supplier_category_id in allowed_category_ids
                     ]
 
@@ -172,7 +179,7 @@ class SupplierSyncOrchestrator:
                 # are safe across retries.
                 await self.sync_state_repository.session.commit()
 
-                if current_page >= total_pages:
+                if batch_number >= sync_state.total_batches:
                     break
                 current_page += 1
 
@@ -350,6 +357,18 @@ class SupplierSyncOrchestrator:
         product.quantity = sum(sellable.values()) if product.variants else stock.total
         product.in_stock = product.quantity > 0
         return None
+
+    def _get_max_products(self, config: SupplierConfig) -> int:
+        """The supplier config's "max_products", else the service-wide setting."""
+        configured = (config.config or {}).get("max_products")
+        value = configured if configured is not None else getattr(self.settings, "CJ_DROPSHIPPING_SYNC_MAX_PRODUCTS", 200)
+        try:
+            max_products = int(value)
+        except (TypeError, ValueError) as exc:
+            raise SupplierSyncConfigurationError(f"Supplier config 'max_products' must be a whole number, not {value!r}") from exc
+        if max_products < 1:
+            raise SupplierSyncConfigurationError("Supplier config 'max_products' must be at least 1")
+        return max_products
 
     def _get_allowed_category_ids(self, config: SupplierConfig) -> set[str]:
         configured = (config.config or {}).get("allowed_category_ids") or []

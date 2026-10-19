@@ -54,7 +54,8 @@ class CJToSupplierMapper:
     @classmethod
     def map_products_page(cls, data: Any, page: int = 1, page_size: int = 10) -> SupplierProductsPage:
         """Map a CJ /product/listV2 response to a SupplierProductsPage."""
-        content_list = (data.get("data") or {}).get("content", []) if isinstance(data, dict) else []
+        body = (data.get("data") or {}) if isinstance(data, dict) else {}
+        content_list = body.get("content", [])
         if not content_list:
             return SupplierProductsPage(
                 page=page,
@@ -64,8 +65,9 @@ class CJToSupplierMapper:
                 products=[],
             )
 
-        pagination = content_list[0].get("page", {}) if content_list else {}
-        raw_products = content_list[0].get("productList", []) if content_list else []
+        # CJ sends the totals on "data" itself, next to "content"; reading them
+        # anywhere else returned None and the sync stopped after page 1.
+        raw_products = content_list[0].get("productList", [])
 
         mapped_products: list[GenericSupplierProduct] = []
         for product in raw_products:
@@ -92,8 +94,8 @@ class CJToSupplierMapper:
         return SupplierProductsPage(
             page=page,
             page_size=page_size,
-            total_records=pagination.get("totalRecords"),
-            total_pages=pagination.get("totalPages"),
+            total_records=body.get("totalRecords"),
+            total_pages=body.get("totalPages"),
             products=mapped_products,
         )
 
