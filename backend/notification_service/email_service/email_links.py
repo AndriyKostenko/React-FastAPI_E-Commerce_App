@@ -29,6 +29,9 @@ class EmailLinks:
     def login(self) -> str:
         return f"{self._base}/login"
 
+    def forgot_password(self) -> str:
+        return f"{self._base}/forgot-password"
+
     def order(self, order_id: UUID | str) -> str:
         return f"{self._base}/order/{order_id}"
 

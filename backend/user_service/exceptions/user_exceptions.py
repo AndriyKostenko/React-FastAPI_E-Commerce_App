@@ -52,3 +52,16 @@ class UserIsNotVerifiedError(BaseAPIException):
     """Raised when user is not verified"""
     def __init__(self, detail: str = "User is not verified"):
         super().__init__(detail=detail, status_code=403)
+
+
+#------Human check (captcha) Errors------
+
+class HumanCheckFailedError(BaseAPIException):
+    """The captcha token is missing, expired, reused or forged."""
+    def __init__(self, detail: str = "Please complete the verification and try again."):
+        super().__init__(detail=detail, status_code=400)
+
+class HumanCheckUnavailableError(BaseAPIException):
+    """The captcha provider could not be reached; the visitor did nothing wrong."""
+    def __init__(self, detail: str = "Verification is unavailable right now. Please try again in a moment."):
+        super().__init__(detail=detail, status_code=503)

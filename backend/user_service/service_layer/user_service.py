@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 from asyncio import Lock
+from enum import StrEnum
 import secrets
 from time import monotonic
 from typing import Annotated
@@ -23,6 +24,7 @@ from schemas.user_schemas import (
 )
 from contracts.events import (
     UserRegisteredEvent,
+    ExistingAccountRegistrationEvent,
     UserLoginEvent,
     PasswordResetRequestedEvent,
     PasswordResetSuccessEvent,
@@ -34,7 +36,6 @@ from settings import Settings
 from infrastructure.managers.cache_manager import CacheManager
 from contracts.event_enums import UserEvents
 from exceptions.user_exceptions import (
-    UserAlreadyExistsError,
     UserNotFoundError,
     UserUpdateError
 )
@@ -44,6 +45,15 @@ from infrastructure.managers.session_registry import SessionRegistry
 from infrastructure.managers.token_manager import TokenManager
 from service_layer.outbox_event_service import OutboxEventService
 from service_layer.session_issuer import IssuedSession, SessionIssuer
+
+
+class RegistrationOutcome(StrEnum):
+    """What a registration did; the client is told the same thing for every one."""
+    CREATED = "created"
+    RESENT_VERIFICATION = "resent_verification"
+    NOTIFIED_OWNER = "notified_owner"
+    THROTTLED = "throttled"
+    IGNORED = "ignored"
 
 
 class UserService:
@@ -152,30 +162,66 @@ class UserService:
             pipe.delete(set_key)
             await pipe.execute()
 
-    async def create_user(self, data: UserSignUp) -> tuple[UserInfo , str]:
+    async def register_user(self, data: UserSignUp) -> RegistrationOutcome:
         """
-        Create a new user and publish registration event with opaque token via outbox.
+        Open an account, without ever saying whether the email already had one.
 
-        Returns:
-            tuple: (UserInfo, verification_token)
+        The caller answers every outcome with the same "check your email": a
+        sign-up form that said "already registered" would let anyone test which
+        addresses are customers. What differs is the email sent:
+
+        - a new account gets its verification link;
+        - an account not yet verified gets a fresh link (the person may have
+          lost the first one; the password typed now is not used);
+        - a verified account's owner is told someone tried to sign up with
+          their address, with links to sign in or reset the password;
+        - a deactivated or deleted account gets nothing.
+
+        The password is hashed on every path, so the response time does not
+        give the answer away either.
         """
-        email = str(data.email).strip().lower()
-        hashed_password = self.password_manager.hash_password(data.password)
         new_user = User(
             name=data.name,
-            email=email,
-            hashed_password=hashed_password,
+            email=data.email,
+            hashed_password=self.password_manager.hash_password(data.password),
             is_verified=False,
             role="user",
             is_active=True,
             token_version=1
         )
-        try:
-            user = await self.repository.create(new_user)
-        except IntegrityError as exc:
-            raise UserAlreadyExistsError("User with that email already exists.") from exc
+        created = await self.repository.add_unless_email_taken(new_user)
+        if created is None:
+            return await self._answer_registration_for_taken_email(data.email)
+        await self._send_verification(created)
+        return RegistrationOutcome.CREATED
 
-        # Generate single-use opaque verification token and store hash in Redis
+    async def _answer_registration_for_taken_email(self, email: str) -> RegistrationOutcome:
+        owner = await self.repository.get_by_field("email", email)
+        if owner is None or not owner.is_active:
+            # Soft-deleted (its row still holds the email) or deactivated.
+            return RegistrationOutcome.IGNORED
+        if not await self._claim_signup_notice(email):
+            return RegistrationOutcome.THROTTLED
+        if not owner.is_verified:
+            await self._send_verification(owner)
+            return RegistrationOutcome.RESENT_VERIFICATION
+        await self.outbox_event_service.add_outbox_event(
+            event_type=UserEvents.USER_REGISTRATION_EXISTING,
+            payload=ExistingAccountRegistrationEvent(user_email=owner.email, user_id=owner.id),
+        )
+        return RegistrationOutcome.NOTIFIED_OWNER
+
+    async def _claim_signup_notice(self, email: str) -> bool:
+        """At most one such email per address per interval: the form must not become a way to flood an inbox."""
+        return bool(await self.cache_manager.redis.set(
+            f"signup_notice:{self._token_hash(email)}",
+            "1",
+            nx=True,
+            ex=self.settings.SIGNUP_NOTICE_INTERVAL_MINUTES * 60,
+        ))
+
+    async def _send_verification(self, user: User) -> str:
+        """Store a single-use verification token (hashed) and queue its email via the outbox."""
         verification_token = secrets.token_urlsafe(32)
         ttl_seconds = self.settings.VERIFICATION_TOKEN_EXPIRY_MINUTES * 60
         await self.cache_manager.redis.setex(
@@ -192,8 +238,7 @@ class UserService:
                 user_id=user.id,
             )
         )
-
-        return UserInfo.model_validate(user), verification_token
+        return verification_token
 
     async def verify_password(self, email: EmailStr, password: str) -> bool:
         user = await self.repository.get_by_field("email", email)

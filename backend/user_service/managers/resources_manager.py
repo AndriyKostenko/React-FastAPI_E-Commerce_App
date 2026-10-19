@@ -30,6 +30,8 @@ from managers.password_manager import PasswordManager
 from infrastructure.managers.ratelimit_manager import RateLimitManager
 from infrastructure.managers.session_registry import SessionRegistry
 from infrastructure.managers.token_manager import TokenManager
+from service_layer.email_policy import EmailAddressPolicy
+from service_layer.human_check import HumanCheck, TurnstileHumanCheck
 from settings import Settings, get_settings
 
 
@@ -64,6 +66,10 @@ class UserApiResources:
     password_manager: PasswordManager
     token_manager: TokenManager
     session_registry: SessionRegistry
+    # Register, login and forgot-password: a person, not a script.
+    human_check: HumanCheck
+    # Register: an address that can receive mail and is not a throwaway inbox.
+    email_policy: EmailAddressPolicy
 
 
 class ResourceManager:
@@ -91,6 +97,15 @@ class ResourceManager:
 
     def build(self) -> UserApiResources:
         """Assemble the API resource graph without opening any connection."""
+        # The one outbound HTTP client: Google's keys and Cloudflare's siteverify.
+        http_client = AsyncClient(
+            timeout=Timeout(connect=5.0, read=10.0, write=5.0, pool=5.0),
+            limits=Limits(
+                max_connections=20,
+                max_keepalive_connections=10,
+                keepalive_expiry=30,
+            ),
+        )
         return UserApiResources(
             settings=self.settings,
             logger=self.logger,
@@ -107,14 +122,7 @@ class ResourceManager:
                 logger=self.logger,
                 trusted_proxy_networks=self.settings.TRUSTED_PROXY_NETWORKS,
             ),
-            google_http_client=AsyncClient(
-                timeout=Timeout(connect=5.0, read=10.0, write=5.0, pool=5.0),
-                limits=Limits(
-                    max_connections=20,
-                    max_keepalive_connections=10,
-                    keepalive_expiry=30,
-                ),
-            ),
+            google_http_client=http_client,
             password_manager=PasswordManager(settings=self.settings),
             token_manager=TokenManager.from_settings(self.settings),
             # Shared with the API gateway, which reads it to refuse access
@@ -124,6 +132,14 @@ class ResourceManager:
                 redis_url=self.settings.SESSION_REGISTRY_REDIS_URL,
                 logger=self.logger,
             ),
+            # Reading the secret here makes a missing one stop the service at
+            # start-up, naming it, instead of failing every sign-in later.
+            human_check=TurnstileHumanCheck(
+                secret=self.settings.TURNSTILE_SECRET,
+                http_client=http_client,
+                logger=self.logger,
+            ),
+            email_policy=EmailAddressPolicy.from_settings(self.settings),
         )
 
     # ----------------------------- lifecycle ------------------------------

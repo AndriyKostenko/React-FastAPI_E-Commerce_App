@@ -151,6 +151,19 @@ class TestUserEventHandlerPasswordResetSuccess:
         handler._save_notification.assert_awaited_once()
 
 
+class TestUserEventHandlerRegistrationExisting:
+    async def test_dispatches_existing_account_notice_task(self):
+        handler = _make_handler(UserEventHandler)
+        msg = _user_msg("user.registration.existing")
+
+        with patch(f"{TASK_MODULE}.send_existing_account_notice") as mock_task:
+            mock_task.kiq = AsyncMock()
+            await handler.handle(msg)
+
+        mock_task.kiq.assert_awaited_once_with(msg)
+        handler._save_notification.assert_awaited_once()
+
+
 class TestUserEventHandlerUnknownType:
     async def test_unhandled_type_skips_save_and_mark(self):
         handler = _make_handler(UserEventHandler)

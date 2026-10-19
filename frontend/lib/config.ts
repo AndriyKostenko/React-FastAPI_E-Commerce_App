@@ -8,6 +8,7 @@ export const env = createEnv({
         NEXT_PUBLIC_API_VERSION: z.string().min(1).optional(),
         NEXT_PUBLIC_STRIPE_TEST_PUBLISHABLE_KEY: z.string().min(1),
         NEXT_PUBLIC_STRIPE_PROD_PUBLISHABLE_KEY: z.string().min(1).optional(),
+        NEXT_PUBLIC_TURNSTILE_SITE_KEY: z.string().min(1).optional(),
     },
     runtimeEnv: {
         NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
@@ -15,6 +16,7 @@ export const env = createEnv({
         NEXT_PUBLIC_API_VERSION: process.env.NEXT_PUBLIC_API_VERSION,
         NEXT_PUBLIC_STRIPE_TEST_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_STRIPE_TEST_PUBLISHABLE_KEY,
         NEXT_PUBLIC_STRIPE_PROD_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_STRIPE_PROD_PUBLISHABLE_KEY,
+        NEXT_PUBLIC_TURNSTILE_SITE_KEY: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY,
         },
     server: {},
 });
@@ -24,6 +26,9 @@ class AppSettings {
     private static readonly DEFAULT_APP_URL = "http://localhost:30000";
     private static readonly DEFAULT_API_ORIGIN = "http://localhost:8000";
     private static readonly DEFAULT_API_VERSION = "v1";
+    // Cloudflare's always-pass test widget: it issues a dummy token that the
+    // test secret dev.sh stores for user-service accepts. Development only.
+    private static readonly TEST_TURNSTILE_SITE_KEY = "1x00000000000000000000AA";
 
     // ── Helpers ─────────────────────────────────────────────────────────────
     private static normalizeUrl(value: string): string {
@@ -114,6 +119,9 @@ class AppSettings {
 
     public readonly stripe: {publishableKey: string;};
 
+    /** Cloudflare Turnstile on sign-up, sign-in and forgot-password. */
+    public readonly humanCheck: {siteKey: string;};
+
     constructor() {
         const origin  = env.NEXT_PUBLIC_API_ORIGIN  ?? AppSettings.inferBrowserApiOrigin() ?? AppSettings.DEFAULT_API_ORIGIN;
         const version = env.NEXT_PUBLIC_API_VERSION ?? AppSettings.DEFAULT_API_VERSION;
@@ -190,6 +198,21 @@ class AppSettings {
             ? env.NEXT_PUBLIC_STRIPE_PROD_PUBLISHABLE_KEY ?? env.NEXT_PUBLIC_STRIPE_TEST_PUBLISHABLE_KEY
             : env.NEXT_PUBLIC_STRIPE_TEST_PUBLISHABLE_KEY,
         };
+
+        this.humanCheck = { siteKey: AppSettings.turnstileSiteKey() };
+    }
+
+    /**
+     * No test-key fallback in production: the test widget's dummy token is
+     * refused by a real secret, so every sign-in would fail without a word.
+     * Failing the build names the missing setting instead.
+     */
+    private static turnstileSiteKey(): string {
+        if (env.NEXT_PUBLIC_TURNSTILE_SITE_KEY) return env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+        if (process.env.NODE_ENV === "production") {
+            throw new Error("NEXT_PUBLIC_TURNSTILE_SITE_KEY is required in production (Cloudflare Turnstile site key)");
+        }
+        return AppSettings.TEST_TURNSTILE_SITE_KEY;
     }
 }
 

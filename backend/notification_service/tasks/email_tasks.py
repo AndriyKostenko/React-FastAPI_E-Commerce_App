@@ -11,6 +11,7 @@ from contracts.events import (
     PasswordResetRequestedEvent,
     UserLoginEvent,
     PasswordResetSuccessEvent,
+    ExistingAccountRegistrationEvent,
     OrderConfirmedEvent,
     OrderCancelledEvent,
     CJOrderShippedEvent,
@@ -59,6 +60,12 @@ async def send_password_reset_success(payload: dict[str, Any]) -> None:
     event = PasswordResetSuccessEvent(**payload)
     await user_notification_email_service.send_password_reset_success_email(event)
     logger.info(f"Password reset success email sent to {event.user_email}")
+
+@taskiq_broker.task
+async def send_existing_account_notice(payload: dict[str, Any]) -> None:
+    event = ExistingAccountRegistrationEvent(**payload)
+    await user_notification_email_service.send_existing_account_notice(event)
+    logger.info(f"Existing-account registration notice sent to {event.user_email}")
 
 @taskiq_broker.task
 async def send_order_confirmed_email(payload: dict[str, Any]) -> None:

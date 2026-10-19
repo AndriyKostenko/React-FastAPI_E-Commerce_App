@@ -50,6 +50,35 @@ or recorded as decided. Merged so far: PR #41 (readiness, phases 2–5) and PR #
 - Stripe and CJ webhooks to the production URL; the Stripe Tax registrations if tax is
   switched on; RETURN_ADDRESS and ADMIN_ALERT_EMAIL; a runbook
   (deploy, rollback, restore, rotate a secret).
+- **Sign-up protection (Turnstile captcha, email checks; built 2026-10-17).** Before go-live:
+  1. In the Cloudflare dashboard (Turnstile, free plan), add a widget in **Managed** mode
+     for the storefront's production hostname(s) only. Cloudflare then refuses tokens
+     from any other site.
+  2. Put the widget's **secret key** in the production Vault, user-service's path, as
+     `TURNSTILE_SECRET_KEY`. user-service refuses to start without one. (The always-pass
+     test secret is written only by `dev.sh` into the local Vault.)
+  3. Set the repository variable `NEXT_PUBLIC_TURNSTILE_SITE_KEY` (GitHub → Settings →
+     Variables) to the widget's **site key**. `deploy.yml` passes it to the image build;
+     without it `next build` fails on purpose. A site key is public, so a variable is fine.
+  4. After the first deploy, check with the real keys: sign up, sign in and request a
+     reset in a browser, and confirm that a request with the test token
+     `XXXX.DUMMY.TOKEN.XXXX` gets a 400 (a real secret refuses it; the test secret lets
+     everything through).
+  5. The live test scripts under `frontend/tests/` send the dummy token. They pass only
+     against a stack with the test secret, so never point them at production.
+  6. Decide what an outage should do: today, if Cloudflare cannot be reached, sign-up,
+     sign-in and forgot-password answer 503 (fail closed), so nobody can sign in until
+     Cloudflare is back. Letting sign-in alone through on an outage is a small change in
+     `TurnstileHumanCheck`.
+  7. Check the email side once with real mail: registering again with an existing
+     address sends "someone tried to create an account with your email" (at most once
+     an hour per address); an unverified account gets a fresh verification link.
+  8. If a Content-Security-Policy is added later, it must allow
+     `https://challenges.cloudflare.com` for scripts and frames.
+  9. Known gap, not fixed: someone can register a victim's email first, with a password
+     they know; if the victim then clicks the verification link, the account is theirs
+     but the password is the attacker's. The fix is to choose the password after the
+     email is verified.
 - Vault still serves plain HTTP on the Docker bridges; TLS is a later step.
 - admin-js is behind the `admin` profile until it reads Vault itself.
 

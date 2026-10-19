@@ -2,7 +2,7 @@ from typing import Annotated
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, Query, Request, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, Query, Request, UploadFile, status
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import EmailStr
 
@@ -14,6 +14,8 @@ from dependencies.dependencies import (
     self_or_admin_dependency,
     address_service_dependency,
     avatar_service_dependency,
+    human_check_dependency,
+    email_policy_dependency,
 )
 from models.user_models import User
 from schemas.user_schemas import (
@@ -25,6 +27,7 @@ from schemas.user_schemas import (
     PasswordChangeRequest,
     PasswordUpdateResponse,
     RefreshTokenRequest,
+    RegistrationAccepted,
     RefreshTokenResponse,
     ResetPasswordRequest,
     CurrentUserInfo,
@@ -47,14 +50,22 @@ user_routes = APIRouter(tags=["users"])
 
 @user_routes.post("/register",
                   summary="Create new user",
-                  response_description="New user created successfully",
-                  response_model=UserInfo,
-                  status_code=status.HTTP_201_CREATED)
+                  response_description="Registration accepted; the next step is in the email",
+                  response_model=RegistrationAccepted,
+                  status_code=status.HTTP_202_ACCEPTED)
 @rate_limited(times=20, seconds=3600)
 async def create_user(request: Request, data: UserSignUp,
-                      user_service: user_service_dependency):
-    new_db_user, verification_token = await user_service.create_user(data=data)
-    return new_db_user
+                      user_service: user_service_dependency,
+                      human_check: human_check_dependency,
+                      email_policy: email_policy_dependency):
+    # The captcha first: a script is turned away before it can use this route
+    # to look up domains or to find out anything about an address.
+    await human_check.verify(data.captcha_token)
+    await email_policy.check(data.email)
+    await user_service.register_user(data=data)
+    # The same words whether the account is new, unverified or already in use
+    # (see UserService.register_user).
+    return RegistrationAccepted(detail="Check your email to finish creating your account.")
 
 @user_routes.post("/activate",
                   summary="Verify user email",
@@ -76,7 +87,9 @@ async def verify_email(request: Request, data: ActivationRequest, user_service: 
                   response_model=ForgotPasswordResponse,
                   status_code=status.HTTP_200_OK)
 @rate_limited(times=10, seconds=3600, identifier_param="data")
-async def forgot_password(request: Request, data: ForgotPasswordRequest, user_service: user_service_dependency):
+async def forgot_password(request: Request, data: ForgotPasswordRequest, user_service: user_service_dependency,
+                          human_check: human_check_dependency):
+    await human_check.verify(data.captcha_token)
     user, reset_token = await user_service.request_password_reset(data.email)
     return ForgotPasswordResponse(
         detail="If that email exists, a password reset email has been sent.",
@@ -104,7 +117,12 @@ async def reset_password(request: Request, data: ResetPasswordRequest, user_serv
 @rate_limited(times=10, seconds=60, identifier_param="form_data")
 async def login(request: Request,
                 form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
-                user_service: user_service_dependency):
+                user_service: user_service_dependency,
+                human_check: human_check_dependency,
+                captcha_token: Annotated[str | None, Form(max_length=2048)] = None):
+    # Before the password is looked at, so guessing passwords costs a solved
+    # challenge per attempt on top of the rate limit.
+    await human_check.verify(captcha_token)
     user, access_token, access_expiry, refresh_token, refresh_expiry = await user_service.login_user(form_data)
     return UserLoginDetails(
         access_token=access_token,

@@ -44,6 +44,59 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/users/me/addresses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** My saved addresses, the default first */
+        get: operations["list_my_addresses_api_v1_users_me_addresses_get"];
+        put?: never;
+        /** Save an address */
+        post: operations["create_my_address_api_v1_users_me_addresses_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/users/me/addresses/{address_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Replace a saved address */
+        put: operations["replace_my_address_api_v1_users_me_addresses__address_id__put"];
+        post?: never;
+        /** Delete a saved address */
+        delete: operations["delete_my_address_api_v1_users_me_addresses__address_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/users/me/addresses/{address_id}/default": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Make an address the default */
+        post: operations["make_my_address_default_api_v1_users_me_addresses__address_id__default_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/register": {
         parameters: {
             query?: never;
@@ -200,6 +253,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/users/me/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Change my password
+         * @description Change the caller's password; every session ends, this one included.
+         */
+        post: operations["change_my_password_api_v1_users_me_password_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/users/me/avatar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Upload my avatar
+         * @description A JPEG, PNG or WebP; stored re-encoded as a square WebP without metadata.
+         */
+        put: operations["upload_my_avatar_api_v1_users_me_avatar_put"];
+        post?: never;
+        /** Remove my avatar */
+        delete: operations["remove_my_avatar_api_v1_users_me_avatar_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/users/{user_id}": {
         parameters: {
             query?: never;
@@ -253,6 +347,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/login/passkey/options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin sign-in, step 1: the password earns a passkey challenge */
+        post: operations["begin_passkey_sign_in_api_v1_login_passkey_options_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/login/passkey/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin sign-in, step 2: the passkey's signature earns the session */
+        post: operations["finish_passkey_sign_in_api_v1_login_passkey_verify_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/passkeys/enrolment/options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Passkey enrolment, step 1: options for the link's admin */
+        post: operations["begin_passkey_enrolment_api_v1_passkeys_enrolment_options_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/passkeys/enrolment/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Passkey enrolment, step 2: register the new credential */
+        post: operations["finish_passkey_enrolment_api_v1_passkeys_enrolment_verify_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -262,8 +424,78 @@ export interface components {
             /** Token */
             token: string;
         };
+        /**
+         * AddressInput
+         * @description A saved address as the customer submits it, to create or replace one.
+         *
+         *     Canadian or refused with a 422, checked by the same rules order-service
+         *     applies at checkout, so an address that can be saved can also be shipped
+         *     to. The country, province and postal code come back normalised.
+         */
+        AddressInput: {
+            /** Label */
+            label: string;
+            /** Name */
+            name: string;
+            /** Phone */
+            phone?: string | null;
+            /** Street */
+            street: string;
+            /** City */
+            city: string;
+            /** Province */
+            province: string;
+            /** Postal Code */
+            postal_code: string;
+            /** Country */
+            country?: string | null;
+            /** Country Code */
+            country_code?: string | null;
+            /**
+             * Is Default
+             * @default false
+             */
+            is_default: boolean;
+        };
+        /** AddressRead */
+        AddressRead: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Label */
+            label: string;
+            /** Name */
+            name: string;
+            /** Phone */
+            phone: string | null;
+            /** Street */
+            street: string;
+            /** City */
+            city: string;
+            /** Province */
+            province: string;
+            /** Postal Code */
+            postal_code: string;
+            /** Country */
+            country: string;
+            /** Country Code */
+            country_code: string;
+            /** Is Default */
+            is_default: boolean;
+            /**
+             * Date Created
+             * Format: date-time
+             */
+            date_created: string;
+            /** Date Updated */
+            date_updated: string | null;
+        };
         /** Body_login_api_v1_login_post */
         Body_login_api_v1_login_post: {
+            /** Captcha Token */
+            captcha_token?: string | null;
             /** Grant Type */
             grant_type?: string | null;
             /** Username */
@@ -285,6 +517,11 @@ export interface components {
              * Format: password
              */
             client_secret?: string | null;
+        };
+        /** Body_upload_my_avatar_api_v1_users_me_avatar_put */
+        Body_upload_my_avatar_api_v1_users_me_avatar_put: {
+            /** File */
+            file: string;
         };
         /** CurrentUserInfo */
         CurrentUserInfo: {
@@ -317,6 +554,11 @@ export interface components {
              * Format: email
              */
             email: string;
+            /**
+             * Captcha Token
+             * @description Turnstile token
+             */
+            captcha_token?: string | null;
         };
         /** ForgotPasswordResponse */
         ForgotPasswordResponse: {
@@ -337,6 +579,100 @@ export interface components {
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        JsonValue: unknown;
+        /**
+         * PasskeyCeremonyOptions
+         * @description What the browser passes to navigator.credentials.get() / .create().
+         *
+         *     ``options`` is the WebAuthn options object in its JSON form (binary fields
+         *     base64url-encoded), as py_webauthn produces it.
+         */
+        PasskeyCeremonyOptions: {
+            /** Challenge Id */
+            challenge_id: string;
+            /** Options */
+            options: {
+                [key: string]: components["schemas"]["JsonValue"];
+            };
+        };
+        /** PasskeyEnrolmentFinish */
+        PasskeyEnrolmentFinish: {
+            /** Token */
+            token: string;
+            /** Challenge Id */
+            challenge_id: string;
+            /** Credential */
+            credential: {
+                [key: string]: components["schemas"]["JsonValue"];
+            };
+            /**
+             * Name
+             * @description What this passkey is on, e.g. 'MacBook'
+             */
+            name: string;
+        };
+        /** PasskeyEnrolmentStart */
+        PasskeyEnrolmentStart: {
+            /** Token */
+            token: string;
+        };
+        /** PasskeySignInFinish */
+        PasskeySignInFinish: {
+            /** Challenge Id */
+            challenge_id: string;
+            /** Credential */
+            credential: {
+                [key: string]: components["schemas"]["JsonValue"];
+            };
+        };
+        /**
+         * PasskeySignInStart
+         * @description Step 1 of an admin sign-in: the password, before any challenge is issued.
+         */
+        PasskeySignInStart: {
+            /**
+             * Email
+             * Format: email
+             */
+            email: string;
+            /** Password */
+            password: string;
+        };
+        /**
+         * PasskeySummary
+         * @description A registered passkey as the owner sees it; no key material.
+         */
+        PasskeySummary: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Backed Up */
+            backed_up: boolean;
+            /**
+             * Date Created
+             * Format: date-time
+             */
+            date_created: string;
+            /** Last Used At */
+            last_used_at: string | null;
+        };
+        /**
+         * PasswordChangeRequest
+         * @description A signed-in user's own password change; the current password proves it is them.
+         */
+        PasswordChangeRequest: {
+            /** Current Password */
+            current_password: string;
+            /**
+             * New Password
+             * @description New password must be between 8 and 100 characters
+             */
+            new_password: string;
         };
         /** PasswordUpdateResponse */
         PasswordUpdateResponse: {
@@ -366,6 +702,14 @@ export interface components {
             /** Refresh Token Expiry */
             refresh_token_expiry?: number | null;
         };
+        /**
+         * RegistrationAccepted
+         * @description The one answer to every registration, whether or not the email had an account.
+         */
+        RegistrationAccepted: {
+            /** Detail */
+            detail: string;
+        };
         /** ResetPasswordRequest */
         ResetPasswordRequest: {
             /** Token */
@@ -385,8 +729,6 @@ export interface components {
             name?: string | null;
             /** Phone Number */
             phone_number?: string | null;
-            /** Image */
-            image?: string | null;
         };
         /** UserInfo */
         UserInfo: {
@@ -397,7 +739,7 @@ export interface components {
             id: string;
             /**
              * Name
-             * @description User name must be between 3 and 50 characters
+             * @description User name must be between 2 and 50 characters
              */
             name: string;
             /**
@@ -467,6 +809,11 @@ export interface components {
              * @description User's password
              */
             password: string;
+            /**
+             * Captcha Token
+             * @description Turnstile token
+             */
+            captcha_token?: string | null;
         };
         /** ValidationError */
         ValidationError: {
@@ -530,6 +877,154 @@ export interface operations {
             };
         };
     };
+    list_my_addresses_api_v1_users_me_addresses_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AddressRead"][];
+                };
+            };
+        };
+    };
+    create_my_address_api_v1_users_me_addresses_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddressInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AddressRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    replace_my_address_api_v1_users_me_addresses__address_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                address_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddressInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AddressRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_my_address_api_v1_users_me_addresses__address_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                address_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    make_my_address_default_api_v1_users_me_addresses__address_id__default_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                address_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AddressRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     create_user_api_v1_register_post: {
         parameters: {
             query?: never;
@@ -543,13 +1038,13 @@ export interface operations {
             };
         };
         responses: {
-            /** @description New user created successfully */
-            201: {
+            /** @description Registration accepted; the next step is in the email */
+            202: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["UserInfo"];
+                    "application/json": components["schemas"]["RegistrationAccepted"];
                 };
             };
             /** @description Validation Error */
@@ -816,6 +1311,92 @@ export interface operations {
             };
         };
     };
+    change_my_password_api_v1_users_me_password_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordChangeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasswordUpdateResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_my_avatar_api_v1_users_me_avatar_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_my_avatar_api_v1_users_me_avatar_put"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserInfo"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_my_avatar_api_v1_users_me_avatar_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserInfo"];
+                };
+            };
+        };
+    };
     get_user_by_user_id_api_v1_users__user_id__get: {
         parameters: {
             query?: never;
@@ -991,6 +1572,138 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+        };
+    };
+    begin_passkey_sign_in_api_v1_login_passkey_options_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasskeySignInStart"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasskeyCeremonyOptions"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    finish_passkey_sign_in_api_v1_login_passkey_verify_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasskeySignInFinish"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserLoginDetails"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    begin_passkey_enrolment_api_v1_passkeys_enrolment_options_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasskeyEnrolmentStart"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasskeyCeremonyOptions"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    finish_passkey_enrolment_api_v1_passkeys_enrolment_verify_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasskeyEnrolmentFinish"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasskeySummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

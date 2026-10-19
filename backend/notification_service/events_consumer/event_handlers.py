@@ -39,6 +39,7 @@ from tasks.email_tasks import (
     send_login_notification,
     send_password_reset_email,
     send_password_reset_success,
+    send_existing_account_notice,
     send_order_confirmed_email,
     send_order_cancelled_email,
     send_order_shipped_email,
@@ -135,6 +136,9 @@ class UserEventHandler(BaseEventHandler):
                 case UserEvents.USER_PASSWORD_RESET_SUCCESS:
                     email_task = send_password_reset_success
                     notification_message = "Your password has been reset successfully."
+                case UserEvents.USER_REGISTRATION_EXISTING:
+                    email_task = send_existing_account_notice
+                    notification_message = "Someone tried to create an account with your email address."
                 case _:
                     self._logger.warning(f"Unhandled user event type: {event_type}")
                     return

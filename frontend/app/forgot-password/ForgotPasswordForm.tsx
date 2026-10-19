@@ -9,6 +9,7 @@ import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 import { AuthApi } from "@/lib/auth-api";
 import { ApiError } from "@/lib/api-error";
+import { useHumanCheck } from "@/hooks/useHumanCheck";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -20,6 +21,7 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const ForgotPasswordForm = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [sentTo, setSentTo] = useState<string | null>(null);
+    const humanCheck = useHumanCheck("forgot-password");
     const { register, handleSubmit, formState: { errors } } = useForm<FieldValues>({
         defaultValues: { email: "" },
     });
@@ -28,12 +30,14 @@ const ForgotPasswordForm = () => {
         const email = String(data.email).trim();
         setIsLoading(true);
         try {
-            await AuthApi.requestPasswordReset(email);
+            await AuthApi.requestPasswordReset(email, humanCheck.token);
             setSentTo(email);
         } catch (error) {
             toast.error(ApiError.from(error, "Could not send the reset email. Please try again.").message);
         } finally {
             setIsLoading(false);
+            // A token is spent by the request, whatever its answer.
+            humanCheck.reset();
         }
     };
 
@@ -78,9 +82,11 @@ const ForgotPasswordForm = () => {
                         />
                     </div>
 
+                    {humanCheck.widget}
+
                     <Button
                         onClick={handleSubmit(onSubmit)}
-                        disabled={isLoading}
+                        disabled={isLoading || !humanCheck.token}
                         variant="keyboard"
                         size="xl"
                     >

@@ -382,6 +382,15 @@ wheels = [
 ]
 
 [[package]]
+name = "disposable-email-domains"
+version = "0.0.272"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/60/9a/23a45dc5d9173893c73bac3d2fcd9e06c5a55ceb048e48127a9c84204804/disposable_email_domains-0.0.272.tar.gz", hash = "sha256:a81ec2af63cde2d8fdd26ad6a79cdacc05d06ffb167f3e324922a4438cde9f67", size = 111791, upload-time = "2026-10-02T15:51:14.639Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/59/1f/9d5e9a71719c30b78530efe75a5b0503379057f9a5ce66d38680ac8c3a47/disposable_email_domains-0.0.272-py3-none-any.whl", hash = "sha256:644f34f6fc801a199010b3f0e25ea6efcaddb01940de0f0d4e904518164a0d67", size = 57364, upload-time = "2026-10-02T15:51:13.262Z" },
+]
+
+[[package]]
 name = "dnspython"
 version = "2.7.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1669,6 +1678,7 @@ dependencies = [
     { name = "asyncpg" },
     { name = "boto3" },
     { name = "cryptography" },
+    { name = "disposable-email-domains" },
     { name = "email-validator" },
     { name = "fastapi" },
     { name = "fastapi-mail" },
@@ -1719,6 +1729,7 @@ requires-dist = [
     { name = "asyncpg", specifier = ">=0.30.0" },
     { name = "boto3", specifier = ">=1.40.0,<2" },
     { name = "cryptography", specifier = ">=45.0" },
+    { name = "disposable-email-domains", specifier = ">=0.0.272" },
     { name = "email-validator", specifier = ">=2.2.0" },
     { name = "fastapi", specifier = ">=0.136.3" },
     { name = "fastapi-mail", specifier = ">=1.5.0" },

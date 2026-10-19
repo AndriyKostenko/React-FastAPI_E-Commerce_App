@@ -17,6 +17,8 @@ from service_layer.passkey_ceremony_store import PasskeyCeremonyStore
 from service_layer.passkey_service import PasskeyService, RelyingParty
 from infrastructure.database_layer.outbox_repository import OutboxRepository
 from service_layer.outbox_event_service import OutboxEventService
+from service_layer.email_policy import EmailAddressPolicy
+from service_layer.human_check import HumanCheck
 from infrastructure.managers.token_manager import TokenManager
 from managers.password_manager import PasswordManager
 from managers import ResourceManager, UserApiResources, settings
@@ -82,6 +84,18 @@ def get_google_http_client(request: Request) -> AsyncClient:
 def get_resources(request: Request) -> UserApiResources:
     """Expose the typed resource container to dependency composition."""
     return ResourceManager.resolve(request)
+
+
+def get_human_check(request: Request) -> HumanCheck:
+    return ResourceManager.resolve(request).human_check
+
+
+def get_email_policy(request: Request) -> EmailAddressPolicy:
+    return ResourceManager.resolve(request).email_policy
+
+
+human_check_dependency = Annotated[HumanCheck, Depends(get_human_check)]
+email_policy_dependency = Annotated[EmailAddressPolicy, Depends(get_email_policy)]
 
 
 def get_user_service(session: AsyncSession = Depends(get_db_session, scope="function"),

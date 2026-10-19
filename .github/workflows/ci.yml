@@ -144,6 +144,9 @@ jobs:
           # lib/config.ts requires it; a publishable key is public by design,
           # and the build only checks that one is set.
           NEXT_PUBLIC_STRIPE_TEST_PUBLISHABLE_KEY: pk_test_ci_build_placeholder
+          # Required in a production build; Cloudflare's always-pass test site
+          # key is enough to prove the bundle compiles (it is never deployed).
+          NEXT_PUBLIC_TURNSTILE_SITE_KEY: 1x00000000000000000000AA
 
   admin-js:
     name: admin-js

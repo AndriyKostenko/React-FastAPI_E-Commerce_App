@@ -18,6 +18,7 @@ async def route_user_event(
         UserEvents.USER_EMAIL_VERIFIED: publisher.publish_email_verified,
         UserEvents.USER_PASSWORD_RESET_REQUEST: publisher.publish_password_reset_request,
         UserEvents.USER_PASSWORD_RESET_SUCCESS: publisher.publish_password_reset_success,
+        UserEvents.USER_REGISTRATION_EXISTING: publisher.publish_registration_existing,
         UserEvents.USER_LOGGED_IN: publisher.publish_user_logged_in,
         UserEvents.USER_DELETED: publisher.publish_user_deleted,
     }

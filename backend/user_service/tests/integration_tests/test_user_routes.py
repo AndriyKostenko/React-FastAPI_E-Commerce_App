@@ -38,7 +38,8 @@ async def _register(client: AsyncClient,
                     name: str = test_settings.TEST_NAME,):
     return await client.post(
         f"{test_settings.API}/register",
-        json={"name": name, "email": email, "password": password},
+        json={"name": name, "email": email, "password": password,
+              "captcha_token": test_settings.CAPTCHA_TOKEN},
     )
 
 
@@ -57,7 +58,7 @@ async def _login(
     password: str = test_settings.TEST_PASSWORD):
     return await client.post(
         f"{test_settings.API}/login",
-        data={"username": email, "password": password},
+        data={"username": email, "password": password, "captcha_token": test_settings.CAPTCHA_TOKEN},
     )
 
 
@@ -68,10 +69,17 @@ async def _setup_verified_user(
     email: str = test_settings.TEST_EMAIL,
     password: str = test_settings.TEST_PASSWORD,
     name: str = test_settings.TEST_NAME,) -> dict[str, str|int]:
-    """Register + activate; returns the register response body."""
-    reg = await _register(client, email=email, password=password, name=name)
+    """Register + activate; returns the new account's id and email.
+
+    Registration no longer answers with the account (it says the same thing
+    whether or not the email was taken), so the id is read from the
+    verification event it writes.
+    """
+    await _register(client, email=email, password=password, name=name)
+    registered = await get_outbox_event(UserEvents.USER_REGISTERED)
+    assert registered is not None, "Expected a user.registered outbox event"
     await _activate(client, get_outbox_event)
-    return reg.json()
+    return {"id": str(registered["user_id"]), "email": email}
 
 
 async def _setup_authenticated_user(
@@ -107,15 +115,12 @@ class TestHealthEndpoint:
 # ===========================================================================
 class TestUserRegister:
 
-    async def test_register_new_user_returns_201_and_user_data(
+    async def test_register_new_user_is_accepted_without_echoing_the_account(
         self, integration_client: AsyncClient
     ):
         response = await _register(integration_client)
-        assert response.status_code == status.HTTP_201_CREATED
-        body = response.json()
-        assert body["email"] == test_settings.TEST_EMAIL
-        assert body["name"] == test_settings.TEST_NAME
-        assert "id" in body
+        assert response.status_code == status.HTTP_202_ACCEPTED
+        assert response.json() == {"detail": "Check your email to finish creating your account."}
 
     async def test_register_creates_verification_outbox_event(
         self, integration_client: AsyncClient, get_outbox_event
@@ -126,12 +131,62 @@ class TestUserRegister:
         assert payload["user_email"] == test_settings.TEST_EMAIL
         assert "token" in payload
 
-    async def test_register_duplicate_email_returns_409(
-        self, integration_client: AsyncClient
+    async def test_a_taken_email_gets_the_same_answer_as_a_new_one(
+        self, integration_client: AsyncClient, get_outbox_event
+    ):
+        """"Already registered" would let anyone test which addresses are customers."""
+        await _setup_verified_user(integration_client, get_outbox_event)
+        again = await _register(integration_client, password="Another-password-1")
+        assert again.status_code == status.HTTP_202_ACCEPTED
+        assert again.json() == {"detail": "Check your email to finish creating your account."}
+
+        # The owner is told by email instead, and their password is unchanged.
+        notice = await get_outbox_event(UserEvents.USER_REGISTRATION_EXISTING)
+        assert notice is not None
+        assert notice["user_email"] == test_settings.TEST_EMAIL
+        assert (await _login(integration_client)).status_code == status.HTTP_200_OK
+        assert (await _login(integration_client, password="Another-password-1")).status_code == status.HTTP_401_UNAUTHORIZED
+
+    async def test_the_owner_is_mailed_once_per_interval(
+        self, integration_client: AsyncClient, get_outbox_event, count_outbox_events
+    ):
+        await _setup_verified_user(integration_client, get_outbox_event)
+        for _ in range(3):
+            assert (await _register(integration_client)).status_code == status.HTTP_202_ACCEPTED
+        assert await count_outbox_events(UserEvents.USER_REGISTRATION_EXISTING) == 1
+
+    async def test_registering_again_before_verifying_sends_a_fresh_link(
+        self, integration_client: AsyncClient, count_outbox_events
     ):
         await _register(integration_client)
-        duplicate = await _register(integration_client)
-        assert duplicate.status_code == status.HTTP_409_CONFLICT
+        await _register(integration_client)
+        # The first link may be lost; the second registration sends a new one.
+        assert await count_outbox_events(UserEvents.USER_REGISTERED) == 2
+        assert await count_outbox_events(UserEvents.USER_REGISTRATION_EXISTING) == 0
+
+    async def test_register_without_the_verification_creates_nothing(
+        self, integration_client: AsyncClient, count_outbox_events
+    ):
+        for captcha in ({}, {"captcha_token": "forged-token"}):
+            response = await integration_client.post(
+                f"{test_settings.API}/register",
+                json={"name": test_settings.TEST_NAME, "email": test_settings.TEST_EMAIL,
+                      "password": test_settings.TEST_PASSWORD, **captcha},
+            )
+            assert response.status_code == status.HTTP_400_BAD_REQUEST
+            assert response.json()["detail"] == "Please complete the verification and try again."
+        assert await count_outbox_events(UserEvents.USER_REGISTERED) == 0
+
+    async def test_a_disposable_address_is_refused_under_the_email_field(
+        self, integration_client: AsyncClient, count_outbox_events
+    ):
+        response = await _register(integration_client, email="someone@mailinator.com")
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert response.json()["errors"] == [{
+            "field": "email",
+            "message": "Disposable email addresses can't be used. Please use a permanent address.",
+        }]
+        assert await count_outbox_events(UserEvents.USER_REGISTERED) == 0
 
     async def test_register_type_returns_422(
         self, integration_client: AsyncClient
@@ -231,7 +286,7 @@ class TestLoginEndpoint:
         await _setup_verified_user(integration_client, get_outbox_event)
         response = await integration_client.post(
             f"{test_settings.API}/login",
-            data={"username": test_settings.TEST_EMAIL, "password": "WrongPassword!"},
+            data={"username": test_settings.TEST_EMAIL, "password": "WrongPassword!", "captcha_token": test_settings.CAPTCHA_TOKEN},
         )
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
@@ -240,7 +295,7 @@ class TestLoginEndpoint:
     ):
         response = await integration_client.post(
             f"{test_settings.API}/login",
-            data={"username": "nobody@example.com", "password": test_settings.TEST_PASSWORD},
+            data={"username": "nobody@example.com", "password": test_settings.TEST_PASSWORD, "captcha_token": test_settings.CAPTCHA_TOKEN},
         )
         # A 404 here would let anyone enumerate which addresses hold an
         # account, so an unknown address gets the same 401 and the same
@@ -254,6 +309,17 @@ class TestLoginEndpoint:
         await _register(integration_client)  # register but do NOT activate
         response = await _login(integration_client)
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
+    async def test_login_without_the_verification_is_refused_before_the_password_is_checked(
+        self, integration_client: AsyncClient, get_outbox_event
+    ):
+        await _setup_verified_user(integration_client, get_outbox_event)
+        response = await integration_client.post(
+            f"{test_settings.API}/login",
+            data={"username": test_settings.TEST_EMAIL, "password": test_settings.TEST_PASSWORD},
+        )
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert response.json()["detail"] == "Please complete the verification and try again."
 
     async def test_login_missing_password_returns_422(
         self, integration_client: AsyncClient
@@ -525,7 +591,7 @@ class TestForgotPasswordEndpoint:
         await _setup_verified_user(integration_client, get_outbox_event)
         response = await integration_client.post(
             f"{test_settings.API}/forgot-password",
-            json={"email": test_settings.TEST_EMAIL},
+            json={"email": test_settings.TEST_EMAIL, "captcha_token": test_settings.CAPTCHA_TOKEN},
         )
         assert response.status_code == status.HTTP_200_OK
         body = response.json()
@@ -537,7 +603,7 @@ class TestForgotPasswordEndpoint:
         await _setup_verified_user(integration_client, get_outbox_event)
         await integration_client.post(
             f"{test_settings.API}/forgot-password",
-            json={"email": test_settings.TEST_EMAIL},
+            json={"email": test_settings.TEST_EMAIL, "captcha_token": test_settings.CAPTCHA_TOKEN},
         )
         payload = await get_outbox_event(UserEvents.USER_PASSWORD_RESET_REQUEST)
         assert payload is not None
@@ -549,12 +615,22 @@ class TestForgotPasswordEndpoint:
     ):
         response = await integration_client.post(
             f"{test_settings.API}/forgot-password",
-            json={"email": "nobody@example.com"},
+            json={"email": "nobody@example.com", "captcha_token": test_settings.CAPTCHA_TOKEN},
         )
         # Answering 404 here would let anyone test which addresses hold an
         # account, so an unknown address gets the same reply as a known one
         # and no reset event is written.
         assert response.status_code == status.HTTP_200_OK
+        assert await get_outbox_event(UserEvents.USER_PASSWORD_RESET_REQUEST) is None
+
+    async def test_forgot_password_without_the_verification_sends_nothing(
+        self, integration_client: AsyncClient, get_outbox_event
+    ):
+        await _setup_verified_user(integration_client, get_outbox_event)
+        response = await integration_client.post(
+            f"{test_settings.API}/forgot-password", json={"email": test_settings.TEST_EMAIL}
+        )
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert await get_outbox_event(UserEvents.USER_PASSWORD_RESET_REQUEST) is None
 
 
@@ -573,7 +649,7 @@ class TestResetPasswordEndpoint:
         self, integration_client: AsyncClient, get_outbox_event
     ):
         await _setup_verified_user(integration_client, get_outbox_event)
-        await integration_client.post(f"{test_settings.API}/forgot-password", json={"email": test_settings.TEST_EMAIL})
+        await integration_client.post(f"{test_settings.API}/forgot-password", json={"email": test_settings.TEST_EMAIL, "captcha_token": test_settings.CAPTCHA_TOKEN})
         reset_token = await self._get_reset_token(get_outbox_event)
 
         response = await integration_client.post(
@@ -587,7 +663,7 @@ class TestResetPasswordEndpoint:
         self, integration_client: AsyncClient, get_outbox_event
     ):
         await _setup_verified_user(integration_client, get_outbox_event)
-        await integration_client.post(f"{test_settings.API}/forgot-password", json={"email": test_settings.TEST_EMAIL})
+        await integration_client.post(f"{test_settings.API}/forgot-password", json={"email": test_settings.TEST_EMAIL, "captcha_token": test_settings.CAPTCHA_TOKEN})
         reset_token = await self._get_reset_token(get_outbox_event)
 
         await integration_client.post(
@@ -603,7 +679,7 @@ class TestResetPasswordEndpoint:
     ):
         new_password = "NewPassword123!"
         await _setup_verified_user(integration_client, get_outbox_event)
-        await integration_client.post(f"{test_settings.API}/forgot-password", json={"email": test_settings.TEST_EMAIL})
+        await integration_client.post(f"{test_settings.API}/forgot-password", json={"email": test_settings.TEST_EMAIL, "captcha_token": test_settings.CAPTCHA_TOKEN})
         reset_token = await self._get_reset_token(get_outbox_event)
 
         await integration_client.post(
@@ -618,7 +694,7 @@ class TestResetPasswordEndpoint:
     ):
         new_password = "NewPassword123!"
         await _setup_verified_user(integration_client, get_outbox_event)
-        await integration_client.post(f"{test_settings.API}/forgot-password", json={"email": test_settings.TEST_EMAIL})
+        await integration_client.post(f"{test_settings.API}/forgot-password", json={"email": test_settings.TEST_EMAIL, "captcha_token": test_settings.CAPTCHA_TOKEN})
         reset_token = await self._get_reset_token(get_outbox_event)
 
         await integration_client.post(
