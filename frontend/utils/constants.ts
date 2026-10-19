@@ -40,19 +40,19 @@ export const HOW_IT_WORKS = [
     icon: MdPsychology,
     step: "1. Generate",
     description:
-      "Describe your vision in plain English. Our bespoke AI engine transforms words into high-resolution wearable art.",
+      "Describe your idea in plain words. AI turns it into high-resolution artwork for your shirt.",
   },
   {
     icon: MdTune,
     step: "2. Customize",
     description:
-      "Choose your garment color, material weight, and print placement. Real-time previews ensure perfection.",
+      "Choose white or black, your size and where the print goes. The preview shows it at its real print size.",
   },
   {
     icon: MdInventory,
     step: "3. Order",
     description:
-      "Printed on premium 240gsm organic cotton. Delivered in carbon-neutral packaging.",
+      "We print your shirt to order and ship it from within Canada. We email you when it ships.",
   },
 ];
 
