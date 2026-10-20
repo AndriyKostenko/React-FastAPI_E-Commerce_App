@@ -95,10 +95,11 @@ class TestCJToSupplierMapperDetails:
                 "description": "<p>Product info</p>",
                 "categoryId": "BE11EEDB-B765-4A39-8A3D-F6015FC7A846",
                 "productImageSet": '["https://cf.cjdropshipping.com/1616116491646.jpg"]',
+                "productKeyEn": "Size-Color",
                 "variants": [
                     {
                         "vid": "v1",
-                        "variantKey": "S",
+                        "variantKey": "S-Black",
                         "variantNameEn": "T-Shirt S",
                         "variantSku": "CJNS104753701AZ",
                         "variantSellPrice": 10.32,
@@ -114,3 +115,8 @@ class TestCJToSupplierMapperDetails:
         assert len(product.variants) == 1
         assert product.variants[0].vid == "v1"
         assert product.variants[0].variant_sell_price == Decimal("10.32")
+        assert product.variant_option_names == ["Size", "Color"]
+
+    def test_option_names_are_empty_without_product_key(self, mapper: CJToSupplierMapper) -> None:
+        data = {"data": {"pid": "p1", "productNameEn": "Tee", "sellPrice": "5.00", "variants": []}}
+        assert mapper.map_product_details(data).variant_option_names == []

@@ -11,6 +11,7 @@
     "test:session": "node --test --test-concurrency=1 tests/session-isolation.test.mjs",
     "seed:session-users": "node tests/seed-session-users.mjs",
     "test:race": "node --import tsx --test tests/session-race.test.ts",
+    "test:variants": "node --import tsx --test tests/variant-matrix.test.ts",
     "test:cart-pricing": "node --test --test-concurrency=1 tests/cart-pricing.test.mjs",
     "test:session-refresh": "node --import tsx --test --test-concurrency=1 tests/session-refresh.test.ts"
   },
