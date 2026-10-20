@@ -215,6 +215,7 @@ class ProductService:
             existing.in_stock = product_data.in_stock
             existing.sku = product_data.sku
             existing.image_url = product_data.image_url
+            existing.variant_option_names = product_data.variant_option_names
 
             await self._sync_variants(existing.id, product_data.variants)
             await self._sync_images(existing.id, product_data.images)

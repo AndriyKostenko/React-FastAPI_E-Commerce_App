@@ -1,4 +1,4 @@
-from typing import Optional, Literal
+from typing import Annotated, Optional, Literal
 from datetime import datetime
 from decimal import Decimal
 from typing import List
@@ -153,6 +153,9 @@ class CreateProduct(BaseModel):
     sku: str | None = Field(default=None, max_length=70)
     image_url: str | None = None
     variants: list[CreateProductVariant] | None = None
+    variant_option_names: list[Annotated[str, Field(min_length=1, max_length=50)]] = Field(
+        default_factory=list, max_length=5
+    )
     images: list[str] | None = None
 
     @field_validator("name", "brand", mode="after")
@@ -204,6 +207,8 @@ class ProductSchema(ProductBase):
     category: Optional[CategorySchema] = None
     images: List[ProductImageView]
     variants: List[ProductVariantBase] = []
+    # Names the parts of each variant_key, in order ("Color", "Size").
+    variant_option_names: list[str] = []
 
 
 # --- Product Card Schemas ---

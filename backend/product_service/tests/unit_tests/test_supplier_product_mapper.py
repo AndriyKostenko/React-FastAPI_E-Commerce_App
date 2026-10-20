@@ -38,6 +38,7 @@ class TestSupplierProductMapper:
                     variant_sell_price=Decimal("12.34"),
                 )
             ],
+            variant_option_names=["Size"],
         )
 
         local_category_id = uuid4()
@@ -62,6 +63,7 @@ class TestSupplierProductMapper:
         assert len(create_product.images) == 1
         assert len(create_product.variants) == 1
         assert create_product.variants[0].vid == "v1"
+        assert create_product.variant_option_names == ["Size"]
 
     def test_maps_multiple_products(self) -> None:
         products = [

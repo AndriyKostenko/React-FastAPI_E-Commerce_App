@@ -44,6 +44,7 @@ async def test_supplier_batch_is_atomic_idempotent_and_reconciles_children(
             SupplierProductVariant(vid="v1", variant_sku="old"),
             SupplierProductVariant(vid="v2", variant_sku="removed"),
         ],
+        variant_option_names=["Color", "Size"],
     )
     invalid = product.model_copy(
         update={"supplier_pid": "pid-invalid", "price": Decimal("0")}
@@ -71,6 +72,7 @@ async def test_supplier_batch_is_atomic_idempotent_and_reconciles_children(
             ).scalar_one()
             first_variant_ids = {variant.vid: variant.id for variant in imported.variants}
             first_image_ids = {image.image_url: image.id for image in imported.images}
+            assert imported.variant_option_names == ["Color", "Size"]
             assert len((await session.execute(select(SupplierImportBatch))).scalars().all()) == 1
             inbox = (await session.execute(select(SupplierImportBatch))).scalar_one()
             assert (inbox.imported, inbox.updated, inbox.failed) == (1, 0, 1)
@@ -81,6 +83,7 @@ async def test_supplier_batch_is_atomic_idempotent_and_reconciles_children(
                 "name": "Updated T-Shirt",
                 "images": ["https://example.com/keep.jpg", "https://example.com/new.jpg"],
                 "variants": [SupplierProductVariant(vid="v1", variant_sku="updated")],
+                "variant_option_names": ["Size", "Color"],
             }
         )
         second_event = SupplierProductsFetchedEvent(
@@ -104,6 +107,7 @@ async def test_supplier_batch_is_atomic_idempotent_and_reconciles_children(
             images = {image.image_url: image for image in imported.images}
             assert variants["v1"].id == first_variant_ids["v1"]
             assert variants["v1"].variant_sku == "updated"
+            assert imported.variant_option_names == ["Size", "Color"]
             assert variants["v2"].id == first_variant_ids["v2"]
             assert variants["v2"].active is False
             assert images["https://example.com/keep.jpg"].id == first_image_ids["https://example.com/keep.jpg"]

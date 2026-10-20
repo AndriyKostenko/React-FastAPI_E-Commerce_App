@@ -128,8 +128,22 @@ class CJToSupplierMapper:
             quantity=stock_qty,
             in_stock=stock_qty > 0,
             variants=variants,
+            variant_option_names=cls._parse_option_names(raw.get("productKeyEn")),
             images=images,
         )
+
+    @staticmethod
+    def _parse_option_names(product_key: Any) -> list[str]:
+        """CJ's "Color-Size" (or "Size-Color", "Color-Size-style"): what each
+        dash-separated part of a variant key names, in the same order."""
+        if not isinstance(product_key, str):
+            return []
+        names = [name.strip() for name in product_key.split("-") if name.strip()]
+        # product-service accepts at most 5 names of 50 characters; anything
+        # else is sent as no names, and the storefront lists whole keys instead.
+        if len(names) > 5 or any(len(name) > 50 for name in names):
+            return []
+        return names
 
     @classmethod
     def _resolve_product_price(

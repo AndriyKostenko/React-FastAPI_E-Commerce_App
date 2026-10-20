@@ -45,6 +45,7 @@ class SupplierProductMapper:
             sku=supplier_product.sku,
             image_url=supplier_product.image_url,
             variants=variants,
+            variant_option_names=supplier_product.variant_option_names,
             images=supplier_product.images or [],
         )
 
