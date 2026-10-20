@@ -11,6 +11,7 @@ import { useRouter } from "next/navigation";
 import { settings } from "@/lib/config";
 import { ApiError } from "@/lib/api-error";
 import { useHumanCheck } from "@/hooks/useHumanCheck";
+import { EMAIL_RULES, NAME_RULES, NEW_PASSWORD_RULES, repeatOf } from "@/utils/formRules";
 import { MdAutoAwesome, MdVisibility, MdVisibilityOff } from "react-icons/md";
 
 // Backend field names that have an input of the same id on this form.
@@ -49,7 +50,12 @@ const RegisterForm:React.FC<LoginFormProps> = ({currentUser}) => {
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ ...data, captcha_token: humanCheck.token }),
+                body: JSON.stringify({
+                    name: data.name,
+                    email: data.email,
+                    password: data.password,
+                    captcha_token: humanCheck.token,
+                }),
             });
 
             if (!response.ok) throw await ApiError.fromResponse(response, 'Registration failed. Please try again.');
@@ -99,6 +105,7 @@ const RegisterForm:React.FC<LoginFormProps> = ({currentUser}) => {
             <div className="w-full">
                 <Input
                     id="name"
+                    validationRules={NAME_RULES}
                     label="Full Name"
                     disabled={isLoading}
                     register={register}
@@ -112,6 +119,7 @@ const RegisterForm:React.FC<LoginFormProps> = ({currentUser}) => {
             <div className="w-full">
                 <Input
                     id="email"
+                    validationRules={EMAIL_RULES}
                     label="Email"
                     disabled={isLoading}
                     register={register}
@@ -125,6 +133,7 @@ const RegisterForm:React.FC<LoginFormProps> = ({currentUser}) => {
             <div className="w-full relative">
                 <Input
                     id="password"
+                    validationRules={NEW_PASSWORD_RULES}
                     label="Password"
                     disabled={isLoading}
                     register={register}
@@ -147,6 +156,7 @@ const RegisterForm:React.FC<LoginFormProps> = ({currentUser}) => {
             <div className="w-full relative">
                 <Input
                     id="repeatedPassword"
+                    validationRules={repeatOf("password")}
                     label="Repeat Password"
                     disabled={isLoading}
                     register={register}

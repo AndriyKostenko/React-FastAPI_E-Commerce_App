@@ -172,13 +172,39 @@ Frontend:
      as "Default";
    - without names, or when keys do not split into one part per name, the whole key is
      the single "Option", so every variant stays buyable.
-   Names fill on each product's next hourly sync. Tests: `npm run test:variants` (in CI).
+   Names fill on each product's next hourly sync. Tests: `npm run test:unit` (in CI).
    Not changed: the shop filters still read colour and size from the key by keyword,
    so a `Size-Color` product's colours count as colours but its sizes are missed.
-4. **Input sanitising and the other browser-side protections that apply to us**: every
-   form and query parameter, what is rendered from API data (product names and
-   descriptions from CJ, reviews), the content security policy and the other security
-   headers.
+4. **Input sanitising and the other browser-side protections that apply to us. Done
+   2026-10-20.**
+   - Content security policy, enforced, on every page (`lib/security-headers.ts`, set in
+     `proxy.ts`): scripts only with this request's nonce (`'strict-dynamic'`, so Stripe.js
+     and Turnstile load through it), no `'unsafe-eval'` outside development, frames only
+     Stripe and Turnstile, `object-src 'none'`, `frame-ancestors 'none'`,
+     `upgrade-insecure-requests` in production. Styles stay `'unsafe-inline'` (MUI/emotion
+     and style attributes; inline styles run no code). Every page already rendered per
+     request (`force-dynamic` in the root layout), so the nonce reaches all of them.
+     `SessionProxy` now forwards the request headers on every path, or the nonce was lost.
+   - Also from Next: nosniff, referrer policy, `X-Frame-Options: DENY`,
+     `Cross-Origin-Opener-Policy: same-origin-allow-popups`, a Permissions-Policy (camera,
+     microphone, geolocation, USB off; payment only for Stripe). Traefik's HSTS and the
+     rest stay as they are.
+   - Login error links are signed: a failed Google sign-in carries the backend's message
+     with an HMAC of the session secret (`lib/auth-error-link.ts`), and `/login` shows only
+     a message that matches. Before, any text in `?authError=` was shown on our page.
+   - The parcel tracking link from CJ is a link only when it is an http(s) address
+     (`utils/safeUrl.ts`).
+   - Forms share rules mirroring the backend schemas (`utils/formRules.ts`): sign-up
+     had none (name, email, password, and the repeat was never compared), sign-in and the
+     review comment were unbounded. Inputs stop typing at the rule's maximum.
+   - Checked and already fine: nothing renders raw HTML (CJ descriptions are reduced to
+     text by product-service, React escapes the rest), search and category are bounded
+     before they reach the API, NextAuth keeps redirects on our origin.
+   - Verified in Playwright on the dev server and a production build (home, product,
+     register and login with Turnstile, cart, Stripe checkout, account, order): no
+     violations. A production build run locally over plain http blocks the local S3
+     avatar (`img-src` has no `http:` in production); production serves images over HTTPS.
+   - Tests: `npm run test:unit` adds the signed-link cases.
 5. **Measure and improve performance with the standard browser tools** (Lighthouse,
    Chrome DevTools Performance, Core Web Vitals): measure first, then fix what the
    measurements show (images, bundle size, render-blocking work).

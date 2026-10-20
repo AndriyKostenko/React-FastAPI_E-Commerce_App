@@ -1,6 +1,7 @@
 "use client";
 
 import { AddReviewProps } from "@/types/review";
+import { REVIEW_COMMENT_RULES } from "@/utils/formRules";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { FieldValues, SubmitHandler, useForm } from "react-hook-form";
@@ -87,6 +88,7 @@ const AddReview: React.FC<AddReviewProps> = ({
             />
             <Input
                 id="comment"
+                validationRules={REVIEW_COMMENT_RULES}
                 label="Comment"
                 disabled={isLoading}
                 register={register}
