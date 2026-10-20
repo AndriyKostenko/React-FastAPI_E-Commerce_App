@@ -6,7 +6,8 @@ FROM node:22-alpine AS deps
 WORKDIR /app
 
 COPY package.json package-lock.json ./
-RUN npm ci
+# The npm that writes the lockfile (Dependabot's); see the frontend CI job.
+RUN npm install -g npm@11.21.1 && npm ci
 
 # -------------------------
 # Build

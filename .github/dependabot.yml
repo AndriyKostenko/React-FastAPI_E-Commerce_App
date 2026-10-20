@@ -1,5 +1,15 @@
 # Weekly dependency updates, grouped so one maintainer gets a handful of PRs
 # rather than dozens. Security updates still arrive on their own, at once.
+#
+# Minor and patch updates come grouped; a major comes as its own PR, per
+# directory, since each is a migration to judge alone. Majors that cannot
+# land yet are ignored below, each with the reason, so they stop reopening
+# every week: remove the entry when its reason is gone.
+#
+# Each block waits a week after a release (a month for a major) before
+# proposing it: a broken or hijacked release is usually pulled by then, and a
+# package republishing several patches in a week becomes one PR, not several.
+# Security updates skip the wait.
 version: 2
 
 updates:
@@ -7,6 +17,9 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
+      semver-major-days: 30
     groups:
       actions:
         patterns: ["*"]
@@ -25,6 +38,9 @@ updates:
       - /backend/notification_service
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
+      semver-major-days: 30
     open-pull-requests-limit: 5
     groups:
       python-minor-and-patch:
@@ -36,6 +52,9 @@ updates:
       - /backend/admin-js-service
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
+      semver-major-days: 30
     open-pull-requests-limit: 5
     groups:
       npm-minor-and-patch:
@@ -46,4 +65,22 @@ updates:
       # to ESLint 9+ by hand, with a flat config, then drop this. (It covers
       # the frontend too, which has no ESLint config yet.)
       - dependency-name: eslint
+        update-types: ["version-update:semver-major"]
+      # Same reason: eslint-config-airbnb 19 wants eslint-plugin-react-hooks ^4 (#68).
+      - dependency-name: eslint-plugin-react-hooks
+        update-types: ["version-update:semver-major"]
+      # TypeScript 7 (#66, #69): openapi-typescript allows ^5 and
+      # typescript-eslint stops below 6.1, so `npm ci` cannot resolve it.
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
+      # The Node types follow the Node we run (22 for the frontend, 20 for
+      # admin-js), not the newest Node (#67, #70): types ahead of the runtime
+      # let code call what is not there. Raise them with the Node image.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
+      # Express 5 (#65) changes route and request types and has to be tried
+      # against AdminJS by hand (express-formidable, passkey sign-in).
+      - dependency-name: express
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@types/express"
         update-types: ["version-update:semver-major"]
