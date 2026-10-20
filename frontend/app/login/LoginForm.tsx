@@ -13,6 +13,7 @@ import { MdAutoAwesome, MdVisibility, MdVisibilityOff } from "react-icons/md";
 import { FcGoogle } from "react-icons/fc";
 import { NEXTAUTH_ERROR_MESSAGES } from "@/utils/constants";
 import { useHumanCheck } from "@/hooks/useHumanCheck";
+import { EMAIL_RULES, PASSWORD_RULES } from "@/utils/formRules";
 
 const LoginForm:React.FC<LoginFormProps> = ({currentUser, authError}) => {
     const [isLoading, setIsLoading] = useState(false);
@@ -112,6 +113,7 @@ const LoginForm:React.FC<LoginFormProps> = ({currentUser, authError}) => {
             <div className="w-full">
                 <Input
                     id="email"
+                    validationRules={EMAIL_RULES}
                     label="Email"
                     disabled={isLoading}
                     register={register}
@@ -125,6 +127,7 @@ const LoginForm:React.FC<LoginFormProps> = ({currentUser, authError}) => {
             <div className="w-full relative">
                 <Input
                     id="password"
+                    validationRules={PASSWORD_RULES}
                     label="Password"
                     disabled={isLoading}
                     register={register}

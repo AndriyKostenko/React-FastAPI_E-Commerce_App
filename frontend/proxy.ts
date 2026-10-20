@@ -4,6 +4,7 @@ import { SessionCookie } from "@/lib/session-cookie";
 import { SessionProxy } from "@/lib/session-proxy";
 import { SessionRefresher } from "@/lib/session-refresher";
 import { settings } from "@/lib/config";
+import { SecurityHeaders } from "@/lib/security-headers";
 
 const nowInSeconds = (): number => Math.floor(Date.now() / 1000);
 
@@ -31,8 +32,15 @@ const createSessionProxy = (): SessionProxy =>
 const holder = globalThis as typeof globalThis & { __sessionProxy?: SessionProxy };
 const sessionProxy = (holder.__sessionProxy ??= createSessionProxy());
 
-export function proxy(request: NextRequest) {
-    return sessionProxy.handle(request);
+export async function proxy(request: NextRequest) {
+    // A fresh nonce per request: written into the request before anything
+    // renders (Next.js reads it from there), and the policy onto the response.
+    const security = SecurityHeaders.forRequest({
+        apiOrigin: settings.api.origin,
+        development: process.env.NODE_ENV === "development",
+    });
+    security.applyToRequest(request.headers);
+    return security.applyToResponse(await sessionProxy.handle(request));
 }
 
 export const config = {

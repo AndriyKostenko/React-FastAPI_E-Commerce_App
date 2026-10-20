@@ -3,18 +3,20 @@ import Container from "@/components/ui/Container";
 import FormWrap from "@/components/ui/FormWrap";
 import LoginForm from "./LoginForm";
 import type { SearchParams } from "@/types/auth";
-import { AUTH_ERROR_MAX_LENGTH, AUTH_ERROR_PARAM, NEXTAUTH_ERROR_MESSAGES } from "@/utils/constants";
+import { NEXTAUTH_ERROR_MESSAGES } from "@/utils/constants";
+import { AuthErrorLink } from "@/lib/auth-error-link";
 
 const firstValue = (value: string | string[] | undefined): string | undefined =>
     Array.isArray(value) ? value[0] : value;
 
 /**
  * The message a failed sign-in left in the URL: our backend's own (set by the
- * signIn callback) wins; otherwise NextAuth's `error` code is translated.
+ * signIn callback, shown only when its signature is ours) wins; otherwise
+ * NextAuth's `error` code is translated. Free text in the URL is never shown.
  */
 const resolveAuthError = (params: SearchParams): string | undefined => {
-    const backendMessage = firstValue(params[AUTH_ERROR_PARAM]);
-    if (backendMessage) return backendMessage.slice(0, AUTH_ERROR_MAX_LENGTH);
+    const backendMessage = AuthErrorLink.read(params);
+    if (backendMessage) return backendMessage;
     const code = firstValue(params.error);
     if (code) return NEXTAUTH_ERROR_MESSAGES[code] ?? NEXTAUTH_ERROR_MESSAGES.Default;
     return undefined;

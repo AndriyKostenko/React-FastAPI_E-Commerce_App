@@ -15,6 +15,9 @@ const Input: React.FC<InputProps> = ({
 }) => {
     // Only a message set via setError / a validation rule shows; a bare
     // `required` failure has an empty message and keeps just the red outline.
+    // The browser stops typing at the rule's maximum, so the message is rarely needed.
+    const rawMax = validationRules?.maxLength;
+    const maxLength = typeof rawMax === "object" ? rawMax.value : rawMax;
     const errorMessage = errors[id]?.message;
     const errorText = typeof errorMessage === "string" && errorMessage
         ? <p className="mt-1.5 px-1 text-xs text-rose-500">{errorMessage}</p>
@@ -44,6 +47,7 @@ const Input: React.FC<InputProps> = ({
                     id={id}
                     disabled={disabled}
                     {...register(id, { required, ...validationRules })}
+                    maxLength={maxLength}
                     placeholder=""
                     type={type}
                 />
@@ -93,6 +97,7 @@ const Input: React.FC<InputProps> = ({
                 id={id}
                 disabled={disabled}
                 {...register(id, { required, ...validationRules })}
+                maxLength={maxLength}
                 placeholder=""
                 type={type}
             />

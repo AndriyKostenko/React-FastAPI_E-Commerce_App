@@ -9,13 +9,9 @@ import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 import { AccountApi } from "@/lib/account-api";
 import { ApiError } from "@/lib/api-error";
+import { NEW_PASSWORD_RULES } from "@/utils/formRules";
 import { clearUserScopedStorage } from "@/utils/client-storage";
 
-// Mirrors PasswordChangeRequest.new_password in user-service.
-const NEW_PASSWORD_RULES = {
-  minLength: { value: 8, message: "At least 8 characters" },
-  maxLength: { value: 100, message: "At most 100 characters" },
-};
 
 /**
  * Change the password with the current one. The backend ends every session

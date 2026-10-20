@@ -383,10 +383,6 @@ export const products = [
 
 // ── Auth errors shown on /login ──────────────────────────────────────────────
 
-/** Query param lib/auth.ts uses to hand a backend message to the login page. */
-export const AUTH_ERROR_PARAM = "authError";
-export const AUTH_ERROR_MAX_LENGTH = 200;
-
 /**
  * NextAuth's own `?error=` codes: they come from failures before our callbacks
  * run (OAuth handshake, provider config), so there is no backend message.
