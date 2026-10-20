@@ -5,6 +5,7 @@ import type { OrderDetail, OrderLineView } from "@/types/order";
 import type { OrderReturnsData } from "@/types/returns";
 import OrderReturns from "./OrderReturns";
 import { formatPrice } from "@/utils/formatPrice";
+import { externalHttpUrl } from "@/utils/safeUrl";
 import { FULFILLMENT_LABEL, LINE_STATUS, orderProgress, PROGRESS_STEPS } from "@/utils/orderProgress";
 
 const dateOnly = (value: string): string =>
@@ -42,6 +43,8 @@ const ProgressTracker: React.FC<{ order: OrderDetail }> = ({ order }) => {
 const Parcel: React.FC<{ line: OrderLineView }> = ({ line }) => {
   const parcel = line.parcel;
   if (!parcel) return null;
+  // CJ supplies the address; only a web link becomes clickable.
+  const trackingUrl = externalHttpUrl(parcel.tracking_url);
   return (
     <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
       <MdLocalShipping className="text-primary" size={18} />
@@ -50,9 +53,9 @@ const Parcel: React.FC<{ line: OrderLineView }> = ({ line }) => {
         <span className="font-mono">{parcel.tracking_number}</span>
       </span>
       {parcel.shipped_at && <span className="text-secondary">shipped {dateOnly(parcel.shipped_at)}</span>}
-      {parcel.tracking_url && (
+      {trackingUrl && (
         <a
-          href={parcel.tracking_url}
+          href={trackingUrl}
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex items-center gap-1 text-primary underline underline-offset-2"

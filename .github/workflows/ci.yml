@@ -137,6 +137,9 @@ jobs:
       # injected seam: no stack, network or secrets needed.
       - name: Session race tests
         run: npm run test:race
+      # Pure logic, no stack: variant options on CJ's real key shapes, signed login errors.
+      - name: Unit tests
+        run: npm run test:unit
       - name: Production build
         run: npm run build
         env:

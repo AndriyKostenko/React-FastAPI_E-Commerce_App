@@ -13,8 +13,9 @@ import { useRouter } from "next/navigation";
 import { ProductProps } from "@/types/product";
 import { ImageProps } from "@/types/image";
 import { formatPrice } from "@/utils/formatPrice";
-import { getColorSwatch, getVariantOption } from "@/utils/productVariants";
+import { shownStock, VariantMatrix } from "@/utils/productVariants";
 import { toCartLine } from "@/utils/cartLine";
+import VariantOptionPicker from "./VariantOptionPicker";
 
 // Only the not-found check lives here. The hooks live in
 // ProductDetailsContent, which renders only with a real product: hooks must
@@ -78,15 +79,12 @@ const ProductDetailsContent: React.FC<{ product: ProductProps; titleAction?: Rea
         () => product.variants?.filter((variant) => variant.active) ?? [],
         [product.variants],
     );
-    const variantOptions = useMemo(
-        () => activeVariants.map(getVariantOption),
-        [activeVariants],
+    const matrix = useMemo(
+        () => new VariantMatrix(activeVariants, product.variant_option_names),
+        [activeVariants, product.variant_option_names],
     );
-    const initialVariant = activeVariants[0];
-    const initialColor = variantOptions[0]?.color ?? null;
+    const initialVariant = matrix.initialVariant();
     const isCjProduct = product.supplier_id === "cjdropshipping";
-
-    const [selectedColor, setSelectedColor] = useState<string | null>(initialColor);
 
     const [cartProduct, setCartProduct] = useState<ProductProps>(() =>
         toCartLine(product, initialVariant, productImages),
@@ -120,60 +118,42 @@ const ProductDetailsContent: React.FC<{ product: ProductProps; titleAction?: Rea
             ? productImages.find((image) => image.image_url === selected.variant_image)
             : undefined;
 
+        const units = shownStock(Math.min(product.quantity, selected.inventory_num ?? product.quantity));
         setCartProduct((current) => ({
             ...current,
             selected_variant_id: selected.id,
             selected_image: selectedImage ?? current.selected_image,
             price: selected.retail_price ?? product.price,
+            quantity: Math.max(1, Math.min(current.quantity, units)),
         }));
-    }, [activeVariants, product.price, productImages]);
+    }, [activeVariants, product.price, product.quantity, productImages]);
 
-    const colorOptions = useMemo(
-        () => Array.from(new Set(
-            variantOptions
-                .map((option) => option.color)
-                .filter((color): color is string => Boolean(color)),
-        )),
-        [variantOptions],
+    const selectedVariant = activeVariants.find(
+        (variant) => variant.id === cartProduct.selected_variant_id,
     );
-    const variantsForSelectedColor = useMemo(
-        () => selectedColor
-            ? variantOptions
-                .filter((option) => option.color === selectedColor)
-                .map((option) => option.variant)
-            : activeVariants,
-        [activeVariants, selectedColor, variantOptions],
-    );
+    const selection = useMemo(() => matrix.selectionOf(selectedVariant), [matrix, selectedVariant]);
 
-    const handleVariantColorSelect = useCallback((color: string) => {
-        setSelectedColor(color);
-        const currentVariant = activeVariants.find(
-            (variant) => variant.id === cartProduct.selected_variant_id,
-        );
-        const selectedSize = currentVariant ? getVariantOption(currentVariant).size : null;
-        const compatibleVariant = variantOptions.find(
-            (option) => option.color === color && option.size === selectedSize,
-        ) ?? variantOptions.find((option) => option.color === color);
-        if (compatibleVariant) {
-            selectVariant(compatibleVariant.variant.id);
+    const handleOptionChoose = useCallback((name: string, value: string) => {
+        const next = matrix.choose(name, value, selection);
+        if (next) {
+            selectVariant(next.id);
         }
-    }, [activeVariants, cartProduct.selected_variant_id, selectVariant, variantOptions]);
+    }, [matrix, selectVariant, selection]);
+
+    // The units the shopper may buy and sees: the selected variant's stock
+    // (or the product's, when it has no variants), shown as at most 100.
+    const availableUnits = shownStock(
+        Math.min(product.quantity, selectedVariant?.inventory_num ?? product.quantity),
+    );
 
     const handleQtyIncrease = useCallback(() => {
-        const selectedVariant = product.variants?.find(
-            (variant) => variant.id === cartProduct.selected_variant_id,
-        );
-        const availableQuantity = Math.min(
-            product.quantity,
-            selectedVariant?.inventory_num ?? product.quantity,
-        );
-        if (cartProduct.quantity >= availableQuantity) {
+        if (cartProduct.quantity >= availableUnits) {
             return;
         }
         setCartProduct((previousQty) => {
             return { ...previousQty, quantity: previousQty.quantity + 1 };
         });
-    }, [cartProduct.quantity, cartProduct.selected_variant_id, product.quantity, product.variants]);
+    }, [availableUnits, cartProduct.quantity]);
 
     const handleQtyDecrease = useCallback(() => {
         if (cartProduct.quantity == 1) {
@@ -189,16 +169,10 @@ const ProductDetailsContent: React.FC<{ product: ProductProps; titleAction?: Rea
             ? calculateAvarageRating(product.reviews)
             : 0;
     const reviewCount = product.reviews?.length ?? 0;
-    const selectedVariant = product.variants?.find(
-        (variant) => variant.id === cartProduct.selected_variant_id,
-    );
-    const selectedVariantAvailable =
-        selectedVariant?.inventory_num == null || selectedVariant.inventory_num > 0;
     const inStock =
         product.in_stock &&
-        product.quantity > 0 &&
-        selectedVariantAvailable &&
-        (!isCjProduct || Boolean(selectedVariant));
+        availableUnits > 0 &&
+        (selectedVariant ? VariantMatrix.isInStock(selectedVariant) : !isCjProduct);
 
     return (
         <section className="glass-card p-6 md:p-8">
@@ -269,60 +243,17 @@ const ProductDetailsContent: React.FC<{ product: ProductProps; titleAction?: Rea
                             <span className="font-label-bold text-primary">
                                 QUANTITY
                             </span>
-                            <p>{product.quantity}</p>
+                            <p>{availableUnits}</p>
                         </div>
                     </div>
 
                     <div className="border-t border-white/30" />
 
-                    {colorOptions.length > 1 && (
-                        <fieldset className="flex flex-col gap-2 max-w-[420px]">
-                            <legend className="font-label-bold text-primary">Color</legend>
-                            <div className="flex flex-wrap gap-2">
-                                {colorOptions.map((color) => (
-                                    <button
-                                        key={color}
-                                        type="button"
-                                        aria-pressed={selectedColor === color}
-                                        onClick={() => handleVariantColorSelect(color)}
-                                        className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition-colors ${
-                                            selectedColor === color
-                                                ? "border-primary bg-white/70 text-primary"
-                                                : "border-white/40 bg-white/40 hover:bg-white/60"
-                                        }`}
-                                    >
-                                        <span
-                                            aria-hidden="true"
-                                            className="h-4 w-4 rounded-full border border-black/10"
-                                            style={{ backgroundColor: getColorSwatch(color) }}
-                                        />
-                                        {color}
-                                    </button>
-                                ))}
-                            </div>
-                        </fieldset>
-                    )}
-
-                    {activeVariants.length > 0 && (
-                        <label className="flex flex-col gap-2 max-w-[420px]">
-                            <span className="font-label-bold text-primary">
-                                {colorOptions.length > 1 ? "SIZE" : "VARIANT"}
-                            </span>
-                            <select
-                                className="rounded-xl border border-white/40 bg-white/60 px-3 py-2"
-                                value={cartProduct.selected_variant_id ?? ""}
-                                onChange={(event) => selectVariant(event.target.value)}
-                            >
-                                {variantsForSelectedColor.map((variant) => (
-                                        <option key={variant.id} value={variant.id}>
-                                            {colorOptions.length > 1
-                                                ? getVariantOption(variant).size ?? variant.variant_name_en ?? variant.variant_sku ?? variant.vid
-                                                : variant.variant_name_en ?? variant.variant_key ?? variant.variant_sku ?? variant.vid}
-                                        </option>
-                                ))}
-                            </select>
-                        </label>
-                    )}
+                    <VariantOptionPicker
+                        matrix={matrix}
+                        selection={selection}
+                        onChoose={handleOptionChoose}
+                    />
 
                     {isProductInCart && (
                         <div className="flex flex-col gap-3">

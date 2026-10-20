@@ -154,16 +154,57 @@ Frontend:
    - Fixed on the way: `get_all` (every service's copy of `repository_mixins.py`) now
      orders by primary key after any sort, so pages of one query never repeat or skip
      a row.
-2. **Show at most 100 as a product's quantity.** Any product with more than 100 units
-   in stock shows 100.
-3. **Variant selection must follow what exists.** Some CJ products have empty variant
-   fields (size or colour). Only real, available combinations may be offered and
-   selected, and a product with an empty field must still be buyable when a variant
-   exists.
-4. **Input sanitising and the other browser-side protections that apply to us**: every
-   form and query parameter, what is rendered from API data (product names and
-   descriptions from CJ, reviews), the content security policy and the other security
-   headers.
+2. **Show at most 100 as a product's quantity. Done 2026-10-20.** The product page shows
+   the selected variant's stock (the product's, without variants), at most 100, and the
+   quantity stepper stops there too (`shownStock` in `utils/productVariants.ts`).
+3. **Variant selection must follow what exists. Done 2026-10-20.** The page split every
+   variant key as `Color-Size`, but CJ sends `Size-Color` (`M-Red`), colour only
+   (`Black`), three parts (`Brown-XS-1pcs`) and more, so sizes showed as colours and
+   packs as colours. CJ names the parts in `productKeyEn` ("Size-Color"): supplier-service
+   now maps it into the product contract (`variant_option_names`, both copies),
+   product-service stores it (`products.variant_option_names`, migration `d4a7e2c9b1f8`)
+   and returns it on the detailed product. The page (`VariantMatrix`,
+   `VariantOptionPicker`) shows one row of buttons per named option, colour first:
+   - a value with no variant, or none in stock, stays visible but disabled, judged
+     against the options above it (a colour is never blocked by the chosen size);
+     picking a colour moves to the nearest real variant, keeping the size if it can;
+   - an option with one value across the product is hidden; an empty key part shows
+     as "Default";
+   - without names, or when keys do not split into one part per name, the whole key is
+     the single "Option", so every variant stays buyable.
+   Names fill on each product's next hourly sync. Tests: `npm run test:unit` (in CI).
+   Not changed: the shop filters still read colour and size from the key by keyword,
+   so a `Size-Color` product's colours count as colours but its sizes are missed.
+4. **Input sanitising and the other browser-side protections that apply to us. Done
+   2026-10-20.**
+   - Content security policy, enforced, on every page (`lib/security-headers.ts`, set in
+     `proxy.ts`): scripts only with this request's nonce (`'strict-dynamic'`, so Stripe.js
+     and Turnstile load through it), no `'unsafe-eval'` outside development, frames only
+     Stripe and Turnstile, `object-src 'none'`, `frame-ancestors 'none'`,
+     `upgrade-insecure-requests` in production. Styles stay `'unsafe-inline'` (MUI/emotion
+     and style attributes; inline styles run no code). Every page already rendered per
+     request (`force-dynamic` in the root layout), so the nonce reaches all of them.
+     `SessionProxy` now forwards the request headers on every path, or the nonce was lost.
+   - Also from Next: nosniff, referrer policy, `X-Frame-Options: DENY`,
+     `Cross-Origin-Opener-Policy: same-origin-allow-popups`, a Permissions-Policy (camera,
+     microphone, geolocation, USB off; payment only for Stripe). Traefik's HSTS and the
+     rest stay as they are.
+   - Login error links are signed: a failed Google sign-in carries the backend's message
+     with an HMAC of the session secret (`lib/auth-error-link.ts`), and `/login` shows only
+     a message that matches. Before, any text in `?authError=` was shown on our page.
+   - The parcel tracking link from CJ is a link only when it is an http(s) address
+     (`utils/safeUrl.ts`).
+   - Forms share rules mirroring the backend schemas (`utils/formRules.ts`): sign-up
+     had none (name, email, password, and the repeat was never compared), sign-in and the
+     review comment were unbounded. Inputs stop typing at the rule's maximum.
+   - Checked and already fine: nothing renders raw HTML (CJ descriptions are reduced to
+     text by product-service, React escapes the rest), search and category are bounded
+     before they reach the API, NextAuth keeps redirects on our origin.
+   - Verified in Playwright on the dev server and a production build (home, product,
+     register and login with Turnstile, cart, Stripe checkout, account, order): no
+     violations. A production build run locally over plain http blocks the local S3
+     avatar (`img-src` has no `http:` in production); production serves images over HTTPS.
+   - Tests: `npm run test:unit` adds the signed-link cases.
 5. **Measure and improve performance with the standard browser tools** (Lighthouse,
    Chrome DevTools Performance, Core Web Vitals): measure first, then fix what the
    measurements show (images, bundle size, render-blocking work).

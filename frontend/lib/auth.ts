@@ -3,7 +3,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
 import { settings } from "@/lib/config";
 import { ApiError } from "@/lib/api-error";
-import { AUTH_ERROR_PARAM, AUTH_ERROR_MAX_LENGTH } from "@/utils/constants";
+import { AuthErrorLink } from "@/lib/auth-error-link";
 import { clientAddressHeaders } from "@/lib/client-address";
 import { GatewayAuthClient, type BackendTokens, type SignedInBody } from "@/lib/gateway-auth-client";
 import { SessionCookie } from "@/lib/session-cookie";
@@ -11,9 +11,8 @@ import { SessionCookie } from "@/lib/session-cookie";
 const LOGIN_FALLBACK = "Sign-in failed. Please try again.";
 const GOOGLE_FALLBACK = "Google sign-in failed. Please try again.";
 
-/** /login with a message the page shows as a toast; truncated to keep the URL sane. */
-const loginErrorUrl = (message: string): string =>
-    `/login?${AUTH_ERROR_PARAM}=${encodeURIComponent(message.slice(0, AUTH_ERROR_MAX_LENGTH))}`;
+/** /login with a signed message the page shows as a toast. */
+const loginErrorUrl = (message: string): string => AuthErrorLink.url(message);
 
 // Refresh and logout from the Next server; the proxy refreshes with its own client (proxy.ts).
 const gatewayAuth = new GatewayAuthClient({

@@ -11,12 +11,8 @@ import Button, { keycapClassName } from "@/components/ui/Button";
 import { useFragmentToken } from "@/hooks/useFragmentToken";
 import { AuthApi } from "@/lib/auth-api";
 import { ApiError } from "@/lib/api-error";
+import { NEW_PASSWORD_RULES } from "@/utils/formRules";
 
-// Mirrors ResetPasswordRequest.new_password in user-service.
-const PASSWORD_RULES = {
-    minLength: { value: 8, message: "At least 8 characters" },
-    maxLength: { value: 100, message: "At most 100 characters" },
-};
 
 /**
  * Landing page of the password-reset email: `/password-reset#token=…`.
@@ -106,7 +102,7 @@ const ResetPasswordForm = () => {
                     disabled={isLoading}
                     register={register}
                     errors={errors}
-                    validationRules={PASSWORD_RULES}
+                    validationRules={NEW_PASSWORD_RULES}
                     required
                     glass
                 />

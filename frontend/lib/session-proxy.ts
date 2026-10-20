@@ -40,12 +40,12 @@ export class SessionProxy {
 
     async handle(request: NextRequest): Promise<NextResponse> {
         if (request.nextUrl.pathname.startsWith(NEXTAUTH_ROUTES)) {
-            return NextResponse.next();
+            return this.pass(request);
         }
         const name = this.cookie.cookieName();
         const raw = request.cookies.get(name)?.value;
         if (!raw) {
-            return NextResponse.next();
+            return this.pass(request);
         }
 
         let token: JWT | null;
@@ -55,19 +55,19 @@ export class SessionProxy {
             token = null;
         }
         if (!token || typeof token.jwt !== "string") {
-            return NextResponse.next();
+            return this.pass(request);
         }
 
         const accessExpiry = Number(token.token_expiry);
         if (!this.refresher.isDue(accessExpiry)) {
-            return NextResponse.next();
+            return this.pass(request);
         }
 
         const refreshToken = typeof token.refresh_token === "string" ? token.refresh_token : null;
         if (!refreshToken) {
             // A session from before refresh tokens were kept: it lasts as long
             // as its access token, then it is over.
-            return accessExpiry <= this.now() ? this.endSession(request, name) : NextResponse.next();
+            return accessExpiry <= this.now() ? this.endSession(request, name) : this.pass(request);
         }
 
         const outcome = await this.refresher.refresh(refreshToken, request.headers.get("x-forwarded-for"));
@@ -86,22 +86,27 @@ export class SessionProxy {
                 return this.endSession(request, name);
             case "unavailable":
                 console.warn("Session refresh postponed:", outcome.reason);
-                return NextResponse.next();
+                return this.pass(request);
         }
+    }
+
+    /** On to the page, with whatever the request headers now carry (the CSP nonce among them). */
+    private pass(request: NextRequest): NextResponse {
+        return NextResponse.next({ request: { headers: request.headers } });
     }
 
     private continueWith(request: NextRequest, name: string, value: string): NextResponse {
         // RequestCookies.set rewrites the request's Cookie header, which
         // NextResponse.next passes on to the page or route handler.
         request.cookies.set(name, value);
-        const response = NextResponse.next({ request: { headers: request.headers } });
+        const response = this.pass(request);
         response.cookies.set(name, value, this.cookie.options());
         return response;
     }
 
     private endSession(request: NextRequest, name: string): NextResponse {
         request.cookies.delete(name);
-        const response = NextResponse.next({ request: { headers: request.headers } });
+        const response = this.pass(request);
         response.cookies.set(name, "", { ...this.cookie.options(), maxAge: 0 });
         return response;
     }

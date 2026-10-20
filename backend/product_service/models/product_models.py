@@ -4,8 +4,8 @@ from typing import Any, TYPE_CHECKING
 from uuid import UUID, uuid4
 
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import DateTime, ForeignKey, Index, inspect, UniqueConstraint
-from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
+from sqlalchemy import DateTime, ForeignKey, Index, inspect, String, UniqueConstraint
+from sqlalchemy.dialects.postgresql import ARRAY, UUID as PostgresUUID
 
 from models.base import Base
 from infrastructure.utils.models_mixins import TimestampMixin
@@ -64,6 +64,11 @@ class Product(Base, TimestampMixin):
     # When the supplier's stock behind ``quantity`` was measured (the hourly
     # CJ refresh). An older measurement arriving later is ignored.
     stock_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # What each dash-separated part of a variant key names, in order: the
+    # supplier's ["Size", "Color"] for "M-Red". Empty when it sent none.
+    variant_option_names: Mapped[list[str]] = mapped_column(
+        ARRAY(String(50)), nullable=False, default=list, server_default="{}"
+    )
 
     reviews: Mapped[list['ProductReview']] = relationship('ProductReview', back_populates='product', cascade='all, delete-orphan') # pyright: ignore[reportUndefinedVariable]
     images: Mapped[list['ProductImage']] = relationship('ProductImage', back_populates='product', cascade='all, delete-orphan') # pyright: ignore[reportUndefinedVariable]

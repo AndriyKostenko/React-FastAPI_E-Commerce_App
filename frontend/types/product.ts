@@ -47,6 +47,8 @@ export interface ProductProps {
     reviews: ReviewProps[];
     images: ImageProps[];
     variants?: ProductVariantProps[];
+    /** What each part of a variant key names, in order: ["Color", "Size"] for "Black-XL". */
+    variant_option_names?: string[];
     selected_variant_id?: string | null;
     fulfillment_type?: "catalog" | "cj" | "custom";
     customization?: CustomTshirtSpecification;

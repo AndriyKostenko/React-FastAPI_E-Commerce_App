@@ -39,6 +39,10 @@ class GenericSupplierProduct(BaseModel):
     )
     category_name: str | None = None
     variants: list[SupplierProductVariant] = Field(default_factory=list)
+    variant_option_names: list[str] = Field(
+        default_factory=list,
+        description='What each part of a variant key names, in order: ["Color", "Size"] for "Black-XL".',
+    )
 
     @field_validator("name", "brand", mode="after")
     @classmethod

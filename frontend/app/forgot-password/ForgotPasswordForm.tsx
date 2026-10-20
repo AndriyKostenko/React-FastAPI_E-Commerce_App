@@ -10,8 +10,7 @@ import Button from "@/components/ui/Button";
 import { AuthApi } from "@/lib/auth-api";
 import { ApiError } from "@/lib/api-error";
 import { useHumanCheck } from "@/hooks/useHumanCheck";
-
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+import { EMAIL_RULES } from "@/utils/formRules";
 
 /**
  * Asks for a password-reset email. The answer is the same whether or not the
@@ -76,7 +75,7 @@ const ForgotPasswordForm = () => {
                             disabled={isLoading}
                             register={register}
                             errors={errors}
-                            validationRules={{ pattern: { value: EMAIL_PATTERN, message: "Enter a valid email address" } }}
+                            validationRules={EMAIL_RULES}
                             required
                             glass
                         />
