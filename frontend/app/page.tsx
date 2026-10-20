@@ -1,7 +1,7 @@
 import CommunityGallery from "@/components/3. Community Gallery/CommunityGallery";
 import FeaturedCollection from "@/components/4. Featured Collections/FeaturedCollection";
 import Testimonials from "@/components/5. Testimonials/Testimonials";
-import fetchProductsFromBackend from "../actions/getProducts";
+import fetchProductCards from "@/actions/getProductCards";
 import fetchFeaturedReviews from "@/actions/getFeaturedReviews";
 import fetchBestSellers from "@/actions/getBestSellers";
 import { BEST_SELLERS_SIZE } from "@/utils/collectionTabs";
@@ -15,7 +15,7 @@ export default async function Home(props: {params: Params, searchParams: SearchP
     const searchTerm = searchParams['searchTerm'] as string | undefined;
     const category = searchParams['category'] as string | undefined;
     const [products, reviews, bestSellers] = await Promise.all([
-        fetchProductsFromBackend(category, searchTerm),
+        fetchProductCards({ searchTerm, category }),
         fetchFeaturedReviews(),
         fetchBestSellers(BEST_SELLERS_SIZE),
     ]);
@@ -29,7 +29,7 @@ export default async function Home(props: {params: Params, searchParams: SearchP
         <div className="space-y-8">
 			<HeroSection isRegisteredUser={Boolean(currentUserJWT)} />
             <CommunityGallery />
-            <FeaturedCollection products={products} bestSellers={bestSellers} />
+            <FeaturedCollection products={products} bestSellers={bestSellers} searchTerm={searchTerm?.trim() || undefined} />
             <Testimonials reviews={reviews} />
         </div>
     )

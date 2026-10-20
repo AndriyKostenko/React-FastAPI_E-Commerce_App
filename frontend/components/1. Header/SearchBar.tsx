@@ -3,6 +3,11 @@
 import { FieldValues, SubmitHandler, useForm } from "react-hook-form";
 import { useRouter } from "next/navigation";
 import queryString from "query-string";
+import { toast } from "react-hot-toast";
+
+// product-service searches with 3 to 50 characters.
+const SEARCH_MIN_LENGTH = 3;
+const SEARCH_MAX_LENGTH = 50;
 
 const SearchBar = () => {
     const router = useRouter();
@@ -19,16 +24,23 @@ const SearchBar = () => {
     });
 
     const onSubmit: SubmitHandler<FieldValues> = async (data) => {
-        if (!data.searchTerm) {
+        const searchTerm = String(data.searchTerm ?? "").trim();
+        if (!searchTerm) {
             return router.push("/");
+        }
+        if (searchTerm.length < SEARCH_MIN_LENGTH) {
+            toast.error(`Type at least ${SEARCH_MIN_LENGTH} characters to search.`);
+            return;
         }
         // redirecting to the home page with the search term as a query parameter
         const url = queryString.stringifyUrl(
             {
                 url: "/",
                 query: {
-                    searchTerm: data.searchTerm,
+                    searchTerm,
                 },
+                // The results are the shop section, below the hero.
+                fragmentIdentifier: "shop",
             },
             { skipNull: true },
         );
@@ -46,6 +58,7 @@ const SearchBar = () => {
                 placeholder="Search designs..."
                 autoComplete="off"
                 type="text"
+                maxLength={SEARCH_MAX_LENGTH}
             />
             <button
                 onClick={handleSubmit(onSubmit)}

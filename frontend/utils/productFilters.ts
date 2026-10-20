@@ -1,4 +1,4 @@
-import type { ProductProps } from "@/types/product";
+import type { ProductSummary } from "@/types/product";
 import { activeVariantsOf } from "@/utils/cartLine";
 
 export type SortKey = "featured" | "price-asc" | "price-desc" | "newest";
@@ -21,9 +21,9 @@ export interface ProductFacets {
     maxPrice: number;
 }
 
-type Comparator = (left: ProductProps, right: ProductProps) => number;
+type Comparator = (left: ProductSummary, right: ProductSummary) => number;
 
-const createdAt = (product: ProductProps): number => new Date(product.date_created).getTime();
+const createdAt = (product: ProductSummary): number => new Date(product.date_created).getTime();
 
 /**
  * The orders a shopper can pick (Strategy). "Featured" has no comparator: it
@@ -37,7 +37,7 @@ export const SORT_OPTIONS: ReadonlyArray<{ key: SortKey; label: string; compare:
     { key: "newest", label: "Newest", compare: (left, right) => createdAt(right) - createdAt(left) },
 ];
 
-export const sortProducts = (products: ProductProps[], key: SortKey): ProductProps[] => {
+export const sortProducts = <P extends ProductSummary>(products: P[], key: SortKey): P[] => {
     const compare = SORT_OPTIONS.find((option) => option.key === key)?.compare;
     return compare ? products.toSorted(compare) : products;
 };
@@ -104,7 +104,7 @@ const facetOfKey = (key: string): VariantFacet => {
         : { families: colorFamiliesOf(trimmed), size: null };
 };
 
-const variantFacetsOf = (product: ProductProps): VariantFacet[] =>
+const variantFacetsOf = (product: ProductSummary): VariantFacet[] =>
     activeVariantsOf(product).map((variant) => facetOfKey(variant.variant_key ?? ""));
 
 const bySizeOrder = (left: string, right: string): number => SIZE_ORDER.indexOf(left) - SIZE_ORDER.indexOf(right);
@@ -115,7 +115,7 @@ const byFamilyOrder = (left: string, right: string): number =>
 /** "black" -> "Black": how a colour family is shown on its chip. */
 export const colorLabel = (color: string): string => color.replace(/\b\w/g, (letter) => letter.toUpperCase());
 
-export const facetsOf = (products: ProductProps[]): ProductFacets => {
+export const facetsOf = (products: ProductSummary[]): ProductFacets => {
     const colors = new Set<string>();
     const sizes = new Set<string>();
     for (const product of products) {
@@ -137,7 +137,7 @@ export const facetsOf = (products: ProductProps[]): ProductFacets => {
 export const countActiveFilters = (filters: ProductFilterState): number =>
     (filters.minPrice !== null || filters.maxPrice !== null ? 1 : 0) + filters.colors.length + filters.sizes.length;
 
-type ProductRule = (product: ProductProps) => boolean;
+type ProductRule = (product: ProductSummary) => boolean;
 
 /** The filters as rules a product must all pass; a filter that is off adds no rule. */
 const rulesFor = (filters: ProductFilterState): ProductRule[] => {
@@ -164,7 +164,7 @@ const rulesFor = (filters: ProductFilterState): ProductRule[] => {
     return rules;
 };
 
-export const applyProductFilters = (products: ProductProps[], filters: ProductFilterState): ProductProps[] => {
+export const applyProductFilters = <P extends ProductSummary>(products: P[], filters: ProductFilterState): P[] => {
     const rules = rulesFor(filters);
     return rules.length === 0 ? products : products.filter((product) => rules.every((rule) => rule(product)));
 };

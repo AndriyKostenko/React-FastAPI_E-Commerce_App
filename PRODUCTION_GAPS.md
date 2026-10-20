@@ -129,7 +129,7 @@ or recorded as decided. Merged so far: PR #41 (readiness, phases 2–5) and PR #
   proxy's anonymous calls depend on the forwarded address. Confirm this in production
   behind Traefik before go-live.
 
-**Planned next (added 2026-10-19, not started)**
+**Planned next (added 2026-10-19)**
 
 Catalogue size first: the CJ sync keeps 200 T-shirts (`CJ_DROPSHIPPING_SYNC_MAX_PRODUCTS`,
 hourly sync, about 19% of the CJ call budget). Grow it by syncing less often, not by
@@ -137,11 +137,23 @@ fetching more per run.
 
 Frontend:
 
-1. **Load more products as the shopper scrolls.** The shop shows 20 products, then
-   loads 20 more each time the shopper nears the end of the list, at most 3 times
-   (80 products). After that, a "Load more" button takes over. Today the home page
-   fetches only 20 (`limit=20`), so most of the 200 synced products can be reached only
-   through search or a category.
+1. **Load more products as the shopper scrolls. Done 2026-10-19.** The shop shows 20
+   products, then 20 more each time the shopper nears the end of the list, 3 times (80),
+   then a "Load more" button adds 20 at a time (`hooks/useIncrementalReveal.ts`).
+   - The home page loads every product at once from a new light listing,
+     `GET /products/cards` (product-service and gateway). It carries what a card, the
+     tabs and the filters read: about 1.7 KB a product, 350 KB for all 207, where the
+     detailed list took 420 KB for 20. Tabs, filters and sort cover the whole catalogue.
+   - Quick Add on a single-variant card reads the full product first.
+   - Card images now get a `sizes` hint, and cards show the product's main image.
+   - Fixed on the way: search and category did nothing. The page sent `searchTerm` and
+     `category` where product-service reads `search_term` and `category_id`, and
+     product-service never passed its search fields to the query. Search now matches
+     name, description and brand; the search bar asks for 3 to 50 characters and lands
+     on the shop section.
+   - Fixed on the way: `get_all` (every service's copy of `repository_mixins.py`) now
+     orders by primary key after any sort, so pages of one query never repeat or skip
+     a row.
 2. **Show at most 100 as a product's quantity.** Any product with more than 100 units
    in stock shows 100.
 3. **Variant selection must follow what exists.** Some CJ products have empty variant

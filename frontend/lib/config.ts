@@ -83,6 +83,7 @@ class AppSettings {
             categories: string;
             customizationPricing: string;
             productsDetailed: string;
+            productCards: string;
             productDetailed: (productId: string) => string;
             reviews: string;
             bestSellers: string;
@@ -160,6 +161,7 @@ class AppSettings {
             categories:          AppSettings.joinUrl(baseUrl, "categories"),
             customizationPricing: AppSettings.joinUrl(baseUrl, "customization/pricing"),
             productsDetailed:     AppSettings.joinUrl(baseUrl, "products/detailed"),
+            productCards:         AppSettings.joinUrl(baseUrl, "products/cards"),
             productDetailed:      (productId: string) => AppSettings.joinUrl(baseUrl, `products/${productId}/detailed`),
             reviews:              AppSettings.joinUrl(baseUrl, "reviews"),
             bestSellers:          AppSettings.joinUrl(baseUrl, "best-sellers"),

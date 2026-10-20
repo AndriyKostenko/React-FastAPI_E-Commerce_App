@@ -33,6 +33,11 @@ from schemas.product_schemas import (
     ProductBase,
     ProductSchema,
     ProductsFilterParams,
+    ProductCardCategory,
+    ProductCardReview,
+    ProductCardSchema,
+    ProductCardsFilterParams,
+    ProductCardVariant,
     UpdateProduct,
     ProductUploadForm,
     OrderQuoteLine,
@@ -288,17 +293,46 @@ class ProductService:
 
     async def get_all_products_without_relations(self,
                                                 filters_query: Annotated[ProductsFilterParams, Query()]) -> list[ProductBase]:
-        params = self.filter_parser.parse_filter_params(filter_query=filters_query)
+        params = self.filter_parser.parse_filter_params(filter_query=filters_query,
+                                                        search_fields=self.product_search_fileds)
         products: list[Product] = await self.repository.get_all(**params)
         return [ProductBase.model_validate(product) for product in products]
 
     async def get_all_products_with_relations(self,
                                               filters_query: Annotated[ProductsFilterParams, Query()]) -> list[ProductSchema]:
         # Parse filters using helper method and add relations
-        params = self.filter_parser.parse_filter_params(filter_query=filters_query)
+        params = self.filter_parser.parse_filter_params(filter_query=filters_query,
+                                                        search_fields=self.product_search_fileds)
         params["load_relations"] = self.product_relations
         products = await self.repository.get_all(**params)
         return [ProductSchema.model_validate(product) for product in products]
+
+    async def get_product_cards(self, filters_query: ProductCardsFilterParams) -> list[ProductCardSchema]:
+        """The shop's product cards: the same filters as the detailed list, a fraction of the payload."""
+        params = self.filter_parser.parse_filter_params(filter_query=filters_query,
+                                                        search_fields=self.product_search_fileds)
+        params["load_relations"] = self.product_relations
+        products: list[Product] = await self.repository.get_all(**params)
+        return [self._to_card(product) for product in products]
+
+    @staticmethod
+    def _to_card(product: Product) -> ProductCardSchema:
+        # The card shows the product's main image; a product saved without one
+        # falls back to its first gallery image.
+        image_url = product.image_url or (product.images[0].image_url if product.images else None)
+        return ProductCardSchema(
+            id=product.id,
+            supplier_id=product.supplier_id,
+            name=product.name,
+            price=product.price,
+            in_stock=product.in_stock,
+            image_url=image_url,
+            date_created=product.date_created,
+            category=ProductCardCategory(id=product.category.id, name=product.category.name),
+            # A review without a rating does not count towards the average.
+            reviews=[ProductCardReview(rating=review.rating) for review in product.reviews if review.rating is not None],
+            variants=[ProductCardVariant(variant_key=variant.variant_key) for variant in product.variants if variant.active],
+        )
 
     async def get_product_by_name(self, name: str) -> ProductBase:
         db_product = await self.repository.get_by_field("name", name.lower())

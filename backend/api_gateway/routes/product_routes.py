@@ -32,6 +32,14 @@ async def get_all_products_detailed(request: Request):
         request=request,
     )
 
+@product_proxy.get("/products/cards", summary="Get every product as a shop card")
+async def get_product_cards(request: Request):
+    """PUBLIC - The shop's product grid: a light listing of every product"""
+    return await api_gateway_manager.forward_request(
+        service_name="product-service",
+        request=request,
+    )
+
 @product_proxy.get("/products/{product_id}", summary="Get product by ID")
 async def get_product_by_id(request: Request,
                             product_id: UUID):
