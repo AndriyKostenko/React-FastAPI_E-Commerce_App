@@ -1,4 +1,4 @@
-import { signOut } from "next-auth/react";
+import { signOut } from "@/lib/sign-out";
 import { clearUserScopedStorage } from "@/utils/client-storage";
 import { useEffect } from "react";
 import toast from 'react-hot-toast';
@@ -6,7 +6,7 @@ import toast from 'react-hot-toast';
 const endExpiredSession = () => {
     toast.error('Your session has expired!');
     clearUserScopedStorage();
-    signOut({ callbackUrl: '/login' });
+    void signOut({ callbackUrl: '/login' });
 };
 
 // setTimeout fires at once for delays above 2^31-1 ms (about 24.8 days).

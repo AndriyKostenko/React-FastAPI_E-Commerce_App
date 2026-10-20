@@ -1,5 +1,4 @@
-import type { BestSeller, FilterTab, ProductSummary } from "@/types/product";
-import calculateAverageRating from "@/utils/productRating";
+import type { FilterTab, ShopCard } from "@/types/product";
 
 /** How many products the Best Sellers tab shows, sellers first, topped up with top rated. */
 export const BEST_SELLERS_SIZE = 8;
@@ -9,8 +8,9 @@ const NEW_ARRIVAL_WINDOW_DAYS = 30;
 
 /** What every tab picks its products from. */
 export interface CollectionSource {
-    products: ProductSummary[];
-    bestSellers: BestSeller[];
+    products: ShopCard[];
+    /** In rank order, most units first. */
+    bestSellers: ShopCard[];
     /** Read once per mount, so a list never depends on render timing. */
     now: number;
 }
@@ -19,25 +19,23 @@ interface CollectionTab {
     tab: FilterTab;
     /** The `?collection=` value that opens this tab; null for All (no parameter). */
     slug: string | null;
-    select: (source: CollectionSource) => ProductSummary[];
+    select: (source: CollectionSource) => ShopCard[];
 }
 
-const averageRating = (product: ProductSummary): number => calculateAverageRating(product.reviews ?? []);
-
-const topRated = ({ products }: CollectionSource): ProductSummary[] =>
+const topRated = ({ products }: CollectionSource): ShopCard[] =>
     products
-        .filter((product) => averageRating(product) >= TOP_RATED_MIN_RATING)
-        .toSorted((left, right) => averageRating(right) - averageRating(left));
+        .filter((product) => product.averageRating >= TOP_RATED_MIN_RATING)
+        .toSorted((left, right) => right.averageRating - left.averageRating);
 
 /** Sellers in rank order; while there are fewer than the tab holds, top-rated others fill the rest. */
-const bestSellers = (source: CollectionSource): ProductSummary[] => {
-    const sellers = source.bestSellers.map(({ product }) => product);
+const bestSellers = (source: CollectionSource): ShopCard[] => {
+    const sellers = source.bestSellers;
     const sold = new Set(sellers.map((product) => product.id));
     const topUp = topRated(source).filter((product) => !sold.has(product.id));
     return [...sellers, ...topUp].slice(0, BEST_SELLERS_SIZE);
 };
 
-const newArrivals = ({ products, now }: CollectionSource): ProductSummary[] => {
+const newArrivals = ({ products, now }: CollectionSource): ShopCard[] => {
     const cutoff = now - NEW_ARRIVAL_WINDOW_DAYS * 86_400_000;
     return products
         .filter((product) => new Date(product.date_created).getTime() >= cutoff)
@@ -65,5 +63,5 @@ export const tabForSlug = (slug: string | null): FilterTab => {
 
 export const slugForTab = (tab: FilterTab): string | null => strategyFor(tab)?.slug ?? null;
 
-export const selectCollection = (tab: FilterTab, source: CollectionSource): ProductSummary[] =>
+export const selectCollection = (tab: FilterTab, source: CollectionSource): ShopCard[] =>
     strategyFor(tab)?.select(source) ?? source.products;

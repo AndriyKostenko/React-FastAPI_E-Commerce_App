@@ -1,12 +1,12 @@
 "use client";
 
 import { UserMenuProps } from "@/types/navbar";
-import { Avatar } from "@mui/material";
+import Avatar from "@/components/ui/Avatar";
 import { useCallback, useState } from "react";
 import MenuItem from "./MenuItem";
 import Link from "next/link";
 import BackDrop from "./BackDrop";
-import { signOut } from "next-auth/react";
+import { signOut } from "@/lib/sign-out";
 import { clearUserScopedStorage } from "@/utils/client-storage";
 
 const UserMenu: React.FC<UserMenuProps> = ({ currentUser }) => {
@@ -27,10 +27,7 @@ const UserMenu: React.FC<UserMenuProps> = ({ currentUser }) => {
                         Account
                     </span>
                     <div className="w-8 h-8 rounded-full bg-primary-container overflow-hidden">
-                        <Avatar
-                            src={currentUser?.image || undefined}
-                            sx={{ width: 32, height: 32 }}
-                        />
+                        <Avatar src={currentUser?.image} size={32} />
                     </div>
                 </div>
                 {isOpen && (
@@ -56,7 +53,7 @@ const UserMenu: React.FC<UserMenuProps> = ({ currentUser }) => {
                                     onClick={() => {
                                         toggleOpen();
                                         clearUserScopedStorage();
-                                        signOut();
+                                        void signOut();
                                     }}
                                 >
                                     Logout

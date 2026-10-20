@@ -205,9 +205,40 @@ Frontend:
      violations. A production build run locally over plain http blocks the local S3
      avatar (`img-src` has no `http:` in production); production serves images over HTTPS.
    - Tests: `npm run test:unit` adds the signed-link cases.
-5. **Measure and improve performance with the standard browser tools** (Lighthouse,
-   Chrome DevTools Performance, Core Web Vitals): measure first, then fix what the
-   measurements show (images, bundle size, render-blocking work).
+5. **Measure and improve performance with the standard browser tools. Done 2026-10-20.**
+   Lighthouse 13.5 on a production build (mobile throttling, home as the median of three):
+
+   | | before | after |
+   |---|---|---|
+   | home mobile: score, LCP, Speed Index | 86, 4.2 s, 2.4 s | 90, 3.6 s, 1.2 s |
+   | product / login mobile score | 91 / 91 | 93 / 94 |
+   | home desktop score, CLS | 89, 0.217 | 100, 0 |
+   | login CLS | 0.075 | 0 |
+   | home JavaScript | 17 files, 257 KB | 15 files, 195 KB |
+   | home HTML (wire / raw) | 82 KB / 680 KB | 40 KB / 296 KB |
+
+   - Layout shift: pages stream in behind a short loading skeleton, and the footer, in
+     view under it, jumped when the page arrived. `<main>` is now at least a screen tall
+     (`min-h-svh`), so the footer starts below the fold everywhere.
+   - The home page carried every variant key of every product (6,365 of them, 300 KB of
+     the page) for the shop filters. The Next server now reduces each product to a shop
+     card (`utils/shopCard.ts`): colour family and size pairs, average rating, review and
+     variant counts. The filters answer the same (checked against the old rule on the
+     live catalogue).
+   - zod (31 KB) left the browser: the six public env checks are written to the
+     Standard Schema interface createEnv takes (`lib/env-schema.ts`). MUI and emotion are
+     gone (`StarRating`, the existing `Avatar`), and so are moment (`utils/timeAgo.ts`) and
+     the unused `@mui/x-data-grid`. `next-auth/react` loads when signing out, not with
+     every page (`lib/sign-out.ts`).
+   - Gallery images get a `sizes` hint.
+   - Tried and dropped: `experimental.inlineCss` (it put the stylesheet in the page three
+     times, 445 KB raw, for no LCP gain) and `font-display: optional` (no LCP change).
+   - What is left of mobile LCP (2.9 to 3.6 s, lab only) is Lighthouse's slow-4G model
+     loading the framework (react-dom and the router, about 126 KB) and the two font
+     files (81 KB) before the first text. In a browser the LCP lands at 0.1 to 0.4 s.
+   - Lighthouse also reports accessibility items (buttons and selects without names,
+     heading order, contrast on desktop home); not part of this item.
+   - Tests: `npm run test:unit` adds the env checks and the shop card.
 6. **End-to-end tests with Playwright**, plus any other frontend tests that fit (unit
    and component tests). There is no frontend test runner yet; today CI runs only the
    lint and `test:race`.

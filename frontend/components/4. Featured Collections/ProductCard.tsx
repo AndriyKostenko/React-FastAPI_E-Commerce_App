@@ -20,7 +20,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
     const { handleAddProductToCart } = useCart();
     const [adding, setAdding] = useState(false);
     // More than one size or colour: the choice is made on the product page.
-    const needsChoice = activeVariantsOf(product).length > 1;
+    const needsChoice = product.variantCount > 1;
 
     const handleQuickAdd = async (e: React.MouseEvent<HTMLButtonElement>) => {
         e.stopPropagation();

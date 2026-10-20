@@ -52,8 +52,11 @@ export default async function RootLayout({children}: {children: React.ReactNode}
                         <div className="glass-card shadow-2xl overflow-hidden min-h-screen border-none flex flex-col">
                             <NavBar/>
 
-                            {/* Tighter on phones: the page gutter, this padding and each card's own add up. */}
-                            <main className="flex-grow px-3 py-4 sm:p-4 md:p-8 space-y-8">
+                            {/* Tighter on phones: the page gutter, this padding and each card's own add up.
+                                At least a screen tall, so the footer starts below the fold: a page streams in
+                                behind its loading skeleton, and a footer in view would jump when it arrives
+                                (the home page's layout shift was 0.22). */}
+                            <main className="flex-grow min-h-svh px-3 py-4 sm:p-4 md:p-8 space-y-8">
                                 {children}
                             </main>
 
