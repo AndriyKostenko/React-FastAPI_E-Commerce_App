@@ -6,7 +6,8 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm ci
+# The npm that writes the lockfile (Dependabot's); see the admin-js CI job.
+RUN npm install -g npm@11.21.1 && npm ci
 
 COPY . .
 RUN npm run build
@@ -23,7 +24,7 @@ ENV NODE_ENV=production
 RUN mkdir -p /app/.adminjs && chown node:node /app/.adminjs
 
 COPY package*.json ./
-RUN npm ci --omit=dev && npm cache clean --force
+RUN npm install -g npm@11.21.1 && npm ci --omit=dev && npm cache clean --force
 
 COPY --from=builder --chown=node:node /app/dist ./dist
 # AdminJS bundles its TSX components from src/ at startup and writes the
