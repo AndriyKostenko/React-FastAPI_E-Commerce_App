@@ -82,10 +82,10 @@ const FeaturedCollection: React.FC<FeaturedCollectionProps> = ({
 
     return (
         <>
-            <section id="shop" className="glass-card scroll-mt-8 p-4 sm:p-8 md:p-12">
+            <section id="shop" aria-labelledby="shop-heading" className="glass-card scroll-mt-8 p-4 sm:p-8 md:p-12">
                 <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10">
                     <div>
-                        <h2 className="font-headline-lg text-primary">
+                        <h2 id="shop-heading" className="font-headline-lg text-primary">
                             Featured Selection
                         </h2>
                         <p className="text-secondary">

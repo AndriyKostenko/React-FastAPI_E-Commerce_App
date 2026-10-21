@@ -115,3 +115,21 @@ async def test_a_refused_final_step_is_an_error(monkeypatch) -> None:
 
     with pytest.raises(CJDropshippingAPIError):
         await driver.deliver(_order())
+
+
+# ------------------------------------------------------------------ mode
+
+
+@pytest.mark.parametrize(("sandbox", "printed"), [(True, "sandbox"), (False, "live")])
+async def test_mode_says_how_new_orders_would_be_sent(monkeypatch, capsys, sandbox: bool, printed: str) -> None:
+    # The e2e checkout pays only after reading "sandbox" here: no database, no CJ call.
+    monkeypatch.setattr(tool, "settings", SimpleNamespace(CJ_DROPSHIPPING_SANDBOX=sandbox))
+    monkeypatch.setattr(tool, "create_database_manager", MagicMock(side_effect=AssertionError("no database")))
+
+    assert await tool.main(["mode"]) == 0
+    assert capsys.readouterr().out.strip() == printed
+
+
+async def test_an_order_action_without_an_order_id_is_refused() -> None:
+    with pytest.raises(SystemExit):
+        await tool.main(["ship"])

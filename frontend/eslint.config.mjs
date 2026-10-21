@@ -6,5 +6,6 @@ import nextTs from "eslint-config-next/typescript";
 export default defineConfig([
     ...nextVitals,
     ...nextTs,
-    globalIgnores([".next/**", "out/**", "build/**", "next-env.d.ts"]),
+    // Playwright's report, results and saved sign-ins are generated, not written.
+    globalIgnores([".next/**", "out/**", "build/**", "next-env.d.ts", "e2e/.report/**", "e2e/.results/**", "e2e/.auth/**"]),
 ]);

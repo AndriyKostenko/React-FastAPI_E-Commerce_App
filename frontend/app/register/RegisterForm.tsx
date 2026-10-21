@@ -145,6 +145,7 @@ const RegisterForm:React.FC<LoginFormProps> = ({currentUser}) => {
                 <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
                     className="absolute right-4 top-[33px] -translate-y-1/2 text-secondary hover:text-primary transition-colors"
                     tabIndex={-1}
                 >
@@ -168,6 +169,7 @@ const RegisterForm:React.FC<LoginFormProps> = ({currentUser}) => {
                 <button
                     type="button"
                     onClick={() => setShowRepeatedPassword(!showRepeatedPassword)}
+                    aria-label={showRepeatedPassword ? "Hide repeated password" : "Show repeated password"}
                     className="absolute right-4 top-[33px] -translate-y-1/2 text-secondary hover:text-primary transition-colors"
                     tabIndex={-1}
                 >

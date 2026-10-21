@@ -94,6 +94,7 @@ const AddressForm: React.FC<AddressFormProps> = ({ address, isFirst, disabled, o
         <div className="w-full">
           <select
             id="address_province"
+            aria-label="Province or territory"
             disabled={disabled}
             {...register("address_province", { required: "Choose a province or territory" })}
             className={`w-full p-4 bg-white/40 border rounded-2xl outline-none focus:ring-2 focus:ring-brand-lime disabled:opacity-70 ${
