@@ -237,11 +237,55 @@ Frontend:
      loading the framework (react-dom and the router, about 126 KB) and the two font
      files (81 KB) before the first text. In a browser the LCP lands at 0.1 to 0.4 s.
    - Lighthouse also reports accessibility items (buttons and selects without names,
-     heading order, contrast on desktop home); not part of this item.
+     heading order, contrast on desktop home); not part of this item (the unnamed
+     buttons and select were fixed with item 6).
    - Tests: `npm run test:unit` adds the env checks and the shop card.
-6. **End-to-end tests with Playwright**, plus any other frontend tests that fit (unit
-   and component tests). There is no frontend test runner yet; today CI runs only the
-   lint and `test:race`.
+6. **End-to-end tests with Playwright, plus other frontend tests that fit. Done 2026-10-20.**
+   Decided: the journeys run against the local stack only, with
+   nothing mocked. The first suite covers all four areas, checkout goes as far as a paid
+   CJ sandbox order, and component tests use Vitest with Testing Library.
+   - `npm run test:e2e` runs Playwright in the installed Chrome (`frontend/e2e/`, with a
+     README). Page objects find things by role and accessible name.
+     - Browse and cart: scroll loading, a colour filter, variant options and the stock
+       cap, cart quantities and the subtotal.
+     - Account lifecycle: sign-up on the page, sign-in refused until the emailed link is
+       opened, deleting the account, a reset through the emailed link, and a forged
+       login-error link not shown.
+     - Account: profile name, picture (S3), address book, wishlist.
+     - Checkout: saved address, CJ freight quote, Stripe test card, the confirmation
+       email, the CJ sandbox order paid, shipped and delivered (each with its email), and
+       the review a delivered order allows.
+   - Emails never leave the machine. `dev.sh mail catch` starts Mailpit and points
+     notification-service at it through environment variables, which win over Vault and
+     `.env`, so `.env` is unchanged; `mail real` switches back. The journeys read the
+     activation and reset links from Mailpit's API, and refuse to run unless mail is
+     caught.
+   - The checkout journey pays only when `dev.sh cj-sandbox mode` (new) prints "sandbox"
+     and `stripe listen` is forwarding webhooks.
+   - The gateway's hourly limits on sign-ups, confirmations and resets shape the suite.
+     The shopper and the reset account are kept between runs (`e2e/.auth`, git-ignored),
+     and each run makes one visitor, which deletes itself. About three runs fit in an
+     hour.
+   - `npm run test:components` (Vitest, jsdom, `tests/components/`) runs in CI. It covers
+     the variant picker on a real `VariantMatrix`, the star rating as an image and as a
+     radio group (with the keyboard), the shared form rules through the real `Input`, and
+     the quantity stepper.
+   - Fixed because the tests found them. They are mostly the accessibility items
+     Lighthouse listed:
+     - Unnamed buttons: the quantity stepper, password show/hide, and the account menu
+       (a `div`; now a button with `aria-expanded`, and Logout is a button too).
+     - The province select has no label.
+     - Product cards were not links, so a keyboard could not reach a product.
+     - Variant legends read "ColorBlack".
+     - Cart lines and order progress gave screen readers nothing to go on (now named
+       groups, and `aria-current` on the reached step).
+     - The cart thumbnail had a typo'd `pbject-contain` and no `sizes`.
+     - The product page logged a missing-`key` warning.
+   - Found, not fixed here:
+     - The gateway logs request bodies, sign-in passwords included, at debug level
+       (`apigateway.py`, "Prepared body content").
+     - The account page can hit the gateway's 10 profile reads a minute when someone
+       edits quickly, because each save refreshes the page.
 
 Backend:
 

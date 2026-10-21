@@ -26,11 +26,11 @@ const ProgressTracker: React.FC<{ order: OrderDetail }> = ({ order }) => {
   }
   const reached = PROGRESS_STEPS.findIndex((entry) => entry.step === progress);
   return (
-    <ol className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+    <ol aria-label="Order progress" className="grid grid-cols-2 sm:grid-cols-4 gap-3">
       {PROGRESS_STEPS.map((entry, index) => {
         const done = index <= reached;
         return (
-          <li key={entry.step} className={`flex items-center gap-2 text-sm ${done ? "text-primary font-semibold" : "text-secondary"}`}>
+          <li key={entry.step} aria-current={index === reached ? "step" : undefined} className={`flex items-center gap-2 text-sm ${done ? "text-primary font-semibold" : "text-secondary"}`}>
             {done ? <MdCheckCircle className="text-green-600 shrink-0" size={20} /> : <MdRadioButtonUnchecked className="shrink-0" size={20} />}
             {entry.label}
           </li>

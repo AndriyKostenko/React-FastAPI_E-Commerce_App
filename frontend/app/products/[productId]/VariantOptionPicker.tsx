@@ -33,8 +33,10 @@ const VariantOptionPicker = <V extends ProductVariantProps>({
             <fieldset key={option.name} className="flex flex-col gap-2 max-w-[420px]">
                 <legend className="font-label-bold text-primary mb-2">
                     {option.label}
+                    {/* A real space, so the legend reads "Color Black", not "ColorBlack". */}
+                    {selection[option.name] !== undefined && " "}
                     {selection[option.name] !== undefined && (
-                        <span className="ml-2 font-body-md text-secondary">
+                        <span className="ml-1 font-body-md text-secondary">
                             {VariantMatrix.valueLabel(selection[option.name])}
                         </span>
                     )}

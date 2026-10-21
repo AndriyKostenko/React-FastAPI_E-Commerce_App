@@ -71,6 +71,10 @@ backend/ci/.run/
 /frontend/.yarn/install-state.gz
 /frontend/.env
 /frontend/coverage
+# Playwright: report, traces/screenshots, and the signed-in shopper's cookies and password
+/frontend/e2e/.report/
+/frontend/e2e/.results/
+/frontend/e2e/.auth/
 /frontend/.next/
 /frontend/out/
 /frontend/build

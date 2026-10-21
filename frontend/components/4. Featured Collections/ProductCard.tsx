@@ -9,6 +9,7 @@ import { CatalogueApi } from "@/lib/catalogue-api";
 import { formatPrice } from "@/utils/formatPrice";
 import { truncateText } from "@/utils/truncateText";
 import Image from "next/image";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { resolveImageUrl } from "@/utils/resolveImageUrl";
 import { useCart } from "@/hooks/useCart";
@@ -70,7 +71,15 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
             <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 px-1 sm:px-2">
                 <div className="min-w-0">
                     <h3 className="font-label-bold text-primary">
-                        {truncateText(product.name)}
+                        {/* A real link as well as the card's click: a keyboard or a
+                            screen reader reaches the product through it. */}
+                        <Link
+                            href={`/products/${product.id}`}
+                            onClick={(event) => event.stopPropagation()}
+                            className="focus-visible:underline focus-visible:outline-none"
+                        >
+                            {truncateText(product.name)}
+                        </Link>
                     </h3>
                     <p className="text-sm text-secondary">
                         {product.category.name || "Apparel"}

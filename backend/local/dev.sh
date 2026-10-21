@@ -24,6 +24,7 @@
 #                  [--to <queue>]   #   target for taskiq's parked tasks
 #                  [--limit N]      #   replay at most N
 #   ./local/dev.sh cj-sandbox status|ship|deliver|poll <order_id>
+#   ./local/dev.sh cj-sandbox mode  # "sandbox" or "live": how new CJ orders go
 #                                   # play CJ's part for a sandbox order
 #                                   # (CJ_DROPSHIPPING_SANDBOX=true only)
 #   ./local/dev.sh cj-webhook tunnel|tunnel-stop|store-open-id|subscribe|status
@@ -35,6 +36,11 @@
 #                                   # one-time: move secrets from the config
 #                                   # file into Vault (you run it)
 #   ./local/dev.sh pool-budget      # every process's DB pool vs Postgres max_connections
+#   ./local/dev.sh mail catch|real|status
+#                                   # catch: every email goes to a local
+#                                   # Mailpit (inbox http://127.0.0.1:8025),
+#                                   # none leaves the machine; real: back to
+#                                   # the SMTP server in the config
 #   ./local/dev.sh test <service_dir> [pytest args]
 #                                   # a service's tests, with its Vault identity
 #   ./local/dev.sh storage status|import-local
@@ -52,6 +58,7 @@
 # ADMIN_JS_PORT=3002 ./local/dev.sh up   override the AdminJS port.
 # CJ_MCP_PORT=3009   ./local/dev.sh up   override the CJ MCP server port.
 # S3_PORT=8333       ./local/dev.sh up   override the local S3 server's port.
+# MAILPIT_SMTP_PORT=1025 MAILPIT_HTTP_PORT=8025   Mailpit's ports.
 
 set -euo pipefail
 
@@ -260,10 +267,11 @@ cmd_port() {
 # Infra
 # --------------------------------------------------------------------------
 cmd_install() {
-  say "Installing postgresql@16, redis, rabbitmq, cloudflared, seaweedfs and vault via Homebrew"
+  say "Installing postgresql@16, redis, rabbitmq, cloudflared, seaweedfs, mailpit and vault via Homebrew"
   # cloudflared: the tunnel CJ's stock webhook reaches the local gateway through.
   # seaweedfs: the local S3 server images are stored in.
-  brew install postgresql@16 redis rabbitmq cloudflared seaweedfs
+  # mailpit: the local inbox `mail catch` sends every email to.
+  brew install postgresql@16 redis rabbitmq cloudflared seaweedfs mailpit
   brew tap hashicorp/tap
   brew install hashicorp/tap/vault
 }
@@ -616,6 +624,80 @@ seaweed_stop() {
   rm -f "$seaweed_pid_file"
 }
 
+# --------------------------------------------------------------------------
+# Mail catcher (Mailpit)
+#
+# `mail catch` sends every email notification-service writes to a local
+# Mailpit instead of the SMTP server in the config: nothing leaves the
+# machine, the inbox is at http://127.0.0.1:$MAILPIT_HTTP_PORT, and its API is
+# what the frontend's e2e tests read activation links from. `mail real` goes
+# back. The choice is a file in run/, so it holds across restarts and `up`.
+# --------------------------------------------------------------------------
+MAILPIT_SMTP_PORT="${MAILPIT_SMTP_PORT:-1025}"
+MAILPIT_HTTP_PORT="${MAILPIT_HTTP_PORT:-8025}"
+mail_catch_flag="$RUN_DIR/mail-catch"
+mailpit_pid_file="$RUN_DIR/mailpit.pid"
+mailpit_running() { [ -f "$mailpit_pid_file" ] && kill -0 "$(cat "$mailpit_pid_file")" 2>/dev/null; }
+mail_catching() { [ -f "$mail_catch_flag" ]; }
+
+mailpit_start() {
+  require_bin mailpit
+  if mailpit_running; then say "mailpit already running"; return; fi
+  local port
+  for port in "$MAILPIT_SMTP_PORT" "$MAILPIT_HTTP_PORT"; do
+    port_busy "$port" && die "port $port is already in use (held by $(port_owner "$port"))"
+  done
+  say "starting mailpit, inbox on http://127.0.0.1:$MAILPIT_HTTP_PORT"
+  mkdir -p "$DATA_DIR/mailpit"
+  ( exec nohup mailpit --smtp "127.0.0.1:$MAILPIT_SMTP_PORT" --listen "127.0.0.1:$MAILPIT_HTTP_PORT" \
+      --database "$DATA_DIR/mailpit/mailpit.db" --max-age 7d >> "$LOG_DIR/mailpit.log" 2>&1 ) &
+  echo $! > "$mailpit_pid_file"
+  local tries=0
+  until curl -sf -o /dev/null "http://127.0.0.1:$MAILPIT_HTTP_PORT/api/v1/info"; do
+    tries=$((tries + 1))
+    [ "$tries" -gt 30 ] && die "mailpit did not come up -- see $LOG_DIR/mailpit.log"
+    sleep 0.5
+  done
+}
+
+mailpit_stop() {
+  if mailpit_running; then
+    say "stopping mailpit"
+    kill "$(cat "$mailpit_pid_file")" 2>/dev/null || true
+  fi
+  rm -f "$mailpit_pid_file"
+}
+
+# Points a notification-service process at Mailpit. Real environment
+# variables win over Vault and backend/.env (settings_customise_sources), so
+# the configured server stays as it is for `mail real`.
+export_mail_catcher() {
+  mail_catching || return 0
+  export MAIL_SERVER=127.0.0.1 MAIL_PORT="$MAILPIT_SMTP_PORT" MAIL_STARTTLS=false MAIL_SSL_TLS=false \
+    USE_CREDENTIALS=false VALIDATE_CERTS=false
+}
+
+# The processes that send mail read their mail settings at start.
+restart_mailers() {
+  local name
+  for name in notification-service notification-consumer notification-taskiq-worker; do
+    if proc_running "$name"; then cmd_restart "$name"; fi
+  done
+}
+
+cmd_mail() {
+  case "${1:-status}" in
+    catch)  mailpit_start; touch "$mail_catch_flag"; restart_mailers
+            say "every email now goes to http://127.0.0.1:$MAILPIT_HTTP_PORT" ;;
+    real)   rm -f "$mail_catch_flag"; restart_mailers; mailpit_stop
+            say "emails go to the SMTP server in the config again" ;;
+    status) if mail_catching; then echo "mail      caught -> http://127.0.0.1:$MAILPIT_HTTP_PORT"
+            else echo "mail      real SMTP"; fi
+            mailpit_running && echo "mailpit   up" || echo "mailpit   down" ;;
+    *) die "mail: expected catch|real|status" ;;
+  esac
+}
+
 cmd_storage() {
   case "${1:-status}" in
     status)
@@ -680,14 +762,16 @@ cmd_vault() {
 cmd_infra() {
   case "${1:-up}" in
     up)     vault_start; load_infra_secrets; pg_start; pg_roles_sync; vault_move_postgres_admin; turnstile_test_secret_sync
-            redis_start; rabbit_start; seaweed_start ;;
+            redis_start; rabbit_start; seaweed_start
+            if mail_catching; then mailpit_start; fi ;;
     down)   if vault_running && [ -f "$VAULT_INIT_FILE" ]; then load_infra_secrets; fi
-            seaweed_stop; rabbit_stop; redis_stop; pg_stop; vault_stop ;;
+            mailpit_stop; seaweed_stop; rabbit_stop; redis_stop; pg_stop; vault_stop ;;
     status) vault_running && echo "vault     up" || echo "vault     down"
             pg_running && echo "postgres  up" || echo "postgres  down"
             redis_running && echo "redis     up" || echo "redis     down"
             rabbit_running && echo "rabbitmq  up" || echo "rabbitmq  down"
-            seaweed_running && echo "seaweedfs up" || echo "seaweedfs down" ;;
+            seaweed_running && echo "seaweedfs up" || echo "seaweedfs down"
+            if mail_catching; then mailpit_running && echo "mailpit   up (catching mail)" || echo "mailpit   down (catching mail)"; fi ;;
     *) die "infra: expected up|down|status" ;;
   esac
 }
@@ -828,7 +912,8 @@ start_one() {
   [ "${RELOAD:-0}" = "1" ] && case "$cmd" in *uvicorn*) reload=" --reload";; esac
   (
     case "$cmd" in
-      .venv/bin/*) export_vault_identity "$dir"; export_db_pool "$name" ;;
+      .venv/bin/*) export_vault_identity "$dir"; export_db_pool "$name"
+                   if [ "$dir" = notification_service ]; then export_mail_catcher; fi ;;
       *start:local*) export_vault_secrets_for_node "$(vault_identity_for_dir "$dir")" ;;
     esac
     cd "$BACKEND_DIR/$dir" && exec nohup $cmd$reload >> "$(log_file "$name")" 2>&1
@@ -1090,5 +1175,6 @@ case "${1:-}" in
   admin)    shift; cmd_admin "$@" ;;
   test)     shift; cmd_test "$@" ;;
   pool-budget) shift; cmd_pool_budget "$@" ;;
+  mail)     shift; cmd_mail "$@" ;;
   *) sed -n '2,53p' "${BASH_SOURCE[0]}" | sed -E 's/^#[[:space:]]?//'; exit 1 ;;
 esac

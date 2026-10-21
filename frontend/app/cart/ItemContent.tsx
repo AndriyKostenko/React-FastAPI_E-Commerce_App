@@ -12,7 +12,9 @@ import { resolveImageUrl } from "@/utils/resolveImageUrl";
 const ItemContent:React.FC<ItemContentProps> = ({item, unavailable = false}) => {
     const {handleRemoveProductFromCart, handleCartQtyIncrease, handleCartQtyDecrease} = useCart();
 
-    return <div className="grid
+    // A named group per line, so "Remove" and the quantity buttons are heard
+    // (and found) as this product's.
+    return <div role="group" aria-label={item.name} className="grid
                             grid-cols-5
                             text-xs
                             md:text-sm
@@ -24,7 +26,7 @@ const ItemContent:React.FC<ItemContentProps> = ({item, unavailable = false}) => 
         <div className="col-span-2 justify-self-start flex gap-2 md:gap-4">
             <Link href={`/products/${item.id}`}>
                 <div className="relative w-[70px] aspect-square">
-                    <Image src={resolveImageUrl(item.selected_image.image_url)} alt={item.name} fill className="pbject-contain"></Image>
+                    <Image src={resolveImageUrl(item.selected_image.image_url)} alt={item.name} fill sizes="70px" className="object-contain"></Image>
                 </div>
             </Link>
             <div className="flex flex-col justify-between">

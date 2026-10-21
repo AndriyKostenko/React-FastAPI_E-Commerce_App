@@ -145,6 +145,10 @@ jobs:
       # Pure logic, no stack: variant options on CJ's real key shapes, signed login errors.
       - name: Unit tests
         run: npm run test:unit
+      # React components in jsdom with Testing Library (vitest.config.mts).
+      # The Playwright journeys (e2e/) need the whole local stack and run there only.
+      - name: Component tests
+        run: npm run test:components
       - name: Production build
         run: npm run build
         env:

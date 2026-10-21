@@ -109,6 +109,7 @@ const ResetPasswordForm = () => {
                 <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
                     className="absolute right-4 top-[30px] -translate-y-1/2 text-secondary hover:text-primary transition-colors"
                     tabIndex={-1}
                 >

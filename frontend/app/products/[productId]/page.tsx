@@ -39,7 +39,10 @@ const Product = async ({params} : {params: Promise<IDParameters>}) => {
                     <ProductDetails
                         product={product}
                         titleAction={product && (
+                            // Keyed: React's dev build warns about an element passed
+                            // from a server component to a client one without a key.
                             <WishlistButton
+                                key="wishlist"
                                 productId={product.id}
                                 initialItemId={wishlistItemId}
                                 isSignedIn={Boolean(currentUser && currentUserToken)}

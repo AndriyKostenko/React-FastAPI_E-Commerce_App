@@ -9,6 +9,10 @@ Run through dev.sh, with our own order id (the one the storefront shows):
     ./local/dev.sh cj-sandbox ship    <order_id> [--tracking SBX123]
     ./local/dev.sh cj-sandbox deliver <order_id>
     ./local/dev.sh cj-sandbox poll    <order_id>
+    ./local/dev.sh cj-sandbox mode               # "sandbox" or "live"
+
+``mode`` says how new orders would be sent, as supplier-service reads its
+settings; the storefront's e2e checkout refuses to pay unless it is "sandbox".
 
 ``ship`` and ``deliver`` then run one tracking poll for the order, so the
 shipped / delivered events (and the customer emails) follow at once instead
@@ -125,15 +129,23 @@ class CJSandboxDriver:
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="dev.sh cj-sandbox", description=(__doc__ or "").split("\n\n")[0])
-    parser.add_argument("action", choices=["status", "ship", "deliver", "poll"])
-    parser.add_argument("order_id", type=UUID, help="our order id, as the storefront shows it")
+    parser.add_argument("action", choices=["mode", "status", "ship", "deliver", "poll"])
+    parser.add_argument("order_id", type=UUID, nargs="?", help="our order id, as the storefront shows it")
     parser.add_argument("--tracking", help="tracking number to give the parcel (ship only)")
     parser.add_argument("--no-poll", action="store_true", help="do not run a tracking poll afterwards")
     return parser
 
 
 async def main(argv: list[str]) -> int:
-    args = _parser().parse_args(argv)
+    parser = _parser()
+    args = parser.parse_args(argv)
+    if args.action == "mode":
+        # Whether new CJ orders would be sandbox ones, from the same settings
+        # (Vault + config file) the running supplier processes start from.
+        print("sandbox" if settings.CJ_DROPSHIPPING_SANDBOX else "live")
+        return 0
+    if args.order_id is None:
+        parser.error(f"{args.action} needs an order id")
     # A CLI prints its own results: no SQL echo, whatever DEBUG_MODE says.
     database = create_database_manager(settings.model_copy(update={"DEBUG_MODE": False}))
     api_client = CJDropshippingAPIClient(settings)
