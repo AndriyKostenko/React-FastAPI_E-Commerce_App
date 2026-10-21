@@ -23,6 +23,9 @@ export const toShopCard = (product: ProductSummary | ProductProps): ShopCard => 
         averageRating: calculateAverageRating(reviews),
         reviewCount: reviews.length,
         variantCount: variants.length,
-        facets: distinctFacetPairs(variants.map((variant) => variant.variant_key ?? "")),
+        facets: distinctFacetPairs(
+            variants.map((variant) => variant.variant_key ?? ""),
+            product.variant_option_names ?? [],
+        ),
     };
 };

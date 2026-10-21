@@ -2,15 +2,27 @@
 
 import { UserMenuProps } from "@/types/navbar";
 import Avatar from "@/components/ui/Avatar";
-import { useCallback, useState } from "react";
+import { useCallback, useState, useSyncExternalStore } from "react";
 import MenuItem from "./MenuItem";
 import Link from "next/link";
 import BackDrop from "./BackDrop";
 import { signOut } from "@/lib/sign-out";
 import { clearUserScopedStorage } from "@/utils/client-storage";
+import { savedProfileStore } from "@/lib/saved-profile-store";
 
-const UserMenu: React.FC<UserMenuProps> = ({ currentUser }) => {
+const UserMenu: React.FC<UserMenuProps> = ({ currentUser: renderedUser }) => {
     const [isOpen, setIsOpen] = useState(false);
+    // A profile the account page saved since the server rendered this header
+    // (the layout is not rendered again); only ever the same user's.
+    const saved = useSyncExternalStore(
+        savedProfileStore.subscribe,
+        savedProfileStore.getSnapshot,
+        savedProfileStore.getServerSnapshot,
+    );
+    const currentUser =
+        renderedUser && saved && renderedUser.id === saved.userId
+            ? { ...renderedUser, ...saved.profile }
+            : renderedUser;
 
     const toggleOpen = useCallback(() => {
         setIsOpen((prev) => !prev);

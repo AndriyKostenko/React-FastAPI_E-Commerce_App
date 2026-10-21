@@ -69,7 +69,7 @@ export const GALLERY_ITEMS: GalleryItem[] = [
       "https://lh3.googleusercontent.com/aida-public/AB6AXuBQPga2Np6dGw3Hl09jZ5xIbbALoytx8JCn5rXHw8-iRqjnrfxv9Dd_ZyYWSujVKLwadS3K9qxEyysldxMO3sJEFbioYhO5cBMxGP1TqiiXe5MxWSEpj3gmFIxqlVEeiqk_zSADWERgIfHj_0EQPfkT2KkYf-32n-9Jpw9-s3CYNIyFeD9mCZUzabk793YNs9Tmz_KRkGqlGL42LU7WmnI7UpODKbpg7RH1lQRA8iaFkunPOvfee0yLLzJyFK1JCN0coHzF8FsOhw",
     alt: "Sumi-e Ink Wash by ZenStudio",
     author: "@ZenStudio",
-    badge: { label: "Best Seller", style: "bg-blue-100 text-blue-600" },
+    badge: { label: "Best Seller", style: "bg-blue-100 text-blue-700" },
   },
   {
     image:

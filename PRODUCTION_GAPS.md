@@ -173,8 +173,8 @@ Frontend:
    - without names, or when keys do not split into one part per name, the whole key is
      the single "Option", so every variant stays buyable.
    Names fill on each product's next hourly sync. Tests: `npm run test:unit` (in CI).
-   Not changed: the shop filters still read colour and size from the key by keyword,
-   so a `Size-Color` product's colours count as colours but its sizes are missed.
+   The shop filters read keys by these names too since item 7 (sizes of `Size-Color`
+   products were missed before).
 4. **Input sanitising and the other browser-side protections that apply to us. Done
    2026-10-20.**
    - Content security policy, enforced, on every page (`lib/security-headers.ts`, set in
@@ -237,8 +237,8 @@ Frontend:
      loading the framework (react-dom and the router, about 126 KB) and the two font
      files (81 KB) before the first text. In a browser the LCP lands at 0.1 to 0.4 s.
    - Lighthouse also reports accessibility items (buttons and selects without names,
-     heading order, contrast on desktop home); not part of this item (the unnamed
-     buttons and select were fixed with item 6).
+     heading order, contrast on desktop home); not part of this item (fixed with
+     items 6 and 7).
    - Tests: `npm run test:unit` adds the env checks and the shop card.
 6. **End-to-end tests with Playwright, plus other frontend tests that fit. Done 2026-10-20.**
    Decided: the journeys run against the local stack only, with
@@ -281,11 +281,43 @@ Frontend:
        groups, and `aria-current` on the reached step).
      - The cart thumbnail had a typo'd `pbject-contain` and no `sizes`.
      - The product page logged a missing-`key` warning.
-   - Found, not fixed here:
+   - Found, not fixed here (both fixed with item 7):
      - The gateway logs request bodies, sign-in passwords included, at debug level
        (`apigateway.py`, "Prepared body content").
      - The account page can hit the gateway's 10 profile reads a minute when someone
        edits quickly, because each save refreshes the page.
+7. **What items 3, 5 and 6 left open. Done 2026-10-21.**
+   - Account page and the profile-read limit. Each save of the name or picture called
+     `router.refresh()`, which rendered the account page and the header again, each
+     reading `GET /users/{id}`: three writes a minute were six reads, and the gateway
+     allows 10. Now a save publishes the profile it got back to `SavedProfileStore`
+     (`lib/saved-profile-store.ts`, per tab, keyed by user id), which the header's
+     `UserMenu` shows over what the server rendered; nothing is refreshed. The gateway
+     proxy route refills the header's cache from the same response
+     (`HeaderProfileCache.profileFrom`; any other write under `users/` still forgets
+     the entry), so the next full load reads the profile once, for the page.
+     Verified in Chrome: name saves in quick succession made five PATCHes and no reads
+     (before, each save cost two reads); a picture upload changed the header at once
+     with one PUT and no read; a reload then read the profile once.
+   - Shop size filter. `/products/cards` now carries `variant_option_names`
+     (product-service `ProductCardSchema`), and `facetOfKey` reads the parts named a
+     colour and a size first (`utils/variantFacets.ts`). Anything the names do not
+     settle is read by keyword as before: CJ also names a whole `Apricot S` key just
+     "Size". On the local catalogue the 6 products with names lose nothing and 3 gain
+     their sizes (`M-Red`, `L-Black`, `Brown-XS-1pcs`); the other 201 get names on
+     their next CJ sync (paused locally).
+   - Accessibility. Lighthouse 13.5 accessibility is 100 on desktop and mobile for home,
+     product, login, register, forgot-password and cart (home was 80 / 83): the hero
+     designer's captions were `h3`s under the `h1` (now named groups, the two selects
+     with labels, toggles with `aria-pressed`), the footer's column titles `h4` (now
+     `h2`), the testimonial stars an `aria-label` on a plain `div` (now `role="img"`),
+     the gallery's "Best Seller" badge 4.2:1 (now blue-700), and the gallery's heart a
+     nameless button that did nothing (now decoration). Signed-in pages were not
+     audited (Lighthouse runs without a session).
+   - Gateway logs: request bodies are logged by field names only, as headers already
+     were. Test: `TestRequestBodiesStayOutOfTheLog` (fails with the old line).
+   - Tests: `npm run test:unit` adds the header-profile and named-facet cases;
+     product-service's card test checks the option names.
 
 Backend:
 

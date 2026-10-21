@@ -5,8 +5,10 @@
 // instead of a colour. The shop filters read them their own way: the size from
 // the end of the key, the colour as a family found by keyword, and anything
 // else (styles, codes, print names) as no colour at all, so it never shows as
-// a chip. The Next server reads them once per product (utils/shopCard.ts); the
-// browser only compares the results.
+// a chip. When the product names the parts (variant_option_names, "Size-Color"
+// for "M-Red"), the named size and colour parts come first (facetOfKey). The
+// Next server reads them once per product (utils/shopCard.ts); the browser only
+// compares the results.
 
 // Apparel sizes in wearing order; X-runs are written as numbers (XXL is 2XL).
 const SIZE_ORDER = ["XXS", "XS", "S", "M", "L", "XL", "2XL", "3XL", "4XL", "5XL", "6XL", "7XL"];
@@ -47,7 +49,32 @@ export interface VariantFacet {
     size: string | null;
 }
 
-export const facetOfKey = (key: string): VariantFacet => {
+/** The size of a key part, or null when it is not an apparel size ("40", "One size"). */
+const sizeOf = (part: string): string | null => (SIZE_PATTERN.test(part) ? canonicalSize(part) : null);
+
+/** The parts of a key the supplier named a colour and a size, when each is named. */
+interface NamedParts {
+    color?: string;
+    size?: string;
+}
+
+/**
+ * A key split on "-" as the product page splits it (VariantMatrix), with the
+ * parts named a colour or a size picked out. Null when there are no names or
+ * the key does not split into one part per name.
+ */
+const namedPartsOf = (key: string, names: readonly string[]): NamedParts | null => {
+    const parts = key.split("-").map((part) => part.trim());
+    if (names.length === 0 || parts.length !== names.length) return null;
+    const colorAt = names.findIndex((name) => /colou?r/i.test(name));
+    const sizeAt = names.findIndex((name) => /size/i.test(name));
+    return {
+        ...(colorAt === -1 ? {} : { color: parts[colorAt] }),
+        ...(sizeAt === -1 ? {} : { size: parts[sizeAt] }),
+    };
+};
+
+const facetByKeyword = (key: string): VariantFacet => {
     const trimmed = key.trim();
     for (const separator of ["-", " "]) {
         const at = trimmed.lastIndexOf(separator);
@@ -63,6 +90,24 @@ export const facetOfKey = (key: string): VariantFacet => {
 };
 
 /**
+ * What one variant key offers the filters. The names only add precision: a
+ * part named a colour is the colour (a "Size-Color" key's colour is not at its
+ * start), a part named a size is the size when it is an apparel size (a
+ * "Size-Color" key's size is not at its end). Anything the names do not settle
+ * is read by keyword, as for a product without names: CJ also names a whole
+ * "Apricot S" key just "Size".
+ */
+export const facetOfKey = (key: string, optionNames: readonly string[] = []): VariantFacet => {
+    const byKeyword = facetByKeyword(key);
+    const named = namedPartsOf(key, optionNames);
+    if (!named) return byKeyword;
+    return {
+        families: named.color === undefined ? byKeyword.families : colorFamiliesOf(named.color),
+        size: (named.size === undefined ? null : sizeOf(named.size)) ?? byKeyword.size,
+    };
+};
+
+/**
  * A colour family and a size one variant offers, "" for none: ["blue", "XL"].
  * Pairs rather than VariantFacet objects because the page carries one list
  * per product: a variant in two families is two pairs, which the filters
@@ -71,10 +116,10 @@ export const facetOfKey = (key: string): VariantFacet => {
 export type FacetPair = readonly [family: string, size: string];
 
 /** A product's facet pairs with duplicates removed: thirty variants are often a dozen pairs. */
-export const distinctFacetPairs = (keys: readonly string[]): FacetPair[] => {
+export const distinctFacetPairs = (keys: readonly string[], optionNames: readonly string[] = []): FacetPair[] => {
     const seen = new Map<string, FacetPair>();
     for (const key of keys) {
-        const { families, size } = facetOfKey(key);
+        const { families, size } = facetOfKey(key, optionNames);
         for (const family of families.length ? families : [""]) {
             seen.set(`${family}|${size ?? ""}`, [family, size ?? ""]);
         }

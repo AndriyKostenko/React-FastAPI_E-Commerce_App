@@ -11,6 +11,7 @@ export type ResetPasswordRequest = UserSchemas["ResetPasswordRequest"];
 export type PasswordUpdateResponse = UserSchemas["PasswordUpdateResponse"];
 
 export type CurrentUserShape = {
+    id?: string;
     name?: string | null | undefined;
     email?: string | null | undefined;
     image?: string | null | undefined;

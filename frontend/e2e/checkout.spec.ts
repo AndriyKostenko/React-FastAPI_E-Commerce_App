@@ -37,8 +37,10 @@ test.beforeAll(() => {
     }
     // Stripe tells payment-service a card was authorized by webhook; locally
     // only the Stripe CLI forwards them, and without it the order stays pending.
+    // A plain `stripe listen` receives the events but forwards none, so the
+    // forward target must be on its command line.
     try {
-        execFileSync("pgrep", ["-f", "stripe listen"]);
+        execFileSync("pgrep", ["-f", "stripe listen.*--forward-to.*/payments/webhook"]);
     } catch {
         throw new Error("Stripe webhooks are not forwarded: run `stripe listen --forward-to http://127.0.0.1:8000/api/v1/payments/webhook`.");
     }
