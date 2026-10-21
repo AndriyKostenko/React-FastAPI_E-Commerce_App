@@ -1,13 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { FieldValues, SubmitHandler, useForm } from "react-hook-form";
 import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 import { AccountApi } from "@/lib/account-api";
 import { ApiError } from "@/lib/api-error";
+import { savedProfileStore } from "@/lib/saved-profile-store";
 import type { AccountProfile, ProfileUpdate } from "@/types/account";
 import AvatarPicker from "./AvatarPicker";
 
@@ -21,7 +21,6 @@ const RULES = {
 } as const;
 
 const ProfileSection: React.FC<{ profile: AccountProfile }> = ({ profile }) => {
-  const router = useRouter();
   const [isSaving, setIsSaving] = useState(false);
   const {
     register,
@@ -41,8 +40,8 @@ const ProfileSection: React.FC<{ profile: AccountProfile }> = ({ profile }) => {
       const saved = await AccountApi.updateProfile(profile.id, update);
       reset({ name: saved.name, phone_number: saved.phone_number ?? "" });
       toast.success("Profile saved");
-      // Server components (the header) read the profile too.
-      router.refresh();
+      // The header shows it from here: no refresh, which would read the profile twice more.
+      savedProfileStore.publish(saved.id, saved);
     } catch (error) {
       const apiError = ApiError.from(error, "Could not save your profile.");
       const fieldError = apiError.fieldErrors.find((e) => e.field === "name" || e.field === "phone_number");

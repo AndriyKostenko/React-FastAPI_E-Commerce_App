@@ -50,8 +50,9 @@ export const fetchDefaultAddress = async (token: string): Promise<SavedAddress |
  * the next sign-in. The header sits in the root layout, which is rendered on a
  * full page load and on router.refresh(), not on every client-side navigation.
  * The read is cached per user for a minute (headerProfileCache), and the cache
- * is cleared when the user changes their profile through the site. When
- * user-service cannot answer, the session's own copy is shown.
+ * is refilled from the saved profile when the user changes it through the site
+ * (the gateway proxy route). When user-service cannot answer, the session's own
+ * copy is shown.
  */
 export const fetchHeaderUser = async (): Promise<CurrentUserShape | null> => {
   const [user, token] = await Promise.all([sessionManagaer.getCurrentUser(), sessionManagaer.getCurrentUserJWT()]);

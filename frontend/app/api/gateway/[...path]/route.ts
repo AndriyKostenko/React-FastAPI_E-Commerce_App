@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { settings } from "@/lib/config";
 import { sessionManagaer } from "@/actions/getCurrentUser";
-import { headerProfileCache } from "@/lib/header-profile-cache";
+import { HeaderProfileCache, headerProfileCache, type HeaderProfile } from "@/lib/header-profile-cache";
 
 /**
  * Same-origin proxy to the API gateway. The browser calls it with its session
@@ -51,6 +51,26 @@ const isSameOrigin = (request: NextRequest, origin: string): boolean => {
     return false;
   }
   return originHost === request.headers.get("host");
+};
+
+/**
+ * After a successful write under users/: a response that is the user's own
+ * profile (name or picture saved) refills the header's cache, so the next
+ * render shows it without reading the profile again, a read the gateway allows
+ * only 10 times a minute. Any other write forgets the entry, to be read anew.
+ */
+const refreshHeaderProfile = async (upstream: Response, userId: string): Promise<void> => {
+  let profile: HeaderProfile | null = null;
+  if (upstream.headers.get("content-type")?.includes("application/json")) {
+    try {
+      // A clone, so the body still streams back to the browser untouched.
+      profile = HeaderProfileCache.profileFrom(await upstream.clone().json(), userId);
+    } catch {
+      profile = null;
+    }
+  }
+  if (profile) headerProfileCache.set(userId, profile);
+  else headerProfileCache.forget(userId);
 };
 
 const forward = async (
@@ -105,14 +125,14 @@ const forward = async (
     },
   );
 
-  // A profile or avatar change: the header reads the profile again on the next render.
+  // A write to the user's account: keep the header's copy of the profile current.
   if (
     upstream.ok &&
     !SAFE_METHODS.has(request.method) &&
     upstreamPath.startsWith(USERS_PREFIX)
   ) {
     const userId = await sessionManagaer.getCurrentUserId();
-    if (userId) headerProfileCache.forget(userId);
+    if (userId) await refreshHeaderProfile(upstream, userId);
   }
 
   const responseHeaders = new Headers();

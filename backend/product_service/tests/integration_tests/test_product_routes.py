@@ -43,6 +43,7 @@ async def _create_product(
     image_url: str | None = None,
     images: list[str] | None = None,
     variants: list[dict] | None = None,
+    variant_option_names: list[str] | None = None,
 ) -> dict:
     payload = {
         "name": name,
@@ -55,6 +56,7 @@ async def _create_product(
         "image_url": image_url,
         "images": images,
         "variants": variants,
+        "variant_option_names": variant_option_names or [],
     }
     return await client.post(f"{TEST_API}/products", json=payload)
 
@@ -227,6 +229,7 @@ class TestGetProductCards:
             image_url="https://cdn.example.com/main.jpg",
             images=["https://cdn.example.com/gallery.jpg"],
             variants=[{"vid": "v-black-m", "variant_key": "Black-M"}, {"vid": "v-white-l", "variant_key": "White-L"}],
+            variant_option_names=["Color", "Size"],
         )
         await _set_variant_active(test_database_session_manager, "White-L", False)
         rated = await integration_client.post(
@@ -243,7 +246,7 @@ class TestGetProductCards:
         [card] = response.json()
         assert set(card) == {
             "id", "supplier_id", "name", "price", "in_stock", "image_url",
-            "date_created", "category", "reviews", "variants",
+            "date_created", "category", "reviews", "variants", "variant_option_names",
         }
         assert card["id"] == product["id"]
         assert card["image_url"] == "https://cdn.example.com/main.jpg"
@@ -251,6 +254,8 @@ class TestGetProductCards:
         # Inactive variants and unrated reviews are left out.
         assert card["variants"] == [{"variant_key": "Black-M", "active": True}]
         assert card["reviews"] == [{"rating": 4.0}]
+        # The shop filters read each key's parts by these names.
+        assert card["variant_option_names"] == ["Color", "Size"]
 
     async def test_card_without_a_main_image_shows_the_first_gallery_image(self, integration_client: AsyncClient):
         category = await _create_category(integration_client)
