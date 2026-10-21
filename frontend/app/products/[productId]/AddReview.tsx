@@ -4,8 +4,8 @@ import { AddReviewProps } from "@/types/review";
 import { REVIEW_COMMENT_RULES } from "@/utils/formRules";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { FieldValues, SubmitHandler, useForm } from "react-hook-form";
-import { Rating } from "@mui/material";
+import { FieldValues, SubmitHandler, useForm, useWatch } from "react-hook-form";
+import StarRating from "@/components/ui/StarRating";
 import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 import toast from "react-hot-toast";
@@ -23,6 +23,7 @@ const AddReview: React.FC<AddReviewProps> = ({
         handleSubmit,
         setValue,
         reset,
+        control,
         formState: { errors },
     } = useForm<FieldValues>({
         defaultValues: {
@@ -32,6 +33,7 @@ const AddReview: React.FC<AddReviewProps> = ({
             comment: "",
         },
     });
+    const rating = useWatch({ control, name: "rating" });
 
     const setCustomValue = (id: string, value: number | string | null) => {
         setValue(id, value, {
@@ -80,11 +82,10 @@ const AddReview: React.FC<AddReviewProps> = ({
             <h2 className="font-headline-lg text-primary">
                 Rate this product
             </h2>
-            <Rating
-                name="rating"
-                onChange={(event, newValue) => {
-                    setCustomValue("rating", newValue);
-                }}
+            <StarRating
+                label="Your rating"
+                value={Number(rating ?? 0)}
+                onChange={(value) => setCustomValue("rating", value)}
             />
             <Input
                 id="comment"

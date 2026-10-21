@@ -2,6 +2,7 @@ import type { CategoryProps } from "@/types/category";
 import type { ImageProps } from "@/types/image";
 import type { ReviewProps } from "@/types/review";
 import type { GeneratedArtworkAsset } from "@/types/generation";
+import type { FacetPair } from "@/utils/variantFacets";
 
 export interface ProductVariantProps {
     id: string;
@@ -76,8 +77,31 @@ export interface ProductSummary {
     variants?: Pick<ProductVariantProps, "variant_key" | "active">[];
 }
 
+/**
+ * A product as the shop section uses it, built on the Next server from a
+ * ProductSummary (utils/shopCard.ts). The page carries every product's card,
+ * so it holds what the cards, tabs and filters compare and nothing else: the
+ * raw variant keys alone were 300 KB of a 680 KB home page.
+ */
+export interface ShopCard {
+    id: string;
+    name: string;
+    price: number;
+    in_stock: boolean;
+    supplier_id?: string | null;
+    image_url?: string | null;
+    date_created: string;
+    category: Pick<CategoryProps, "id" | "name">;
+    averageRating: number;
+    reviewCount: number;
+    /** Active variants; more than one means the shopper picks on the product page. */
+    variantCount: number;
+    /** The active variants' colour family and size pairs, without duplicates. */
+    facets: FacetPair[];
+}
+
 export interface ProductCardProps {
-    product: ProductSummary;
+    product: ShopCard;
 }
 
 export interface ProductImageProps {
@@ -108,9 +132,9 @@ export interface BestSeller {
 }
 
 export interface FeaturedCollectionProps {
-    products: ProductSummary[];
+    products: ShopCard[];
     /** Ranked, most units first; empty when nothing sold or the ranking could not be read. */
-    bestSellers: BestSeller[];
+    bestSellers: ShopCard[];
     /** What the shopper searched for, when the list is a search result. */
     searchTerm?: string;
 }

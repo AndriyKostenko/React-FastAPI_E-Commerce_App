@@ -1,14 +1,15 @@
 import { createEnv } from "@t3-oss/env-nextjs";
-import { z } from "zod";
+// Not zod: this module runs in the browser on every page (lib/env-schema.ts).
+import { env as rule } from "@/lib/env-schema";
 
 export const env = createEnv({
     client: {
-        NEXT_PUBLIC_APP_URL: z.url().optional(),
-        NEXT_PUBLIC_API_ORIGIN: z.url().optional(),
-        NEXT_PUBLIC_API_VERSION: z.string().min(1).optional(),
-        NEXT_PUBLIC_STRIPE_TEST_PUBLISHABLE_KEY: z.string().min(1),
-        NEXT_PUBLIC_STRIPE_PROD_PUBLISHABLE_KEY: z.string().min(1).optional(),
-        NEXT_PUBLIC_TURNSTILE_SITE_KEY: z.string().min(1).optional(),
+        NEXT_PUBLIC_APP_URL: rule.optionalUrl(),
+        NEXT_PUBLIC_API_ORIGIN: rule.optionalUrl(),
+        NEXT_PUBLIC_API_VERSION: rule.optionalText(),
+        NEXT_PUBLIC_STRIPE_TEST_PUBLISHABLE_KEY: rule.text(),
+        NEXT_PUBLIC_STRIPE_PROD_PUBLISHABLE_KEY: rule.optionalText(),
+        NEXT_PUBLIC_TURNSTILE_SITE_KEY: rule.optionalText(),
     },
     runtimeEnv: {
         NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,

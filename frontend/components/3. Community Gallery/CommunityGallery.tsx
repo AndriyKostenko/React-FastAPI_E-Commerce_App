@@ -63,6 +63,8 @@ const CommunityGallery = () => {
                                 src={item.image}
                                 alt={item.alt}
                                 fill
+                                // The card's width less its padding: 260px on phones, 340px from sm.
+                                sizes="(min-width: 640px) 308px, 228px"
                                 className="object-cover group-hover:scale-110 transition-transform duration-500"
                             />
                             <button className="absolute top-4 right-4 bg-white/80 backdrop-blur p-2 rounded-full opacity-0 group-hover:opacity-100 transition-all hover:bg-white">

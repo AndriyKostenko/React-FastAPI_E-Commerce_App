@@ -1,6 +1,6 @@
 'use client';
 
-import { Rating } from "@mui/material";
+import StarRating from "@/components/ui/StarRating";
 import { type ReactNode, useCallback, useMemo, useState } from "react";
 
 import SetQuantity from "@/components/4. Featured Collections/SetQuantity";
@@ -192,12 +192,7 @@ const ProductDetailsContent: React.FC<{ product: ProductProps; titleAction?: Rea
                             {titleAction}
                         </div>
                         <div className="flex items-center gap-2 text-sm">
-                            <Rating
-                                value={averageRating}
-                                readOnly
-                                precision={0.1}
-                                size="small"
-                            />
+                            <StarRating value={averageRating} size="sm" />
                             <span>
                                 {reviewCount > 0
                                     ? `${reviewCount} review${reviewCount === 1 ? "" : "s"}`

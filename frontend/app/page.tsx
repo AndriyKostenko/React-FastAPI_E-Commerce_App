@@ -8,6 +8,7 @@ import { BEST_SELLERS_SIZE } from "@/utils/collectionTabs";
 import { Params, SearchParams } from "../types/params";
 import HeroSection from "@/components/2. Hero/HeroComponentr";
 import { sessionManagaer } from "@/actions/getCurrentUser";
+import { toShopCard } from "@/utils/shopCard";
 
 
 export default async function Home(props: {params: Params, searchParams: SearchParams}) {
@@ -29,7 +30,7 @@ export default async function Home(props: {params: Params, searchParams: SearchP
         <div className="space-y-8">
 			<HeroSection isRegisteredUser={Boolean(currentUserJWT)} />
             <CommunityGallery />
-            <FeaturedCollection products={products} bestSellers={bestSellers} searchTerm={searchTerm?.trim() || undefined} />
+            <FeaturedCollection products={products} bestSellers={bestSellers.map(({ product }) => toShopCard(product))} searchTerm={searchTerm?.trim() || undefined} />
             <Testimonials reviews={reviews} />
         </div>
     )

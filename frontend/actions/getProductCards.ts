@@ -1,4 +1,5 @@
-import type { ProductSummary } from "@/types/product";
+import type { ProductSummary, ShopCard } from "@/types/product";
+import { toShopCard } from "@/utils/shopCard";
 import { settings } from "@/lib/config";
 import { clientAddressHeaders } from "@/lib/client-address";
 
@@ -16,8 +17,8 @@ export interface ProductCardQuery {
     category?: string;
 }
 
-/** Every product as a shop card, newest first, narrowed by search and category. */
-const fetchProductCards = async ({ searchTerm, category }: ProductCardQuery): Promise<ProductSummary[]> => {
+/** Every product as a shop card (built here, on the server), newest first, narrowed by search and category. */
+const fetchProductCards = async ({ searchTerm, category }: ProductCardQuery): Promise<ShopCard[]> => {
     const url = new URL(settings.api.endpoints.productCards);
     url.searchParams.set("limit", String(CARDS_LIMIT));
     url.searchParams.set("sort_by", "date_created");
@@ -40,7 +41,7 @@ const fetchProductCards = async ({ searchTerm, category }: ProductCardQuery): Pr
             console.error("Failed to fetch products:", response.status);
             return [];
         }
-        return (await response.json()) as ProductSummary[];
+        return ((await response.json()) as ProductSummary[]).map(toShopCard);
     } catch (error) {
         console.error("Error fetching products:", error);
         return [];

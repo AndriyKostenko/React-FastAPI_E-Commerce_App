@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import toast from "react-hot-toast";
-import { signOut } from "next-auth/react";
+import { signOut } from "@/lib/sign-out";
 import { FieldValues, SubmitHandler, useForm } from "react-hook-form";
 import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";

@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Avatar } from "@mui/material";
+import Avatar from "@/components/ui/Avatar";
 import toast from "react-hot-toast";
 import Button from "@/components/ui/Button";
 import { AccountApi } from "@/lib/account-api";
@@ -55,7 +55,7 @@ const AvatarPicker: React.FC<AvatarPickerProps> = ({ image, name }) => {
 
   return (
     <div className="flex items-center gap-4">
-      <Avatar src={current ?? undefined} alt={name} sx={{ width: 72, height: 72 }} />
+      <Avatar src={current} alt={name} size={72} />
       <div className="flex flex-wrap gap-2">
         <input
           ref={input}

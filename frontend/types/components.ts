@@ -12,6 +12,9 @@ export interface HeadingProps {
 
 export interface AvatarProps {
     src?: string | null | undefined;
+    alt?: string;
+    /** Width and height in CSS pixels; 30 by default. */
+    size?: number;
 }
 
 export interface ActionBtnProps {

@@ -2,8 +2,8 @@
 
 import { ListReviewProps, ReviewProps } from "@/types/review";
 import Avatar from "@/components/ui/Avatar";
-import { Rating } from "@mui/material";
-import moment from "moment";
+import StarRating from "@/components/ui/StarRating";
+import { timeAgo } from "@/utils/timeAgo";
 
 const ListReview: React.FC<ListReviewProps> = ({ product }) => {
     const reviews = product?.reviews ?? [];
@@ -32,18 +32,13 @@ const ListReview: React.FC<ListReviewProps> = ({ product }) => {
                                             {review.user?.name ?? "Anonymous"}
                                         </span>
                                         <span className="text-xs text-secondary">
-                                            {moment(review.date_created).fromNow()}
+                                            {timeAgo(review.date_created)}
                                         </span>
                                     </div>
                                 </div>
 
                                 <div className="flex flex-col gap-1">
-                                    <Rating
-                                        value={review.rating}
-                                        readOnly
-                                        precision={0.1}
-                                        size="small"
-                                    />
+                                    <StarRating value={review.rating} size="sm" />
                                     <p className="text-secondary font-body-md">
                                         {review.comment}
                                     </p>

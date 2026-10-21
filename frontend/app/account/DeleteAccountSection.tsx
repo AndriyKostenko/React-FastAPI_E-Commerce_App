@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import toast from "react-hot-toast";
-import { signOut } from "next-auth/react";
+import { signOut } from "@/lib/sign-out";
 import Button from "@/components/ui/Button";
 import { AccountApi } from "@/lib/account-api";
 import { ApiError } from "@/lib/api-error";
