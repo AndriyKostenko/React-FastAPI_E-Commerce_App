@@ -1,12 +1,13 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import Avatar from "@/components/ui/Avatar";
 import toast from "react-hot-toast";
 import Button from "@/components/ui/Button";
 import { AccountApi } from "@/lib/account-api";
 import { ApiError } from "@/lib/api-error";
+import { savedProfileStore } from "@/lib/saved-profile-store";
+import type { AccountProfile } from "@/types/account";
 
 // The same limits user-service applies; checked here only to fail fast.
 const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
@@ -19,18 +20,18 @@ interface AvatarPickerProps {
 
 /** Shows the avatar and lets the user replace or remove it. */
 const AvatarPicker: React.FC<AvatarPickerProps> = ({ image, name }) => {
-  const router = useRouter();
   const input = useRef<HTMLInputElement>(null);
   const [current, setCurrent] = useState<string | null>(image);
   const [isBusy, setIsBusy] = useState(false);
 
-  const run = async (action: () => Promise<{ image: string | null }>, success: string, fallback: string) => {
+  const run = async (action: () => Promise<AccountProfile>, success: string, fallback: string) => {
     setIsBusy(true);
     try {
       const profile = await action();
       setCurrent(profile.image);
       toast.success(success);
-      router.refresh();
+      // The header shows it from here: no refresh, which would read the profile twice more.
+      savedProfileStore.publish(profile.id, profile);
     } catch (error) {
       toast.error(ApiError.from(error, fallback).message);
     } finally {

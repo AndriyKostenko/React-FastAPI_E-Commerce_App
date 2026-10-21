@@ -67,9 +67,10 @@ const CommunityGallery = () => {
                                 sizes="(min-width: 640px) 308px, 228px"
                                 className="object-cover group-hover:scale-110 transition-transform duration-500"
                             />
-                            <button className="absolute top-4 right-4 bg-white/80 backdrop-blur p-2 rounded-full opacity-0 group-hover:opacity-100 transition-all hover:bg-white">
+                            {/* Decoration until the gallery shows real designs: a button that did nothing. */}
+                            <span aria-hidden="true" className="absolute top-4 right-4 bg-white/80 backdrop-blur p-2 rounded-full opacity-0 group-hover:opacity-100 transition-all">
                                 <MdFavoriteBorder size={18} />
-                            </button>
+                            </span>
                         </div>
                         <div className="flex justify-between items-center">
                             <p className="font-label-bold text-primary">

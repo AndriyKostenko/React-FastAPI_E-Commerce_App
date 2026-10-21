@@ -517,8 +517,11 @@ class ApiGateway:
         else:
             prepared_body, content_type = await self._detect_and_prepare_body(request, service_path)
 
-        if prepared_body and not raw_body:
-            self.logger.debug(f"Prepared body content: {prepared_body}")
+        # Field names only, as for the headers below: bodies carry passwords,
+        # reset and Turnstile tokens and addresses, which must never reach the
+        # log pipeline. Other body types are named by the info line's "Body type".
+        if isinstance(prepared_body, dict) and not raw_body:
+            self.logger.debug(f"Prepared body fields: {sorted(prepared_body)}")
 
         # Prepare headers
         headers = self._prepare_headers(request=request, new_content_type=content_type)

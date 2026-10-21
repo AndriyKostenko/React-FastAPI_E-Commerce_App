@@ -75,6 +75,8 @@ export interface ProductSummary {
     reviews: Pick<ReviewProps, "rating">[];
     /** Active variants only. */
     variants?: Pick<ProductVariantProps, "variant_key" | "active">[];
+    /** What each part of a variant key names, in order: ["Size", "Color"] for "M-Red". */
+    variant_option_names?: string[];
 }
 
 /**

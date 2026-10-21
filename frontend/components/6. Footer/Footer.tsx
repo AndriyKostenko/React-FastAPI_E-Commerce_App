@@ -64,9 +64,9 @@ const Footer = () => {
 
           {COLUMNS.map((column) => (
             <div key={column.title} className="space-y-4">
-              <h4 className="font-label-bold text-xs font-semibold text-primary uppercase tracking-[0.15em]">
+              <h2 className="font-label-bold text-xs font-semibold text-primary uppercase tracking-[0.15em]">
                 {column.title}
-              </h4>
+              </h2>
               <nav className="flex flex-col gap-2">
                 {column.links.map((link) => (
                   <Link

@@ -152,6 +152,43 @@ class TestLoginFormBody:
         assert body == {"username": "a@b.com", "password": "secret", "captcha_token": "XXXX.DUMMY.TOKEN.XXXX"}
 
 
+class TestRequestBodiesStayOutOfTheLog:
+    """A forwarded body's values (passwords, tokens, addresses) are never logged, at any level."""
+
+    async def test_a_sign_in_is_logged_by_field_names_only(self):
+        request = TestLoginFormBody._login_request(
+            b"email=shopper%40example.com&password=Sup3r-secret-pass&captcha_token=XXXX.DUMMY.TOKEN.XXXX"
+        )
+        gateway = _make_gateway()
+        # Every log call the gateway makes while forwarding, debug included.
+        gateway.logger = MagicMock()
+
+        upstream = MagicMock(spec=HttpxResponse)
+        upstream.status_code = 200
+        upstream.headers = {}
+        upstream.content = b"{}"
+        upstream.json.return_value = {}
+        http_client = AsyncMock()
+        http_client.request = AsyncMock(return_value=upstream)
+
+        with patch.object(gateway, "_http_client", http_client):
+            await gateway.forward_request(request=request, service_name="user-service")
+
+        # The form still reaches user-service whole.
+        assert http_client.request.call_args.kwargs["data"]["password"] == "Sup3r-secret-pass"
+
+        logged = " ".join(
+            str(arg)
+            for method in (gateway.logger.debug, gateway.logger.info, gateway.logger.warning, gateway.logger.error)
+            for call in method.call_args_list
+            for arg in (*call.args, *call.kwargs.values())
+        )
+        assert "Sup3r-secret-pass" not in logged
+        assert "XXXX.DUMMY.TOKEN.XXXX" not in logged
+        assert "shopper@example.com" not in logged
+        assert "['captcha_token', 'password', 'username']" in logged
+
+
 class TestForwardRequest:
     def setup_method(self):
         self.gw = _make_gateway()

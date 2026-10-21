@@ -333,6 +333,7 @@ class ProductService:
             # A review without a rating does not count towards the average.
             reviews=[ProductCardReview(rating=review.rating) for review in product.reviews if review.rating is not None],
             variants=[ProductCardVariant(variant_key=variant.variant_key) for variant in product.variants if variant.active],
+            variant_option_names=list(product.variant_option_names or []),
         )
 
     async def get_product_by_name(self, name: str) -> ProductBase:

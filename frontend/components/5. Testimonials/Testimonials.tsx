@@ -3,7 +3,7 @@ import { MdStar, MdStarHalf, MdBrush } from "react-icons/md";
 import type { FeaturedReview } from "@/types/review";
 
 const StarRating = ({ count }: { count: number }) => (
-    <div className="flex gap-1 text-brand-lime" aria-label={`Rated ${count} out of 5`}>
+    <div role="img" className="flex gap-1 text-brand-lime" aria-label={`Rated ${count} out of 5`}>
         {Array.from({ length: 5 }).map((_, i) => {
             if (i < Math.floor(count)) return <MdStar key={i} size={20} />;
             if (i < count) return <MdStarHalf key={i} size={20} />;

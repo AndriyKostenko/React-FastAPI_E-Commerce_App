@@ -31,10 +31,12 @@ const ColorSelector = ({
     setGarmentColor,
 }: Pick<HeroBottomBarProps, "garmentColor" | "setGarmentColor">) => (
     <div className="space-y-1 flex-shrink-0">
-        <h3 className="font-label-bold text-xs text-primary">T-Shirt Color</h3>
-        <div className="flex gap-1.5 md:gap-2">
+        <p id="hero-color-label" className="font-label-bold text-xs text-primary">T-Shirt Color</p>
+        <div role="group" aria-labelledby="hero-color-label" className="flex gap-1.5 md:gap-2">
             <button
+                type="button"
                 onClick={() => setGarmentColor("bg-white")}
+                aria-pressed={garmentColor === "bg-white"}
                 className={`w-7 h-7 md:w-8 md:h-8 rounded-full bg-white border-2 transition-all hover:scale-110 ${
                     garmentColor === "bg-white"
                         ? "border-brand-lime ring-2 ring-white ring-offset-2"
@@ -43,7 +45,9 @@ const ColorSelector = ({
                 title="White"
             />
             <button
+                type="button"
                 onClick={() => setGarmentColor("bg-black")}
+                aria-pressed={garmentColor === "bg-black"}
                 className={`w-7 h-7 md:w-8 md:h-8 rounded-full bg-black transition-all hover:scale-110 ${
                     garmentColor === "bg-black"
                         ? "border-2 border-brand-lime ring-2 ring-white ring-offset-2"
@@ -60,12 +64,14 @@ const SizeSelector = ({
     setSize,
 }: Pick<HeroBottomBarProps, "size" | "setSize">) => (
     <div className="space-y-1 flex-shrink-0">
-        <h3 className="font-label-bold text-xs text-primary">Size</h3>
-        <div className="flex gap-1.5 md:gap-2">
+        <p id="hero-size-label" className="font-label-bold text-xs text-primary">Size</p>
+        <div role="group" aria-labelledby="hero-size-label" className="flex gap-1.5 md:gap-2">
             {(["S", "M", "L"] as const).map((value) => (
                 <button
                     key={value}
+                    type="button"
                     onClick={() => setSize(value)}
+                    aria-pressed={size === value}
                     className={`w-7 h-7 md:w-8 md:h-8 rounded-xl font-label-bold text-xs transition-all hover:scale-110 ${
                         size === value
                             ? "bg-brand-lime text-primary ring-2 ring-white ring-offset-2"
@@ -84,12 +90,14 @@ const GenderSelector = ({
     setGender,
 }: Pick<HeroBottomBarProps, "gender" | "setGender">) => (
     <div className="space-y-1 flex-shrink-0">
-        <h3 className="font-label-bold text-xs text-primary">Gender</h3>
-        <div className="flex gap-1.5 md:gap-2">
+        <p id="hero-gender-label" className="font-label-bold text-xs text-primary">Gender</p>
+        <div role="group" aria-labelledby="hero-gender-label" className="flex gap-1.5 md:gap-2">
             {["Male", "Female", "X"].map((value) => (
                 <button
                     key={value}
+                    type="button"
                     onClick={() => setGender(value)}
+                    aria-pressed={gender === value}
                     className={`h-7 md:h-8 px-1.5 md:px-2 rounded-xl font-label-bold text-xs transition-all hover:scale-110 ${
                         gender === value
                             ? "bg-brand-lime text-primary ring-2 ring-white ring-offset-2"
@@ -109,11 +117,12 @@ const PlacementSelector = ({
 }: Pick<HeroBottomBarProps, "placement" | "setPlacement">) => (
 
     <div className="space-y-1 flex-shrink-0 min-w-[120px] md:min-w-[160px]">
-        <h3 className="font-label-bold text-xs text-primary">
+        <label htmlFor="hero-placement" className="block font-label-bold text-xs text-primary">
             Print Placement
-        </h3>
+        </label>
         <div className="relative">
             <select
+                id="hero-placement"
                 value={placement}
                 onChange={(e) => setPlacement(e.target.value)}
                 className="w-full bg-white/60 border-none rounded-2xl p-1.5 md:p-2.5 font-label-bold appearance-none pr-8 md:pr-10 text-xs text-primary cursor-pointer focus:ring-2 focus:ring-brand-lime"
@@ -134,6 +143,7 @@ const PlacementSelector = ({
                 </optgroup>
             </select>
             <svg
+                aria-hidden="true"
                 className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none w-4 h-4 text-secondary"
                 fill="none"
                 viewBox="0 0 24 24"
@@ -155,9 +165,10 @@ const QuantitySelector = ({
     setQuantity,
 }: Pick<HeroBottomBarProps, "quantity" | "setQuantity">) => (
     <div className="space-y-1 flex-shrink-0">
-        <h3 className="font-label-bold text-xs text-primary">Quantity</h3>
+        <label htmlFor="hero-quantity" className="block font-label-bold text-xs text-primary">Quantity</label>
         <div className="relative">
             <select
+                id="hero-quantity"
                 value={quantity}
                 onChange={(e) => setQuantity(Number(e.target.value))}
                 className="w-full min-w-[48px] md:min-w-[56px] bg-white/60 border-none rounded-2xl p-1.5 md:p-2.5 font-label-bold appearance-none pr-8 md:pr-10 text-xs text-primary cursor-pointer focus:ring-2 focus:ring-brand-lime"
@@ -171,6 +182,7 @@ const QuantitySelector = ({
                 )}
             </select>
             <svg
+                aria-hidden="true"
                 className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none w-4 h-4 text-secondary"
                 fill="none"
                 viewBox="0 0 24 24"

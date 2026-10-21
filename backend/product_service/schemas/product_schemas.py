@@ -216,6 +216,8 @@ class ProductSchema(ProductBase):
 # GET /products/cards lists the whole shop in one call, so each product carries
 # only what a shop card, its tabs (rating, date) and its filters (price, variant
 # colour and size) read: about 1.5 KB instead of the ~20 KB of ProductSchema.
+# The filters read each key through the product's variant_option_names, so a
+# "Size-Color" key ("M-Red") gives its size as well as its colour.
 
 class ProductCardCategory(BaseModel):
     id: UUID
@@ -244,6 +246,8 @@ class ProductCardSchema(BaseModel):
     category: ProductCardCategory
     reviews: list[ProductCardReview]
     variants: list[ProductCardVariant]
+    # Names the parts of each variant_key, in order ("Size", "Color").
+    variant_option_names: list[str] = []
 
 
 class CreatedProduct(ProductBase):
