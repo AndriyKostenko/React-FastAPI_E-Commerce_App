@@ -16,6 +16,7 @@ from app_config import (
     authentication_middleware,
     build_exception_handlers,
     gateway_middleware,
+    path_guard_middleware,
     resolve_resources,
 )
 from resources import ApiGatewayResources, get_api_gateway_resources, logger, settings
@@ -67,8 +68,8 @@ builder = (
     .with_tracing(instrument_sqlalchemy=False)
     # Order matters: gateway_middleware is registered first and so becomes the
     # INNER layer, guaranteeing tokens are validated before a cache lookup or a
-    # rate-limit bucket is touched.
-    .with_http_middleware(gateway_middleware, authentication_middleware)
+    # rate-limit bucket is touched; the path guard, last, runs before both.
+    .with_http_middleware(gateway_middleware, authentication_middleware, path_guard_middleware)
     .with_exception_handlers(build_exception_handlers())
 )
 

@@ -283,7 +283,7 @@ class OrderRelatedNotifications(EmailService):
                 "order_id": str(event.order_id),
                 "tracking_number": event.tracking_number,
                 "carrier": event.carrier or "our shipping partner",
-                "carrier_tracking_url": event.tracking_url,
+                "carrier_tracking_url": self.links.external(event.tracking_url),
                 "shipped_at": event.shipped_at.strftime("%d %b %Y"),
                 "app_name": self.settings.MAIL_FROM_NAME,
                 "order_url": self.links.order(event.order_id),

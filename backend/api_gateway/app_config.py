@@ -15,11 +15,13 @@ from time import perf_counter
 
 from fastapi import FastAPI, Request
 from prometheus_client import Counter, Histogram
+from starlette.routing import Match
 
 from resources import api_gateway_runtime, get_api_gateway_resources, logger, settings
 from infrastructure.app import MONITORING_PATHS, ExceptionHandlerRegistry, ServiceDescriptor
 from infrastructure.exceptions.base_exceptions import BaseAPIException
 from infrastructure.app.errors import api_exception_renderer
+from middleware.path_guard import RequestPathGuard
 
 DESCRIPTOR = ServiceDescriptor(
     name="api-gateway",
@@ -75,6 +77,32 @@ async def api_gateway_lifespan(app: FastAPI) -> AsyncIterator[None]:
     logger.warning("Server has shut down !")
 
 
+# Paths that matched no route share one label; see route_label().
+UNMATCHED_ROUTE_LABEL = "<unmatched>"
+
+
+def route_label(request: Request) -> str:
+    """The metrics label for a request: the template of the route it matched.
+
+    Never the raw path. Every distinct value is a new time series held in
+    memory for the life of the process, so labelling by path let anyone grow
+    the gateway's metrics without bound by requesting made-up URLs.
+    """
+    route = request.scope.get("route")
+    if route is None:
+        # The router never ran: a cached response is answered above it. Match
+        # the route table the way the router would have.
+        route = next(
+            (
+                candidate
+                for candidate in request.app.router.routes
+                if candidate.matches(request.scope)[0] is Match.FULL
+            ),
+            None,
+        )
+    return getattr(route, "path", None) or UNMATCHED_ROUTE_LABEL
+
+
 async def gateway_middleware(request: Request, call_next):
     """Global rate limiting, response caching, and cache invalidation.
 
@@ -91,17 +119,23 @@ async def gateway_middleware(request: Request, call_next):
     duration = perf_counter() - start
 
     if REQUEST_COUNTER and LATENCY_COUNTER:
+        path = route_label(request)
         REQUEST_COUNTER.labels(
             method=request.method,
-            path=request.url.path,
+            path=path,
             status=f"{response.status_code // 100}xx",
         ).inc()
         LATENCY_COUNTER.labels(
             method=request.method,
-            path=request.url.path,
+            path=path,
         ).observe(duration)
 
     return response
+
+
+# Outermost of the gateway's own layers: a path is checked before it is
+# authenticated, cached or rate-limited.
+path_guard_middleware = RequestPathGuard(logger)
 
 
 async def authentication_middleware(request: Request, call_next):

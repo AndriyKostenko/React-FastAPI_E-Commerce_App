@@ -799,8 +799,11 @@ class OrderService:
     async def create_order_address(self, order_data: CreateOrder) -> OrderAddressBase:
         return await self.order_address_service.create_order_address(order_data)
 
-    async def get_orders(self) -> list[OrderSchema]:
-        orders = await self.repository.get_all()
+    async def get_orders(self, limit: int = 50, offset: int = 0) -> list[OrderSchema]:
+        """One page of every order, newest first (admin)."""
+        orders = await self.repository.get_all(
+            sort_by="date_created", sort_order="desc", limit=limit, offset=offset
+        )
         return [OrderSchema.model_validate(order) for order in orders]
 
     async def get_orders_by_user_id(self, user_id: UUID) -> list[OrderSchema]:

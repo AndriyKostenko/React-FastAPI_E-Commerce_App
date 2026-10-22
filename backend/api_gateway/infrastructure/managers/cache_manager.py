@@ -1,6 +1,7 @@
 import re
 from typing import Any, Optional
 from functools import wraps
+from urllib.parse import urlencode
 
 from orjson import loads, dumps, JSONDecodeError
 from fastapi import Request
@@ -94,7 +95,10 @@ class CacheManager(RedisBase):
 
         method = force_method if force_method else str(request.method).upper()
         path = str(request.url.path)
-        query_params = "&".join(f"{k}={v}" for k, v in sorted(request.query_params.items()))
+        # Every value of a repeated parameter, each re-encoded: joined raw,
+        # "?a=1%26b%3D2" (one parameter) and "?a=1&b=2" (two) made the same key,
+        # so a response for the first was served to everyone asking the second.
+        query_params = urlencode(sorted(request.query_params.multi_items()))
 
         if pattern:
             versioned_path = f"{self.service_api_version.rstrip('/')}/{pattern.lstrip('/')}"

@@ -1,6 +1,7 @@
+from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Request, status
+from fastapi import APIRouter, Query, Request, status
 
 from schemas.order_schemas import (
     CreateOrder,
@@ -122,8 +123,12 @@ async def get_orders(
     admin: AdminDep,
     request: Request,
     order_service: order_service_dependency,
+    # One page, newest first, as the returns queue: the list was the first 50
+    # orders ever placed, with no way to reach the rest.
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
 ) -> list[OrderSchema]:
-    return await order_service.get_orders()
+    return await order_service.get_orders(limit=limit, offset=offset)
 
 
 @order_routes.get(

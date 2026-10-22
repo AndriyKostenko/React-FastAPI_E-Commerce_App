@@ -53,6 +53,10 @@ def _to_sync_summary(sync_state) -> SupplierSyncRunSummary:
     status_code=status.HTTP_200_OK,
 )
 async def get_products_from_cjdropshipping(
+    # Admin only, as the raw details below: the results carry CJ's price,
+    # which is our cost, and each search spends the CJ call budget that
+    # checkout's freight quotes share.
+    admin: AdminDep,
     cj_provider: cj_provider_dependency,
     filters_query: Annotated[CJProductsFilterParams, Query()],
 ) -> list[CJProductPreview]:
@@ -80,6 +84,7 @@ async def get_products_from_cjdropshipping(
     status_code=status.HTTP_200_OK,
 )
 async def get_cjdropshipping_product_details(
+    admin: AdminDep,
     pid: str,
     cj_provider: cj_provider_dependency,
 ) -> dict[str, Any]:

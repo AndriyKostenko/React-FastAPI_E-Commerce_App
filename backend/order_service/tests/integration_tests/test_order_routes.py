@@ -210,6 +210,25 @@ class TestGetOrdersIntegration:
         assert response.status_code == 200
         assert response.json() == []
 
+    async def test_get_orders_pages_newest_first(self, integration_client: AsyncClient):
+        placed = []
+        for _ in range(3):
+            created = await integration_client.post(f"{TEST_API}/orders", json=_order_payload())
+            assert created.status_code == 201, created.text
+            placed.append(created.json()["id"])
+        newest_first = list(reversed(placed))
+
+        first = await integration_client.get(f"{TEST_API}/orders", params={"limit": 2})
+        rest = await integration_client.get(f"{TEST_API}/orders", params={"limit": 2, "offset": 2})
+
+        assert [order["id"] for order in first.json()] == newest_first[:2]
+        assert [order["id"] for order in rest.json()] == newest_first[2:]
+
+    @pytest.mark.parametrize("params", [{"limit": 0}, {"limit": 201}, {"offset": -1}])
+    async def test_get_orders_refuses_a_page_out_of_bounds(self, integration_client: AsyncClient, params):
+        response = await integration_client.get(f"{TEST_API}/orders", params=params)
+        assert response.status_code == 422
+
 
 class TestGetOrderByIdIntegration:
     async def test_get_order_by_id_returns_200(self, integration_client: AsyncClient):

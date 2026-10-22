@@ -14,6 +14,7 @@ from contracts.events import (
     EmailVerificationEvent,
     OrderCreatedEvent,
     OrderDeliveredBaseEvent,
+    OrderShippedBaseEvent,
     PasswordResetRequestedEvent,
     PasswordResetSuccessEvent,
     ExistingAccountRegistrationEvent,
@@ -128,3 +129,32 @@ async def test_the_delivered_email_offers_support_by_reply(settings) -> None:
     )
 
     assert _hrefs(service) == [f"{FRONTEND}/order/{order_id}", f"mailto:{settings.MAIL_FROM}"]
+
+
+async def _shipped_email_hrefs(settings, tracking_url: str | None) -> tuple[list[str], str]:
+    service = OrderRelatedNotifications(settings, getLogger("t"))
+    service.fast_mail.send_message = AsyncMock()
+    order_id = uuid4()
+    await service.send_order_shipped_notification(
+        OrderShippedBaseEvent(service="order-service", event_type="order.shipped", order_id=order_id,
+                              user_id=uuid4(), user_email="a@example.com", tracking_number="YT123",
+                              carrier="YunExpress", tracking_url=tracking_url)
+    )
+    return _hrefs(service), f"{FRONTEND}/order/{order_id}"
+
+
+async def test_the_shipped_email_links_to_the_carrier(settings) -> None:
+    carrier = "https://t.17track.net/en#nums=YT123"
+    hrefs, order_page = await _shipped_email_hrefs(settings, carrier)
+    assert hrefs == [carrier, order_page]
+
+
+@pytest.mark.parametrize(
+    "tracking_url",
+    ["javascript:alert(document.cookie)", "JavaScript:alert(1)", "data:text/html,<b>x</b>",
+     "//evil.example/track", "ftp://evil.example/track", "https://", ""],
+)
+async def test_the_shipped_email_drops_a_tracking_url_that_is_not_a_web_page(settings, tracking_url) -> None:
+    """The URL comes from CJ or whoever marks an order shipped: only http(s) becomes a button."""
+    hrefs, order_page = await _shipped_email_hrefs(settings, tracking_url)
+    assert hrefs == [order_page]

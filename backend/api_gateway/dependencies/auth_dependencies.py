@@ -9,7 +9,6 @@ from contracts.auth import TokenClaims as CurrentUserInfo
 def get_current_user(request: Request) -> CurrentUserInfo:
     """Get currrent user from the request state (set by auth middleware in main.py)"""
     current_user = getattr(request.state, "current_user", None)
-    logger.info(f"Current user from request state: {current_user}")
     if not current_user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -32,7 +31,7 @@ def get_current_user(request: Request) -> CurrentUserInfo:
     try:
         return CurrentUserInfo(**current_user_data)
     except ValidationError:
-        logger.warning(f"Invalid current_user payload in request state: {current_user_data}")
+        logger.warning(f"Invalid current_user payload in request state, fields: {sorted(current_user_data)}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid authentication payload",
@@ -77,7 +76,7 @@ def require_user_or_admin(current_user: CurrentUserInfo,
     )
 
     if not (is_admin or is_own_data):
-        logger.warning(f"User id: {target_user_id} and / or user email: {target_user_email} is trying to acces not personal data")
+        logger.warning(f"User {current_user.id} was refused another user's data (target id: {target_user_id})")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied: You can only access your own data"
