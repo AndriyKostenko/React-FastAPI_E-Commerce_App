@@ -20,6 +20,7 @@ from schemas.category_schema import (
     UpdateCategory,
 )
 from infrastructure.auth.route_guards import AdminDep
+from contracts.limits import NAME_MAX_LENGTH
 
 category_routes = APIRouter(tags=["categories"])
 
@@ -56,7 +57,7 @@ async def create_category_with_image(
     admin: AdminDep,
     request: Request,
     category_service: category_service_dependency,
-    name: str = Form(...),
+    name: str = Form(..., min_length=1, max_length=NAME_MAX_LENGTH),
     image: UploadFile = File(...),
 ) -> CategorySchema:
     """
@@ -106,7 +107,7 @@ async def update_category_by_id(
     request: Request,
     category_id: UUID,
     category_service: category_service_dependency,
-    name: Optional[str] = Form(None),
+    name: Optional[str] = Form(None, min_length=1, max_length=NAME_MAX_LENGTH),
     image: Optional[UploadFile] = File(None),
 ) -> CategorySchema:
     updated_category = await category_service.update_category(

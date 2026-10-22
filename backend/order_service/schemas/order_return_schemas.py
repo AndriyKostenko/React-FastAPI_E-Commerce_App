@@ -1,20 +1,21 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, PositiveInt, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from contracts.limits import LINES_MAX, LineQuantity
 from contracts.returns import ReturnFault, ReturnReason, ReturnStatus
 
 
 class ReturnLineRequest(BaseModel):
     order_item_id: UUID
-    quantity: PositiveInt
+    quantity: LineQuantity
 
 
 class ReturnRequestCreate(BaseModel):
     """What the customer sends (as the ``request`` form field, beside the photos)."""
 
-    lines: list[ReturnLineRequest] = Field(min_length=1, max_length=50)
+    lines: list[ReturnLineRequest] = Field(min_length=1, max_length=LINES_MAX)
     reason: ReturnReason
     description: str = Field(min_length=3, max_length=2000)
 

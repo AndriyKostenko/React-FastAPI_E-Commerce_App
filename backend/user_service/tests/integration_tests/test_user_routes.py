@@ -310,6 +310,33 @@ class TestLoginEndpoint:
         response = await _login(integration_client)
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
+    @pytest.mark.parametrize(
+        "form",
+        [
+            {"username": "a" * 310 + "@example.com"},
+            {"password": "p" * 101},
+            {"grant_type": "client_credentials"},
+            {"scope": "s" * 1001},
+        ],
+        ids=["username", "password", "grant-type", "scope"],
+    )
+    async def test_a_sign_in_form_field_past_its_bound_is_refused(
+        self, integration_client: AsyncClient, get_outbox_event, form: dict
+    ):
+        await _setup_verified_user(integration_client, get_outbox_event)
+        data = {
+            "username": test_settings.TEST_EMAIL,
+            "password": test_settings.TEST_PASSWORD,
+            "captcha_token": test_settings.CAPTCHA_TOKEN,
+            **form,
+        }
+
+        response = await integration_client.post(f"{test_settings.API}/login", data=data)
+
+        # Refused while the form is read: no password is checked, no session issued.
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert await get_outbox_event(UserEvents.USER_LOGGED_IN) is None
+
     async def test_login_without_the_verification_is_refused_before_the_password_is_checked(
         self, integration_client: AsyncClient, get_outbox_event
     ):

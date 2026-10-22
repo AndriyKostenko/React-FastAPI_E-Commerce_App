@@ -16,6 +16,7 @@ from webauthn.helpers import bytes_to_base64url
 from main import app
 from managers import ResourceManager, UserApiResources, settings
 from models.user_models import User
+from schemas.user_schemas import WEBAUTHN_CREDENTIAL_MAX_BYTES
 from service_layer.passkey_ceremony_store import PasskeyCeremonyStore
 from service_layer.session_issuer import SessionIssuer
 from contracts.auth import AuthMethod
@@ -242,6 +243,25 @@ async def test_a_signed_answer_cannot_be_replayed(integration_client: AsyncClien
         f"{API}/login/passkey/verify", json={"challenge_id": started["challenge_id"], "credential": answer}
     )
     assert replay.status_code == 401
+
+
+async def test_an_oversized_credential_is_refused_and_leaves_the_challenge_unspent(
+    integration_client: AsyncClient, enrolled: SoftwareAuthenticator
+) -> None:
+    started = await _start_sign_in(integration_client)
+    answer = enrolled.get(started["options"])
+    padded = {**answer, "clientExtensionResults": {"padding": "x" * (WEBAUTHN_CREDENTIAL_MAX_BYTES + 1)}}
+
+    refused = await integration_client.post(
+        f"{API}/login/passkey/verify", json={"challenge_id": started["challenge_id"], "credential": padded}
+    )
+    assert refused.status_code == 422
+
+    # Refused before the ceremony looked at it, so the genuine answer still signs in.
+    genuine = await integration_client.post(
+        f"{API}/login/passkey/verify", json={"challenge_id": started["challenge_id"], "credential": answer}
+    )
+    assert genuine.status_code == 200, genuine.text
 
 
 async def test_sign_in_without_user_verification_is_refused(

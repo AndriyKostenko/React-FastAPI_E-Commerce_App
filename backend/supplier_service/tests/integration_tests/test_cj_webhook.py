@@ -26,6 +26,7 @@ from routes.supplier_routes import supplier_routes
 from service_layer.cj_webhook_service import CJWebhookService
 from service_layer.cj_webhook_signature import CJWebhookSignature
 from service_layer.outbox_event_service import OutboxEventService
+from contracts.limits import VARIANTS_MAX
 from contracts.supplier import SupplierStockKey
 from infrastructure.database_layer.outbox_repository import OutboxRepository
 from contracts.event_enums import SupplierEvents
@@ -166,6 +167,20 @@ async def test_a_genuine_push_we_cannot_read_is_still_acknowledged(db) -> None:
 
 async def test_a_push_about_variants_we_do_not_sell_writes_nothing(db) -> None:
     body = _cj_body({"messageId": "m-5", "type": "STOCK", "params": {"V9": [_row("V9", "CN", 3)]}})
+
+    async with _client(db) as client:
+        assert await _push(client, body) == 200
+
+    assert await _outbox(db) == []
+
+
+async def test_a_push_naming_more_variants_than_any_product_has_writes_nothing(db) -> None:
+    # A real push carries one product's variants; past VARIANTS_MAX it is not
+    # read at all, though it is still acknowledged like any push we cannot read.
+    await _sell(db, SupplierStockKey(supplier_pid="P1", vids=["V1"]))
+    params = {f"X{index}": [_row(f"X{index}", "CN", 1)] for index in range(VARIANTS_MAX)}
+    params["V1"] = [_row("V1", "CN", 10)]
+    body = _cj_body({"messageId": "m-6", "type": "STOCK", "params": params})
 
     async with _client(db) as client:
         assert await _push(client, body) == 200

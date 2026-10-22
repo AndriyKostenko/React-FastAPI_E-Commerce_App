@@ -3,15 +3,17 @@ from uuid import UUID
 
 from pydantic import BaseModel, EmailStr, ConfigDict
 
+from contracts.limits import Cents, Code, Identifier
+
 
 class PaymentSchema(BaseModel):
     order_id: UUID
     user_id: UUID
     user_email: EmailStr
-    amount: int  # in cents
-    currency: str
+    amount: Cents
+    currency: Code
     # The Stripe Tax calculation the order was priced with; None when untaxed.
-    tax_calculation_id: str | None = None
+    tax_calculation_id: Identifier | None = None
 
     model_config = ConfigDict(from_attributes=True)
 

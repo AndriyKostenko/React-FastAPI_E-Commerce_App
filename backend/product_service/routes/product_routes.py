@@ -1,7 +1,7 @@
 from typing import Annotated, Any
 from uuid import UUID
 
-from fastapi import APIRouter, File, Form, Query, Request, UploadFile, status, Depends
+from fastapi import APIRouter, File, Form, Path, Query, Request, UploadFile, status, Depends
 
 from dependencies.dependencies import (
     admin_caller_dependency,
@@ -25,6 +25,7 @@ from schemas.product_schemas import (
 )
 from infrastructure.auth.route_guards import AdminDep
 from infrastructure.auth.service_assertion import require_service
+from contracts.limits import IDENTIFIER_MAX_LENGTH
 from contracts.supplier import SupplierStockKey
 
 # Called by order-service directly, never through the gateway: only a request
@@ -58,7 +59,7 @@ async def quote_order_items(
     summary="Every product of a supplier we sell, with its variant ids (supplier-service only)",
 )
 async def get_supplier_stock_keys(
-    supplier_id: str,
+    supplier_id: Annotated[str, Path(max_length=IDENTIFIER_MAX_LENGTH)],
     caller_service: SupplierServiceCaller,
     stock_service: supplier_stock_service_dependency,
 ) -> list[SupplierStockKey]:

@@ -1,7 +1,7 @@
-from typing import Any
+from typing import Annotated, Any
 from uuid import uuid4, UUID
 
-from fastapi import APIRouter, File, Form, Query, Request, Response, UploadFile, status
+from fastapi import APIRouter, File, Form, Path, Query, Request, Response, UploadFile, status
 
 from dependencies.dependencies import (
     admin_caller_dependency,
@@ -19,6 +19,7 @@ from schemas.image_generation_schema import (
 from schemas.product_image_schema import ProductImageSchema
 from tasks.image_tasks import generate_image_task
 from infrastructure.auth.route_guards import AdminDep
+from contracts.limits import COUNT_MAX, IDENTIFIER_MAX_LENGTH, IMAGES_MAX, Code, Name
 
 
 product_images_routes = APIRouter(tags=["product_images"])
@@ -70,7 +71,7 @@ async def generate_image(
     status_code=status.HTTP_200_OK,
 )
 async def get_generation_job_status(
-    job_id: str,
+    job_id: Annotated[str, Path(max_length=IDENTIFIER_MAX_LENGTH)],
     image_generation_service: image_generation_service_dependency,
     caller: authenticated_caller_dependency,
 ) -> ImageGenerationJobStatusResponse:
@@ -96,9 +97,9 @@ async def add_product_images(
     request: Request,
     image_service: product_image_service_dependency,
     product_id: UUID,
-    images: list[UploadFile] = File(...),
-    colors: list[str] = Form(...),
-    color_codes: list[str] = Form(...),
+    images: list[UploadFile] = File(..., max_length=IMAGES_MAX),
+    colors: list[Name] = Form(..., max_length=IMAGES_MAX),
+    color_codes: list[Code] = Form(..., max_length=IMAGES_MAX),
 ) -> list[ProductImageSchema]:
     new_product_images = await image_service.create_product_images_with_files(
         product_id=product_id,
@@ -119,7 +120,7 @@ async def get_all_images(
     request: Request,
     image_service: product_image_service_dependency,
     limit: int = Query(50, ge=1, le=100),
-    offset: int = Query(0, ge=0),
+    offset: int = Query(0, ge=0, le=COUNT_MAX),
 ) -> list[ProductImageSchema]:
     # Paged, newest first: the admin panel pages through it, and the whole
     # table (every product's every image) is not one response.
@@ -163,9 +164,9 @@ async def replace_product_images(
     request: Request,
     image_service: product_image_service_dependency,
     product_id: UUID,
-    images: list[UploadFile] = File(...),
-    image_colors: list[str] = Form(...),
-    color_codes: list[str] = Form(...),
+    images: list[UploadFile] = File(..., max_length=IMAGES_MAX),
+    image_colors: list[Name] = Form(..., max_length=IMAGES_MAX),
+    color_codes: list[Code] = Form(..., max_length=IMAGES_MAX),
 ) -> list[ProductImageSchema]:
     updated_images = await image_service.replace_product_images(
         product_id=product_id,
@@ -188,8 +189,8 @@ async def update_product_image(
     image_id: UUID,
     image_service: product_image_service_dependency,
     image: UploadFile = File(None),
-    image_color: str = Form(None),
-    image_color_code: str = Form(None),
+    image_color: Name = Form(None),
+    image_color_code: Code = Form(None),
 ) -> ProductImageSchema:
     updated_image = await image_service.update_product_image_with_file(
         image_id=image_id,

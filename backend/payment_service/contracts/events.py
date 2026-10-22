@@ -6,15 +6,16 @@ from pydantic import BaseModel, EmailStr, Field
 
 from contracts.services_enums import Services
 from contracts.event_enums import OrderEvents, PaymentCommands, PaymentEvents
+from contracts.limits import CENTS_MAX, Cents, ClippedText, Code, Identifier
 
 
 class BaseEvent(BaseModel):
     """Base class for all events"""
     event_id: UUID = Field(default_factory=uuid4)
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    service: str
-    event_type: str
-    schema_version: int = 1
+    service: Code
+    event_type: Code
+    schema_version: int = Field(default=1, ge=1, le=1000)
     correlation_id: UUID = Field(default_factory=uuid4)
 
 
@@ -23,7 +24,7 @@ class OrderBaseEvent(BaseEvent):
     order_id: UUID
     user_id: UUID
     user_email: EmailStr
-    service: str = Field(default_factory=lambda: Services.ORDER_SERVICE)
+    service: Code = Field(default_factory=lambda: Services.ORDER_SERVICE)
 
 
 class OrderCancelledEvent(OrderBaseEvent):
@@ -35,8 +36,8 @@ class OrderCancelledEvent(OrderBaseEvent):
     is already spent or gone, so payment_service holds the refund for a human
     return decision instead.
     """
-    event_type: str = Field(default_factory=lambda: OrderEvents.ORDER_CANCELLED)
-    reason: str
+    event_type: Code = Field(default_factory=lambda: OrderEvents.ORDER_CANCELLED)
+    reason: ClippedText
     reconciliation_required: bool = False
 
 
@@ -45,26 +46,27 @@ class PaymentBaseEvent(BaseEvent):
     order_id: UUID
     user_id: UUID
     user_email: EmailStr
-    service: str = Field(default_factory=lambda: Services.PAYMENT_SERVICE)
-    payment_intent_id: str
-    amount: float
-    currency: str
+    service: Code = Field(default_factory=lambda: Services.PAYMENT_SERVICE)
+    payment_intent_id: Identifier
+    # In cents, as Stripe counts it.
+    amount: float = Field(ge=0, le=CENTS_MAX)
+    currency: Code
 
 
 class PaymentAuthorizedEvent(PaymentBaseEvent):
     """The card is authorized for the order total; nothing is charged yet."""
-    event_type: str = Field(default_factory=lambda: PaymentEvents.PAYMENT_AUTHORIZED)
+    event_type: Code = Field(default_factory=lambda: PaymentEvents.PAYMENT_AUTHORIZED)
 
 
 class PaymentSucceededEvent(PaymentBaseEvent):
     """The authorized amount was captured: the customer is charged."""
-    event_type: str = Field(default_factory=lambda: PaymentEvents.PAYMENT_SUCCEEDED)
+    event_type: Code = Field(default_factory=lambda: PaymentEvents.PAYMENT_SUCCEEDED)
 
 
 class PaymentFailedEvent(PaymentBaseEvent):
     """Event published when a Stripe payment intent fails"""
-    event_type: str = Field(default_factory=lambda: PaymentEvents.PAYMENT_FAILED)
-    reason: str
+    event_type: Code = Field(default_factory=lambda: PaymentEvents.PAYMENT_FAILED)
+    reason: ClippedText
 
 
 class RefundScope(StrEnum):
@@ -87,9 +89,9 @@ class PaymentRefundedEvent(PaymentBaseEvent):
     Money went back to the customer: the whole payment after a cancellation,
     or part of it for a refund order_service requested (``refund_id`` set).
     """
-    event_type: str = Field(default_factory=lambda: PaymentEvents.PAYMENT_REFUNDED)
+    event_type: Code = Field(default_factory=lambda: PaymentEvents.PAYMENT_REFUNDED)
     refund_id: UUID | None = None
-    refunded_amount_cents: int | None = None
+    refunded_amount_cents: Cents | None = None
     # True when the card had not been captured yet: the customer is simply
     # charged that much less, rather than refunded.
     applied_before_capture: bool = False
@@ -99,15 +101,15 @@ class PaymentRefundedEvent(PaymentBaseEvent):
 
 class PaymentRefundFailedEvent(PaymentBaseEvent):
     """A refund order_service requested could not be made."""
-    event_type: str = Field(default_factory=lambda: PaymentEvents.PAYMENT_REFUND_FAILED)
+    event_type: Code = Field(default_factory=lambda: PaymentEvents.PAYMENT_REFUND_FAILED)
     refund_id: UUID
-    reason: str
+    reason: ClippedText
 
 
 class PaymentCancelledEvent(PaymentBaseEvent):
     """Event published when a Stripe payment intent is cancelled"""
-    event_type: str = Field(default_factory=lambda: PaymentEvents.PAYMENT_CANCELLED)
-    reason: str
+    event_type: Code = Field(default_factory=lambda: PaymentEvents.PAYMENT_CANCELLED)
+    reason: ClippedText
 
 
 class PaymentDisputeEvent(PaymentBaseEvent):
@@ -115,12 +117,12 @@ class PaymentDisputeEvent(PaymentBaseEvent):
     The customer's bank opened or settled a dispute (chargeback) on the charge.
     Nothing is done automatically: the order is flagged and an admin told.
     """
-    event_type: str = Field(default_factory=lambda: PaymentEvents.PAYMENT_DISPUTE_OPENED)
-    dispute_id: str
-    disputed_amount_cents: int
-    reason: str
+    event_type: Code = Field(default_factory=lambda: PaymentEvents.PAYMENT_DISPUTE_OPENED)
+    dispute_id: Identifier
+    disputed_amount_cents: Cents
+    reason: ClippedText
     # needs_response / under_review / won / lost / warning_closed ...
-    dispute_status: str
+    dispute_status: Code
     evidence_due_by: datetime | None = None
 
 
@@ -129,20 +131,20 @@ class PaymentCommandBase(BaseEvent):
     order_id: UUID
     user_id: UUID
     user_email: EmailStr
-    service: str = Field(default_factory=lambda: Services.ORDER_SERVICE)
+    service: Code = Field(default_factory=lambda: Services.ORDER_SERVICE)
 
 
 class PaymentCaptureRequested(PaymentCommandBase):
     """Fulfillment is secured: charge the authorized card."""
-    event_type: str = Field(default_factory=lambda: PaymentCommands.CAPTURE_REQUESTED)
+    event_type: Code = Field(default_factory=lambda: PaymentCommands.CAPTURE_REQUESTED)
 
 
 class PaymentRefundRequested(PaymentCommandBase):
     """Give back part of an order's payment: chosen lines, maybe shipping."""
-    event_type: str = Field(default_factory=lambda: PaymentCommands.REFUND_REQUESTED)
+    event_type: Code = Field(default_factory=lambda: PaymentCommands.REFUND_REQUESTED)
     refund_id: UUID
-    amount_cents: int = Field(gt=0)
-    reason: str
+    amount_cents: int = Field(gt=0, le=CENTS_MAX)
+    reason: ClippedText
 
 
 class PaymentReleaseRequested(PaymentCommandBase):
@@ -151,6 +153,6 @@ class PaymentReleaseRequested(PaymentCommandBase):
     Sent when a payment lands for an order that is unknown or already
     cancelled, so a card hold can never outlive the order it was for.
     """
-    event_type: str = Field(default_factory=lambda: PaymentCommands.RELEASE_REQUESTED)
-    payment_intent_id: str | None = None
-    reason: str
+    event_type: Code = Field(default_factory=lambda: PaymentCommands.RELEASE_REQUESTED)
+    payment_intent_id: Identifier | None = None
+    reason: ClippedText

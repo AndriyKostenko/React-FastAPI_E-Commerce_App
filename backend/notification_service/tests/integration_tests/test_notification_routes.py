@@ -105,6 +105,29 @@ class TestGetUserNotificationsIntegration:
         assert response.status_code == 200
         assert response.json() == []
 
+    @pytest.mark.parametrize(
+        "params",
+        [
+            # Not a column: the list used to reach getattr() on the model with it.
+            {"sort_by": "metadata"},
+            {"sort_by": "__class__"},
+            {"sort_order": "sideways"},
+            {"notification_type": "t" * 65},
+            {"offset": 10**12},
+        ],
+        ids=["sort-by-attribute", "sort-by-dunder", "sort-order", "type", "offset"],
+    )
+    async def test_a_filter_outside_what_the_list_offers_is_refused(
+        self, integration_client: AsyncClient, create_notification, params: dict
+    ):
+        await create_notification()
+
+        response = await integration_client.get(
+            f"{TEST_API}/notifications/users/{TEST_USER_ID}", params=params
+        )
+
+        assert response.status_code == 422
+
 
 # ---------------------------------------------------------------------------
 # GET /notifications/users/{user_id}/unread-count

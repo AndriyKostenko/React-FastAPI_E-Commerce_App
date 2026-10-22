@@ -5,6 +5,8 @@ from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, PositiveInt, computed_field
 
+from contracts.limits import LineQuantity, Money
+
 
 class CartItemSchema(BaseModel):
     id: UUID
@@ -30,12 +32,12 @@ class CartSchema(BaseModel):
 
 class AddCartItem(BaseModel):
     product_id: UUID
-    quantity: PositiveInt = 1
-    price_snapshot: Decimal
+    quantity: LineQuantity = 1
+    price_snapshot: Money
 
 
 class UpdateCartItem(BaseModel):
-    quantity: PositiveInt
+    quantity: LineQuantity
 
 
 class CartSummary(BaseModel):

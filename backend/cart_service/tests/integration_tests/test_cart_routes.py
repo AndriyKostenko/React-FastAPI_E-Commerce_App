@@ -53,6 +53,24 @@ class TestGetCartSummaryIntegration:
 
 
 class TestAddItemToCartIntegration:
+    @pytest.mark.parametrize(
+        "overrides",
+        [{"quantity": 100}, {"quantity": 0}, {"price_snapshot": "1000000.01"}, {"price_snapshot": "-1"}],
+        ids=["quantity-over-99", "quantity-zero", "price-too-high", "price-negative"],
+    )
+    async def test_a_line_outside_the_bounds_is_refused_and_nothing_is_added(
+        self, integration_client: AsyncClient, overrides: dict
+    ) -> None:
+        user_id = uuid4()
+
+        response = await integration_client.post(
+            f"{test_settings.API}/users/{user_id}/cart/items", json=_add_item_payload(**overrides)
+        )
+
+        assert response.status_code == 422
+        cart = await integration_client.get(f"{test_settings.API}/users/{user_id}/cart")
+        assert cart.json()["items"] == []
+
     async def test_add_item_to_cart_returns_200(
         self, integration_client: AsyncClient
     ) -> None:
@@ -168,3 +186,4 @@ class TestClearCartIntegration:
             f"{test_settings.API}/users/{user_id}/cart/summary"
         )
         assert summary_response.json()["total_items"] == 0
+

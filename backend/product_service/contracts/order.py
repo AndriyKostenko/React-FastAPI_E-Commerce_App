@@ -3,9 +3,10 @@
 from uuid import UUID
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, PositiveFloat, PositiveInt
+from pydantic import BaseModel, ConfigDict, Field, PositiveFloat
 
 from contracts.artwork import GeneratedArtworkAsset
+from contracts.limits import MONEY_MAX, Name, OBJECT_KEYS_MAX, PositiveCount, Text
 
 
 FulfillmentType = Literal["catalog", "cj", "custom"]
@@ -15,8 +16,8 @@ class CustomTshirtSpecification(BaseModel):
     """Immutable production snapshot for a user-generated T-shirt."""
 
     design_asset: GeneratedArtworkAsset
-    prompt: str
-    style: str
+    prompt: Text
+    style: Name
     size: Literal["S", "M", "L"]
     garment_color: Literal["white", "black"]
     placement: Literal[
@@ -32,20 +33,21 @@ class CustomTshirtSpecification(BaseModel):
         "Back Lower",
     ]
     gender: Literal["Male", "Female", "X"]
-    print_width_in: PositiveFloat | None = None
-    print_height_in: PositiveFloat | None = None
-    effective_dpi: PositiveFloat | None = None
+    # A T-shirt's print area is under 20 inches a side; the dpi follows from it.
+    print_width_in: PositiveFloat | None = Field(default=None, le=100)
+    print_height_in: PositiveFloat | None = Field(default=None, le=100)
+    effective_dpi: PositiveFloat | None = Field(default=None, le=100_000)
 
 
 class OrderItem(BaseModel):
     order_id: UUID
     product_id: UUID
     variant_id: UUID | None = None
-    quantity: PositiveInt
-    price: PositiveFloat
+    quantity: PositiveCount
+    price: PositiveFloat = Field(le=float(MONEY_MAX))
     fulfillment_type: FulfillmentType = "catalog"
-    product_name: str | None = None
+    product_name: Name | None = None
     customization: CustomTshirtSpecification | None = None
-    variant_snapshot: dict[str, Any] | None = None
+    variant_snapshot: dict[str, Any] | None = Field(default=None, max_length=OBJECT_KEYS_MAX)
 
     model_config = ConfigDict(from_attributes=True)

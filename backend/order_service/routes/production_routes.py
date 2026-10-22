@@ -16,6 +16,7 @@ from schemas.production_schemas import (
 )
 from infrastructure.auth.route_guards import require_admin
 from enums.status_enums import ProductionJobStatus
+from contracts.limits import COUNT_MAX
 
 
 # The in-house production queue is admin-only end to end, so the router carries
@@ -46,11 +47,11 @@ is the only route into these paths from outside the mesh.
 async def list_production_jobs(
     request: Request,
     production_queue_service: production_queue_service_dependency,
-    job_status: list[ProductionJobStatus] | None = Query(default=None, alias="status"),
+    job_status: list[ProductionJobStatus] | None = Query(default=None, alias="status", max_length=len(ProductionJobStatus)),
     order_id: UUID | None = Query(default=None),
     reconciliation_only: bool = Query(default=False),
     limit: int = Query(default=50, ge=1, le=200),
-    offset: int = Query(default=0, ge=0),
+    offset: int = Query(default=0, ge=0, le=COUNT_MAX),
 ) -> ProductionQueuePage:
     return await production_queue_service.list_jobs(
         statuses=[value.value for value in job_status] if job_status else None,
