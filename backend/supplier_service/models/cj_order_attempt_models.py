@@ -3,11 +3,12 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import JSON, Boolean, DateTime, Index, Integer, Numeric, String
+from sqlalchemy import JSON, Boolean, CheckConstraint, DateTime, Index, Integer, Numeric, String
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from models.base import Base
+from infrastructure.database_layer.clipped_string import ClippedString
 from infrastructure.utils.models_mixins import TimestampMixin
 
 
@@ -26,6 +27,10 @@ class CJOrderAttempt(Base, TimestampMixin):
         Index("idx_cj_order_attempt_poll", "status", "last_polled_at"),
         # Drives the payment retry task's scan of unpaid orders.
         Index("idx_cj_order_attempt_payment_due", "status", "date_updated"),
+        CheckConstraint(
+            "cj_order_amount_usd >= 0 AND expected_max_amount_usd >= 0 AND payment_attempts >= 0",
+            name="ck_cj_order_attempts_amounts",
+        ),
     )
 
     id: Mapped[UUID] = mapped_column(
@@ -53,7 +58,7 @@ class CJOrderAttempt(Base, TimestampMixin):
     last_polled_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
-    last_error: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    last_error: Mapped[str | None] = mapped_column(ClippedString(2000), nullable=True)
     # What CJ billed, and the most it may bill before payment is held for
     # review: expected product cost plus quoted freight, with tolerance.
     cj_order_amount_usd: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)

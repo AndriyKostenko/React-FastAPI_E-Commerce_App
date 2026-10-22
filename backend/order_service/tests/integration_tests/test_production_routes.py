@@ -375,6 +375,24 @@ class TestProductionQueueLifecycle:
         assert held.json()["status"] == ProductionJobStatus.ON_HOLD
         assert resumed.json()["status"] == ProductionJobStatus.PRINTED
 
+    async def test_notes_past_the_column_keep_the_newest(
+        self, integration_client: AsyncClient, queued_job: dict
+    ) -> None:
+        # Every hold adds a note, and a job can be held again and again.
+        job_id = queued_job["job"]["id"]
+        await integration_client.post(f"{PRODUCTION_API}/{job_id}/start", json={})
+        for round_number in range(25):
+            reason = f"{round_number:02d} " + "r" * 490
+            held = await integration_client.post(f"{PRODUCTION_API}/{job_id}/hold", json={"reason": reason})
+            assert held.status_code == 200, held.text
+            await integration_client.post(f"{PRODUCTION_API}/{job_id}/resume")
+
+        notes = (await integration_client.get(f"{PRODUCTION_API}/{job_id}")).json()["notes"]
+
+        assert len(notes) == CustomProductionJob.NOTES_MAX_LENGTH
+        assert notes.endswith(f"On hold: 24 " + "r" * 490)
+        assert "On hold: 00 " not in notes
+
     async def test_cancelling_a_printed_job_is_flagged_for_reconciliation(
         self, integration_client: AsyncClient, queued_job: dict
     ) -> None:

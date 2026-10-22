@@ -336,6 +336,38 @@ Backend:
    replaces CJ's. The OpenRouter client already exists in product-service.
 4. **Limits on every database model**: maximum lengths and sizes, how many rows or
    items are accepted, and any other restriction that makes sense, in every service.
+   **Done 2026-10-21** (after item 5, on the same branch).
+   - Every string column now has a length: the widest any request schema that writes
+     it allows (`contracts.limits`), and above the longest value stored locally
+     (measured first; the tightest was `products.description` at its 2,000). Money
+     columns have a fixed precision (`Numeric(10, 2)`; CJ's USD costs `Numeric(12, 4)`,
+     weights `Numeric(12, 3)`, so nothing stored was rounded). CHECK constraints cover
+     quantities (an order or cart line 1–99), prices and amounts (never negative,
+     a product's price above 0), ratings (0–5), counters and attempts, a product's
+     option names (5), a return's lines and photos, a refund's lines, a sync batch's
+     errors, a shipping method's days and a supplier's sync interval.
+   - Fixed on the way: `users.email` was VARCHAR(100) while sign-up accepts any valid
+     address (up to 254), so a long one was a 500; it is 320 now. A checkout's currency
+     must be three letters (it is stored as three).
+   - Text a service writes from what happened (error messages, reasons taken from
+     events, notification messages) is stored through `ClippedString`
+     (`infrastructure/database_layer/clipped_string.py`): cut to the column, never a
+     failed write that loses the row. A production job's notes keep the newest 10,000
+     characters, since every hold adds one.
+   - Rows per owner: 10 saved addresses (already), 10 passkeys per admin, 50 lines per
+     cart, 200 products per wishlist, one review per product per customer (now also a
+     UNIQUE constraint, so two sent together give one review and a 409). Each answers
+     409 naming the limit, and locks the owner's row first so two requests cannot both
+     pass. Adding more of a product the cart holds past 99 is refused with a 409; the
+     line keeps its quantity.
+   - One migration per service (`*_bounded_columns.py`, eight services; wishlist has
+     no column to bound). Alembic's autogenerate does not see an unbounded VARCHAR
+     becoming VARCHAR(n), so the migrations were written from a diff of the models
+     against the live databases; each was applied, rolled back and applied again on
+     the local data, and `alembic check` is clean.
+   - Tests, all on the real test databases: cart (99 per line, 50 lines, the database's
+     own CHECK), wishlist (200), passkeys (10), reviews (two at once, the rating CHECK),
+     a clipped notification message, and production notes past 10,000.
 5. **Limits on every Pydantic model**: types, lengths, ranges and how many items are
    accepted, so that every API input and event payload is bounded. **Done 2026-10-21.**
    - One vocabulary of bounds, `contracts/limits.py`, the same copy in the nine services
@@ -366,8 +398,8 @@ Backend:
    - Left alone on purpose: response models (a bound there turns stored data into a
      500), the signed JWT claims (`TokenClaims`), and schemas no route uses.
    - Found for item 4: adding the same product to the cart twice adds the quantities,
-     so a line can pass 99 though each request is bounded; admin `GET /orders` returns
-     every order unpaged.
+     so a line could pass 99 though each request is bounded (fixed in item 4); admin
+     `GET /orders` returns every order unpaged (still open).
    - Tests: `test_contract_limits.py` (order-service) and
      `test_supplier_contract_limits.py` (product-service) for events; `test_input_limits.py`
      (order-service) and new cases in the user, product, cart, notification and CJ

@@ -1,11 +1,12 @@
 from datetime import datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import String, Integer, DateTime, Text, Index, ForeignKey, JSON, inspect, func, text
+from sqlalchemy import CheckConstraint, String, Integer, DateTime, Index, ForeignKey, JSON, inspect, func, text
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from models.base import Base
+from infrastructure.database_layer.clipped_string import ClippedString
 from infrastructure.utils.models_mixins import TimestampMixin
 
 
@@ -27,6 +28,11 @@ class SupplierSyncState(Base, TimestampMixin):
                 "'awaiting_import_with_errors', 'importing')"
             ),
         ),
+        CheckConstraint(
+            "products_fetched >= 0 AND products_emitted >= 0 AND total_batches >= 0 AND processed_batches >= 0"
+            " AND products_imported >= 0 AND products_updated >= 0 AND products_failed >= 0",
+            name="ck_supplier_sync_states_counts",
+        ),
     )
 
     id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4)
@@ -43,7 +49,8 @@ class SupplierSyncState(Base, TimestampMixin):
     acknowledged_batch_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Every product that failed, one line each: the first 5,000 characters are kept.
+    error_message: Mapped[str | None] = mapped_column(ClippedString(5000), nullable=True)
 
     @classmethod
     def get_search_fields(cls) -> list[str]:

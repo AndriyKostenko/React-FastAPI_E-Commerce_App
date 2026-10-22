@@ -105,6 +105,18 @@ class TestGetUserNotificationsIntegration:
         assert response.status_code == 200
         assert response.json() == []
 
+    async def test_an_over_long_message_is_stored_clipped_rather_than_lost(
+        self, integration_client: AsyncClient, create_notification
+    ):
+        # Messages are built from events (product names, reasons); a long one
+        # must not cost the customer the notification.
+        await create_notification(message="m" * 6000)
+
+        response = await integration_client.get(f"{TEST_API}/notifications/users/{TEST_USER_ID}")
+
+        [notification] = response.json()
+        assert notification["message"] == "m" * 5000
+
     @pytest.mark.parametrize(
         "params",
         [

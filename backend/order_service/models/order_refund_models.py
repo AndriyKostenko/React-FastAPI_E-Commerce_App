@@ -3,11 +3,12 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Numeric, String
+from sqlalchemy import JSON, Boolean, CheckConstraint, DateTime, ForeignKey, Numeric, String
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from models.base import Base
+from infrastructure.database_layer.clipped_string import ClippedString
 from infrastructure.utils.models_mixins import TimestampMixin
 
 
@@ -22,6 +23,12 @@ class OrderRefund(Base, TimestampMixin):
 
     __tablename__ = "order_refunds"
 
+    __table_args__ = (
+        CheckConstraint("amount >= 0 AND tax_amount >= 0", name="ck_order_refunds_amounts"),
+        # LINES_MAX (contracts.limits).
+        CheckConstraint("json_array_length(lines) <= 50", name="ck_order_refunds_lines"),
+    )
+
     id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4)
     order_id: Mapped[UUID] = mapped_column(ForeignKey("orders.id"), nullable=False, index=True)
     amount: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
@@ -33,7 +40,8 @@ class OrderRefund(Base, TimestampMixin):
     includes_shipping: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     # [{"order_item_id": str, "quantity": int, "amount": str}]
     lines: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
-    reason: Mapped[str] = mapped_column(String(500), nullable=False)
+    # An admin's words (RefundRequest allows 500), or the service's own for an automatic refund.
+    reason: Mapped[str] = mapped_column(ClippedString(500), nullable=False)
     status: Mapped[str] = mapped_column(String(20), nullable=False)
     # The admin who asked; None when the system refunded a cancelled line.
     requested_by: Mapped[UUID | None] = mapped_column(PostgresUUID(as_uuid=True), nullable=True)
@@ -41,5 +49,6 @@ class OrderRefund(Base, TimestampMixin):
     return_request_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("return_requests.id"), nullable=True, index=True
     )
-    failure_reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    # Stripe's own words for why it failed.
+    failure_reason: Mapped[str | None] = mapped_column(ClippedString(500), nullable=True)
     settled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

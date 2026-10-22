@@ -11,10 +11,13 @@ from exceptions.wishlist_exceptions import (
     WishlistNotFoundError,
     WishlistItemNotFoundError,
     ProductNotFoundError,
+    WishlistFullError,
 )
 
 
 class WishlistService:
+    MAX_ITEMS_PER_WISHLIST = 200
+
     def __init__(
         self,
         repository: WishlistRepository,
@@ -75,6 +78,13 @@ class WishlistService:
             await self._validate_product_exists(http_session, item_data.product_id)
 
         wishlist = await self._get_or_create_wishlist_model(user_id)
+
+        # Adding a product the wishlist already holds changes nothing, so only a
+        # new one counts against the limit; locked so two adds cannot both pass.
+        await self.repository.lock_wishlist(wishlist.id)
+        if not await self.repository.holds(wishlist.id, item_data.product_id):
+            if await self.repository.count_items(wishlist.id) >= self.MAX_ITEMS_PER_WISHLIST:
+                raise WishlistFullError(self.MAX_ITEMS_PER_WISHLIST)
 
         await self.repository.add_item(
             wishlist_id=wishlist.id,

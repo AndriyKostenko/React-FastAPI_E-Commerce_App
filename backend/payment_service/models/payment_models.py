@@ -1,10 +1,11 @@
 from datetime import datetime
 from uuid import UUID, uuid4
-from sqlalchemy import DateTime, ForeignKey, Index, inspect
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, String, inspect
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 
 from models.base import Base
+from infrastructure.database_layer.clipped_string import ClippedString
 from infrastructure.utils.models_mixins import TimestampMixin
 
 
@@ -15,17 +16,22 @@ class Payment(Base, TimestampMixin):
         Index("idx_payments_order_id", "order_id"),
         Index("idx_payments_status", "status"),
         Index("idx_payments_stripe_payment_intent_id", "stripe_payment_intent_id"),
+        CheckConstraint(
+            "amount >= 0 AND refunded_cents >= 0 AND capture_reduction_cents >= 0", name="ck_payments_amounts"
+        ),
     )
 
     id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4)
     order_id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), nullable=False)
     user_id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), nullable=False)
-    user_email: Mapped[str] = mapped_column(nullable=False)
-    stripe_payment_intent_id: Mapped[str] = mapped_column(unique=True, nullable=False)
+    user_email: Mapped[str] = mapped_column(String(320), nullable=False)
+    stripe_payment_intent_id: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     amount: Mapped[int] = mapped_column(nullable=False)  # stored in cents (e.g. $9.99 → 999)
-    currency: Mapped[str] = mapped_column(nullable=False)
-    status: Mapped[str] = mapped_column(nullable=False)
-    failure_reason: Mapped[str] = mapped_column(nullable=True)
+    # ISO 4217.
+    currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    status: Mapped[str] = mapped_column(String(64), nullable=False)
+    # Stripe's message, or the reason an event gave.
+    failure_reason: Mapped[str] = mapped_column(ClippedString(5000), nullable=True)
     # Partial refunds (cents). refunded_cents went back after capture;
     # capture_reduction_cents was taken off before capture, so the card is
     # simply charged less. Both are bounded by ``amount``.
@@ -33,8 +39,8 @@ class Payment(Base, TimestampMixin):
     capture_reduction_cents: Mapped[int] = mapped_column(nullable=False, default=0, server_default="0")
     # Stripe Tax: the calculation the order was priced with, and the sale
     # transaction recorded from it once the card was captured.
-    tax_calculation_id: Mapped[str | None] = mapped_column(nullable=True)
-    tax_transaction_id: Mapped[str | None] = mapped_column(nullable=True)
+    tax_calculation_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    tax_transaction_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     @property
     def refundable_cents(self) -> int:
@@ -83,17 +89,20 @@ class PaymentRefund(Base, TimestampMixin):
 
     __tablename__ = "payment_refunds"
 
+    __table_args__ = (CheckConstraint("amount_cents >= 0", name="ck_payment_refunds_amount_cents"),)
+
     id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True)
     payment_id: Mapped[UUID] = mapped_column(
         PostgresUUID(as_uuid=True), ForeignKey("payments.id"), nullable=False, index=True
     )
     amount_cents: Mapped[int] = mapped_column(nullable=False)
-    reason: Mapped[str] = mapped_column(nullable=False)
+    # From the event that asked for the refund (clipped there to TEXT_MAX_LENGTH too).
+    reason: Mapped[str] = mapped_column(ClippedString(5000), nullable=False)
     # succeeded: refunded on Stripe; reduced_capture: taken off before capture;
     # failed: refused (over the refundable amount, payment not refundable).
-    status: Mapped[str] = mapped_column(nullable=False)
-    stripe_refund_id: Mapped[str | None] = mapped_column(nullable=True)
-    failure_reason: Mapped[str | None] = mapped_column(nullable=True)
+    status: Mapped[str] = mapped_column(String(64), nullable=False)
+    stripe_refund_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    failure_reason: Mapped[str | None] = mapped_column(ClippedString(5000), nullable=True)
 
 
 class PaymentDispute(Base, TimestampMixin):
@@ -101,14 +110,17 @@ class PaymentDispute(Base, TimestampMixin):
 
     __tablename__ = "payment_disputes"
 
+    __table_args__ = (CheckConstraint("amount_cents >= 0", name="ck_payment_disputes_amount_cents"),)
+
     id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4)
-    stripe_dispute_id: Mapped[str] = mapped_column(unique=True, nullable=False)
+    stripe_dispute_id: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     # Null when Stripe reports a dispute on a charge this service has no record of.
     payment_id: Mapped[UUID | None] = mapped_column(
         PostgresUUID(as_uuid=True), ForeignKey("payments.id"), nullable=True, index=True
     )
     amount_cents: Mapped[int] = mapped_column(nullable=False)
-    currency: Mapped[str] = mapped_column(nullable=False)
-    reason: Mapped[str] = mapped_column(nullable=False)
-    status: Mapped[str] = mapped_column(nullable=False)
+    currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    # Stripe's reason code ("fraudulent"); clipped in case Stripe adds a long one.
+    reason: Mapped[str] = mapped_column(ClippedString(255), nullable=False)
+    status: Mapped[str] = mapped_column(String(64), nullable=False)
     evidence_due_by: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

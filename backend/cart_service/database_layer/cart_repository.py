@@ -2,7 +2,7 @@ from uuid import UUID
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.cart_models import Cart, CartItem
@@ -20,6 +20,21 @@ class CartRepository(BaseRepository[Cart]):
     async def get_cart_by_user_id(self, user_id: UUID) -> Cart | None:
         """Get cart by user ID with items loaded."""
         return await self.get_by_field("user_id", user_id)
+
+    async def lock_cart(self, cart_id: UUID) -> None:
+        """Serialise changes to one cart until the transaction ends."""
+        await self.session.execute(select(Cart.id).where(Cart.id == cart_id).with_for_update())
+
+    async def find_item(self, cart_id: UUID, product_id: UUID) -> CartItem | None:
+        result = await self.session.execute(
+            select(CartItem).where(CartItem.cart_id == cart_id, CartItem.product_id == product_id)
+        )
+        return result.scalar_one_or_none()
+
+    async def count_items(self, cart_id: UUID) -> int:
+        return await self.session.scalar(
+            select(func.count()).select_from(CartItem).where(CartItem.cart_id == cart_id)
+        ) or 0
 
     async def add_item_to_cart(self, cart_id: UUID, product_id: UUID, quantity: int, price_snapshot: Decimal) -> CartItem:
         # Locked for the read-modify-write below: two concurrent adds of the same

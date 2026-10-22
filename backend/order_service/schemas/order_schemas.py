@@ -162,7 +162,8 @@ class CreateOrder(BaseModel):
     user_id: UUID
     user_email: EmailStr
     amount: PositiveFloat | None = Field(default=None, le=float(MONEY_MAX))
-    currency: Code = "cad"
+    # ISO 4217, as orders.currency stores it.
+    currency: str = Field(default="cad", min_length=3, max_length=3)
     payment_intent_id: Identifier | None = None
     products: list[OrderProductItem] = Field(min_length=1, max_length=LINES_MAX)
     address: ShippingAddress

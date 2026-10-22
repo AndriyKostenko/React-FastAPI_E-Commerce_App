@@ -57,6 +57,8 @@ class PasskeyService:
     ceremonies, so a passkey alone, on an unlocked device, is not enough either.
     """
 
+    MAX_PASSKEYS_PER_ADMIN = 10
+
     def __init__(
         self,
         user_service: UserService,
@@ -82,6 +84,7 @@ class PasskeyService:
         server, so it stays out of access logs and Referer headers.
         """
         user = await self._admin_by_email(email)
+        self._ensure_room(await self._credentials.list_for_user(user.id))
         token = await self._ceremonies.issue_enrolment_token(user.id)
         return f"{self._enrolment_link_base}/passkeys/enrol#token={token}"
 
@@ -91,6 +94,7 @@ class PasskeyService:
             raise HTTPException(status_code=401, detail="This enrolment link is invalid or has expired")
         user = await self._active_admin(user_id)
         existing = await self._credentials.list_for_user(user.id)
+        self._ensure_room(existing)
         options = generate_registration_options(
             rp_id=self._rp.rp_id,
             rp_name=self._rp.name,
@@ -130,6 +134,8 @@ class PasskeyService:
         if await self._ceremonies.consume_enrolment_token(token) != pending.user_id:
             raise HTTPException(status_code=401, detail="This enrolment link is invalid or has expired")
         user = await self._active_admin(pending.user_id)
+        await self._credentials.lock_owner(user.id)
+        self._ensure_room(await self._credentials.list_for_user(user.id))
         row = WebAuthnCredential(
             user_id=user.id,
             credential_id=verified.credential_id,
@@ -145,6 +151,13 @@ class PasskeyService:
         except IntegrityError:
             raise HTTPException(status_code=409, detail="This passkey is already registered")
         return PasskeySummary.model_validate(row)
+
+    def _ensure_room(self, existing: list[WebAuthnCredential]) -> None:
+        if len(existing) >= self.MAX_PASSKEYS_PER_ADMIN:
+            raise HTTPException(
+                status_code=409,
+                detail=f"An admin can register up to {self.MAX_PASSKEYS_PER_ADMIN} passkeys; revoke one first",
+            )
 
     # ------------------------------- sign-in -------------------------------
 

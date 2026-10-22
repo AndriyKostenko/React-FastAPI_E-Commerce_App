@@ -1,9 +1,9 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, EmailStr, ConfigDict
+from pydantic import BaseModel, EmailStr, ConfigDict, Field
 
-from contracts.limits import Cents, Code, Identifier
+from contracts.limits import Cents, Identifier
 
 
 class PaymentSchema(BaseModel):
@@ -11,7 +11,8 @@ class PaymentSchema(BaseModel):
     user_id: UUID
     user_email: EmailStr
     amount: Cents
-    currency: Code
+    # ISO 4217, as payments.currency stores it.
+    currency: str = Field(min_length=3, max_length=3)
     # The Stripe Tax calculation the order was priced with; None when untaxed.
     tax_calculation_id: Identifier | None = None
 

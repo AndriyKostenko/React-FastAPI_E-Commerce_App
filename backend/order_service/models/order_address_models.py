@@ -1,7 +1,7 @@
 from typing import List, TYPE_CHECKING
 from uuid import UUID, uuid4
 
-from sqlalchemy import Index, inspect
+from sqlalchemy import Index, String, inspect
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 
@@ -23,14 +23,15 @@ class OrderAddress(Base, TimestampMixin):
 
     id: Mapped[str] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4)
     user_id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), nullable=False)
-    street: Mapped[str] = mapped_column(nullable=True)
-    city: Mapped[str] = mapped_column(nullable=True)
-    province: Mapped[str] = mapped_column(nullable=True)
-    postal_code: Mapped[str] = mapped_column(nullable=True)
-    country: Mapped[str] = mapped_column(nullable=True)
-    country_code: Mapped[str] = mapped_column(nullable=True)
-    name: Mapped[str] = mapped_column(nullable=True)
-    phone: Mapped[str] = mapped_column(nullable=True)
+    # The bounds of a checkout address (schemas.order_schemas.ShippingAddress).
+    street: Mapped[str] = mapped_column(String(255), nullable=True)
+    city: Mapped[str] = mapped_column(String(100), nullable=True)
+    province: Mapped[str] = mapped_column(String(64), nullable=True)
+    postal_code: Mapped[str] = mapped_column(String(10), nullable=True)
+    country: Mapped[str] = mapped_column(String(64), nullable=True)
+    country_code: Mapped[str] = mapped_column(String(2), nullable=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=True)
+    phone: Mapped[str] = mapped_column(String(32), nullable=True)
 
     orders: Mapped[list['Order']] = relationship('Order', back_populates='address')
 

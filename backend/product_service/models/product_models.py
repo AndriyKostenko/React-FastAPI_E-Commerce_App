@@ -4,7 +4,7 @@ from typing import Any, TYPE_CHECKING
 from uuid import UUID, uuid4
 
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import DateTime, ForeignKey, Index, inspect, String, UniqueConstraint
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, Numeric, inspect, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import ARRAY, UUID as PostgresUUID
 
 from models.base import Base
@@ -46,21 +46,27 @@ class Product(Base, TimestampMixin):
         # automatically when WHERE in_stock = true is present.
         Index('idx_product_in_stock_partial', 'id', 'date_created',
               postgresql_where='in_stock = true'),
+
+        CheckConstraint("quantity >= 0", name="ck_products_quantity"),
+        CheckConstraint("price > 0", name="ck_products_price"),
+        CheckConstraint("cardinality(variant_option_names) <= 5", name="ck_products_variant_option_names"),
     )
 
     id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True)
-    pid: Mapped[str | None] = mapped_column(nullable=True)
-    supplier_id: Mapped[str | None] = mapped_column(nullable=True)
-    supplier_category_id: Mapped[str | None] = mapped_column(nullable=True)
-    name: Mapped[str] = mapped_column(nullable=False)
-    description: Mapped[str | None] = mapped_column(nullable=True)
+    pid: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    supplier_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    supplier_category_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # The lengths CreateProduct and UpdateProduct allow.
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    description: Mapped[str | None] = mapped_column(String(2000), nullable=True)
     category_id: Mapped[UUID] = mapped_column(ForeignKey('product_categories.id'), nullable=False)
-    brand: Mapped[str] = mapped_column(nullable=False)
+    brand: Mapped[str] = mapped_column(String(50), nullable=False)
     quantity: Mapped[int] = mapped_column(nullable=False)
-    price: Mapped[Decimal] = mapped_column(nullable=False)
+    # CAD, as the storefront shows it.
+    price: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
     in_stock: Mapped[bool] = mapped_column(nullable=False)
-    sku: Mapped[str | None] = mapped_column(nullable=True)
-    image_url: Mapped[str | None] = mapped_column(nullable=True)
+    sku: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    image_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
     # When the supplier's stock behind ``quantity`` was measured (the hourly
     # CJ refresh). An older measurement arriving later is ignored.
     stock_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
