@@ -3,10 +3,11 @@ from datetime import datetime
 from typing import Any, override
 
 from sqlalchemy.orm import Mapped, mapped_column
-from sqlalchemy import CheckConstraint, DateTime, String, Index, inspect
+from sqlalchemy import CheckConstraint, DateTime, String, Index, UniqueConstraint, inspect
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 
 from models.base import Base
+from infrastructure.database_layer.encrypted_email import EncryptedEmail
 from infrastructure.utils.models_mixins import TimestampMixin
 
 
@@ -19,6 +20,8 @@ class User(Base, TimestampMixin):
     __table_args__ = (
         CheckConstraint("role IN ('user', 'admin')", name="ck_users_role"),
         CheckConstraint("token_version >= 0", name="ck_users_token_version"),
+        # One account per address: the hash is unique, as the ciphertext never repeats.
+        UniqueConstraint('email_hash', name='uq_users_email_hash'),
         Index('idx_users_role', 'role'),
         Index('idx_users_is_active', 'is_active'),
         Index('idx_users_is_verified', 'is_verified'),
@@ -27,8 +30,10 @@ class User(Base, TimestampMixin):
 
     id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4)
     name: Mapped[str] = mapped_column(String(50),nullable=False)
-    # 320: the longest address the email standards allow (sign-up accepts any valid one).
-    email: Mapped[str] = mapped_column(String(320),unique=True, nullable=False)
+    # Encrypted at rest (EncryptedEmail): ``User.email == address`` compares
+    # email_hash, which keep_lookup_in_step (below the class) sets on every write.
+    email: Mapped[str] = mapped_column(EncryptedEmail(lookup="email_hash"), nullable=False)
+    email_hash: Mapped[str] = mapped_column(String(EncryptedEmail.LOOKUP_LENGTH), nullable=False)
     # A bcrypt hash is 60 characters.
     hashed_password: Mapped[str | None] = mapped_column(String(255), nullable=True)
     role: Mapped[str] = mapped_column(String(20), nullable=False, default="user", server_default="user")
@@ -42,8 +47,12 @@ class User(Base, TimestampMixin):
 
     @classmethod
     def get_search_fields(cls) -> list[str]:
-        """Return list of fields to be used in search operations"""
-        return ["name", "email", "phone_number"]
+        """Return list of fields to be used in search operations.
+
+        Not email: it is encrypted, so only a whole address finds an account
+        (an equality filter, see UserService.get_all_users).
+        """
+        return ["name", "phone_number"]
 
     @classmethod
     def get_admin_schema(cls) -> list[dict[str, Any]]:
@@ -52,6 +61,8 @@ class User(Base, TimestampMixin):
         fields = []
 
         for column in inspector.columns:
+            if column.key == "email_hash":
+                continue  # internal: the lookup hash of the address
             field_info = {
                 "path": column.name,
                 "type": cls._map_sqlalchemy_type_to_adminjs(column.type),
@@ -82,8 +93,11 @@ class User(Base, TimestampMixin):
 
     @override
     def __repr__(self) -> str:
-        return f"User(id={self.id}, name={self.name}, email={self.email}, role={self.role}, is_active={self.is_active}, is_verified={self.is_verified}), date_created={self.date_created}, date_updated={self.date_updated})"
+        return f"User(id={self.id}, name={self.name}, role={self.role}, is_active={self.is_active}, is_verified={self.is_verified}), date_created={self.date_created}, date_updated={self.date_updated})"
 
     @override
     def __str__(self) -> str:
-        return f"User(id={self.id}, name={self.name}, email={self.email}, role={self.role}, is_active={self.is_active}, is_verified={self.is_verified}), date_created={self.date_created}, date_updated={self.date_updated})"
+        return f"User(id={self.id}, name={self.name}, role={self.role}, is_active={self.is_active}, is_verified={self.is_verified}), date_created={self.date_created}, date_updated={self.date_updated})"
+
+
+EncryptedEmail.keep_lookup_in_step(User.email)

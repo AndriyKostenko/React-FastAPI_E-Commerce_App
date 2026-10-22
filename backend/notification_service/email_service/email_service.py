@@ -102,7 +102,7 @@ class EmailService:
             rendered_html = self.render_template(template_name=template_name, template_body=template_body)
             message = self.create_message(recipients, subject, rendered_html)
             await self.fast_mail.send_message(message, template_name=template_name)
-            self.logger.info(f"Email successfully sent to {recipients}")
+            self.logger.info("Email sent: %s", template_name)
         except ConnectionErrors as e:
             self.logger.error(f"Connection error while sending email: {e}")
             raise EmailServiceError("Connection error while sending email")

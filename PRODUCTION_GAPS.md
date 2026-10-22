@@ -329,6 +329,70 @@ Backend:
    database. Login, password reset and "email already registered" still need to find
    a user by email, so lookups need a deterministic part (for example a keyed hash
    stored beside the encrypted value).
+   **Done 2026-10-22** (branch `feature/encrypted-emails`, off item 4/5's branch).
+   - What is encrypted: every column that held an address, which is user-service
+     `users.email`, order `orders.user_email`, payment `payments.user_email` and
+     supplier `cj_order_attempts.user_email`. No new library: `cryptography` (already
+     in every service) does AES-256-GCM with a random nonce per write, and the
+     standard library's HMAC-SHA256 makes the lookup hash. The stored form is
+     `e1.<key id>.<base64>`. The key id names the key that wrote a value, so after a
+     rotation the old keys, kept in `EMAIL_ENCRYPTION_OLD_KEYS`, still decrypt.
+   - Lookups: `users.email_hash` (unique, so one account per address, as before) and
+     `orders.user_email_hash` (indexed) hold the HMAC of the trimmed, lower-cased
+     address under `EMAIL_LOOKUP_KEY`. The column type (`EncryptedEmail`, in each
+     service's `infrastructure/database_layer/encrypted_email.py`) turns
+     `column == address` into a comparison on the hash. So login, Google sign-in,
+     password reset, "already registered", passkey sign-in, the owner's
+     `dev.sh admin` tools and the admin filters work unchanged. Any other
+     comparison on the column (LIKE, IN, `<`) raises instead of quietly matching
+     nothing. Payments and CJ attempts are never looked up by address, so they have
+     no hash.
+   - Admin search is now exact for addresses. A `search_term` with an `@` finds that
+     one account; other terms search name and phone only. The `email` and order
+     `user_email` filters match whole addresses. `sort_by=email` is refused (422).
+     The AdminJS users schema hides `email_hash`.
+   - Keys: each of the four services has `EMAIL_ENCRYPTION_KEY`, and user and order
+     also have `EMAIL_LOOKUP_KEY`. They are 32 random bytes, base64, in each
+     service's own Vault path. They are required settings, so a service without
+     them refuses to start and names the missing one. `dev.sh` generates them on
+     `init` and `infra up` and never replaces one; CI generates new ones for each
+     run.
+   - Existing rows: each service's Alembic revision encrypts them in place
+     (`EncryptedEmailMigration`, which skips rows already encrypted) and its
+     downgrade decrypts them.
+     - Verified on the local databases: 28 users, 34 orders, 34 payments and 29 CJ
+       attempts encrypted.
+     - Downgrading restored every address exactly as in a backup taken beforehand
+       (an md5 of each column matched), and upgrading again left no plain-text row.
+     - `alembic check` is clean in all four services.
+   - Logs: user-service's event-publish lines and notification-service's per-email
+     lines now name the user or order id, not the address. The `User` repr no
+     longer prints the email.
+   - Tests:
+     - `test_email_cipher.py` (round trip, random nonce, tampering, rotation,
+       keyed and case-free hash, key errors by name, the longest address fits).
+     - `test_encrypted_emails.py` in all four services, against real databases:
+       the stored row, lookups whatever the case, one account per address, a
+       changed address moving its hash, refused comparisons, the migration both
+       ways, the admin users search, filters and schema, and the admin orders
+       filter.
+     - Each user-service check fails with its piece taken out: the hash
+       comparison, the encryption, keeping the hash in step, and the
+       whole-address search.
+   - Not covered, left as they are:
+     - Processed outbox rows keep their event payloads, and those carry addresses
+       in plain text. So does `cj_order_attempts.request_payload`, the order as
+       it was sent to CJ.
+     - Redis briefly holds an address in the login rate limiter's key.
+     - With `DEBUG_MODE=true` (the local config), SQLAlchemy's SQL echo logs every
+       query's parameters, including those event payloads. Production must run
+       with `DEBUG_MODE=false`.
+     - The lookup key cannot be rotated without recomputing every hash (no tool
+       for that yet).
+   - **Before going live (owner):** generate the keys in each service's production
+     Vault path before the first deploy that carries this, and **back them up
+     offline**: a lost `EMAIL_ENCRYPTION_KEY` makes every stored address
+     unreadable.
 3. **An AI check between fetching a CJ product and storing it.** A new class runs
    before the import writes a product. It asks an OpenRouter model whether the product
    image clearly shows what is printed on the T-shirt. If not, the image is not stored

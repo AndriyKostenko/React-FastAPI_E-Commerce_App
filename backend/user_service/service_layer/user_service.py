@@ -399,6 +399,13 @@ class UserService:
         # Remaining filters
         cleaned_filters = {key: value for key, value in filters_dict.items() if value is not None}
 
+        # Addresses are stored encrypted, so they cannot be searched for part
+        # of one: a term that is a whole address finds that account exactly
+        # (through its lookup hash), anything else searches name and phone.
+        if search_term and "@" in search_term:
+            cleaned_filters["email"] = search_term
+            search_term = None
+
         # General query params
         users = await self.repository.get_all(filters=cleaned_filters,
                                               sort_by=sort_by,

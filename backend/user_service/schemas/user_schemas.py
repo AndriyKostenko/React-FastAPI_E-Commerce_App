@@ -174,7 +174,8 @@ class UsersFilterParams(BaseModel):
     limit: int = Field(default=10, gt=0, le=100, description="Maximum number of records to return")
 
     # Sorting
-    sort_by: Optional[str] = Field(None, pattern="^(id|name|email|date_created|date_updated)$", description="Field to sort by")
+    # Not email: it is stored encrypted, so its order means nothing.
+    sort_by: Optional[str] = Field(None, pattern="^(id|name|date_created|date_updated)$", description="Field to sort by")
     sort_order: Optional[str] = Field(default="asc", pattern="^(asc|desc)$", description="Sort order: 'asc' or 'desc'")
 
     # Filtering
@@ -183,7 +184,7 @@ class UsersFilterParams(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=100, description="Filter by user name")
     is_active: Optional[bool] = Field(None, description="Filter by user active status")
     is_verified: Optional[bool] = Field(None, description="Filter by user verification status")
-    search_term: Optional[str] = Field(None, min_length=1, max_length=100, description="Search term for name or email")
+    search_term: Optional[str] = Field(None, min_length=1, max_length=100, description="Part of a name or phone number, or a whole email address")
 
     # Date range filters
     date_created_from: Optional[datetime] = Field(None, description="Filter users created from this date")

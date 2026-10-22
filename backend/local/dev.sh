@@ -342,6 +342,24 @@ turnstile_test_secret_sync() {
   fi
 }
 
+# The keys that encrypt stored email addresses, and the key of the hash that
+# finds one: 32 random bytes each, base64, in each service's own Vault path.
+# Generated once and kept: a new key could not read what the old one wrote.
+# EMAIL_LOOKUP_KEY only where a column is looked up by address.
+email_keys_sync() {
+  local identity path key
+  for identity in user-service order-service payment-service supplier-service; do
+    path="secret/$VAULT_PREFIX/$identity"
+    for key in EMAIL_ENCRYPTION_KEY EMAIL_LOOKUP_KEY; do
+      case "$key:$identity" in EMAIL_LOOKUP_KEY:payment-service|EMAIL_LOOKUP_KEY:supplier-service) continue ;; esac
+      [ -n "$(vault_op kv get -field="$key" "$path" 2>/dev/null || true)" ] && continue
+      # On stdin ("-"), never as an argument.
+      openssl rand -base64 32 | tr -d '\n' | vault_op kv patch "$path" "$key=-" >/dev/null
+      echo "  $identity: $key generated into Vault"
+    done
+  done
+}
+
 # Once: the superuser's password leaves shared-infra, which every service may
 # read, for postgres-admin, which only the root token reads. Services no
 # longer need it: each connects with its own login (pg_roles_sync first).
@@ -761,7 +779,7 @@ cmd_vault() {
 
 cmd_infra() {
   case "${1:-up}" in
-    up)     vault_start; load_infra_secrets; pg_start; pg_roles_sync; vault_move_postgres_admin; turnstile_test_secret_sync
+    up)     vault_start; load_infra_secrets; pg_start; pg_roles_sync; vault_move_postgres_admin; turnstile_test_secret_sync; email_keys_sync
             redis_start; rabbit_start; seaweed_start
             if mail_catching; then mailpit_start; fi ;;
     down)   if vault_running && [ -f "$VAULT_INIT_FILE" ]; then load_infra_secrets; fi
@@ -809,6 +827,7 @@ cmd_init() {
   say "per-service postgres logins"
   pg_roles_sync
   vault_move_postgres_admin
+  email_keys_sync
 
   redis_start
   rabbit_start

@@ -6,6 +6,7 @@ from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 
 from models.base import Base
 from infrastructure.database_layer.clipped_string import ClippedString
+from infrastructure.database_layer.encrypted_email import EncryptedEmail
 from infrastructure.utils.models_mixins import TimestampMixin
 
 
@@ -24,7 +25,8 @@ class Payment(Base, TimestampMixin):
     id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4)
     order_id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), nullable=False)
     user_id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), nullable=False)
-    user_email: Mapped[str] = mapped_column(String(320), nullable=False)
+    # Encrypted at rest; nothing looks a payment up by address.
+    user_email: Mapped[str] = mapped_column(EncryptedEmail(), nullable=False)
     stripe_payment_intent_id: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     amount: Mapped[int] = mapped_column(nullable=False)  # stored in cents (e.g. $9.99 → 999)
     # ISO 4217.
