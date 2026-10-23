@@ -21,6 +21,8 @@ from service_layer.image_generation_service import ImageGenerationService
 from service_layer.image_job_store import ImageJobStore
 from service_layer.image_storage_service import ImageStorageService
 from service_layer.openrouter_client import OpenRouterClient
+from service_layer.openrouter_design_moderator import OpenRouterDesignModerator
+from service_layer.design_refusal_log import DatabaseDesignRefusalLog
 from service_layer.product_image_service import ProductImageService
 from service_layer.product_service import ProductService
 from service_layer.supplier_stock_service import SupplierStockService
@@ -160,12 +162,20 @@ def get_image_storage_service(
     )
 
 
+def get_design_moderator(
+    resources: ProductApiResources = Depends(get_resources),
+    session: ClientSession = Depends(get_http_session),
+) -> OpenRouterDesignModerator:
+    return OpenRouterDesignModerator(session=session, settings=resources.settings, logger=resources.logger)
+
+
 def get_image_generation_service(
     resources: ProductApiResources = Depends(get_resources),
     openrouter_client: OpenRouterClient = Depends(get_openrouter_client),
     quota_service: GenerationQuotaService = Depends(get_generation_quota_service),
     job_store: ImageJobStore = Depends(get_image_job_store),
     storage_service: ImageStorageService = Depends(get_image_storage_service),
+    moderator: OpenRouterDesignModerator = Depends(get_design_moderator),
 ) -> ImageGenerationService:
     return ImageGenerationService(
         openrouter_client=openrouter_client,
@@ -173,6 +183,8 @@ def get_image_generation_service(
         job_store=job_store,
         storage_service=storage_service,
         background_remover=RembgBackgroundRemover(settings=resources.settings, logger=resources.logger),
+        moderator=moderator,
+        refusal_log=DatabaseDesignRefusalLog(resources.database),
         settings=resources.settings,
         logger=resources.logger,
     )

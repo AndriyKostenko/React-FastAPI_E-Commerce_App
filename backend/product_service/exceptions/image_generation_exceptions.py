@@ -30,6 +30,20 @@ class ImageGenerationLimitExceededError(BaseAPIException):
         )
 
 
+class DesignRefusedError(BaseAPIException):
+    """A moderation check refused the design; the detail names the rule broken."""
+
+    def __init__(self, detail: str):
+        super().__init__(status_code=422, detail=detail)
+
+
+class DesignCheckUnavailableError(BaseAPIException):
+    """The design could not be checked, so it was not produced (fail closed)."""
+
+    def __init__(self, detail: str = "We couldn't check your design just now. Please try again in a moment."):
+        super().__init__(status_code=503, detail=detail)
+
+
 class ImageGenerationJobNotFoundError(BaseAPIException):
     def __init__(self):
         super().__init__(status_code=404, detail="Image generation job not found or expired")

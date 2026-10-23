@@ -1,9 +1,11 @@
 from aiohttp import ClientSession
-from resources import create_cache_manager, logger, settings
+from resources import create_cache_manager, create_database_manager, logger, settings
 from service_layer.image_generation_service import ImageGenerationService
 from service_layer.image_generation_quota import GenerationQuotaService
 from service_layer.image_job_store import ImageJobStore
 from service_layer.openrouter_client import OpenRouterClient
+from service_layer.openrouter_design_moderator import OpenRouterDesignModerator
+from service_layer.design_refusal_log import DatabaseDesignRefusalLog
 from service_layer.image_storage_service import ImageStorageService
 from service_layer.background_removal_service import RembgBackgroundRemover
 from storage.object_storage_provider import get_object_storage_provider
@@ -24,9 +26,11 @@ async def generate_image_task(job_id: str,
     lost if the worker crashes mid-generation.
 
     A fresh aiohttp session is opened for each task so the worker process
-    does not share connection-pool state with the API process.
+    does not share connection-pool state with the API process. The database
+    is used only to keep a refused design's record.
     """
     cache = create_cache_manager()
+    database = create_database_manager()
     try:
         await cache.connect()
         async with ClientSession() as session:
@@ -51,6 +55,8 @@ async def generate_image_task(job_id: str,
                     store=get_object_storage_provider().private(),
                 ),
                 background_remover=RembgBackgroundRemover(settings=settings, logger=logger),
+                moderator=OpenRouterDesignModerator(session=session, settings=settings, logger=logger),
+                refusal_log=DatabaseDesignRefusalLog(database),
                 settings=settings,
                 logger=logger,
             )
@@ -61,4 +67,7 @@ async def generate_image_task(job_id: str,
                 remove_background=remove_background
             )
     finally:
-        await cache.close()
+        try:
+            await cache.close()
+        finally:
+            await database.close()

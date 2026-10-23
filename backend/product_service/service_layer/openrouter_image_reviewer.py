@@ -1,12 +1,10 @@
 """Asks an OpenRouter vision model whether a supplier photo clearly shows the print."""
 
 import base64
-import json
 from logging import Logger
-from typing import Any
 
-from aiohttp import ClientError, ClientSession, ClientTimeout
-from pydantic import BaseModel, Field, ValidationError, model_validator
+from aiohttp import ClientSession
+from pydantic import BaseModel, Field, JsonValue, model_validator
 from service_layer.catalogue_image_fetcher import (
     CatalogueImageFetcher,
     CatalogueImageFetchError,
@@ -15,6 +13,10 @@ from service_layer.image_review import (
     ImageReview,
     ImageReviewUnavailableError,
     ImageVerdict,
+)
+from service_layer.openrouter_structured_chat import (
+    OpenRouterStructuredChat,
+    StructuredAnswerUnavailableError,
 )
 from settings import Settings
 
@@ -69,7 +71,7 @@ class OpenRouterImageReviewer:
         "Always give a short reason (one sentence) for the decision."
     )
 
-    _SCHEMA: dict[str, Any] = {
+    _SCHEMA: dict[str, JsonValue] = {
         "type": "object",
         "properties": {
             "shows_print": {"type": "boolean"},
@@ -87,16 +89,21 @@ class OpenRouterImageReviewer:
         settings: Settings,
         logger: Logger,
     ) -> None:
-        self._session = session
         self._fetcher = fetcher
-        self._settings = settings
-        self._logger = logger
-        self._model = settings.OPENROUTER_REVIEW_MODEL
-        self._timeout = ClientTimeout(total=settings.OPENROUTER_REVIEW_TIMEOUT_SECONDS)
+        self._chat = OpenRouterStructuredChat(
+            session,
+            settings,
+            logger,
+            model=settings.OPENROUTER_REVIEW_MODEL,
+            timeout_seconds=settings.OPENROUTER_REVIEW_TIMEOUT_SECONDS,
+            purpose="review",
+        )
 
     async def review(self, image_url: str, product_name: str) -> ImageReview:
-        if not self._settings.OPENROUTER_API_KEY:
-            raise ImageReviewUnavailableError("OPENROUTER_API_KEY is not configured")
+        try:
+            self._chat.require_key()
+        except StructuredAnswerUnavailableError as error:
+            raise ImageReviewUnavailableError(str(error)) from error
         try:
             fetched = await self._fetcher.fetch(image_url)
         except CatalogueImageFetchError as error:
@@ -104,7 +111,10 @@ class OpenRouterImageReviewer:
                 f"photo could not be fetched: {error}"
             ) from error
         data_url = f"data:{fetched.image.content_type};base64,{base64.b64encode(fetched.content).decode('ascii')}"
-        body = await self._post(self._payload(data_url, product_name))
+        try:
+            body = await self._chat.post(self._payload(data_url, product_name))
+        except StructuredAnswerUnavailableError as error:
+            raise ImageReviewUnavailableError(str(error)) from error
         answer = self._parse(body)
         return ImageReview(
             verdict=ImageVerdict.APPROVED
@@ -112,15 +122,12 @@ class OpenRouterImageReviewer:
             else ImageVerdict.REJECTED,
             reason=answer.reason,
             description=answer.description if answer.shows_print else None,
-            model=self._model,
+            model=self._chat.model,
         )
 
-    def _payload(self, data_url: str, product_name: str) -> dict[str, Any]:
-        return {
-            "model": self._model,
-            "temperature": 0,
-            "stream": False,
-            "messages": [
+    def _payload(self, data_url: str, product_name: str) -> dict[str, JsonValue]:
+        return self._chat.payload(
+            [
                 {"role": "system", "content": self.SYSTEM_PROMPT},
                 {
                     "role": "user",
@@ -135,76 +142,13 @@ class OpenRouterImageReviewer:
                     ],
                 },
             ],
-            "response_format": {
-                "type": "json_schema",
-                "json_schema": {
-                    "name": "print_review",
-                    "strict": True,
-                    "schema": self._SCHEMA,
-                },
-            },
-        }
-
-    async def _post(self, payload: dict[str, Any]) -> dict[str, Any]:
-        headers = {
-            "Authorization": f"Bearer {self._settings.OPENROUTER_KEY}",
-            "Content-Type": "application/json",
-            "HTTP-Referer": self._settings.FRONTEND_URL,
-            "X-OpenRouter-Title": self._settings.WEBSITE_NAME,
-        }
-        endpoint = f"{self._settings.OPENROUTER_BASE_URL.rstrip('/')}/chat/completions"
-        try:
-            async with self._session.post(
-                endpoint, headers=headers, json=payload, timeout=self._timeout
-            ) as response:
-                raw = await response.text()
-                if response.status >= 400:
-                    # The body is the provider's error; the photo is not in it.
-                    self._logger.warning(
-                        "OpenRouter review failed (HTTP %s): %s",
-                        response.status,
-                        raw[:500],
-                    )
-                    raise ImageReviewUnavailableError(
-                        f"OpenRouter answered HTTP {response.status}"
-                    )
-        except (ClientError, TimeoutError) as error:
-            raise ImageReviewUnavailableError(
-                f"OpenRouter could not be reached: {error!r}"
-            ) from error
-        try:
-            body = json.loads(raw)
-        except json.JSONDecodeError as error:
-            raise ImageReviewUnavailableError(
-                "OpenRouter answered with something other than JSON"
-            ) from error
-        if not isinstance(body, dict):
-            raise ImageReviewUnavailableError(
-                "OpenRouter answered with an unexpected shape"
-            )
-        return body
+            "print_review",
+            self._SCHEMA,
+        )
 
     @staticmethod
-    def _parse(body: dict[str, Any]) -> _ModelAnswer:
+    def _parse(body: dict[str, JsonValue]) -> _ModelAnswer:
         try:
-            content = body["choices"][0]["message"]["content"]
-        except (KeyError, IndexError, TypeError) as error:
-            raise ImageReviewUnavailableError(
-                "OpenRouter's answer has no message"
-            ) from error
-        if not isinstance(content, str):
-            raise ImageReviewUnavailableError("OpenRouter's message is not text")
-        # Some models wrap JSON in a markdown fence even when a schema is given.
-        text = (
-            content.strip()
-            .removeprefix("```json")
-            .removeprefix("```")
-            .removesuffix("```")
-            .strip()
-        )
-        try:
-            return _ModelAnswer.model_validate_json(text)
-        except ValidationError as error:
-            raise ImageReviewUnavailableError(
-                f"the model's answer does not fit the schema: {error.errors()[0]['msg']}"
-            ) from error
+            return OpenRouterStructuredChat.parse(body, _ModelAnswer)
+        except StructuredAnswerUnavailableError as error:
+            raise ImageReviewUnavailableError(str(error)) from error

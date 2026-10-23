@@ -23,6 +23,7 @@ ADMIN_TABLES: dict[str, Services] = {
     "orders": Services.ORDER_SERVICE,
     "refunds": Services.ORDER_SERVICE,
     "order-items": Services.ORDER_SERVICE,
+    "design-refusals": Services.PRODUCT_SERVICE,
     "cj-orders": Services.SUPPLIER_SERVICE,
     "supplier-syncs": Services.SUPPLIER_SERVICE,
     "supplier-configs": Services.SUPPLIER_SERVICE,

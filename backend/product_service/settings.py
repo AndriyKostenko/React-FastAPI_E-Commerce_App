@@ -167,6 +167,13 @@ class Settings(BaseSettings):
     # Reviews of one import batch run this many at a time, before the batch's
     # transaction opens.
     SUPPLIER_IMAGE_REVIEW_CONCURRENCY: int = Field(default=4, ge=1, le=16)
+    # The model that checks a customer's design twice: the request before it
+    # is drawn, and the image before it is stored and signed
+    # (OpenRouterDesignModerator). No answer means no design.
+    OPENROUTER_MODERATION_MODEL: str = "google/gemini-2.5-flash"
+    OPENROUTER_MODERATION_TIMEOUT_SECONDS: float = Field(default=30.0, gt=0, le=300)
+    # The image check sees the design scaled down to this many pixels a side.
+    DESIGN_MODERATION_IMAGE_MAX_PX: int = Field(default=1024, ge=256, le=4096)
     # Generation is for signed-in users only; each gets this many per window.
     PRODUCT_IMAGE_GENERATION_LIMIT: int = 10
     PRODUCT_IMAGE_GENERATION_WINDOW_HOURS: int = 24
