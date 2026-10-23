@@ -383,7 +383,10 @@ class ProductionQueueService:
         self.state_machine.ensure(job.id, job.job_status, target)
         await self._apply_status(job, target, parcel)
         if notes:
-            job.notes = f"{job.notes}\n{notes}" if job.notes else notes
+            # Every step may add a note (holds can repeat), so the oldest go
+            # first once the column is full: the latest are what the operator needs.
+            combined = f"{job.notes}\n{notes}" if job.notes else notes
+            job.notes = combined[-CustomProductionJob.NOTES_MAX_LENGTH:]
         return job
 
     async def _apply_status(

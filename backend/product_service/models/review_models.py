@@ -2,7 +2,7 @@ from uuid import uuid4, UUID
 from typing import Any, TYPE_CHECKING, override
 
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import ForeignKey, Index
+from sqlalchemy import CheckConstraint, ForeignKey, Index, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 from sqlalchemy.inspection import inspect
 
@@ -18,7 +18,11 @@ if TYPE_CHECKING:
 class ProductReview(Base, TimestampMixin):
     __tablename__: str = 'product_reviews'
 
-    __table_args__: tuple[Index, ...] = (
+    __table_args__: tuple[Index | CheckConstraint | UniqueConstraint, ...] = (
+        # One review per product per customer: the service checks first, this
+        # settles two submitted at the same moment.
+        UniqueConstraint('product_id', 'user_id', name='uq_product_review_product_user'),
+        CheckConstraint('rating >= 0 AND rating <= 5', name='ck_product_reviews_rating'),
         Index('idx_product_review_user_id',     'user_id'),
         Index('idx_product_review_product_id',  'product_id'),
         # Composite: aggregating avg rating per product needs (product_id, rating) together
@@ -30,7 +34,8 @@ class ProductReview(Base, TimestampMixin):
     id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4)
     user_id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), nullable=False)
     product_id: Mapped[UUID] = mapped_column(ForeignKey('products.id'), nullable=False)
-    comment: Mapped[str] = mapped_column(nullable=True)
+    # REVIEW_COMMENT_MAX_LENGTH (schemas.review_schemas).
+    comment: Mapped[str] = mapped_column(String(5000), nullable=True)
     rating: Mapped[float] = mapped_column(nullable=True)
 
 

@@ -5,11 +5,20 @@ Uses a real PostgreSQL test database (PRODUCT_SERVICE_TEST_DB).
 A category and product are created first (FK dependencies) before each
 review test. Every test starts with a clean database.
 """
-from uuid import uuid4
+import asyncio
+from uuid import UUID, uuid4
 
 import pytest
 from fastapi import status
 from httpx import AsyncClient
+from sqlalchemy.exc import IntegrityError
+
+from database_layer.review_repository import ReviewRepository
+from exceptions.review_exceptions import ReviewAlreadyExistsError
+from infrastructure.managers.test_database_session_manager import TestDatabaseSessionManager
+from models.review_models import ProductReview
+from schemas.review_schemas import CreateReview, ReviewSchema
+from service_layer.review_service import ReviewService
 
 TEST_API = "/api/v1"
 
@@ -102,6 +111,39 @@ class TestCreateReview:
         response = await _create_review(integration_client, product["id"], user_id)
         assert response.status_code == status.HTTP_409_CONFLICT
 
+    async def test_two_reviews_sent_together_keep_one_and_refuse_the_other(
+        self, integration_client: AsyncClient, test_database_session_manager: TestDatabaseSessionManager
+    ):
+        _, product = await _setup_product(integration_client)
+        product_id, user_id = UUID(product["id"]), uuid4()
+
+        async def review() -> ReviewSchema:
+            async with test_database_session_manager.transaction() as session:
+                created = await ReviewService(ReviewRepository(session)).create_product_review(
+                    user_id, product_id, CreateReview(comment="Soft", rating=5)
+                )
+                # Held open, so the other one checks for a review before this one commits.
+                await asyncio.sleep(0.2)
+                return created
+
+        results = await asyncio.gather(review(), review(), return_exceptions=True)
+
+        assert sum(isinstance(result, ReviewSchema) for result in results) == 1
+        # The loser is told it already reviewed, not given a database error.
+        assert sum(isinstance(result, ReviewAlreadyExistsError) for result in results) == 1
+        listed = await integration_client.get(f"{TEST_API}/products/{product_id}/reviews")
+        assert len(listed.json()) == 1
+
+    async def test_the_database_refuses_a_rating_outside_0_to_5(
+        self, integration_client: AsyncClient, test_database_session_manager: TestDatabaseSessionManager
+    ):
+        _, product = await _setup_product(integration_client)
+
+        with pytest.raises(IntegrityError, match="ck_product_reviews_rating"):
+            async with test_database_session_manager.transaction() as session:
+                session.add(ProductReview(product_id=UUID(product["id"]), user_id=uuid4(), rating=6))
+                await session.flush()
+
     async def test_create_review_invalid_rating_returns_422(
         self, integration_client: AsyncClient
     ):
@@ -110,7 +152,7 @@ class TestCreateReview:
             f"{TEST_API}/products/{product['id']}/users/{uuid4()}/reviews",
             json={"comment": "Bad rating", "rating": 10.0},  # > 5
         )
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
 
 # ===========================================================================

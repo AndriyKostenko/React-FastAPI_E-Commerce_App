@@ -4,6 +4,7 @@ from uuid import uuid4
 import pytest
 from httpx import AsyncClient
 
+from service_layer.wishlist_service import WishlistService
 from service_test_config import test_settings
 
 
@@ -81,3 +82,20 @@ class TestRemoveItemFromWishlistIntegration:
         )
 
         assert response.status_code == 404
+
+
+class TestWishlistLimitIntegration:
+    async def test_a_wishlist_holds_at_most_200_products(self, integration_client: AsyncClient) -> None:
+        items_url = f"{test_settings.API}/wishlists/me/items"
+        held = [uuid4() for _ in range(WishlistService.MAX_ITEMS_PER_WISHLIST)]
+        for product_id in held:
+            assert (await integration_client.post(items_url, json=_add_item_payload(product_id))).status_code == 200
+
+        refused = await integration_client.post(items_url, json=_add_item_payload(uuid4()))
+        assert refused.status_code == 409
+        assert "up to 200" in refused.json()["detail"]
+
+        # Adding one it already holds changes nothing, so it is not refused.
+        again = await integration_client.post(items_url, json=_add_item_payload(held[0]))
+        assert again.status_code == 200
+        assert len(again.json()["items"]) == WishlistService.MAX_ITEMS_PER_WISHLIST

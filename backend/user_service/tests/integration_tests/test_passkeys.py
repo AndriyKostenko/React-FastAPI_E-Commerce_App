@@ -16,7 +16,10 @@ from webauthn.helpers import bytes_to_base64url
 from main import app
 from managers import ResourceManager, UserApiResources, settings
 from models.user_models import User
+from models.webauthn_credential_models import WebAuthnCredential
+from schemas.user_schemas import WEBAUTHN_CREDENTIAL_MAX_BYTES
 from service_layer.passkey_ceremony_store import PasskeyCeremonyStore
+from service_layer.passkey_service import PasskeyService
 from service_layer.session_issuer import SessionIssuer
 from contracts.auth import AuthMethod
 from infrastructure.managers.cache_manager import CacheManager
@@ -127,6 +130,30 @@ async def test_enrolment_registers_the_passkey_and_spends_the_link(
     # Single use: the same link cannot register a second passkey.
     again = await integration_client.post(f"{API}/passkeys/enrolment/options", json={"token": token})
     assert again.status_code == 401
+
+
+async def test_an_admin_with_ten_passkeys_cannot_start_another_enrolment(
+    integration_client: AsyncClient, admin_id: UUID, test_database_session_manager: TestDatabaseSessionManager
+) -> None:
+    async with test_database_session_manager.transaction() as session:
+        session.add_all(
+            WebAuthnCredential(
+                user_id=admin_id,
+                credential_id=f"credential-{index}".encode(),
+                public_key=b"public-key",
+                sign_count=0,
+                transports=["internal"],
+                aaguid="00000000-0000-0000-0000-000000000000",
+                name=f"Device {index}",
+            )
+            for index in range(PasskeyService.MAX_PASSKEYS_PER_ADMIN)
+        )
+    token = await _ceremonies().issue_enrolment_token(admin_id)
+
+    response = await integration_client.post(f"{API}/passkeys/enrolment/options", json={"token": token})
+
+    assert response.status_code == 409
+    assert "up to 10 passkeys" in response.json()["detail"]
 
 
 async def test_enrolment_without_user_verification_is_refused_and_keeps_the_link(
@@ -242,6 +269,25 @@ async def test_a_signed_answer_cannot_be_replayed(integration_client: AsyncClien
         f"{API}/login/passkey/verify", json={"challenge_id": started["challenge_id"], "credential": answer}
     )
     assert replay.status_code == 401
+
+
+async def test_an_oversized_credential_is_refused_and_leaves_the_challenge_unspent(
+    integration_client: AsyncClient, enrolled: SoftwareAuthenticator
+) -> None:
+    started = await _start_sign_in(integration_client)
+    answer = enrolled.get(started["options"])
+    padded = {**answer, "clientExtensionResults": {"padding": "x" * (WEBAUTHN_CREDENTIAL_MAX_BYTES + 1)}}
+
+    refused = await integration_client.post(
+        f"{API}/login/passkey/verify", json={"challenge_id": started["challenge_id"], "credential": padded}
+    )
+    assert refused.status_code == 422
+
+    # Refused before the ceremony looked at it, so the genuine answer still signs in.
+    genuine = await integration_client.post(
+        f"{API}/login/passkey/verify", json={"challenge_id": started["challenge_id"], "credential": answer}
+    )
+    assert genuine.status_code == 200, genuine.text
 
 
 async def test_sign_in_without_user_verification_is_refused(

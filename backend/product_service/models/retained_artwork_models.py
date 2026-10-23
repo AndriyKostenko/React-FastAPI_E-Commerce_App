@@ -6,6 +6,7 @@ from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from models.base import Base
+from infrastructure.database_layer.clipped_string import ClippedString
 from infrastructure.utils.models_mixins import TimestampMixin
 
 
@@ -34,7 +35,7 @@ class RetainedArtwork(Base, TimestampMixin):
     released_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
-    release_reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    release_reason: Mapped[str | None] = mapped_column(ClippedString(500), nullable=True)
 
     @property
     def is_active(self) -> bool:

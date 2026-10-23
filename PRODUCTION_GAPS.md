@@ -85,8 +85,8 @@ or recorded as decided. Merged so far: PR #41 (readiness, phases 2–5) and PR #
 **Backend and platform (decided, not started)**
 
 - Per-service Redis and RabbitMQ users (postponed in favour of deploying first).
-- Dependency upgrades (the 35–169 advisories per service, and the critical `proxy-addr`
-  in admin-js); then make the audit blocking.
+- ~~Dependency upgrades, then make the audit blocking~~ (done 2026-10-23, §1: every
+  lock file clean, the CI audit blocking, 4 TinyMCE advisories allowed in admin-js).
 - AI content moderation, GDPR and retention (see §5 and §8). The legal pages are done
   (2026-10-18, below), pending a lawyer's review.
 
@@ -415,8 +415,74 @@ Backend:
    replaces CJ's. The OpenRouter client already exists in product-service.
 4. **Limits on every database model**: maximum lengths and sizes, how many rows or
    items are accepted, and any other restriction that makes sense, in every service.
+   **Done 2026-10-21** (after item 5, on the same branch).
+   - Every string column now has a length: the widest any request schema that writes
+     it allows (`contracts.limits`), and above the longest value stored locally
+     (measured first; the tightest was `products.description` at its 2,000). Money
+     columns have a fixed precision (`Numeric(10, 2)`; CJ's USD costs `Numeric(12, 4)`,
+     weights `Numeric(12, 3)`, so nothing stored was rounded). CHECK constraints cover
+     quantities (an order or cart line 1–99), prices and amounts (never negative,
+     a product's price above 0), ratings (0–5), counters and attempts, a product's
+     option names (5), a return's lines and photos, a refund's lines, a sync batch's
+     errors, a shipping method's days and a supplier's sync interval.
+   - Fixed on the way: `users.email` was VARCHAR(100) while sign-up accepts any valid
+     address (up to 254), so a long one was a 500; it is 320 now. A checkout's currency
+     must be three letters (it is stored as three).
+   - Text a service writes from what happened (error messages, reasons taken from
+     events, notification messages) is stored through `ClippedString`
+     (`infrastructure/database_layer/clipped_string.py`): cut to the column, never a
+     failed write that loses the row. A production job's notes keep the newest 10,000
+     characters, since every hold adds one.
+   - Rows per owner: 10 saved addresses (already), 10 passkeys per admin, 50 lines per
+     cart, 200 products per wishlist, one review per product per customer (now also a
+     UNIQUE constraint, so two sent together give one review and a 409). Each answers
+     409 naming the limit, and locks the owner's row first so two requests cannot both
+     pass. Adding more of a product the cart holds past 99 is refused with a 409; the
+     line keeps its quantity.
+   - One migration per service (`*_bounded_columns.py`, eight services; wishlist has
+     no column to bound). Alembic's autogenerate does not see an unbounded VARCHAR
+     becoming VARCHAR(n), so the migrations were written from a diff of the models
+     against the live databases; each was applied, rolled back and applied again on
+     the local data, and `alembic check` is clean.
+   - Tests, all on the real test databases: cart (99 per line, 50 lines, the database's
+     own CHECK), wishlist (200), passkeys (10), reviews (two at once, the rating CHECK),
+     a clipped notification message, and production notes past 10,000.
 5. **Limits on every Pydantic model**: types, lengths, ranges and how many items are
-   accepted, so that every API input and event payload is bounded.
+   accepted, so that every API input and event payload is bounded. **Done 2026-10-21.**
+   - One vocabulary of bounds, `contracts/limits.py`, the same copy in the nine services
+     that use it: codes 64 characters, identifiers 255, names 500, URLs 2048, tokens
+     4096, free text 5000, a supplier's HTML description 100,000; 99 units and 50 lines
+     per order, 1,000 variants and 100 images per product, 1,000 products or stock
+     levels per supplier event, 100 keys per free-form object. Each sits well above the
+     local catalogue (longest product name 137, variant name 151, image URL 103; at most
+     120 variants and 30 images on a product). Schemas narrow them where a field has a
+     rule of its own (an address field is bounded as the account's address book bounds it).
+   - API inputs past a bound get a 422 before the handler runs: request bodies, query,
+     form, path and header parameters in every service. Among them: checkout addresses
+     (were unbounded), the sign-in form (`PasswordSignInForm`, OAuth2's form with bounded
+     fields), passkey answers (64 KB of JSON), Google and refresh tokens, cart lines,
+     product create/update/upload forms, shipping methods, the CJ webhook's stock push,
+     page offsets, and the notification list's `sort_by`/`sort_order`, which went
+     straight to `getattr()` on the model (`sort_by=metadata` was a 500).
+   - Events: identifiers, numbers and lists are refused past a bound; free text
+     (reasons, error messages) is clipped instead (`ClippedText`), so an over-long
+     exception message cannot stop an event, and the saga step publishing it. A subclass
+     that re-annotates a field drops the base's bound, so every `event_type`/`service`
+     override is bounded too. A supplier product past a bound is skipped with an error
+     line, as any product that fails to map is, and the rest of the batch imports.
+   - `backend/ci/check_copies.py` now also compares every contract class across the
+     services that carry it (enums aside, which are trimmed per service), so a model
+     edited in one copy only fails CI. The production edge already caps a request body
+     at 12 MB (Traefik `maxRequestBodyBytes`).
+   - Left alone on purpose: response models (a bound there turns stored data into a
+     500), the signed JWT claims (`TokenClaims`), and schemas no route uses.
+   - Found for item 4: adding the same product to the cart twice adds the quantities,
+     so a line could pass 99 though each request is bounded (fixed in item 4); admin
+     `GET /orders` returns every order unpaged (still open).
+   - Tests: `test_contract_limits.py` (order-service) and
+     `test_supplier_contract_limits.py` (product-service) for events; `test_input_limits.py`
+     (order-service) and new cases in the user, product, cart, notification and CJ
+     webhook route tests for the 422s, all against the real apps and test databases.
 
 **Decisions taken (recorded so they are not re-opened)**
 
@@ -443,9 +509,8 @@ Code work:
   (§8.7).
 - **AI content moderation**: none; unscreened designs can reach the printer (§5).
 - **GDPR / audit / retention**: only account deletion exists (§5).
-- **Dependency vulnerabilities**: 35–169 advisories in 8–16 packages per
-  service (pip-audit); admin-js 69 (npm, one critical, `proxy-addr`); CI
-  reports them as warnings until an upgrade PR lands (§1).
+- ~~**Dependency vulnerabilities**~~: done 2026-10-23 (§1). pip-audit is clean
+  everywhere and the CI audit is blocking.
 - **Deployment phases 2–6**, which include backups / DR and automatic rollback
   (§1).
 
@@ -518,9 +583,51 @@ k6 load tests, Alembic per service. The large `shared/` refactor called out in
   fastapi-mail), several behind exact pins in `pyproject.toml`. npm
   (production dependencies): admin-js 69 (2 low, 43 moderate, 23 high, 1
   critical, `proxy-addr` through express); the frontend 1 moderate (`qs`),
-  its critical `next` advisory gone with the Dependabot bump (#28). The CI
-  audit job reports them as warnings and stays green until an upgrade PR
-  lands; then `AUDIT_BLOCKING: "true"` in `ci.yml` makes it fail on them.
+  its critical `next` advisory gone with the Dependabot bump (#28).
+  **Done 2026-10-23** (branch `chore/dependency-upgrades`, off main). By then
+  the counts had grown to 37–209 advisories per service.
+  - Python: every lock file is clean under pip-audit. Five services (cart,
+    product, shipping, supplier, wishlist) pinned an old full freeze in
+    `pyproject.toml` (`starlette==0.46.2`, `cryptography==45.0.4`,
+    `aiohttp==3.12.11`, and `ecdsa` / `rsa` / `pyasn1` left from python-jose).
+    Those pins are gone: 31 pins of transitive or unused packages dropped (nothing
+    imports them; `ecdsa`'s advisory has no fixed release), the rest became
+    lower bounds like the other services'. `aiohttp` stays only where it is
+    imported (product, wishlist), and `pillow` only in product and user. Every
+    direct dependency that had an advisory now has its fixed release as its
+    floor. The lock files moved only the flagged packages and what they need:
+    FastAPI 0.136 → 0.161 with Starlette 0.46–0.52 → 1.9 (none of the APIs
+    Starlette 1.0 removed are used), cryptography 50, Pillow 10 → 13,
+    aiohttp 3.14.5, python-multipart 0.0.32, fastapi-mail 1.6.8 (aiosmtplib
+    5), OpenTelemetry 1.45 / 0.66b1 and prometheus-fastapi-instrumentator 8.
+  - fastapi-mail 1.6 parses recipients into `NameEmail`, so two notification
+    tests compare `.email` now. The `To` header gains a display name taken
+    from the address (`jane <jane@…>`); the sending code is unchanged.
+    `HTTP_422_UNPROCESSABLE_ENTITY` became `HTTP_422_UNPROCESSABLE_CONTENT`.
+  - npm: `npm audit fix` (no `--force`) in both apps; admin-js adds an
+    override, `serialize-javascript` ^7 (used by `@rollup/plugin-terser`
+    when AdminJS bundles its components). admin-js has 40 moderate packages and
+    1 high left, all from the newest AdminJS. The high one is `tinymce` 6
+    (4 high advisories), whose only fixed releases (7.9.3+) are GPL. The npm copy is
+    never served: AdminJS loads TinyMCE from its own CDN URL, and only for a
+    `richtext` property, which no admin-js resource has (**do not add one**).
+    The frontend has none left.
+  - CI's audit job is blocking. pip-audit fails on any advisory;
+    `backend/ci/npm_audit_gate.py` fails on any high or critical one in
+    production dependencies, except those allowed per app with the reason
+    (the 4 TinyMCE ones). It warns when an allowed advisory stops appearing,
+    and fails when `npm audit` itself could not run.
+  - Checked: all ten suites pass through `dev.sh test` (2,155 tests); the
+    frontend's lint, `tsc`, unit and component tests pass; admin-js compiles
+    and bundles. Live, with the whole stack up on the new versions: every
+    service is ready and serves `/docs`, `/openapi.json` and `/metrics`; the
+    gateway answers the public catalogue routes, 422 on bad input and 401
+    on the anonymous cart; the frontend home page and the AdminJS login page
+    load; and notification-service's real `FastMail` sent a verification
+    email to a scratch Mailpit.
+  - Not covered: admin-js `npm run lint` fails on `main` as well (386 errors,
+    unrelated); a 422 is logged at ERROR as "Session rollback due to
+    exception" (since September, not from this upgrade).
 - **Plan decided (2026-10-12): see "Deployment plan" at the end of this section.**
 - [x] **`order_service` Alembic setup — DONE (2026-09-09).** It was the only one
       of the nine services without migrations, while relying on `init_db`/`create_all`,
@@ -685,7 +792,7 @@ monitoring stack all run on the host** (not RDS / SSM / Amplify / CloudWatch).
        both compose files resolving;
      - frontend type check and production build, admin-js type check;
      - gitleaks on the commits a change adds; pip-audit and `npm audit`
-       (report-only, see above);
+       (blocking since 2026-10-23, see above);
      - `.github/workflows/codeql.yml`: CodeQL for Python and TypeScript on
        pull requests, `main` and weekly; `.github/dependabot.yml`: weekly,
        grouped updates for actions, the ten uv projects and both npm apps.

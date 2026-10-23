@@ -1,6 +1,6 @@
 from uuid import UUID, uuid4
 
-from sqlalchemy import Index, String, UniqueConstraint
+from sqlalchemy import CheckConstraint, Index, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -16,6 +16,7 @@ class InventoryReservation(Base, TimestampMixin):
         UniqueConstraint("order_id", "line_key", name="uq_inventory_order_line"),
         Index("idx_inventory_reservation_order", "order_id"),
         Index("idx_inventory_reservation_status", "status"),
+        CheckConstraint("quantity > 0", name="ck_inventory_reservations_quantity"),
     )
 
     id: Mapped[UUID] = mapped_column(

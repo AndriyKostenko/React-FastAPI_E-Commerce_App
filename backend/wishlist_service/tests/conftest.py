@@ -137,6 +137,10 @@ def mock_wishlist_repository() -> MagicMock:
     repo.get_wishlist_by_user_id = AsyncMock()
     repo.create = AsyncMock()
     repo.add_item = AsyncMock()
+    # An empty wishlist by default; the limit is tested on the real database.
+    repo.lock_wishlist = AsyncMock()
+    repo.holds = AsyncMock(return_value=False)
+    repo.count_items = AsyncMock(return_value=0)
     repo.remove_item = AsyncMock()
     repo.delete_wishlist_by_user_id = AsyncMock()
     repo.session = MagicMock()

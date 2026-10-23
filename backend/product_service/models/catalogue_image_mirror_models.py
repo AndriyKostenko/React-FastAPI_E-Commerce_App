@@ -2,11 +2,12 @@ from datetime import datetime
 from enum import StrEnum
 from uuid import UUID, uuid4
 
-from sqlalchemy import CheckConstraint, DateTime, Index, Integer, String, Text
+from sqlalchemy import CheckConstraint, DateTime, Index, Integer, String
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from models.base import Base
+from infrastructure.database_layer.clipped_string import ClippedString
 from infrastructure.utils.models_mixins import TimestampMixin
 
 
@@ -33,16 +34,17 @@ class CatalogueImageMirror(Base, TimestampMixin):
             "status IN ('pending', 'mirrored', 'failed')",
             name="ck_catalogue_image_mirrors_status",
         ),
+        CheckConstraint("size_bytes >= 0 AND attempts >= 0", name="ck_catalogue_image_mirrors_counts"),
     )
 
     id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4)
-    source_url: Mapped[str] = mapped_column(Text, nullable=False)
+    source_url: Mapped[str] = mapped_column(String(2048), nullable=False)
     status: Mapped[str] = mapped_column(String(16), nullable=False, default=MirrorStatus.PENDING)
     object_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
     content_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
     size_bytes: Mapped[int | None] = mapped_column(Integer, nullable=True)
     sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
     attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    last_error: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    last_error: Mapped[str | None] = mapped_column(ClippedString(1000), nullable=True)
     last_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     mirrored_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

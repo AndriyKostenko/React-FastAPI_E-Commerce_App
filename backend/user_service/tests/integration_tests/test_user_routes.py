@@ -181,7 +181,7 @@ class TestUserRegister:
         self, integration_client: AsyncClient, count_outbox_events
     ):
         response = await _register(integration_client, email="someone@mailinator.com")
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
         assert response.json()["errors"] == [{
             "field": "email",
             "message": "Disposable email addresses can't be used. Please use a permanent address.",
@@ -195,7 +195,7 @@ class TestUserRegister:
             f"{test_settings.API}/register",
             json={"name": test_settings.TEST_NAME, "email": 1, "password": test_settings.TEST_PASSWORD},
         )
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     async def test_register_missing_password_returns_422(
         self, integration_client: AsyncClient
@@ -204,7 +204,7 @@ class TestUserRegister:
             f"{test_settings.API}/register",
             json={"name": test_settings.TEST_NAME, "email": test_settings.TEST_EMAIL},
         )
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     async def test_register_short_password_returns_422(
         self, integration_client: AsyncClient
@@ -213,7 +213,7 @@ class TestUserRegister:
             f"{test_settings.API}/register",
             json={"name": test_settings.TEST_NAME, "email": test_settings.TEST_EMAIL, "password": "short"},
         )
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
 
 # ===========================================================================
@@ -310,6 +310,33 @@ class TestLoginEndpoint:
         response = await _login(integration_client)
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
+    @pytest.mark.parametrize(
+        "form",
+        [
+            {"username": "a" * 310 + "@example.com"},
+            {"password": "p" * 101},
+            {"grant_type": "client_credentials"},
+            {"scope": "s" * 1001},
+        ],
+        ids=["username", "password", "grant-type", "scope"],
+    )
+    async def test_a_sign_in_form_field_past_its_bound_is_refused(
+        self, integration_client: AsyncClient, get_outbox_event, form: dict
+    ):
+        await _setup_verified_user(integration_client, get_outbox_event)
+        data = {
+            "username": test_settings.TEST_EMAIL,
+            "password": test_settings.TEST_PASSWORD,
+            "captcha_token": test_settings.CAPTCHA_TOKEN,
+            **form,
+        }
+
+        response = await integration_client.post(f"{test_settings.API}/login", data=data)
+
+        # Refused while the form is read: no password is checked, no session issued.
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert await get_outbox_event(UserEvents.USER_LOGGED_IN) is None
+
     async def test_login_without_the_verification_is_refused_before_the_password_is_checked(
         self, integration_client: AsyncClient, get_outbox_event
     ):
@@ -328,7 +355,7 @@ class TestLoginEndpoint:
             f"{test_settings.API}/login",
             data={"username": test_settings.TEST_EMAIL},
         )
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
 
 # ===========================================================================
@@ -745,7 +772,7 @@ class TestGetUserByIdEndpoint:
         self, integration_client: AsyncClient
     ):
         response = await integration_client.get(f"{test_settings.API}/users/not-a-uuid")
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
 
 # ===========================================================================
@@ -798,7 +825,7 @@ class TestGetAllUsersEndpoint:
     ):
         # limit must be > 0 and <= 100
         response = await integration_client.get(f"{test_settings.API}/users", params={"limit": 0})
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
 
 # ===========================================================================
@@ -837,7 +864,7 @@ class TestUpdateUserEndpoint:
             f"{test_settings.API}/users/{user_data['id']}",
             json={"name": "x"},
         )
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
 
 # ===========================================================================

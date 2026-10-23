@@ -3,11 +3,12 @@ from decimal import Decimal
 from typing import Any, override
 from uuid import UUID, uuid4
 
-from sqlalchemy import DateTime, ForeignKey, Index, Numeric, String, inspect
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, Numeric, String, inspect
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 
 from models.base import Base
+from infrastructure.database_layer.clipped_string import ClippedString
 from infrastructure.utils.models_mixins import TimestampMixin
 
 
@@ -16,6 +17,8 @@ class ShippingMethod(Base, TimestampMixin):
 
     __table_args__ = (
         Index("idx_shipping_methods_is_active", "is_active"),
+        CheckConstraint("base_cost >= 0", name="ck_shipping_methods_base_cost"),
+        CheckConstraint("estimated_days BETWEEN 0 AND 365", name="ck_shipping_methods_estimated_days"),
     )
 
     id: Mapped[UUID] = mapped_column(
@@ -98,7 +101,8 @@ class Shipment(Base, TimestampMixin):
     shipped_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    cancellation_reason: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # From the event that cancelled the order.
+    cancellation_reason: Mapped[str | None] = mapped_column(ClippedString(255), nullable=True)
 
     method: Mapped["ShippingMethod"] = relationship(
         "ShippingMethod", back_populates="shipments", lazy="selectin"

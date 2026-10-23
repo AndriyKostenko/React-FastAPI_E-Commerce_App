@@ -5,6 +5,7 @@ from typing import Any, Optional
 
 from pydantic import BaseModel, PositiveFloat, PositiveInt, ConfigDict, EmailStr, Field, computed_field, model_validator
 
+from contracts.limits import LINES_MAX, MONEY_MAX, Code, Identifier, LineQuantity, Money, Name, Text
 from contracts.order import CustomTshirtSpecification, FulfillmentType
 from contracts.shipping_region import CanadianAddress, NotShippableError
 from utils.money import to_cents
@@ -102,6 +103,16 @@ class ShippingAddress(AddressType):
     through ``AddressType`` unchanged.
     """
 
+    # The same bounds as an address saved in the account (user-service's AddressInput).
+    street: str = Field(max_length=255)
+    city: str = Field(max_length=100)
+    province: str = Field(max_length=64)
+    postal_code: str = Field(max_length=10)
+    country: str | None = Field(default=None, max_length=64)
+    country_code: str | None = Field(default=None, max_length=2)
+    name: str | None = Field(default=None, max_length=100)
+    phone: str | None = Field(default=None, max_length=32)
+
     @model_validator(mode="after")
     def _canadian(self) -> "ShippingAddress":
         try:
@@ -127,9 +138,10 @@ class OrderAddressBase(AddressType):
 class OrderProductItem(BaseModel):
     id: UUID | None = None
     variant_id: UUID | None = None
-    name: str | None = None
-    price: Decimal | None = None
-    quantity: PositiveInt = Field(le=99)
+    name: Name | None = None
+    # Ignored: every line is priced here, never by the caller.
+    price: Money | None = None
+    quantity: LineQuantity
     fulfillment_type: FulfillmentType | None = None
     customization: CustomTshirtSpecification | None = None
 
@@ -149,22 +161,23 @@ class CreateOrder(BaseModel):
     id: UUID | None = None
     user_id: UUID
     user_email: EmailStr
-    amount: PositiveFloat | None = None
-    currency: str = "cad"
-    payment_intent_id: str | None = None
-    products: list[OrderProductItem] = Field(min_length=1, max_length=50)
+    amount: PositiveFloat | None = Field(default=None, le=float(MONEY_MAX))
+    # ISO 4217, as orders.currency stores it.
+    currency: str = Field(default="cad", min_length=3, max_length=3)
+    payment_intent_id: Identifier | None = None
+    products: list[OrderProductItem] = Field(min_length=1, max_length=LINES_MAX)
     address: ShippingAddress
-    shipping_logistic_name: str | None = Field(default=None, max_length=200)
+    shipping_logistic_name: Name | None = None
 
 
 class QuoteOrderRequest(BaseModel):
-    products: list[OrderProductItem] = Field(min_length=1, max_length=50)
+    products: list[OrderProductItem] = Field(min_length=1, max_length=LINES_MAX)
     address: ShippingAddress
-    shipping_logistic_name: str | None = Field(default=None, max_length=200)
+    shipping_logistic_name: Name | None = None
 
 
 class PriceItemsRequest(BaseModel):
-    products: list[OrderProductItem] = Field(min_length=1, max_length=50)
+    products: list[OrderProductItem] = Field(min_length=1, max_length=LINES_MAX)
 
 
 class PricedItem(BaseModel):
@@ -243,13 +256,13 @@ class ConfirmedOrderAddress(BaseModel):
 
 
 class UpdateOrder(BaseModel):
-    delivery_status: str | None = None
-    cj_order_number: str | None = None
+    delivery_status: Code | None = None
+    cj_order_number: Identifier | None = None
 
 
 class CancelOrder(BaseModel):
-    reason: str
+    reason: Text
 
 class PaymentIntentRequest(BaseModel):
-    items: list[OrderProductItem]
-    payment_intent_id: str | None
+    items: list[OrderProductItem] = Field(max_length=LINES_MAX)
+    payment_intent_id: Identifier | None

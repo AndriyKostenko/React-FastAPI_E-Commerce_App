@@ -3,7 +3,6 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, Query, Request, UploadFile, status
-from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import EmailStr
 
 from managers import rate_limited, settings
@@ -25,6 +24,7 @@ from schemas.user_schemas import (
     ForgotPasswordResponse,
     GoogleLoginRequest,
     PasswordChangeRequest,
+    PasswordSignInForm,
     PasswordUpdateResponse,
     RefreshTokenRequest,
     RegistrationAccepted,
@@ -116,7 +116,7 @@ async def reset_password(request: Request, data: ResetPasswordRequest, user_serv
                   status_code=status.HTTP_200_OK)
 @rate_limited(times=10, seconds=60, identifier_param="form_data")
 async def login(request: Request,
-                form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
+                form_data: Annotated[PasswordSignInForm, Depends()],
                 user_service: user_service_dependency,
                 human_check: human_check_dependency,
                 captcha_token: Annotated[str | None, Form(max_length=2048)] = None):

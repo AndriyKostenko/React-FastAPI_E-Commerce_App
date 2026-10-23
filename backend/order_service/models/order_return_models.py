@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Index, String, Text
+from sqlalchemy import JSON, Boolean, CheckConstraint, DateTime, ForeignKey, Index, String
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -29,6 +29,9 @@ class ReturnRequest(Base, TimestampMixin):
     __tablename__ = "return_requests"
     __table_args__ = (
         Index("idx_return_requests_status", "status"),
+        # LINES_MAX and IMAGES_MAX (contracts.limits).
+        CheckConstraint("json_array_length(lines) BETWEEN 1 AND 50", name="ck_return_requests_lines"),
+        CheckConstraint("json_array_length(photos) <= 100", name="ck_return_requests_photos"),
     )
 
     id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4)
@@ -36,7 +39,8 @@ class ReturnRequest(Base, TimestampMixin):
     user_id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), nullable=False, index=True)
     reason: Mapped[str] = mapped_column(String(30), nullable=False)
     fault: Mapped[str] = mapped_column(String(20), nullable=False)
-    description: Mapped[str] = mapped_column(Text, nullable=False)
+    # ReturnRequestCreate allows 2,000 characters.
+    description: Mapped[str] = mapped_column(String(2000), nullable=False)
     lines: Mapped[list[ReturnLineRow]] = mapped_column(JSON, nullable=False)
     photos: Mapped[list[ReturnPhotoRow]] = mapped_column(JSON, nullable=False, default=list)
     # Seller's fault: the order's shipping goes back too (once per order).

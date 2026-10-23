@@ -5,6 +5,7 @@ from sqlalchemy import Index, String
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 
 from models.base import Base
+from infrastructure.database_layer.clipped_string import ClippedString
 from infrastructure.utils.models_mixins import TimestampMixin
 
 
@@ -20,7 +21,8 @@ class Notification(Base, TimestampMixin):
 
     id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4)
     user_id: Mapped[UUID | None] = mapped_column(PostgresUUID(as_uuid=True), nullable=True)
-    message: Mapped[str] = mapped_column(nullable=False)
+    # Built from an event (product names, reasons): the first 5,000 characters are kept.
+    message: Mapped[str] = mapped_column(ClippedString(5000), nullable=False)
     notification_type: Mapped[str] = mapped_column(String(100), nullable=False)
     is_read: Mapped[bool] = mapped_column(default=False, nullable=False)
 

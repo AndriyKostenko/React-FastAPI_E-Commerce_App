@@ -1,9 +1,14 @@
+import json
 from datetime import datetime
-from typing import Optional, List
+from typing import Annotated, Optional, List
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr, JsonValue, field_validator
+from fastapi import Form
+from fastapi.security import OAuth2PasswordRequestForm
+from pydantic import AfterValidator, BaseModel, ConfigDict, EmailStr, JsonValue, field_validator
 from pydantic.fields import Field
+
+from contracts.limits import COUNT_MAX, OBJECT_KEYS_MAX, Code, Token
 
 from storage.avatar_url import AvatarUrl
 
@@ -50,7 +55,7 @@ class UserSaveWithGoogle(BaseModel):
     password: str = Field(..., min_length=8, description="User's password")
 
 class GoogleLoginRequest(BaseModel):
-    id_token: str
+    id_token: Token
 
 class UserUpdate(BaseModel):
     name: str
@@ -101,7 +106,7 @@ class UserLoginDetails(BaseModel):
     user_role: str
 
 class RefreshTokenRequest(BaseModel):
-    refresh_token: str
+    refresh_token: Token
 
 class RefreshTokenResponse(BaseModel):
     access_token: str
@@ -165,7 +170,7 @@ class ResetPasswordRequest(BaseModel):
 
 class UsersFilterParams(BaseModel):
     # Pagination
-    offset: int = Field(default=0, ge=0, description="Number of records to skip")
+    offset: int = Field(default=0, ge=0, le=COUNT_MAX, description="Number of records to skip")
     limit: int = Field(default=10, gt=0, le=100, description="Maximum number of records to return")
 
     # Sorting
@@ -174,7 +179,7 @@ class UsersFilterParams(BaseModel):
 
     # Filtering
     email: Optional[EmailStr] = Field(None, description="Filter by user email")
-    role: Optional[str] = Field(None, description="Filter by user role")
+    role: Optional[Code] = Field(None, description="Filter by user role")
     name: Optional[str] = Field(None, min_length=1, max_length=100, description="Filter by user name")
     is_active: Optional[bool] = Field(None, description="Filter by user active status")
     is_verified: Optional[bool] = Field(None, description="Filter by user verification status")
@@ -187,7 +192,48 @@ class UsersFilterParams(BaseModel):
     date_updated_to: Optional[datetime] = Field(None, description="Filter users updated up to this date")
 
 
+class PasswordSignInForm(OAuth2PasswordRequestForm):
+    """OAuth2's password form, as /login reads it, with every field bounded."""
+
+    def __init__(
+        self,
+        *,
+        grant_type: Annotated[str | None, Form(pattern="^password$")] = None,
+        # An email: 254 characters at most, a little room around it.
+        username: Annotated[str, Form(max_length=320)],
+        # Sign-up and password changes allow 100.
+        password: Annotated[str, Form(max_length=100)],
+        scope: Annotated[str, Form(max_length=1000)] = "",
+        client_id: Annotated[str | None, Form(max_length=255)] = None,
+        client_secret: Annotated[str | None, Form(max_length=255)] = None,
+    ) -> None:
+        super().__init__(
+            grant_type=grant_type,
+            username=username,
+            password=password,
+            scope=scope,
+            client_id=client_id,
+            client_secret=client_secret,
+        )
+
+
 # ==================== Admin passkeys (WebAuthn) ====================
+
+# A browser's PublicKeyCredential is a few kilobytes of JSON (an attestation
+# with a certificate chain is the largest); anything far past that is not one.
+WEBAUTHN_CREDENTIAL_MAX_BYTES: int = 64 * 1024
+
+
+def _credential_sized(credential: dict[str, JsonValue]) -> dict[str, JsonValue]:
+    if len(json.dumps(credential, separators=(",", ":"))) > WEBAUTHN_CREDENTIAL_MAX_BYTES:
+        raise ValueError(f"credential must be at most {WEBAUTHN_CREDENTIAL_MAX_BYTES} bytes of JSON")
+    return credential
+
+
+WebAuthnCredential = Annotated[
+    dict[str, JsonValue], Field(max_length=OBJECT_KEYS_MAX), AfterValidator(_credential_sized)
+]
+
 
 class PasskeySignInStart(BaseModel):
     """Step 1 of an admin sign-in: the password, before any challenge is issued."""
@@ -213,7 +259,7 @@ class PasskeyCeremonyOptions(BaseModel):
 class PasskeySignInFinish(BaseModel):
     challenge_id: str = Field(..., min_length=16, max_length=64)
     # The PublicKeyCredential the browser returned, in its JSON form.
-    credential: dict[str, JsonValue]
+    credential: WebAuthnCredential
 
 
 class PasskeyEnrolmentStart(BaseModel):
@@ -223,7 +269,7 @@ class PasskeyEnrolmentStart(BaseModel):
 class PasskeyEnrolmentFinish(BaseModel):
     token: str = Field(..., min_length=32, max_length=128)
     challenge_id: str = Field(..., min_length=16, max_length=64)
-    credential: dict[str, JsonValue]
+    credential: WebAuthnCredential
     name: str = Field(..., min_length=1, max_length=64, description="What this passkey is on, e.g. 'MacBook'")
 
 

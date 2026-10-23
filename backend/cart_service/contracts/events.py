@@ -1,4 +1,3 @@
-from decimal import Decimal
 from uuid import UUID, uuid4
 from datetime import datetime, timezone
 
@@ -7,15 +6,16 @@ from pydantic import BaseModel, EmailStr, PositiveFloat, Field
 from contracts.order import ConfirmedOrderAddress, ConfirmedOrderItem, OrderItem
 from contracts.services_enums import Services
 from contracts.event_enums import OrderEvents
+from contracts.limits import Code, LINES_MAX, MONEY_MAX, Money, Name
 
 
 class BaseEvent(BaseModel):
     """Base class for all events"""
     event_id: UUID = Field(default_factory=uuid4)
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    service: str
-    event_type: str
-    schema_version: int = 1
+    service: Code
+    event_type: Code
+    schema_version: int = Field(default=1, ge=1, le=1000)
     correlation_id: UUID = Field(default_factory=uuid4)
 
 
@@ -24,21 +24,21 @@ class OrderBaseEvent(BaseEvent):
     order_id: UUID
     user_id: UUID
     user_email: EmailStr
-    service: str = Field(default_factory=lambda: Services.ORDER_SERVICE)
+    service: Code = Field(default_factory=lambda: Services.ORDER_SERVICE)
 
 
 class OrderCreatedEvent(OrderBaseEvent):
     """Event published when an order is created (start of SAGA)"""
-    items: list[OrderItem]
-    total_amount: PositiveFloat
-    event_type: str = Field(default_factory=lambda: OrderEvents.ORDER_CREATED)
+    items: list[OrderItem] = Field(max_length=LINES_MAX)
+    total_amount: PositiveFloat = Field(le=float(MONEY_MAX))
+    event_type: Code = Field(default_factory=lambda: OrderEvents.ORDER_CREATED)
 
 
 class OrderConfirmedEvent(OrderBaseEvent):
     """Event published when order is confirmed (SAGA success)."""
-    event_type: str = Field(default_factory=lambda: OrderEvents.ORDER_CONFIRMED)
-    items: list[ConfirmedOrderItem] = Field(default_factory=list)
+    event_type: Code = Field(default_factory=lambda: OrderEvents.ORDER_CONFIRMED)
+    items: list[ConfirmedOrderItem] = Field(default_factory=list, max_length=LINES_MAX)
     address: ConfirmedOrderAddress | None = None
     # The CJ logistics option the customer paid for and CJ's quoted USD price.
-    shipping_logistic_name: str | None = None
-    shipping_cost_usd: Decimal | None = None
+    shipping_logistic_name: Name | None = None
+    shipping_cost_usd: Money | None = None

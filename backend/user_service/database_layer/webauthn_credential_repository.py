@@ -4,6 +4,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from models.user_models import User
 from models.webauthn_credential_models import WebAuthnCredential
 from infrastructure.database_layer.database_layer import BaseRepository
 
@@ -13,6 +14,10 @@ class WebAuthnCredentialRepository(BaseRepository[WebAuthnCredential]):
 
     def __init__(self, session: AsyncSession):
         super().__init__(session, WebAuthnCredential)
+
+    async def lock_owner(self, user_id: UUID) -> None:
+        """Serialise registrations for one admin until the transaction ends, so two cannot pass the limit together."""
+        await self.session.execute(select(User.id).where(User.id == user_id).with_for_update())
 
     async def list_for_user(self, user_id: UUID) -> list[WebAuthnCredential]:
         result = await self.session.execute(

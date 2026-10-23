@@ -35,3 +35,11 @@ class DuplicateWishlistItemError(BaseAPIException):
             status_code=status.HTTP_409_CONFLICT,
             detail=f"Product {product_id} is already in the wishlist"
         )
+
+
+class WishlistFullError(BaseAPIException):
+    def __init__(self, limit: int):
+        super().__init__(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"A wishlist can hold up to {limit} products; remove one first"
+        )

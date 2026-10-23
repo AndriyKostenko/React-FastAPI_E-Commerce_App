@@ -7,6 +7,9 @@ from uuid import UUID, uuid4
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from fastapi import UploadFile, Form, File
 
+from contracts.limits import (
+    COUNT_MAX, IMAGES_MAX, NAME_MAX_LENGTH, VARIANTS_MAX, Code, Count, Identifier, Money, Name, Url,
+)
 from schemas.category_schema import CategorySchema
 from schemas.product_image_schema import ProductImageView
 from schemas.review_schemas import ReviewSchema
@@ -44,27 +47,27 @@ class ProductVariantBase(BaseModel):
 class CreateProductVariant(BaseModel):
     """Schema for creating a product variant."""
 
-    vid: str
-    variant_key: str | None = None
-    variant_name_en: str | None = None
-    variant_sku: str | None = None
-    barcode: str | None = None
-    variant_image: str | None = None
-    variant_weight: Decimal | None = None
-    variant_length: int | None = None
-    variant_width: int | None = None
-    variant_height: int | None = None
-    variant_sell_price: Decimal | None = None
-    variant_sug_sell_price: Decimal | None = None
-    retail_price: Decimal | None = None
-    inventory_num: int | None = None
+    vid: Identifier
+    variant_key: Name | None = None
+    variant_name_en: Name | None = None
+    variant_sku: Identifier | None = None
+    barcode: Identifier | None = None
+    variant_image: Url | None = None
+    variant_weight: Decimal | None = Field(default=None, ge=0, le=COUNT_MAX)
+    variant_length: Count | None = None
+    variant_width: Count | None = None
+    variant_height: Count | None = None
+    variant_sell_price: Money | None = None
+    variant_sug_sell_price: Money | None = None
+    retail_price: Money | None = None
+    inventory_num: Count | None = None
 
 
 # --- Product Schemas ---
 
 class BaseFilters(BaseModel):
     # Pagination
-    offset: int = Field(default=0, ge=0, description="Number of records to skip")
+    offset: int = Field(default=0, ge=0, le=COUNT_MAX, description="Number of records to skip")
     limit: int = Field(default=10, gt=0, le=100, description="Maximum number of records to return")
 
     # Sorting
@@ -93,16 +96,17 @@ class ProductBase(BaseModel):
 
 
 class ProductUploadForm(BaseModel):
-    name: str
-    description: str
+    # The same bounds as CreateProduct.
+    name: str = Field(min_length=3, max_length=200)
+    description: str = Field(max_length=2000)
     category_id: UUID
-    brand: str
-    quantity: int
-    price: Decimal
+    brand: str = Field(min_length=1, max_length=50)
+    quantity: Count
+    price: Decimal = Field(gt=0, le=9000)
     in_stock: bool
-    images: list[UploadFile]
-    image_colors: list[str]
-    image_color_codes: list[str]
+    images: list[UploadFile] = Field(max_length=IMAGES_MAX)
+    image_colors: list[Name] = Field(max_length=IMAGES_MAX)
+    image_color_codes: list[Code] = Field(max_length=IMAGES_MAX)
 
     # automaticaly handling lowercasing
     @field_validator('name', "brand", mode='after')
@@ -112,16 +116,16 @@ class ProductUploadForm(BaseModel):
 
     @classmethod
     def return_as_form(cls,
-                       name: str = Form(...),
-                       description: str = Form(...),
+                       name: str = Form(..., min_length=3, max_length=200),
+                       description: str = Form(..., max_length=2000),
                        category_id: UUID = Form(...),
-                       brand: str = Form(...),
-                       quantity: int = Form(...),
-                       price: Decimal = Form(...),
+                       brand: str = Form(..., min_length=1, max_length=50),
+                       quantity: int = Form(..., ge=0, le=COUNT_MAX),
+                       price: Decimal = Form(..., gt=0, le=9000),
                        in_stock: bool = Form(...),
-                       images: list[UploadFile] = File(...),
-                       image_colors: list[str] = Form(...),
-                       image_color_codes: list[str] = Form(...)):
+                       images: list[UploadFile] = File(..., max_length=IMAGES_MAX),
+                       image_colors: list[Name] = Form(..., max_length=IMAGES_MAX),
+                       image_color_codes: list[Code] = Form(..., max_length=IMAGES_MAX)):
         return cls(
             name=name,
             description=description,
@@ -139,24 +143,24 @@ class ProductUploadForm(BaseModel):
 class CreateProduct(BaseModel):
     """Schema for creating a product"""
 
-    id: UUID | str | None = Field(default_factory=lambda: uuid4())
-    pid: str | None = None
+    id: UUID | Identifier | None = Field(default_factory=lambda: uuid4())
+    pid: Identifier | None = None
     supplier_id: str | None = Field(default=None, max_length=100)
     supplier_category_id: str | None = Field(default=None, max_length=200)
     name: str = Field(..., min_length=3, max_length=200)
     description: str | None = Field(default=None, max_length=2000)
     category_id: UUID
     brand: str = Field(default="cjdropshipping", min_length=1, max_length=50)
-    quantity: int = Field(..., ge=0)
+    quantity: int = Field(..., ge=0, le=COUNT_MAX)
     price: Decimal = Field(..., gt=0, le=9000)
     in_stock: bool
     sku: str | None = Field(default=None, max_length=70)
-    image_url: str | None = None
-    variants: list[CreateProductVariant] | None = None
+    image_url: Url | None = None
+    variants: list[CreateProductVariant] | None = Field(default=None, max_length=VARIANTS_MAX)
     variant_option_names: list[Annotated[str, Field(min_length=1, max_length=50)]] = Field(
         default_factory=list, max_length=5
     )
-    images: list[str] | None = None
+    images: list[Url] | None = Field(default=None, max_length=IMAGES_MAX)
 
     @field_validator("name", "brand", mode="after")
     @classmethod
@@ -177,12 +181,13 @@ class CreateProduct(BaseModel):
 class UpdateProduct(BaseModel):
     """Schema for updating an existing product"""
 
-    name: Optional[str] = None
-    description: Optional[str] = None
+    # The same bounds as CreateProduct.
+    name: Optional[str] = Field(None, min_length=3, max_length=200)
+    description: Optional[str] = Field(None, max_length=2000)
     category_id: Optional[UUID] = None
-    brand: Optional[str] = None
-    quantity: Optional[int] = Field(None, ge=0)
-    price: Optional[Decimal] = None
+    brand: Optional[str] = Field(None, min_length=1, max_length=50)
+    quantity: Optional[int] = Field(None, ge=0, le=COUNT_MAX)
+    price: Optional[Decimal] = Field(None, gt=0, le=9000)
     in_stock: Optional[bool] = None
 
     @field_validator("in_stock", mode="before")
@@ -263,21 +268,21 @@ class ProductsFilterParams(BaseFilters):
     )
 
     # Filtering options
-    name: Optional[str] = None
-    brand: Optional[str] = None
+    name: Optional[str] = Field(None, max_length=NAME_MAX_LENGTH)
+    brand: Optional[str] = Field(None, max_length=NAME_MAX_LENGTH)
     category_id: Optional[UUID] = None
     search_term: Optional[str] = Field(None, min_length=3, max_length=50)
     in_stock: Optional[bool] = None
 
     # Price filters (exact and range)
-    price: Optional[Decimal] = None  # Exact price match
-    min_price: Optional[Decimal] = Field(None, ge=0)
-    max_price: Optional[Decimal] = Field(None, ge=0)
+    price: Optional[Money] = None  # Exact price match
+    min_price: Optional[Money] = None
+    max_price: Optional[Money] = None
 
     # Quantity filters (exact and range)
-    quantity: Optional[int] = None  # Exact quantity match
-    min_quantity: Optional[int] = Field(None, ge=0)
-    max_quantity: Optional[int] = Field(None, ge=0)
+    quantity: Optional[Count] = None  # Exact quantity match
+    min_quantity: Optional[Count] = None
+    max_quantity: Optional[Count] = None
 
     # Date range filters
     date_created_from: Optional[datetime] = None

@@ -1,6 +1,8 @@
 from uuid import UUID
 from typing import List
 
+from sqlalchemy.exc import IntegrityError
+
 from schemas.review_schemas import CreateReview, ReviewSchema, UpdateReview
 from exceptions.review_exceptions import ReviewNotFoundError, ReviewAlreadyExistsError
 from models.review_models import ProductReview
@@ -24,7 +26,16 @@ class ReviewService:
             comment=data.comment,
             rating=data.rating
         )
-        product_review = await self.repository.create(product_review)
+        try:
+            product_review = await self.repository.create(product_review)
+        except IntegrityError as exc:
+            # Two reviews sent at the same moment both pass the check above;
+            # the database's one-review-per-customer constraint settles it.
+            if "uq_product_review_product_user" in str(exc.orig):
+                raise ReviewAlreadyExistsError(
+                    f"User with id: {user_id} has already reviewed product id: {product_id}"
+                ) from exc
+            raise
         return ReviewSchema.model_validate(product_review)
 
     async def get_review_by_id(self, review_id: UUID) -> ReviewSchema:

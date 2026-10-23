@@ -17,6 +17,7 @@ from sqlalchemy import update
 from infrastructure.managers.test_database_session_manager import TestDatabaseSessionManager
 from models.product_models import Product
 from models.product_variant_models import ProductVariant
+from contracts.limits import COUNT_MAX, IDENTIFIER_MAX_LENGTH, IMAGES_MAX, URL_MAX_LENGTH
 
 TEST_API = "/api/v1"
 
@@ -123,6 +124,32 @@ class TestCreateProduct:
         response = await integration_client.post(
             f"{TEST_API}/products", json={"name": "too short"}
         )
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+
+    @pytest.mark.parametrize(
+        "overrides",
+        [
+            {"images": [f"https://example.com/{index}.jpg" for index in range(IMAGES_MAX + 1)]},
+            {"image_url": "https://example.com/" + "a" * URL_MAX_LENGTH},
+            {"variants": [{"vid": "v" * (IDENTIFIER_MAX_LENGTH + 1)}]},
+            {"quantity": COUNT_MAX + 1},
+        ],
+        ids=["images", "image-url", "variant-id", "quantity"],
+    )
+    async def test_a_product_past_a_bound_is_refused_and_not_stored(
+        self, integration_client: AsyncClient, overrides: dict
+    ):
+        category = await _create_category(integration_client)
+
+        response = await _create_product(integration_client, category["id"], name="bounded shirt", **overrides)
+
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        listed = (await integration_client.get(f"{TEST_API}/products")).json()
+        assert all(product["name"] != "bounded shirt" for product in listed)
+
+    async def test_a_page_offset_past_any_real_table_is_refused(self, integration_client: AsyncClient):
+        response = await integration_client.get(f"{TEST_API}/products", params={"offset": COUNT_MAX + 1})
+
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
 
@@ -311,7 +338,7 @@ class TestGetProductCards:
 
     async def test_limit_above_500_is_rejected(self, integration_client: AsyncClient):
         response = await integration_client.get(f"{TEST_API}/products/cards", params={"limit": 501})
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     async def test_detailed_list_honours_the_search_term(self, integration_client: AsyncClient):
         category = await _create_category(integration_client)

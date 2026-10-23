@@ -2,17 +2,19 @@ from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, PositiveInt, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from contracts.limits import LINES_MAX, LineQuantity
 
 
 class RefundLineRequest(BaseModel):
     order_item_id: UUID
-    quantity: PositiveInt
+    quantity: LineQuantity
 
 
 class RefundRequest(BaseModel):
     """What an admin gives back: some lines (and quantities), maybe shipping."""
-    lines: list[RefundLineRequest] = Field(default_factory=list, max_length=50)
+    lines: list[RefundLineRequest] = Field(default_factory=list, max_length=LINES_MAX)
     include_shipping: bool = False
     reason: str = Field(min_length=3, max_length=500)
 

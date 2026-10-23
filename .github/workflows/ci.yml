@@ -216,13 +216,10 @@ jobs:
     name: dependency audit
     runs-on: ubuntu-24.04
     timeout-minutes: 15
-    # Report-only for now: every service carries known vulnerabilities that
-    # need dependency upgrades (PRODUCTION_GAPS §1). Findings show as warnings
-    # on the run and the job stays green; set AUDIT_BLOCKING to "true" once
-    # those upgrades land. (Job-level continue-on-error left a red check on
-    # every pull request, which hides real failures.)
-    env:
-      AUDIT_BLOCKING: "false"
+    # Blocking: any known vulnerability in a service's lock file, or a high or
+    # critical one in an npm app's production dependencies, fails the run.
+    # The few npm advisories that cannot reach a user are listed, with the
+    # reason, in backend/ci/npm_audit_gate.py.
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -241,8 +238,8 @@ jobs:
             echo "::endgroup::"
           done
           if [ "$status" -ne 0 ]; then
-            echo "::warning title=pip-audit::known vulnerabilities in at least one service, see this step's log"
-            if [ "$AUDIT_BLOCKING" = "true" ]; then exit 1; fi
+            echo "::error title=pip-audit::known vulnerabilities in at least one service, see this step's log"
+            exit 1
           fi
 
       - name: npm (production dependencies, high and above)
@@ -251,10 +248,14 @@ jobs:
           status=0
           for app in frontend backend/admin-js-service; do
             echo "::group::$app"
-            (cd "$app" && npm audit --omit=dev --audit-level=high) || status=1
+            # The readable report first (it exits non-zero on any finding, so
+            # its status is ignored), then the gate decides from the JSON.
+            (cd "$app" && npm audit --omit=dev || true)
+            (cd "$app" && npm audit --omit=dev --json || true) > "$RUNNER_TEMP/npm-audit.json"
+            python3 backend/ci/npm_audit_gate.py "$app" < "$RUNNER_TEMP/npm-audit.json" || status=1
             echo "::endgroup::"
           done
           if [ "$status" -ne 0 ]; then
-            echo "::warning title=npm audit::high or critical vulnerabilities in production dependencies, see this step's log"
-            if [ "$AUDIT_BLOCKING" = "true" ]; then exit 1; fi
+            echo "::error title=npm audit::high or critical vulnerabilities in production dependencies, see this step's log"
+            exit 1
           fi

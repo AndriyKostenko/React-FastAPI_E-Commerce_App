@@ -5,6 +5,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, PositiveInt, field_validator
 
+from contracts.limits import Identifier
+
 
 class CJProductsFilterParams(BaseModel):
     """Query parameters for CJ Dropshipping /product/listV2 endpoint.
@@ -21,8 +23,8 @@ class CJProductsFilterParams(BaseModel):
 
     # Category filters
     categoryId: str | None = Field(default=None, max_length=200)
-    lv2categoryList: list[str] | None = None
-    lv3categoryList: list[str] | None = None
+    lv2categoryList: list[Identifier] | None = Field(default=None, max_length=100)
+    lv3categoryList: list[Identifier] | None = Field(default=None, max_length=100)
 
     # Country / warehouse
     countryCode: str | None = Field(default=None, max_length=200)
@@ -39,7 +41,7 @@ class CJProductsFilterParams(BaseModel):
 
     # Product flags
     addMarkStatus: Literal[0, 1] | None = None
-    productType: int | None = None
+    productType: int | None = Field(default=None, ge=0, le=100)
     productFlag: Literal[0, 1, 2, 3] | None = None
     supplierId: str | None = Field(default=None, max_length=200)
     hasCertification: Literal[0, 1] | None = None
@@ -47,8 +49,8 @@ class CJProductsFilterParams(BaseModel):
     customization: Literal[0, 1] | None = None
 
     # Time range (milliseconds)
-    timeStart: int | None = None
-    timeEnd: int | None = None
+    timeStart: int | None = Field(default=None, ge=0, le=10**14)
+    timeEnd: int | None = Field(default=None, ge=0, le=10**14)
 
     # Platform suggestion
     zonePlatform: str | None = Field(default=None, max_length=200)
