@@ -398,6 +398,61 @@ Backend:
    image clearly shows what is printed on the T-shirt. If not, the image is not stored
    in our store; if it is, the model writes a description from the image, which
    replaces CJ's. The OpenRouter client already exists in product-service.
+   **Done 2026-10-22** (branch `feature/cj-image-review`, on top of item 2's).
+   - Before a CJ batch is written, `SupplierImageReviewService` reviews each product's
+     main photo. `OpenRouterImageReviewer` downloads it through the allow-listed
+     `CatalogueImageFetcher`, sends it inline to `OPENROUTER_REVIEW_MODEL` (default
+     `google/gemini-2.5-flash`) and requires a JSON answer: does the photo clearly
+     show the print, why, and a description. An answer that doesn't fit counts as no
+     answer. The calls run before the batch's transaction opens, 4 at a time
+     (`SUPPLIER_IMAGE_REVIEW_CONCURRENCY`), and their verdicts are committed on
+     their own.
+   - Every verdict is kept in `supplier_image_reviews`, one row per supplier,
+     product and photo URL. A photo is therefore reviewed once:
+     - An approved product keeps the model's description on every later sync,
+       while the rest of CJ's update (name, price, variants) still lands.
+     - A rejected photo is never paid for again.
+     - A new main photo gets its own review.
+   - Rules, as chosen:
+     - A rejected photo keeps a new product out, and leaves a product already in
+       the store as it is. It counts as failed in the import report with the
+       model's reason. So does a product with no photo.
+     - With no answer (OpenRouter down, timeout, no key, photo unreachable),
+       nothing is stored and the product is skipped, so the next sync asks again.
+     - Products imported before reviews existed are updated as before until the
+       one-off reaches them.
+   - One-off for those products: `./local/dev.sh products review [limit]` (20 by
+     default). Approved products get the model's description. Rejected ones are
+     listed with the reason and never deleted (later syncs then leave them as
+     they are). Products with no answer are listed and retried by the next run.
+   - The prompt rejects designs that suppliers hide behind a mosaic of large colour
+     blocks, a blur or a sticker. The first wording let the model call those "pixel
+     art" and pass them. **Many CJ T-shirt photos are mosaicked**: 3 of the first 5
+     local products are. Expect the full one-off and future syncs to reject a large
+     share of the catalogue.
+   - Tests:
+     - `test_supplier_image_review.py` runs the real import consumer and catalogue
+       run against the real test database, with scripted verdicts (agreed): approved,
+       rejected and no answer, no photo, reuse without a second call, a redelivered
+       batch, a changed photo (rejected or approved), a product from before reviews,
+       and the one-off (a copied image reviewed at its CJ URL, the limit, retrying
+       after no answer).
+     - `test_openrouter_image_reviewer.py` covers the request and the answer parsing
+       without the network.
+     - `test_openrouter_image_reviewer_live.py` makes one real call and is opt-in
+       (`OPENROUTER_LIVE_REVIEW_IMAGE_URL`).
+     - Each rule fails its test when taken out.
+   - Live, 2026-10-22, with the sync still paused:
+     - The opt-in test passed.
+     - `products review 5` approved the one legible print and rejected the 3
+       mosaics and a plain polo shirt.
+     - One hand-built batch through the real consumer into the test database
+       created the print and kept the mosaic out, with the reason.
+     - The tuning runs cost about 23 OpenRouter calls. The two runs before the
+       final prompt wrote wrong descriptions, which were put back to CJ's text
+       (4 CJ product-detail calls).
+   - Not covered: the hourly sync itself has not been run with reviews on (it stays
+     paused locally); 202 local CJ products are still unreviewed.
 4. **Limits on every database model**: maximum lengths and sizes, how many rows or
    items are accepted, and any other restriction that makes sense, in every service.
    **Done 2026-10-21** (after item 5, on the same branch).

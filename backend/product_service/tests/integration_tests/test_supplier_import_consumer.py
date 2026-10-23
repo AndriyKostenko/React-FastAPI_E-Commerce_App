@@ -12,6 +12,7 @@ from models.supplier_import_models import SupplierImportBatch
 from resources import settings
 from contracts.events import SupplierProductsFetchedEvent
 from contracts.supplier import GenericSupplierProduct, SupplierProductVariant
+from tests.image_review_fakes import review_service
 
 
 async def test_supplier_batch_is_atomic_idempotent_and_reconciles_children(
@@ -27,6 +28,7 @@ async def test_supplier_batch_is_atomic_idempotent_and_reconciles_children(
         cache_manager=cache,
         publisher=MagicMock(),
         settings=settings,
+        image_review=review_service(test_database_session_manager),
     )
 
     product = GenericSupplierProduct(

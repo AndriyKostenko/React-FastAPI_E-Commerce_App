@@ -32,6 +32,7 @@ from contracts.supplier import GenericSupplierProduct, SupplierProductVariant
 from storage.catalogue_url import CatalogueUrlResolver
 from storage.object_storage_provider import ObjectStorageProvider
 from tests.integration_tests.test_object_storage_s3 import _http_get
+from tests.image_review_fakes import review_service
 
 # The fixtures (database, CDN stand-in, HTTP session) run on the session's
 # event loop; aiohttp needs the tests on that same loop.
@@ -116,6 +117,7 @@ async def _import(db, pid: str, main: str, gallery: list[str], variant_image: st
     consumer = ProductEventConsumer(
         logger=MagicMock(), database=db, idempotency_service=MagicMock(),
         cache_manager=_cache(), publisher=MagicMock(), settings=settings,
+        image_review=review_service(db),
     )
     await consumer.handle_supplier_products_fetched(SupplierProductsFetchedEvent(
         supplier_id="cjdropshipping", fetch_id=uuid4(), batch_number=1, total_batches=1, products=[product],

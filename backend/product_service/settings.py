@@ -159,6 +159,14 @@ class Settings(BaseSettings):
     OPENROUTER_IMAGE_MODEL: str
     OPENROUTER_IMAGE_SIZE: str = "1024x1024"
     OPENROUTER_IMAGE_ASPECT_RATIO: str = "1:1"
+    # The vision model that checks a supplier product's main photo before it
+    # is imported and writes its description (OpenRouterImageReviewer). A
+    # review is stored per photo, so each photo costs one call, ever.
+    OPENROUTER_REVIEW_MODEL: str = "google/gemini-2.5-flash"
+    OPENROUTER_REVIEW_TIMEOUT_SECONDS: float = Field(default=60.0, gt=0, le=300)
+    # Reviews of one import batch run this many at a time, before the batch's
+    # transaction opens.
+    SUPPLIER_IMAGE_REVIEW_CONCURRENCY: int = Field(default=4, ge=1, le=16)
     # Generation is for signed-in users only; each gets this many per window.
     PRODUCT_IMAGE_GENERATION_LIMIT: int = 10
     PRODUCT_IMAGE_GENERATION_WINDOW_HOURS: int = 24

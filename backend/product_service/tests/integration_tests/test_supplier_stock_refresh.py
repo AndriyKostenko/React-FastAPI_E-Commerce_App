@@ -21,6 +21,7 @@ from contracts.events import SupplierProductsFetchedEvent, SupplierStockUpdatedE
 from contracts.supplier import GenericSupplierProduct, SupplierProductVariant, SupplierStockLevel
 from infrastructure.testing.signing_keys import ANONYMOUS, EphemeralSigningKeys
 from tests.conftest import DEFAULT_CALLER, SIGNING_KEYS, TEST_API
+from tests.image_review_fakes import review_service
 
 T0 = datetime(2026, 9, 29, 12, 0, tzinfo=timezone.utc)
 
@@ -31,6 +32,7 @@ def _consumer(db) -> ProductEventConsumer:
     return ProductEventConsumer(
         logger=MagicMock(), database=db, idempotency_service=MagicMock(),
         cache_manager=cache, publisher=MagicMock(), settings=settings,
+        image_review=review_service(db),
     )
 
 
@@ -38,7 +40,7 @@ async def _import(db, pid: str = "pid-1", *, supplier_id: str = "cjdropshipping"
     product = GenericSupplierProduct(
         supplier_id=supplier_id, supplier_pid=pid, supplier_category_id="cj-tshirt",
         category_name="t-shirts", name=f"Tee {pid}", description="shirt", price=Decimal("12.50"),
-        quantity=12, in_stock=True,
+        quantity=12, in_stock=True, image_url=f"https://cf.cjdropshipping.com/{pid}.jpg",
         variants=[
             SupplierProductVariant(vid=f"{pid}-S", variant_sku="S", inventory_num=7),
             SupplierProductVariant(vid=f"{pid}-M", variant_sku="M", inventory_num=5),

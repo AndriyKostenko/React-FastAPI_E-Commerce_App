@@ -15,6 +15,7 @@ from event_consumer.product_event_consumer import ProductEventConsumer
 from resources import (
     ProductConsumerResources,
     create_product_consumer_resources,
+    create_supplier_image_review_service,
     logger,
     settings,
 )
@@ -58,6 +59,7 @@ async def startup() -> None:
             cache_manager=resources.cache,
             publisher=resources.publisher,
             settings=resources.settings,
+            image_review=create_supplier_image_review_service(resources.database, resources.http_session),
         )
     except Exception:
         await resources.close()

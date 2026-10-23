@@ -14,6 +14,9 @@ from infrastructure.idempotency.idempotency_service import IdempotencyEventServi
 from infrastructure.managers.cache_manager import CacheManager
 from infrastructure.managers.database_session_manager import DatabaseSessionManager
 from infrastructure.managers.logger_manager import setup_logger
+from service_layer.catalogue_image_fetcher import CatalogueImageFetcher
+from service_layer.openrouter_image_reviewer import OpenRouterImageReviewer
+from service_layer.supplier_image_review_service import SupplierImageReviewService
 from settings import Settings, get_settings
 
 
@@ -44,6 +47,27 @@ def create_cache_manager(
         redis_url=app_settings.PRODUCT_SERVICE_REDIS_URL,
         logger=app_logger,
         service_api_version=app_settings.PRODUCT_SERVICE_URL_API_VERSION,
+    )
+
+
+def create_supplier_image_review_service(
+    database: DatabaseSessionManager,
+    http_session: ClientSession,
+    app_settings: Settings = settings,
+    app_logger: Logger = logger,
+) -> SupplierImageReviewService:
+    """The photo review a supplier import (and the one-off catalogue run) goes through."""
+    reviewer = OpenRouterImageReviewer(
+        session=http_session,
+        fetcher=CatalogueImageFetcher(http_session, max_bytes=app_settings.CATALOGUE_IMAGE_MAX_BYTES),
+        settings=app_settings,
+        logger=app_logger,
+    )
+    return SupplierImageReviewService(
+        database=database,
+        reviewer=reviewer,
+        logger=app_logger,
+        concurrency=app_settings.SUPPLIER_IMAGE_REVIEW_CONCURRENCY,
     )
 
 
@@ -104,6 +128,8 @@ class ProductConsumerResources:
     idempotency: IdempotencyEventService
     cache: CacheManager
     publisher: ProductEventPublisher
+    # For the supplier photo reviews (OpenRouter, and the supplier CDN).
+    http_session: ClientSession
 
     async def start(self) -> None:
         await self.idempotency.connect()
@@ -120,7 +146,10 @@ class ProductConsumerResources:
             try:
                 await self.idempotency.close()
             finally:
-                await self.database.close()
+                try:
+                    await self.http_session.close()
+                finally:
+                    await self.database.close()
 
 
 def create_product_consumer_resources(
@@ -149,6 +178,7 @@ def create_product_consumer_resources(
             logger=logger,
             settings=settings,
         ),
+        http_session=ClientSession(),
     )
 
 

@@ -69,6 +69,18 @@ class CatalogueImageMirrorRepository(BaseRepository[CatalogueImageMirror]):
         )
         return {source_url: key for source_url, key in result.all() if key}
 
+    async def source_urls(self, object_keys: Iterable[str]) -> dict[str, str]:
+        """object key -> the supplier URL it was copied from."""
+        wanted = [key for key in dict.fromkeys(object_keys) if key]
+        if not wanted:
+            return {}
+        result = await self.session.execute(
+            select(CatalogueImageMirror.object_key, CatalogueImageMirror.source_url).where(
+                CatalogueImageMirror.object_key.in_(wanted)
+            )
+        )
+        return {key: source_url for key, source_url in result.all() if key}
+
     async def rewrite_references(self, source_url: str, object_key: str) -> int:
         """Point every row still using ``source_url`` at the copied object."""
         statements = (

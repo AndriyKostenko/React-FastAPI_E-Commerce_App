@@ -15,6 +15,7 @@ from models.supplier_import_models import SupplierImportBatch
 from service_layer.artwork_asset_service import ArtworkAssetService
 from service_layer.product_service import ProductService
 from service_layer.supplier_stock_service import SupplierStockService
+from service_layer.supplier_image_review_service import ImportAction, ImportDecision, SupplierImageReviewService
 from service_layer.product_image_service import ProductImageService
 from service_layer.category_service import CategoryService
 from infrastructure.database_layer.outbox_repository import OutboxRepository
@@ -61,6 +62,7 @@ class ProductEventConsumer:
         cache_manager: CacheManager,
         publisher: ProductEventPublisher,
         settings: Settings,
+        image_review: SupplierImageReviewService,
     ) -> None:
         self.logger: Logger = logger
         self.database = database
@@ -68,6 +70,8 @@ class ProductEventConsumer:
         self.cache_manager = cache_manager
         self.publisher = publisher
         self.settings = settings
+        # Decides from each product's main photo whether an import may write it.
+        self.image_review = image_review
 
     async def _get_product_service(self):
         """
@@ -334,14 +338,25 @@ class ProductEventConsumer:
         Steps:
         1. Parse the event
         2. Check idempotency
-        3. Map generic supplier products to CreateProduct DTOs
-        4. Persist via bulk_upsert_products
-        5. Persist import completed/failed feedback in the transactional outbox
-        6. Invalidate product cache
+        3. Review each product's main photo (SupplierImageReviewService),
+           before the transaction: a product whose photo is rejected or not
+           yet reviewed is skipped, an approved one gets the model's description
+        4. Map generic supplier products to CreateProduct DTOs
+        5. Persist via upsert_product_by_pid
+        6. Persist import completed/failed feedback in the transactional outbox
+        7. Invalidate product cache
         """
         event = SupplierProductsFetchedEvent(**message)
         try:
             self.logger.info(f"Processing supplier products fetched event for supplier: {event.supplier_id}, fetch_id: {event.fetch_id}, products: {len(event.products)}")
+            # A redelivered batch is answered from the inbox below; checked
+            # here as well so it does not wait on photo reviews first.
+            async with self.database.transaction() as session:
+                if await SupplierImportBatchRepository(session).get_by_event_id(event.event_id):
+                    self.logger.info(f"Skipping durable duplicate supplier import event {event.event_id}")
+                    return
+            decisions = await self.image_review.decide(event.supplier_id, event.products)
+
             async with self.database.transaction() as session:
                 inbox_repository = SupplierImportBatchRepository(session)
                 if await inbox_repository.get_by_event_id(event.event_id):
@@ -383,6 +398,12 @@ class ProductEventConsumer:
                 errors: list[str] = []
                 for supplier_product in event.products:
                     pid = supplier_product.supplier_pid or "<missing>"
+                    decision = decisions.get(pid, ImportDecision(ImportAction.AS_SUPPLIED))
+                    if decision.action is ImportAction.SKIPPED:
+                        # Not created, or left exactly as it is in the store.
+                        inbox.failed += 1
+                        errors.append(f"{pid}: {decision.reason}")
+                        continue
                     try:
                         local_category_id = await category_service.get_or_create_by_name(
                             supplier_product.category_name
@@ -392,6 +413,8 @@ class ProductEventConsumer:
                             local_category_id,
                             pricing,
                         )
+                        if decision.action is ImportAction.DESCRIBED:
+                            product_data = product_data.model_copy(update={"description": decision.description})
                         existing = await product_repository.get_by_supplier_pid(
                             supplier_product.supplier_id,
                             pid,
