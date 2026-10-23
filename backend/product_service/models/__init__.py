@@ -8,6 +8,7 @@ from .category_models import ProductCategory
 from .outbox_models import OutboxEvent
 from .supplier_import_models import SupplierImportBatch
 from .retained_artwork_models import RetainedArtwork
+from .supplier_image_review_models import SupplierImageReview
 
 __all__ = [
     "Base",
@@ -20,5 +21,6 @@ __all__ = [
     "SupplierImportBatch",
     "InventoryReservation",
     "RetainedArtwork",
+    "SupplierImageReview",
 ]
 from .catalogue_image_mirror_models import CatalogueImageMirror

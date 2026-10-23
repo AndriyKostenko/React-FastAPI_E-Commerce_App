@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.product_models import Product
 from models.product_variant_models import ProductVariant
+from models.supplier_image_review_models import SupplierImageReview
 from infrastructure.database_layer.database_layer import BaseRepository
 from infrastructure.database_layer.repository_mixins import AdvancedQueryMixin
 
@@ -22,6 +23,28 @@ class ProductRepository(AdvancedQueryMixin[Product], BaseRepository[Product]):
 
     def __init__(self, session: AsyncSession):
         super().__init__(session, Product)
+
+    async def existing_pids(self, supplier_id: str, pids: list[str]) -> set[str]:
+        """Which of these supplier product ids the catalogue already holds."""
+        if not pids:
+            return set()
+        result = await self.session.execute(
+            select(Product.pid).where(Product.supplier_id == supplier_id, Product.pid.in_(pids))
+        )
+        return {pid for pid in result.scalars().all() if pid}
+
+    async def unreviewed_supplier_products(self, limit: int) -> list[Product]:
+        """Supplier products whose photo was never reviewed (imported before reviews existed), oldest first."""
+        reviewed = select(SupplierImageReview.id).where(
+            SupplierImageReview.supplier_id == Product.supplier_id, SupplierImageReview.pid == Product.pid
+        )
+        result = await self.session.execute(
+            select(Product)
+            .where(Product.supplier_id.is_not(None), Product.pid.is_not(None), ~reviewed.exists())
+            .order_by(Product.date_created, Product.id)
+            .limit(limit)
+        )
+        return list(result.scalars().all())
 
     async def get_by_supplier_pid(
         self,

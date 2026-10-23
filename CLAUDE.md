@@ -92,6 +92,8 @@ RELOAD=1 ./local/dev.sh up      # same, with uvicorn --reload
 ./local/dev.sh storage status   # S3 buckets and object counts
 ./local/dev.sh storage import-local   # one time: copy local-disk designs and return photos into S3
 ./local/dev.sh images mirror    # copy CJ catalogue images into S3 now (also runs every 15 min)
+./local/dev.sh products review [n]  # AI-review the photos of n CJ products imported before
+                                # photo reviews existed (one paid OpenRouter call each)
 ./local/dev.sh admin enrol <email>          # one-time 15-min link to register an admin's passkey
 ./local/dev.sh admin list|revoke <email> [id]   # an admin's passkeys; revoke ends their sessions
 ./local/dev.sh reset            # down + delete local data (destructive)

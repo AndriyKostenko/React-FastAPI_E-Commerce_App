@@ -48,6 +48,8 @@
 #                                   # and counts; one-time copy of local-disk
 #                                   # designs and return photos into it
 #   ./local/dev.sh images mirror    # copy CJ catalogue images into S3 now
+#   ./local/dev.sh products review [limit]   # AI-review the photos of CJ products
+#                                   # imported before reviews existed (20 by default)
 #   ./local/dev.sh admin enrol|list|revoke <email> [passkey-id]
 #                                   # admin passkeys: a one-time enrolment
 #                                   # link (also the recovery path), list,
@@ -740,6 +742,20 @@ cmd_images() {
   esac
 }
 
+# Supplier products imported before photo reviews existed: review their main
+# photo with the OpenRouter vision model (one paid call each). Approved ones
+# get the model's description; rejected ones are listed, never deleted.
+cmd_products() {
+  case "${1:-}" in
+    review)
+      local limit="${2:-20}"
+      [[ "$limit" =~ ^[0-9]+$ ]] || die "products review: the limit must be a number"
+      service_env
+      (export_vault_identity product_service; cd "$BACKEND_DIR/product_service" && .venv/bin/python -m tools.review_catalogue_images "$limit") ;;
+    *) die "products: expected review [limit]" ;;
+  esac
+}
+
 # Admin passkeys. Enrolment is only ever started from here: it needs this
 # machine's Vault identity and database, which a leaked password does not give.
 cmd_admin() {
@@ -1191,9 +1207,10 @@ case "${1:-}" in
   vault)    shift; cmd_vault "$@" ;;
   storage)  shift; cmd_storage "$@" ;;
   images)   shift; cmd_images "$@" ;;
+  products) shift; cmd_products "$@" ;;
   admin)    shift; cmd_admin "$@" ;;
   test)     shift; cmd_test "$@" ;;
   pool-budget) shift; cmd_pool_budget "$@" ;;
   mail)     shift; cmd_mail "$@" ;;
-  *) sed -n '2,53p' "${BASH_SOURCE[0]}" | sed -E 's/^#[[:space:]]?//'; exit 1 ;;
+  *) sed -n '2,56p' "${BASH_SOURCE[0]}" | sed -E 's/^#[[:space:]]?//'; exit 1 ;;
 esac
