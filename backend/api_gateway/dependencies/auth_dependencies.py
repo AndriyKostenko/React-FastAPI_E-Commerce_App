@@ -6,6 +6,11 @@ from resources import logger, settings
 from contracts.auth import TokenClaims as CurrentUserInfo
 
 
+def _sanitize_for_log(value: object) -> str:
+    """Return a log-safe string representation by removing CR/LF characters."""
+    return str(value).replace("\r", "").replace("\n", "")
+
+
 def get_current_user(request: Request) -> CurrentUserInfo:
     """Get currrent user from the request state (set by auth middleware in main.py)"""
     current_user = getattr(request.state, "current_user", None)
@@ -76,7 +81,10 @@ def require_user_or_admin(current_user: CurrentUserInfo,
     )
 
     if not (is_admin or is_own_data):
-        logger.warning(f"User {current_user.id} was refused another user's data (target id: {target_user_id})")
+        logger.warning(
+            f"User {_sanitize_for_log(current_user.id)} was refused another user's data "
+            f"(target id: {_sanitize_for_log(target_user_id)})"
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied: You can only access your own data"
