@@ -1,7 +1,7 @@
 from uuid import UUID, uuid4
 from typing import Any
 
-from sqlalchemy import String, Boolean, Integer, JSON, Index, inspect
+from sqlalchemy import CheckConstraint, String, Boolean, Integer, JSON, Index, inspect
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -17,6 +17,8 @@ class SupplierConfig(Base, TimestampMixin):
     __table_args__: tuple = (
         Index("idx_supplier_config_provider_type", "provider_type"),
         Index("idx_supplier_config_is_active", "is_active"),
+        # A minute at the least, a week at the most.
+        CheckConstraint("sync_interval_minutes BETWEEN 1 AND 10080", name="ck_supplier_configs_sync_interval"),
     )
 
     id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4)

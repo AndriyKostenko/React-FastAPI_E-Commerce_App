@@ -2,7 +2,7 @@ from decimal import Decimal
 from typing import List, TYPE_CHECKING
 from uuid import UUID, uuid4
 
-from sqlalchemy import ForeignKey, Index, inspect, Numeric
+from sqlalchemy import CheckConstraint, ForeignKey, Index, inspect, Numeric
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 
@@ -22,6 +22,9 @@ class OrderItem(Base, TimestampMixin):
         Index('idx_order_items_order_id', 'order_id'),
         Index('idx_order_items_product_id', 'product_id'),
         Index('idx_order_items_variant_id', 'variant_id'),
+        # LINE_QUANTITY_MAX (contracts.limits): a line is never merged with another.
+        CheckConstraint("quantity BETWEEN 1 AND 99", name="ck_order_items_quantity"),
+        CheckConstraint("price > 0", name="ck_order_items_price"),
     )
 
     id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4)

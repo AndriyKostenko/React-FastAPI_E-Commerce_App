@@ -3,7 +3,7 @@ from typing import Any, TYPE_CHECKING
 from uuid import UUID, uuid4
 
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import Boolean, ForeignKey, Index, Numeric, inspect, UniqueConstraint
+from sqlalchemy import Boolean, CheckConstraint, ForeignKey, Index, Numeric, String, inspect, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 
 from models.base import Base
@@ -22,22 +22,33 @@ class ProductVariant(Base, TimestampMixin):
         Index('idx_product_variant_product_id', 'product_id'),
         Index('idx_product_variant_vid', 'vid'),
         UniqueConstraint('product_id', 'vid', name='uq_product_variant_product_id_vid'),
+        CheckConstraint(
+            "variant_weight >= 0 AND variant_length >= 0 AND variant_width >= 0 AND variant_height >= 0",
+            name="ck_product_variants_dimensions",
+        ),
+        CheckConstraint(
+            "variant_sell_price >= 0 AND variant_sug_sell_price >= 0 AND retail_price >= 0",
+            name="ck_product_variants_prices",
+        ),
+        CheckConstraint("inventory_num >= 0", name="ck_product_variants_inventory_num"),
     )
 
     id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4)
     product_id: Mapped[UUID] = mapped_column(ForeignKey('products.id'), nullable=False)
-    vid: Mapped[str] = mapped_column(nullable=False)
-    variant_key: Mapped[str | None] = mapped_column(nullable=True)
-    variant_name_en: Mapped[str | None] = mapped_column(nullable=True)
-    variant_sku: Mapped[str | None] = mapped_column(nullable=True)
-    barcode: Mapped[str | None] = mapped_column(nullable=True)
-    variant_image: Mapped[str | None] = mapped_column(nullable=True)
-    variant_weight: Mapped[Decimal | None] = mapped_column(nullable=True)
+    vid: Mapped[str] = mapped_column(String(255), nullable=False)
+    variant_key: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    variant_name_en: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    variant_sku: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    barcode: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    variant_image: Mapped[str | None] = mapped_column(String(2048), nullable=True)
+    # Grams, as CJ gives them.
+    variant_weight: Mapped[Decimal | None] = mapped_column(Numeric(12, 3), nullable=True)
     variant_length: Mapped[int | None] = mapped_column(nullable=True)
     variant_width: Mapped[int | None] = mapped_column(nullable=True)
     variant_height: Mapped[int | None] = mapped_column(nullable=True)
-    variant_sell_price: Mapped[Decimal | None] = mapped_column(nullable=True)
-    variant_sug_sell_price: Mapped[Decimal | None] = mapped_column(nullable=True)
+    # CJ's USD prices, with room for the fractions of a cent CJ may quote.
+    variant_sell_price: Mapped[Decimal | None] = mapped_column(Numeric(12, 4), nullable=True)
+    variant_sug_sell_price: Mapped[Decimal | None] = mapped_column(Numeric(12, 4), nullable=True)
     # CAD shelf price derived from the supplier's USD prices at import time.
     retail_price: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
     inventory_num: Mapped[int | None] = mapped_column(nullable=True)

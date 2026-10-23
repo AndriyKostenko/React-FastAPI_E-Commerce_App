@@ -2,7 +2,7 @@ from typing import TYPE_CHECKING
 from decimal import Decimal
 from uuid import UUID, uuid4
 
-from sqlalchemy import ForeignKey, Index, Numeric, inspect, String
+from sqlalchemy import CheckConstraint, ForeignKey, Index, Numeric, inspect, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 
@@ -24,11 +24,16 @@ class Order(Base, TimestampMixin):
         Index('idx_orders_status', 'status'),
         Index('idx_orders_delivery_status', 'delivery_status'),
         Index('idx_orders_date_created', 'date_created'),
+        CheckConstraint(
+            "amount >= 0 AND subtotal_amount >= 0 AND shipping_amount >= 0 AND tax_amount >= 0"
+            " AND shipping_cost_usd >= 0",
+            name="ck_orders_amounts",
+        ),
     )
 
     id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4)
     user_id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), nullable=False)
-    user_email: Mapped[str] = mapped_column(nullable=False)
+    user_email: Mapped[str] = mapped_column(String(320), nullable=False)
     # Exact money: refunds sum these. Was a float column (migration 8d2f6a1c3e57).
     amount: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
     # Breakdown of ``amount``. Null only on orders placed before it existed.
@@ -36,19 +41,20 @@ class Order(Base, TimestampMixin):
     shipping_amount: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
     tax_amount: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
     # The Stripe Tax calculation behind tax_amount; None when tax was off.
-    tax_calculation_id: Mapped[str | None] = mapped_column(nullable=True)
+    tax_calculation_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     # Set when the customer disputes the charge with their bank: "open" until
     # Stripe reports the outcome (won / lost / ...). Flags the order for review.
     dispute_status: Mapped[str | None] = mapped_column(String(30), nullable=True)
     # The CJ logistics option the customer paid for, and what CJ quoted for it.
-    shipping_logistic_name: Mapped[str | None] = mapped_column(nullable=True)
+    shipping_logistic_name: Mapped[str | None] = mapped_column(String(500), nullable=True)
     shipping_cost_usd: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
-    currency: Mapped[str] = mapped_column(nullable=False)
-    status: Mapped[str] = mapped_column(nullable=False)
-    delivery_status: Mapped[str] = mapped_column(nullable=False)
-    payment_intent_id: Mapped[str | None] = mapped_column(unique=True, nullable=True)
+    # ISO 4217.
+    currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    status: Mapped[str] = mapped_column(String(30), nullable=False)
+    delivery_status: Mapped[str] = mapped_column(String(30), nullable=False)
+    payment_intent_id: Mapped[str | None] = mapped_column(String(255), unique=True, nullable=True)
     address_id: Mapped[UUID] = mapped_column(ForeignKey('order_addresses.id'), nullable=False)
-    cj_order_number: Mapped[str | None] = mapped_column(nullable=True)
+    cj_order_number: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     address: Mapped['OrderAddress'] = relationship('OrderAddress', back_populates='orders')
     items: Mapped[list['OrderItem']] = relationship('OrderItem', back_populates='order', cascade="all, delete-orphan")

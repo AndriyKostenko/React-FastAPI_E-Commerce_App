@@ -18,6 +18,7 @@ class User(Base, TimestampMixin):
     # to improve query performance, applied to often queried fields
     __table_args__ = (
         CheckConstraint("role IN ('user', 'admin')", name="ck_users_role"),
+        CheckConstraint("token_version >= 0", name="ck_users_token_version"),
         Index('idx_users_role', 'role'),
         Index('idx_users_is_active', 'is_active'),
         Index('idx_users_is_verified', 'is_verified'),
@@ -26,11 +27,14 @@ class User(Base, TimestampMixin):
 
     id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4)
     name: Mapped[str] = mapped_column(String(50),nullable=False)
-    email: Mapped[str] = mapped_column(String(100),unique=True, nullable=False)
-    hashed_password: Mapped[str | None] = mapped_column(nullable=True)
+    # 320: the longest address the email standards allow (sign-up accepts any valid one).
+    email: Mapped[str] = mapped_column(String(320),unique=True, nullable=False)
+    # A bcrypt hash is 60 characters.
+    hashed_password: Mapped[str | None] = mapped_column(String(255), nullable=True)
     role: Mapped[str] = mapped_column(String(20), nullable=False, default="user", server_default="user")
-    phone_number: Mapped[str] = mapped_column(nullable=True)
-    image: Mapped[str] = mapped_column(nullable=True)
+    phone_number: Mapped[str] = mapped_column(String(32), nullable=True)
+    # An avatar's storage key, or the URL of a Google picture.
+    image: Mapped[str] = mapped_column(String(2048), nullable=True)
     is_active: Mapped[bool] = mapped_column(default=True, nullable=False)
     is_verified: Mapped[bool] = mapped_column(default=False, nullable=False)
     token_version: Mapped[int] = mapped_column(default=1, nullable=False)

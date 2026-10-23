@@ -4,9 +4,15 @@ Shapes from CJ's "Webhook Mechanism" and "08. Webhook" pages (2026-10).
 """
 
 from enum import StrEnum
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, RootModel
+
+from contracts.limits import COUNT_MAX, VARIANTS_MAX, Code, Identifier, Name
+
+
+# Warehouses one variant is stocked in; CJ has a few dozen in all.
+WAREHOUSES_MAX: int = 100
 
 
 class CJWebhookTopic(StrEnum):
@@ -24,9 +30,9 @@ class CJWebhookMessage(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
 
-    message_id: str = Field(alias="messageId")
-    type: str
-    message_type: str | None = Field(default=None, alias="messageType")
+    message_id: Identifier = Field(alias="messageId")
+    type: Code
+    message_type: Code | None = Field(default=None, alias="messageType")
     params: JsonValue = None
 
 
@@ -35,14 +41,18 @@ class CJStockRow(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
 
-    vid: str
-    area_id: str | None = Field(default=None, alias="areaId")
-    area_en: str | None = Field(default=None, alias="areaEn")
-    country_code: str | None = Field(default=None, alias="countryCode")
-    storage_num: int = Field(default=0, alias="storageNum")
+    vid: Identifier
+    area_id: Identifier | None = Field(default=None, alias="areaId")
+    area_en: Name | None = Field(default=None, alias="areaEn")
+    country_code: Code | None = Field(default=None, alias="countryCode")
+    storage_num: int = Field(default=0, le=COUNT_MAX, alias="storageNum")
 
 
-class CJStockParams(RootModel[dict[str, list[CJStockRow]]]):
+# One variant's rows, a warehouse each.
+CJVariantStock = Annotated[list[CJStockRow], Field(max_length=WAREHOUSES_MAX)]
+
+
+class CJStockParams(RootModel[Annotated[dict[Identifier, CJVariantStock], Field(max_length=VARIANTS_MAX)]]):
     """A STOCK push's ``params``: variant id -> that variant's warehouse rows."""
 
 

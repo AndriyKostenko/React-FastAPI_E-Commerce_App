@@ -5,6 +5,7 @@ from uuid import uuid4
 import pytest
 from httpx import AsyncClient
 
+from contracts.limits import LINES_MAX
 from service_test_config import test_settings
 
 
@@ -53,6 +54,24 @@ class TestGetCartSummaryIntegration:
 
 
 class TestAddItemToCartIntegration:
+    @pytest.mark.parametrize(
+        "overrides",
+        [{"quantity": 100}, {"quantity": 0}, {"price_snapshot": "1000000.01"}, {"price_snapshot": "-1"}],
+        ids=["quantity-over-99", "quantity-zero", "price-too-high", "price-negative"],
+    )
+    async def test_a_line_outside_the_bounds_is_refused_and_nothing_is_added(
+        self, integration_client: AsyncClient, overrides: dict
+    ) -> None:
+        user_id = uuid4()
+
+        response = await integration_client.post(
+            f"{test_settings.API}/users/{user_id}/cart/items", json=_add_item_payload(**overrides)
+        )
+
+        assert response.status_code == 422
+        cart = await integration_client.get(f"{test_settings.API}/users/{user_id}/cart")
+        assert cart.json()["items"] == []
+
     async def test_add_item_to_cart_returns_200(
         self, integration_client: AsyncClient
     ) -> None:
@@ -168,3 +187,43 @@ class TestClearCartIntegration:
             f"{test_settings.API}/users/{user_id}/cart/summary"
         )
         assert summary_response.json()["total_items"] == 0
+
+
+class TestCartLimitsIntegration:
+    async def test_adding_more_of_a_product_past_99_is_refused_and_the_line_kept(
+        self, integration_client: AsyncClient
+    ) -> None:
+        user_id = uuid4()
+        items_url = f"{test_settings.API}/users/{user_id}/cart/items"
+        await integration_client.post(items_url, json=_add_item_payload(quantity=60))
+
+        refused = await integration_client.post(items_url, json=_add_item_payload(quantity=40))
+        assert refused.status_code == 409
+        assert "at most 99" in refused.json()["detail"]
+
+        cart = (await integration_client.get(f"{test_settings.API}/users/{user_id}/cart")).json()
+        assert [item["quantity"] for item in cart["items"]] == [60]
+
+        # Up to 99 is still fine.
+        filled = await integration_client.post(items_url, json=_add_item_payload(quantity=39))
+        assert filled.status_code == 200
+        assert [item["quantity"] for item in filled.json()["items"]] == [99]
+
+    async def test_a_cart_holds_at_most_50_different_products(self, integration_client: AsyncClient) -> None:
+        user_id = uuid4()
+        items_url = f"{test_settings.API}/users/{user_id}/cart/items"
+        for _ in range(LINES_MAX):
+            added = await integration_client.post(items_url, json=_add_item_payload(product_id=str(uuid4()), quantity=1))
+            assert added.status_code == 200
+
+        refused = await integration_client.post(items_url, json=_add_item_payload(product_id=str(uuid4()), quantity=1))
+        assert refused.status_code == 409
+        assert "up to 50" in refused.json()["detail"]
+
+        cart = (await integration_client.get(f"{test_settings.API}/users/{user_id}/cart")).json()
+        assert len(cart["items"]) == LINES_MAX
+        # A product already in the full cart can still be added to.
+        more = await integration_client.post(
+            items_url, json=_add_item_payload(product_id=cart["items"][0]["product_id"], quantity=1)
+        )
+        assert more.status_code == 200

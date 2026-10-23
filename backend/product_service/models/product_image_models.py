@@ -2,7 +2,7 @@ from typing import Any, TYPE_CHECKING
 from uuid import UUID, uuid4
 
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import ForeignKey, Index, inspect
+from sqlalchemy import ForeignKey, Index, String, inspect
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 
 from models.base import Base
@@ -25,9 +25,9 @@ class ProductImage(Base, TimestampMixin):
 
     id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4)
     product_id: Mapped[UUID] = mapped_column(ForeignKey('products.id'), nullable=False)
-    image_url: Mapped[str] = mapped_column(nullable=False)
-    image_color: Mapped[str] = mapped_column(nullable=True)
-    image_color_code: Mapped[str] = mapped_column(nullable=True)
+    image_url: Mapped[str] = mapped_column(String(2048), nullable=False)
+    image_color: Mapped[str] = mapped_column(String(500), nullable=True)
+    image_color_code: Mapped[str] = mapped_column(String(64), nullable=True)
 
 
     product: Mapped['Product'] = relationship('Product', back_populates='images') # pyright: ignore[reportUndefinedVariable]

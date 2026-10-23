@@ -5,10 +5,12 @@ from the customer. Fault decides who pays: the seller's fault is refunded in
 full (shipping included) and needs a photo, a change of mind is not.
 """
 
-from decimal import Decimal
 from enum import StrEnum
 
 from pydantic import BaseModel
+
+from contracts.limits import Count, Money, Name
+
 
 
 class ReturnFault(StrEnum):
@@ -46,15 +48,15 @@ _SELLER_FAULT_REASONS = frozenset({
 class ReturnLineSummary(BaseModel):
     """One returned line, as the customer and admin emails describe it."""
 
-    product_name: str
-    quantity: int
+    product_name: Name
+    quantity: Count
     ships_back: bool
 
 
 class RefundedLineSummary(BaseModel):
     """One line a return's refund paid back, as the customer's email lists it."""
 
-    product_name: str
-    quantity: int
+    product_name: Name
+    quantity: Count
     # The line's price for those units, before tax.
-    amount: Decimal
+    amount: Money

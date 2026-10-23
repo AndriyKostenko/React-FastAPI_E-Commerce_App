@@ -1,12 +1,13 @@
 from datetime import datetime
-from typing import Any
+from typing import Any, ClassVar
 from uuid import UUID, uuid4
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Index, JSON, String, Text
+from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Index, JSON, String
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from models.base import Base
+from infrastructure.database_layer.clipped_string import ClippedString
 from contracts.artwork import GeneratedArtworkAsset
 from enums.status_enums import LineFulfillmentStatus, ProductionJobStatus
 from infrastructure.utils.models_mixins import TimestampMixin
@@ -29,7 +30,8 @@ class OrderLineFulfillment(Base, TimestampMixin):
     )
     fulfillment_type: Mapped[str] = mapped_column(String(20), nullable=False)
     product_name: Mapped[str] = mapped_column(String(255), nullable=False)
-    supplier_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    # As wide as the product's own supplier_id.
+    supplier_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     customization: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
     variant_snapshot: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
     status: Mapped[str] = mapped_column(
@@ -42,9 +44,11 @@ class OrderLineFulfillment(Base, TimestampMixin):
     # The parcel this line left in, recorded when its channel reports it
     # shipped (CJ, the local warehouse or the in-house queue), so the customer
     # can follow every line of a mixed order from one place.
-    tracking_number: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    carrier: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    tracking_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    # What the shipped events carry (contracts.limits: Identifier, Name, Url):
+    # a CJ parcel's tracking is written here as CJ reports it.
+    tracking_number: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    carrier: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    tracking_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
     shipped_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
@@ -79,7 +83,11 @@ class CustomProductionJob(Base, TimestampMixin):
         Index("idx_custom_production_order", "order_id"),
         Index("idx_custom_production_status", "status"),
         Index("idx_custom_production_reconciliation", "reconciliation_required"),
+        CheckConstraint("quantity BETWEEN 1 AND 99", name="ck_custom_production_jobs_quantity"),
     )
+
+    # The newest notes are kept once it is full (ProductionQueueService._transition).
+    NOTES_MAX_LENGTH: ClassVar[int] = 10_000
 
     id: Mapped[UUID] = mapped_column(
         PostgresUUID(as_uuid=True), primary_key=True, default=uuid4
@@ -102,7 +110,7 @@ class CustomProductionJob(Base, TimestampMixin):
     tracking_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
 
     # Free-form workshop notes (blank stock used, reprint reason, ...).
-    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    notes: Mapped[str | None] = mapped_column(String(10_000), nullable=True)
 
     started_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
@@ -119,7 +127,7 @@ class CustomProductionJob(Base, TimestampMixin):
     cancelled_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
-    cancellation_reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    cancellation_reason: Mapped[str | None] = mapped_column(ClippedString(500), nullable=True)
 
     # Set when the job was cancelled after materials were already spent or the
     # parcel was already posted, so a human decides on return and refund.

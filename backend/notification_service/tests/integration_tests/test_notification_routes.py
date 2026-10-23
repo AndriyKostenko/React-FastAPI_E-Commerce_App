@@ -105,6 +105,41 @@ class TestGetUserNotificationsIntegration:
         assert response.status_code == 200
         assert response.json() == []
 
+    async def test_an_over_long_message_is_stored_clipped_rather_than_lost(
+        self, integration_client: AsyncClient, create_notification
+    ):
+        # Messages are built from events (product names, reasons); a long one
+        # must not cost the customer the notification.
+        await create_notification(message="m" * 6000)
+
+        response = await integration_client.get(f"{TEST_API}/notifications/users/{TEST_USER_ID}")
+
+        [notification] = response.json()
+        assert notification["message"] == "m" * 5000
+
+    @pytest.mark.parametrize(
+        "params",
+        [
+            # Not a column: the list used to reach getattr() on the model with it.
+            {"sort_by": "metadata"},
+            {"sort_by": "__class__"},
+            {"sort_order": "sideways"},
+            {"notification_type": "t" * 65},
+            {"offset": 10**12},
+        ],
+        ids=["sort-by-attribute", "sort-by-dunder", "sort-order", "type", "offset"],
+    )
+    async def test_a_filter_outside_what_the_list_offers_is_refused(
+        self, integration_client: AsyncClient, create_notification, params: dict
+    ):
+        await create_notification()
+
+        response = await integration_client.get(
+            f"{TEST_API}/notifications/users/{TEST_USER_ID}", params=params
+        )
+
+        assert response.status_code == 422
+
 
 # ---------------------------------------------------------------------------
 # GET /notifications/users/{user_id}/unread-count

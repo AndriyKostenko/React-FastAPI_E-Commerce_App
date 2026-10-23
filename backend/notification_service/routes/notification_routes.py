@@ -3,7 +3,9 @@ from infrastructure.utils.authenticated_caller import AuthenticatedCaller
 
 from fastapi import APIRouter, status, Request, Query
 
+from contracts.limits import CODE_MAX_LENGTH, COUNT_MAX
 from schemas.notifications_schemas import (
+    NOTIFICATION_SORT_FIELDS,
     NotificationInfo,
     NotificationsFilterParams,
     BulkMarkReadResponse,
@@ -28,11 +30,11 @@ async def get_user_notifications(
     user_id: UUID,
     notification_service: notification_service_dependency,
     is_read: bool | None = Query(default=None),
-    notification_type: str | None = Query(default=None),
+    notification_type: str | None = Query(default=None, max_length=CODE_MAX_LENGTH),
     limit: int = Query(default=50, ge=1, le=200),
-    offset: int = Query(default=0, ge=0),
-    sort_by: str = Query(default="date_created"),
-    sort_order: str = Query(default="desc"),
+    offset: int = Query(default=0, ge=0, le=COUNT_MAX),
+    sort_by: str = Query(default="date_created", pattern=NOTIFICATION_SORT_FIELDS),
+    sort_order: str = Query(default="desc", pattern="^(asc|desc)$"),
 ) -> list[NotificationInfo]:
     """Retrieve all notifications for a given user with optional filtering."""
     params = NotificationsFilterParams(

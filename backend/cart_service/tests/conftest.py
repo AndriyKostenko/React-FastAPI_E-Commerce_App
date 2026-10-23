@@ -136,6 +136,10 @@ def mock_cart_repository() -> MagicMock:
     repo.get_cart_by_user_id = AsyncMock()
     repo.create = AsyncMock()
     repo.add_item_to_cart = AsyncMock()
+    # An empty cart by default; the limits are tested on the real database.
+    repo.lock_cart = AsyncMock()
+    repo.find_item = AsyncMock(return_value=None)
+    repo.count_items = AsyncMock(return_value=0)
     repo.update_item_quantity = AsyncMock()
     repo.remove_item = AsyncMock()
     repo.clear_cart = AsyncMock()

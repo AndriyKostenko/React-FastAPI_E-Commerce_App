@@ -3,7 +3,8 @@ from uuid import UUID
 from database_layer.cart_repository import CartRepository
 from models.cart_models import Cart
 from schemas.cart_schemas import CartSchema, CartSummary, AddCartItem, UpdateCartItem
-from exceptions.cart_exceptions import CartNotFoundError, CartItemNotFoundError
+from exceptions.cart_exceptions import CartFullError, CartItemNotFoundError, CartLineQuantityLimitError, CartNotFoundError
+from contracts.limits import LINE_QUANTITY_MAX, LINES_MAX
 
 
 
@@ -37,6 +38,17 @@ class CartService:
 
     async def add_item_to_cart(self, user_id: UUID, item_data: AddCartItem) -> CartSchema:
         cart = await self._get_or_create_cart_model(user_id)
+
+        # Adding a product the cart holds raises that line's quantity, so the
+        # limits are checked against what the cart already has. The cart stays
+        # locked until the add commits: two adds at once cannot both pass.
+        await self.repository.lock_cart(cart.id)
+        line = await self.repository.find_item(cart.id, item_data.product_id)
+        if line is not None:
+            if line.quantity + item_data.quantity > LINE_QUANTITY_MAX:
+                raise CartLineQuantityLimitError(LINE_QUANTITY_MAX)
+        elif await self.repository.count_items(cart.id) >= LINES_MAX:
+            raise CartFullError(LINES_MAX)
 
         await self.repository.add_item_to_cart(
             cart_id=cart.id,

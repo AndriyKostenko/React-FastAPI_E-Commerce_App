@@ -2,7 +2,7 @@ from typing import Any, TYPE_CHECKING
 from uuid import uuid4, UUID
 
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import Index, inspect
+from sqlalchemy import Index, String, inspect
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 
 from models.base import Base
@@ -25,9 +25,9 @@ class ProductCategory(Base, TimestampMixin):
     )
 
     id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4)
-    name: Mapped[str] = mapped_column(unique=True, nullable=False)
-    cj_category_id: Mapped[str | None] = mapped_column(nullable=True, unique=True)
-    image_url: Mapped[str] = mapped_column(nullable=True)
+    name: Mapped[str] = mapped_column(String(500), unique=True, nullable=False)
+    cj_category_id: Mapped[str | None] = mapped_column(String(255), nullable=True, unique=True)
+    image_url: Mapped[str] = mapped_column(String(2048), nullable=True)
 
     # No delete cascade: deleting a category used to delete every product in it
     # (images, variants, reviews too) in one admin click. passive_deletes='all'

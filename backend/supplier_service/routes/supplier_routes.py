@@ -1,6 +1,6 @@
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Header, HTTPException, Query, Request, status
+from fastapi import APIRouter, Header, HTTPException, Path, Query, Request, status
 
 from dependencies.dependencies import (
     cj_provider_dependency,
@@ -17,6 +17,7 @@ from schemas.cj_webhook_schemas import CJWebhookAck
 from schemas.supplier_schemas import CJProductPreview, SupplierSyncRunSummary
 from service_layer.cj_webhook_signature import InvalidCJWebhookSignature
 from infrastructure.auth.route_guards import AdminDep
+from contracts.limits import IDENTIFIER_MAX_LENGTH
 from infrastructure.auth.service_assertion import require_service
 from fastapi import Depends
 
@@ -80,7 +81,7 @@ async def get_products_from_cjdropshipping(
     status_code=status.HTTP_200_OK,
 )
 async def get_cjdropshipping_product_details(
-    pid: str,
+    pid: Annotated[str, Path(max_length=IDENTIFIER_MAX_LENGTH)],
     cj_provider: cj_provider_dependency,
 ) -> dict[str, Any]:
     """Fetch raw product details from CJDropshipping by pid."""
@@ -95,7 +96,7 @@ async def get_cjdropshipping_product_details(
 )
 async def sync_cjdropshipping_product(
     admin: AdminDep,
-    pid: str,
+    pid: Annotated[str, Path(max_length=IDENTIFIER_MAX_LENGTH)],
     sync_orchestrator: sync_orchestrator_dependency,
 ) -> SupplierSyncRunSummary:
     """Fetch one CJ product by pid and emit a single import event."""
@@ -134,7 +135,7 @@ async def sync_cjdropshipping_products(
 )
 async def sync_supplier_products(
     admin: AdminDep,
-    supplier_id: str,
+    supplier_id: Annotated[str, Path(max_length=IDENTIFIER_MAX_LENGTH)],
     sync_orchestrator: sync_orchestrator_dependency,
     filters_query: Annotated[CJProductsFilterParams, Query()],
 ) -> SupplierSyncRunSummary:
@@ -177,7 +178,7 @@ async def quote_cjdropshipping_freight(
 async def receive_cj_webhook(
     request: Request,
     webhook_service: cj_webhook_dependency,
-    sign: Annotated[str | None, Header()] = None,
+    sign: Annotated[str | None, Header(max_length=256)] = None,
 ) -> CJWebhookAck:
     """
     A push from CJ: verified over its exact bytes, then acted on (STOCK) or

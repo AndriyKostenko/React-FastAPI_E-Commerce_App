@@ -23,3 +23,19 @@ class CartItemNotFoundError(BaseAPIException):
         )
 
 
+class CartLineQuantityLimitError(BaseAPIException):
+    def __init__(self, limit: int):
+        super().__init__(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"A cart can hold at most {limit} of one item"
+        )
+
+
+class CartFullError(BaseAPIException):
+    def __init__(self, limit: int):
+        super().__init__(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"A cart can hold up to {limit} different items; remove one first"
+        )
+
+

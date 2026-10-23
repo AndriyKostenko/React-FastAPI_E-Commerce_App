@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.wishlist_models import Wishlist, WishlistItem
@@ -18,6 +18,20 @@ class WishlistRepository(BaseRepository[Wishlist]):
     async def get_wishlist_by_user_id(self, user_id: UUID) -> Wishlist | None:
         """Get wishlist by user ID with items loaded."""
         return await self.get_by_field("user_id", user_id)
+
+    async def lock_wishlist(self, wishlist_id: UUID) -> None:
+        """Serialise changes to one wishlist until the transaction ends."""
+        await self.session.execute(select(Wishlist.id).where(Wishlist.id == wishlist_id).with_for_update())
+
+    async def holds(self, wishlist_id: UUID, product_id: UUID) -> bool:
+        return await self.session.scalar(
+            select(WishlistItem.id).where(WishlistItem.wishlist_id == wishlist_id, WishlistItem.product_id == product_id)
+        ) is not None
+
+    async def count_items(self, wishlist_id: UUID) -> int:
+        return await self.session.scalar(
+            select(func.count()).select_from(WishlistItem).where(WishlistItem.wishlist_id == wishlist_id)
+        ) or 0
 
     async def add_item(self, wishlist_id: UUID, product_id: UUID) -> WishlistItem:
         """Add a product to a wishlist. Raises on duplicate."""

@@ -3,7 +3,7 @@ from decimal import Decimal
 from typing import Any, override
 
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import Integer, ForeignKey, Numeric, inspect
+from sqlalchemy import CheckConstraint, Integer, ForeignKey, Numeric, inspect
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 
 from models.base import Base
@@ -69,6 +69,12 @@ class Cart(Base, TimestampMixin):
 
 class CartItem(Base, TimestampMixin):
     __tablename__: str = 'cart_items'
+
+    __table_args__ = (
+        # LINE_QUANTITY_MAX (contracts.limits): adding more of a product never takes a line past it.
+        CheckConstraint("quantity BETWEEN 1 AND 99", name="ck_cart_items_quantity"),
+        CheckConstraint("price_snapshot >= 0", name="ck_cart_items_price_snapshot"),
+    )
 
     id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4)
     cart_id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), ForeignKey("carts.id", ondelete="CASCADE"), nullable=False, index=True)

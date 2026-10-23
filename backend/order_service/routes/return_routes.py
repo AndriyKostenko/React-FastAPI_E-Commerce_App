@@ -1,7 +1,7 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, Form, Query, Response, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, Path, Query, Response, UploadFile, status
 from fastapi.exceptions import RequestValidationError
 from pydantic import ValidationError
 
@@ -15,6 +15,7 @@ from schemas.order_return_schemas import (
     ReturnRequestSchema,
 )
 from infrastructure.auth.route_guards import AdminDep, CallerDep, require_admin
+from contracts.limits import COUNT_MAX, IMAGES_MAX
 from contracts.returns import ReturnStatus
 
 
@@ -47,7 +48,7 @@ async def request_return(
     order_id: UUID,
     caller: CallerDep,
     return_service: order_return_service_dependency,
-    request: Annotated[str, Form(description="ReturnRequestCreate as JSON")],
+    request: Annotated[str, Form(max_length=20_000, description="ReturnRequestCreate as JSON")],
     photos: Annotated[list[UploadFile], File(description="JPEG, PNG or WebP evidence")] = [],
 ) -> ReturnRequestSchema:
     try:
@@ -102,7 +103,7 @@ async def list_returns(
     return_service: order_return_service_dependency,
     status_filter: Annotated[ReturnStatus | None, Query(alias="status")] = None,
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
-    offset: Annotated[int, Query(ge=0)] = 0,
+    offset: Annotated[int, Query(ge=0, le=COUNT_MAX)] = 0,
 ) -> list[ReturnRequestSchema]:
     return await return_service.list_queue(status_filter, limit=limit, offset=offset)
 
@@ -118,7 +119,9 @@ async def get_return(return_id: UUID, return_service: order_return_service_depen
     summary="One evidence photo of a return",
 )
 async def get_return_photo(
-    return_id: UUID, index: int, return_service: order_return_service_dependency
+    return_id: UUID,
+    index: Annotated[int, Path(ge=0, lt=IMAGES_MAX)],
+    return_service: order_return_service_dependency,
 ) -> Response:
     content, content_type = await return_service.photo(return_id, index)
     # Private evidence: never kept by a shared cache.

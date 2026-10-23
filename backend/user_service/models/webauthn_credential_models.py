@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Index, LargeBinary, String
+from sqlalchemy import BigInteger, Boolean, CheckConstraint, DateTime, ForeignKey, Index, LargeBinary, String
 from sqlalchemy.dialects.postgresql import ARRAY, UUID as PostgresUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -18,7 +18,12 @@ class WebAuthnCredential(Base, TimestampMixin):
 
     __tablename__: str = "webauthn_credentials"
 
-    __table_args__ = (Index("idx_webauthn_credentials_user_id", "user_id"),)
+    __table_args__ = (
+        Index("idx_webauthn_credentials_user_id", "user_id"),
+        CheckConstraint("sign_count >= 0", name="ck_webauthn_credentials_sign_count"),
+        # WebAuthn defines six transports.
+        CheckConstraint("cardinality(transports) <= 10", name="ck_webauthn_credentials_transports"),
+    )
 
     id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4)
     user_id: Mapped[UUID] = mapped_column(
