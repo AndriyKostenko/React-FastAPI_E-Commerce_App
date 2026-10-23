@@ -1,6 +1,6 @@
 """Every link an email carries, built in one place so each opens a real page."""
 
-from urllib.parse import quote
+from urllib.parse import quote, urlsplit
 from uuid import UUID
 
 
@@ -39,3 +39,18 @@ class EmailLinks:
     def support(contact_email: str) -> str:
         """There is no support page yet: support is a reply to the shop's mailbox."""
         return f"mailto:{contact_email}"
+
+    @staticmethod
+    def external(url: str | None) -> str | None:
+        """A link from outside (a carrier's tracking page), if it is safe to put in an email.
+
+        Only an absolute http(s) URL becomes a link. The tracking URL comes
+        from CJ or from whoever marks an in-house order shipped, and a
+        "javascript:" or "data:" URL in a button is not ours to send.
+        """
+        if not url:
+            return None
+        parts = urlsplit(url.strip())
+        if parts.scheme.lower() not in ("http", "https") or not parts.netloc:
+            return None
+        return url.strip()

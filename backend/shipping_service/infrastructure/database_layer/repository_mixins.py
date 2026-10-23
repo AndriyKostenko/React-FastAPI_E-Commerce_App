@@ -108,7 +108,9 @@ class AdvancedQueryMixin(Generic[ModelType]):
                     continue
                 column = getattr(self.model, key)
                 if isinstance(value, str) and key not in self.EQUAL_ONLY_FIELDS:
-                    query = query.where(column.ilike(f"%{value}%"))
+                    # autoescape: a "%" or "_" the caller typed is matched as
+                    # itself, not as a LIKE wildcard ("_" matched any character).
+                    query = query.where(column.icontains(value, autoescape=True))
                 else:
                     query = query.where(column == value)
 
@@ -128,7 +130,7 @@ class AdvancedQueryMixin(Generic[ModelType]):
         # Search across multiple fields
         if search_term and search_fields:
             conditions = [
-                getattr(self.model, field).ilike(f"%{search_term}%")
+                getattr(self.model, field).icontains(search_term, autoescape=True)
                 for field in search_fields
                 if hasattr(self.model, field)
             ]

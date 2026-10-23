@@ -1,25 +1,32 @@
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Header, HTTPException, Path, Query, Request, status
-
+from contracts.limits import IDENTIFIER_MAX_LENGTH
 from dependencies.dependencies import (
     cj_provider_dependency,
     cj_webhook_dependency,
     freight_quote_dependency,
     sync_orchestrator_dependency,
 )
+from fastapi import (
+    APIRouter,
+    Depends,
+    Header,
+    HTTPException,
+    Path,
+    Query,
+    Request,
+    status,
+)
+from infrastructure.auth.route_guards import AdminDep
+from infrastructure.auth.service_assertion import require_service
+from schemas.cj_webhook_schemas import CJWebhookAck
 from schemas.dropshipping_schemas import (
     CJFreightQuoteRequest,
     CJFreightQuoteResponse,
     CJProductsFilterParams,
 )
-from schemas.cj_webhook_schemas import CJWebhookAck
 from schemas.supplier_schemas import CJProductPreview, SupplierSyncRunSummary
 from service_layer.cj_webhook_signature import InvalidCJWebhookSignature
-from infrastructure.auth.route_guards import AdminDep
-from contracts.limits import IDENTIFIER_MAX_LENGTH
-from infrastructure.auth.service_assertion import require_service
-from fastapi import Depends
 
 # Called by order-service directly, never through the gateway: only a request
 # order-service signed with its own key is accepted (bug list 5).
@@ -54,6 +61,10 @@ def _to_sync_summary(sync_state) -> SupplierSyncRunSummary:
     status_code=status.HTTP_200_OK,
 )
 async def get_products_from_cjdropshipping(
+    # Admin only, as the raw details below: the results carry CJ's price,
+    # which is our cost, and each search spends the CJ call budget that
+    # checkout's freight quotes share.
+    admin: AdminDep,
     cj_provider: cj_provider_dependency,
     filters_query: Annotated[CJProductsFilterParams, Query()],
 ) -> list[CJProductPreview]:
@@ -81,6 +92,7 @@ async def get_products_from_cjdropshipping(
     status_code=status.HTTP_200_OK,
 )
 async def get_cjdropshipping_product_details(
+    admin: AdminDep,
     pid: Annotated[str, Path(max_length=IDENTIFIER_MAX_LENGTH)],
     cj_provider: cj_provider_dependency,
 ) -> dict[str, Any]:
@@ -187,5 +199,8 @@ async def receive_cj_webhook(
     try:
         await webhook_service.receive(await request.body(), sign)
     except InvalidCJWebhookSignature:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid CJ webhook signature")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid CJ webhook signature",
+        )
     return CJWebhookAck()

@@ -323,7 +323,86 @@ Backend:
 
 1. **Protection against the attacks that apply to this project**: SQL injection,
    header manipulation (Host, forwarded headers, CRLF), and the rest of the relevant
-   OWASP Top 10 across the gateway and every service.
+   OWASP Top 10 across the gateway and every service. **Done 2026-10-22.**
+   - Checked and already sound:
+     - No SQL is built from input: every query is SQLAlchemy with bound parameters; the
+       only `text()` calls are advisory locks with bound keys and the test truncation.
+       Sort fields are validated by pattern, apart from the notification list (fixed in
+       item 5).
+     - Host is checked against an allowlist in every service. `X-Forwarded-For` is
+       read only from configured proxies, walking right to left. The gateway drops
+       every client forwarding, cookie, authorization and identity header, and
+       restates them itself.
+     - CRLF cannot reach a header (h11 refuses it), and logs are JSON.
+     - Uploads: type sniffed from the bytes, size capped, avatars re-encoded with a
+       pixel cap.
+     - Catalogue image fetching: HTTPS on CJ's CDN only, no redirects, body capped.
+       EC2 requires IMDSv2.
+     - Tokens: algorithms pinned. Webhook signatures compared in constant time.
+     - Login: costs one hash check for an unknown email; reset and register do not
+       reveal accounts.
+     - Updates forbid extra fields (no role or flag changes).
+     - Emails are Jinja with autoescape.
+     - No pickle, eval or shell anywhere.
+   - Fixed:
+     - **Paths the gateway forwarded elsewhere.** httpx resolves `.` and `..` while
+       building the upstream URL, so `/api/v1/products/../orders` was judged as a
+       public catalogue path and sent as `/api/v1/orders`. The path-bound caller
+       assertion happened to refuse those, but `/media/..` (which signs none) reached
+       any product-service path anonymously. A decoded `%3F`/`%23` also split the
+       forwarded URL, and a `%25` was decoded twice. `RequestPathGuard`
+       (`api_gateway/middleware/path_guard.py`) now answers 400 before
+       authentication, the cache or any route sees such a path. It allows letters,
+       digits and `-._~/` only, and no dot segments. It reads the scope's path, since
+       `request.url` has already split off a decoded `?`.
+     - **Metrics a caller could grow.** The gateway labelled its request counters with
+       the raw path, so every made-up URL was a new series held in memory. They are
+       now labelled with the matched route's template. Cache hits, answered before
+       routing, are matched against the route table, and anything else is
+       `<unmatched>`.
+     - **Cache keys two queries could share.** The key joined `k=v` unencoded and kept
+       only the last value of a repeated parameter. So `?search_term=shirt%26sort_by%3Dprice`
+       (one parameter) cached an empty result under the key of
+       `?search_term=shirt&sort_by=price`, served to everyone for the TTL. Keys are now
+       `urlencode` of every value (`cache_manager.py`, three copies).
+     - **CJ catalogue search and raw product details** were open to any signed-in
+       customer, though nothing but the admin uses them. They showed CJ's price (our
+       cost) and spent the CJ call budget checkout's freight quotes share. Now
+       admin-only at the gateway and in supplier-service.
+     - **Personal data in logs.** The gateway logged the email of every validated token
+       and the whole claims object on every signed-in request. Now it logs the user id,
+       at debug.
+     - **`X-Request-ID`** was copied into every log line and echoed back whatever the
+       caller sent. Now only `[A-Za-z0-9._-]{1,128}` is kept; anything else gets a
+       fresh id (`logging_middleware.py`, all ten copies).
+     - **LIKE wildcards.** Search terms and string filters went into `ILIKE '%…%'` as
+       typed, so `_` matched any character and `%` everything. Now
+       `icontains(..., autoescape=True)` (`repository_mixins.py`, seven copies).
+     - **The shipped email's tracking button** took CJ's or the admin's URL as given.
+       Now only an absolute http(s) URL becomes a link (`EmailLinks.external`), as the
+       frontend's `safeUrl` already does.
+     - **Admin `GET /orders`** returned the first 50 orders ever placed, with no way to
+       reach the rest. Now it is `limit` (1–200) and `offset`, newest first.
+       `BaseRepository.get_all` breaks ties on the primary key (all nine copies), as
+       `AdvancedQueryMixin.get_all` already did.
+   - Left as they are:
+     - Swagger at `/docs` stays public: a recorded deployment decision; it lists
+       routes, and every one still checks its caller.
+     - User- and notification-service log the recipient's email for each event they
+       publish or send. These are per event, not per request; item 2 should take them
+       out with the plain-text column.
+     - A customer can still `POST /orders` without checkout. It is server-priced, and
+       its stock hold is released by the saga timeout, as an unpaid checkout's is.
+     - The gateway's `POST /cjdropshipping/freight/quote` can never succeed, because
+       supplier-service accepts only order-service's key there. Harmless.
+   - Tests: `test_request_hardening.py` (gateway: paths through the real app,
+     route labels on real Starlette routing, cache keys, request ids, the CJ routes),
+     `test_cj_catalogue_admin_only.py` (supplier-service, real assertions),
+     `test_search_escaping.py` (user-service, real database), new cases in
+     `test_email_links.py` and order-service's `TestGetOrdersIntegration`. Each fails
+     without its fix. All ten suites pass. On the local stack, the traversal paths get
+     400, while the shop, product, cart and login pages render, and `/metrics` shows
+     templates only.
 2. **Store users' emails encoded, not in plain text.** Look for a very small, fast
    library to encode and decode them, so that only the encoded email is in the
    database. Login, password reset and "email already registered" still need to find

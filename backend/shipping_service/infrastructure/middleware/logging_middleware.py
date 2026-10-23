@@ -10,6 +10,7 @@ Every log record emitted anywhere in the request lifecycle will automatically
 carry request_id and service fields via the _ContextFilter in logger_manager.
 """
 import logging
+import re
 import time
 import uuid
 from contextvars import ContextVar
@@ -28,6 +29,20 @@ _logger = logging.getLogger(__name__)
 
 _SKIP_PATHS = frozenset({"/health", "/metrics", "/docs", "/openapi.json", "/redoc"})
 
+# What an incoming X-Request-ID may look like (a UUID, a trace id). Anything
+# else is replaced: the header is the caller's, and it is copied into every
+# log line of the request and echoed back, so its length and characters are
+# ours to decide.
+_REQUEST_ID_PATTERN = re.compile(r"[A-Za-z0-9._-]{1,128}")
+
+
+def _request_id_from(request: Request) -> str:
+    """The incoming correlation id if it is well-formed, else a new one."""
+    incoming = request.headers.get("X-Request-ID", "")
+    if _REQUEST_ID_PATTERN.fullmatch(incoming):
+        return incoming
+    return str(uuid.uuid4())
+
 
 class LoggingMiddleware(BaseHTTPMiddleware):
     def __init__(self, app, service_name: str) -> None:
@@ -39,7 +54,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         # Propagate an incoming correlation ID or generate a new one.
-        request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
+        request_id = _request_id_from(request)
 
         # Bind to context so all loggers pick it up automatically.
         req_token = REQUEST_ID_CTX_VAR.set(request_id)

@@ -108,7 +108,9 @@ class AuthMiddleware:
                         detail="Admin sessions must be signed in with a passkey.",
                     )
                 request.state.current_user = user_data
-                self.logger.info(f"Token is validated for: {user_data.email}")
+                # The id, never the email: this runs on every signed-in request,
+                # and addresses do not belong in the log pipeline.
+                self.logger.debug(f"Token is validated for user {user_data.id}")
             except HTTPException as exc:
                 if not is_public:
                     return JSONResponse(

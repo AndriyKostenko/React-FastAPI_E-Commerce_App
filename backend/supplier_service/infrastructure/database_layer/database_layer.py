@@ -93,6 +93,10 @@ class BaseRepository(Generic[ModelType]):
         if sort_by and hasattr(self.model, sort_by):
             order_clause = getattr(self.model, sort_by).asc() if sort_order == "asc" else getattr(self.model, sort_by).desc()
             query = query.order_by(order_clause)
+        # The primary key breaks ties, as in AdvancedQueryMixin.get_all, so
+        # consecutive pages of one query never repeat or skip a row.
+        if hasattr(self.model, "id"):
+            query = query.order_by(self.model.id.asc())
 
         if offset is not None:
             query = query.offset(offset)

@@ -8,8 +8,12 @@ supplier_proxy = APIRouter(tags=["Supplier Service Proxy"])
 
 
 @supplier_proxy.get("/cjdropshipping/products", summary="Search CJDropshipping products")
-async def get_products_from_cjdropshipping(request: Request):
-    """PUBLIC - Search products directly from CJDropshipping."""
+async def get_products_from_cjdropshipping(request: Request, current_user: dict = Depends(require_admin)):
+    """ADMIN ONLY - Search products directly from CJDropshipping.
+
+    Not for customers: the results carry CJ's price (our cost), and every
+    search spends the CJ call budget checkout's freight quotes share.
+    """
     return await api_gateway_manager.forward_request(
         service_name="supplier-service",
         request=request,
@@ -17,8 +21,8 @@ async def get_products_from_cjdropshipping(request: Request):
 
 
 @supplier_proxy.get("/cjdropshipping/products/{pid}", summary="Get CJDropshipping product details")
-async def get_cjdropshipping_product_details(request: Request, pid: str):
-    """PUBLIC - Fetch raw CJDropshipping product details by pid."""
+async def get_cjdropshipping_product_details(request: Request, pid: str, current_user: dict = Depends(require_admin)):
+    """ADMIN ONLY - Fetch raw CJDropshipping product details by pid."""
     return await api_gateway_manager.forward_request(
         service_name="supplier-service",
         request=request,
