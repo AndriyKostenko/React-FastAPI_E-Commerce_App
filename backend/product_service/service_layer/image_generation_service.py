@@ -1,3 +1,4 @@
+from collections.abc import Awaitable
 from logging import Logger
 from abc import ABC, abstractmethod
 from typing import Any, override
@@ -8,10 +9,18 @@ from pydantic import BaseModel
 from settings import Settings
 from schemas.image_generation_schema import GenerateImageResponse
 from exceptions.image_generation_exceptions import (
+    DesignCheckUnavailableError,
+    DesignRefusedError,
     ImageBackgroundRemovalError,
     ImageGenerationProviderError,
 )
 from service_layer.background_removal_service import BackgroundRemover
+from service_layer.design_moderation import (
+    DesignModerationUnavailableError,
+    DesignModerator,
+    DesignRefusal,
+    DesignRefusalLog,
+)
 from service_layer.image_generation_quota import GenerationQuotaService
 from service_layer.image_job_store import ImageJobStore
 from service_layer.openrouter_client import OpenRouterClient
@@ -59,8 +68,19 @@ class ImageGenerationService(ImageGenerationInterface):
       - ImageJobStore           → job lifecycle in Redis
       - OpenRouterClient        → HTTP calls to the image provider
       - BackgroundRemover       → transparent cutout when requested
+      - DesignModerator         → checks the request, then the image
+      - DesignRefusalLog        → keeps each refused design for the admins
       - ImageStorageService     → print validation + durable persistence
     """
+
+    # Failures whose message is written for the customer; anything else is
+    # an internal failure whose details stay in the log.
+    _CUSTOMER_FACING_ERRORS = (
+        ImageGenerationProviderError,
+        ImageBackgroundRemovalError,
+        DesignRefusedError,
+        DesignCheckUnavailableError,
+    )
 
     def __init__(self,
                  quota_service: GenerationQuotaService,
@@ -68,6 +88,8 @@ class ImageGenerationService(ImageGenerationInterface):
                  openrouter_client: OpenRouterClient,
                  storage_service: ImageStorageService,
                  background_remover: BackgroundRemover,
+                 moderator: DesignModerator,
+                 refusal_log: DesignRefusalLog,
                  settings: Settings,
                  logger: Logger) -> None:
         self.settings: Settings = settings
@@ -77,17 +99,48 @@ class ImageGenerationService(ImageGenerationInterface):
         self._openrouter_client: OpenRouterClient = openrouter_client
         self._storage_service: ImageStorageService = storage_service
         self._background_remover: BackgroundRemover = background_remover
+        self._moderator: DesignModerator = moderator
+        self._refusal_log: DesignRefusalLog = refusal_log
 
     async def _produce_artwork(
-        self, prompt: str, style: str, remove_background: bool
+        self, prompt: str, style: str, remove_background: bool, user_id: UUID | None
     ) -> tuple[str, str]:
-        """Generate the image and, when asked, cut it out before it is stored."""
+        """
+        Check the request, generate the image (cut out when asked), then check
+        the image. Only a design both checks passed goes on to be stored and
+        signed, and only a signed design can be ordered.
+        """
+        # The request first: an obviously refused one costs no image.
+        await self._enforce(self._moderator.check_prompt(prompt, style), user_id, prompt, style)
         image_payload, model = await self._openrouter_client.generate(prompt, style, remove_background)
         if remove_background:
             # Image models ignore transparency requests and paint a backdrop,
             # which would print as a solid rectangle on the garment.
             image_payload = await self._background_remover.remove(image_payload)
+        # Checked as it will be printed: after the cutout.
+        await self._enforce(self._moderator.check_image(image_payload, prompt), user_id, prompt, style)
         return image_payload, model
+
+    async def _enforce(
+        self, check: Awaitable[DesignRefusal | None], user_id: UUID | None, prompt: str, style: str
+    ) -> None:
+        """Let the design through, or stop it: refused, or unchecked (fail closed)."""
+        try:
+            refusal = await check
+        except DesignModerationUnavailableError as error:
+            self._logger.warning("Design check unavailable, design not produced: %s", error)
+            raise DesignCheckUnavailableError() from error
+        if refusal is None:
+            return
+        self._logger.info(
+            "Design refused at the %s check (%s) for user %s", refusal.stage, refusal.category, user_id
+        )
+        try:
+            await self._refusal_log.record(user_id, prompt, style, refusal)
+        except Exception as error:
+            # The refusal stands even when it cannot be kept.
+            self._logger.error("Could not record a design refusal: %s", error)
+        raise DesignRefusedError(refusal.category.customer_message)
 
     @override
     async def save_image(self, b64_image: str) -> StoredImage:
@@ -101,7 +154,7 @@ class ImageGenerationService(ImageGenerationInterface):
                             remove_background: bool = False) -> GenerateImageResponse:
         remaining_generations = await self._quota_service.consume(user_id)
         try:
-            image_payload, model = await self._produce_artwork(prompt, style, remove_background)
+            image_payload, model = await self._produce_artwork(prompt, style, remove_background, user_id)
             stored_image = await self._storage_service.save(image_payload)
         except Exception:
             await self._refund_quietly(user_id)
@@ -126,8 +179,9 @@ class ImageGenerationService(ImageGenerationInterface):
     @override
     async def run_job(self, job_id: str, prompt: str, style: str, remove_background: bool = False) -> None:
         await self._job_store.set_state(job_id, "running")
+        owner_id = await self._job_store.get_owner(job_id)
         try:
-            image_payload, model = await self._produce_artwork(prompt, style, remove_background)
+            image_payload, model = await self._produce_artwork(prompt, style, remove_background, owner_id)
             stored_image = await self._storage_service.save(image_payload)
             await self._job_store.set_state(
                 job_id,
@@ -140,20 +194,21 @@ class ImageGenerationService(ImageGenerationInterface):
             )
             self._logger.debug("Job %s completed: %s", job_id, stored_image.asset.key)
         except Exception as exc:
-            self._logger.error(f"Job {job_id} failed: {exc}")
-            # Our own errors carry a safe, user-facing message; anything else
-            # is an internal failure whose details stay in the log.
+            # A refusal is the check doing its job (_enforce logged it), not a failure.
+            if not isinstance(exc, DesignRefusedError):
+                self._logger.error(f"Job {job_id} failed: {exc}")
+            # The detail alone: str() of an HTTP exception starts with its
+            # status code, which is not for the customer.
             error_message = (
-                str(exc)
-                if isinstance(exc, (ImageGenerationProviderError, ImageBackgroundRemovalError))
+                str(exc.detail)
+                if isinstance(exc, self._CUSTOMER_FACING_ERRORS)
                 else "Image generation failed"
             )
             await self._job_store.set_state(
                 job_id, "failed", {"error": error_message}
             )
             # The quota was spent at submit time; a job that produced no
-            # artwork gives it back.
-            owner_id = await self._job_store.get_owner(job_id)
+            # artwork (refused designs included) gives it back.
             if owner_id is not None:
                 await self._refund_quietly(owner_id)
 

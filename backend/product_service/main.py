@@ -15,6 +15,7 @@ from app_config import DESCRIPTOR, product_service_lifespan, resolve_resources
 from resources import ProductApiResources, logger, settings
 from routes.artwork_routes import artwork_routes
 from routes.category_routes import category_routes
+from routes.admin_routes import admin_routes
 from routes.product_image_routes import product_images_routes
 from routes.product_routes import product_routes
 from routes.review_routes import review_routes
@@ -31,6 +32,7 @@ app = (
     .with_router(review_routes, prefix=DESCRIPTOR.api_prefix)
     .with_router(product_images_routes, prefix=DESCRIPTOR.api_prefix)
     .with_router(artwork_routes, prefix=DESCRIPTOR.api_prefix)
+    .with_router(admin_routes, prefix=DESCRIPTOR.api_prefix)
     .build()
 )
 

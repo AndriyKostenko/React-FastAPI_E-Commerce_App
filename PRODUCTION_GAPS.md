@@ -87,8 +87,8 @@ or recorded as decided. Merged so far: PR #41 (readiness, phases 2–5) and PR #
 - Per-service Redis and RabbitMQ users (postponed in favour of deploying first).
 - ~~Dependency upgrades, then make the audit blocking~~ (done 2026-10-23, §1: every
   lock file clean, the CI audit blocking, 4 TinyMCE advisories allowed in admin-js).
-- AI content moderation, GDPR and retention (see §5 and §8). The legal pages are done
-  (2026-10-18, below), pending a lawyer's review.
+- ~~AI content moderation~~ (done 2026-10-23, §5). GDPR and retention (see §5 and §8)
+  remain. The legal pages are done (2026-10-18, below), pending a lawyer's review.
 
 **Frontend**
 
@@ -626,7 +626,8 @@ Code work:
 - **Per-service Redis / RabbitMQ users**: every service still reads the
   Redis and RabbitMQ passwords from one Vault path (§8.1). Postgres is done
   (§8.7).
-- **AI content moderation**: none; unscreened designs can reach the printer (§5).
+- ~~**AI content moderation**~~: done 2026-10-23 (§5). Every design's request and
+  image are checked before it can be stored, signed and ordered.
 - **GDPR / audit / retention**: only account deletion exists (§5).
 - ~~**Dependency vulnerabilities**~~: done 2026-10-23 (§1). pip-audit is clean
   everywhere and the CI audit is blocking.
@@ -1528,8 +1529,56 @@ the services), not only in unit tests.
   (name, email, phone, image, password), ends its sessions and publishes
   `user.deleted`, which only wishlist-service consumes; orders, addresses,
   reviews, notifications and stored designs keep their data. No export.
-- AI-print content moderation — you physically print user designs, so IP / trademark / NSFW
-  screening is genuine liability, not optional
+- **AI content moderation of customer designs. Done 2026-10-23** (branch
+  `feature/design-moderation`). You physically print user designs, so IP / trademark /
+  NSFW screening is genuine liability. Before this, product-service generated, stored
+  and signed a design, and order-service checked only the signature and the DPI.
+  - Two checks in the generation job (`ImageGenerationService._produce_artwork`), both
+    by `OpenRouterDesignModerator` (`OPENROUTER_MODERATION_MODEL`, default
+    `google/gemini-2.5-flash`) against one policy. The request (description and style)
+    is checked before any image is paid for. The generated image is checked after
+    any cutout, as it will be printed. It is sent inline, scaled down to
+    `DESIGN_MODERATION_IMAGE_MAX_PX` (1024) on grey so white artwork stays visible.
+    Only a design both checks passed is stored and signed, and only a signed design
+    can be ordered.
+  - Refused: sexual content, hate symbols, graphic violence, drugs, brand names and
+    logos, copyrighted characters (or close imitations) and real people. General art
+    styles and original work pass; when unsure about IP, the model is told to refuse.
+  - A refusal fails the job with a message naming the rule ("We can't print this
+    design: it shows a copyrighted character."), gives the generation back, and is
+    kept in `design_moderation_refusals` (user, stage, rule, prompt, style, the
+    model's reason). The image is never kept. A refusal stands even if its record
+    cannot be written. Admins read the records in AdminJS (Customers → Design
+    refusals, read-only, filterable by rule and stage) through the shared
+    `AdminTable` (`GET /admin/design-refusals`; product-service now carries the
+    `infrastructure/admin` copy).
+  - No answer (no key, OpenRouter down or slow, an answer that does not fit the
+    schema or contradicts itself): fail closed. The job fails with "try again", the
+    generation is given back, nothing is stored.
+  - The OpenRouter JSON-schema transport is shared with the supplier photo review
+    (`OpenRouterStructuredChat`); the reviewer now uses it too.
+  - Fixed on the way: a failed job's message to the customer started with the HTTP
+    status ("502: No image returned…"); it is the message alone now.
+  - Tests (agreed): `test_design_moderation.py` runs the real job (Redis quota and
+    job state, the test database, the private test bucket) with scripted verdicts
+    and a scripted image model. It covers a passing design, the check after the
+    cutout, refused at the request and at the image, a refusal whose record fails,
+    no answer at either check, and the admin listing (newest first, filter, one
+    record, schema, admin only). `test_openrouter_design_moderator.py` covers the
+    request and the answers it must not trust, offline.
+    `test_openrouter_design_moderator_live.py` makes 3 real calls and is opt-in
+    (`OPENROUTER_LIVE_MODERATION=1`). Each rule failed its test when taken out
+    (9 mutations).
+  - Live, 2026-10-23: the real worker task, with the real image model and rembg,
+    on 8 prompts. A neon tiger and a cactus (with cutout) were stored. Mickey Mouse,
+    Taylor Swift, the Adidas logo, nudity, a swastika, and an unnamed "yellow electric
+    mouse with red cheeks" (recognised as Pikachu) were refused at the request, each
+    with the right rule, and the quota was given back. 16 OpenRouter calls in all.
+  - Not covered: no live design passed the request check and was then refused at
+    the image (the image check refused nothing live, only in the tests). Text the
+    image model adds on its own (a logo it was not asked for) is what the image
+    check is for. The frontend's "generations left" counter stays one lower after
+    any failed job until the next request, though the quota was given back.
 
 ### 5a. Refund and cancellation paths — verified live (2026-10-05, 2026-10-07)
 
@@ -2094,8 +2143,7 @@ approach; decisions are recorded here as they are made.
    distribution per service + a secret manager~~ (Vault, done locally, §8.1;
    compose / production in deployment phase 4)
 4. ~~CJ shipping quotes + tracking + failure handling~~ (done — see §3)
-5. AI content moderation (design generation works end to end, so unscreened
-   designs can reach the printer), legal pages, GDPR. Tax is wired in (§5);
+5. ~~AI content moderation~~ (done 2026-10-23, §5), legal pages, GDPR. Tax is wired in (§5);
    it needs the Stripe registrations before going live
 6. Frontend account / tracking / designer polish (checkout shipping options
    are done — see §3b)

@@ -441,4 +441,16 @@ export const RESOURCE_CATALOGUE: readonly ResourceEntry[] = [
         list: ['notification_type', 'user_id', 'is_read', 'date_created'],
         spec: { name: 'Notifications', listPath: '/admin/notifications', schemaPath: '/admin/schema/notifications', writes: READ_ONLY },
     },
+    {
+        // A customer design the moderation check refused, at the request or the
+        // image; written by the generation job. The image itself is never kept.
+        navigation: 'Customers',
+        list: ['category', 'stage', 'prompt', 'user_id', 'date_created'],
+        spec: {
+            name: 'Design refusals',
+            listPath: '/admin/design-refusals',
+            schemaPath: '/admin/schema/design-refusals',
+            writes: READ_ONLY,
+        },
+    },
 ];
