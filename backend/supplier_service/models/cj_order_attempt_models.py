@@ -9,6 +9,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from models.base import Base
 from infrastructure.database_layer.clipped_string import ClippedString
+from infrastructure.database_layer.encrypted_email import EncryptedEmail
 from infrastructure.utils.models_mixins import TimestampMixin
 
 
@@ -42,7 +43,8 @@ class CJOrderAttempt(Base, TimestampMixin):
     user_id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), nullable=False)
     # Captured at creation so the tracking poller can emit customer-facing
     # events without calling back into order_service.
-    user_email: Mapped[str | None] = mapped_column(String(320), nullable=True)
+    # Encrypted at rest; nothing looks an attempt up by address.
+    user_email: Mapped[str | None] = mapped_column(EncryptedEmail(), nullable=True)
     status: Mapped[str] = mapped_column(String(40), nullable=False)
     request_payload: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
     cj_order_number: Mapped[str | None] = mapped_column(String(200), nullable=True)

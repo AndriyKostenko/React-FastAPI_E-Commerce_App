@@ -197,6 +197,16 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("OBJECT_STORAGE_BACKEND", "ARTWORK_STORAGE_BACKEND"),
     )
     ARTWORK_SIGNING_SECRET: SecretStr | None = None
+
+    # Stored email addresses are encrypted (infrastructure/utils/email_cipher.py):
+    # EMAIL_ENCRYPTION_KEY encrypts, and EMAIL_ENCRYPTION_OLD_KEYS (comma
+    # separated) still decrypt what earlier keys wrote, after a rotation.
+    # EMAIL_LOOKUP_KEY keys the hash that finds a row by address. Each is 32
+    # random bytes, base64, in this service's Vault path; dev.sh generates them
+    # on `infra up`. Losing a key loses every address it encrypted: back it up.
+    EMAIL_ENCRYPTION_KEY: SecretStr
+    EMAIL_ENCRYPTION_OLD_KEYS: SecretStr | None = None
+    EMAIL_LOOKUP_KEY: SecretStr
     AWS_S3_PRIVATE_BUCKET: str | None = Field(
         default=None,
         validation_alias=AliasChoices("AWS_S3_PRIVATE_BUCKET", "AWS_S3_ARTWORK_BUCKET"),

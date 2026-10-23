@@ -331,6 +331,17 @@ class Settings(BaseSettings):
     # CJ Dropshipping webhooks (stock pushes). CJ signs every push with the
     # account's openId (returned with the access token), so it is a secret.
     CJ_DROPSHIPPING_OPEN_ID: SecretStr | None = None
+
+    # Stored email addresses are encrypted (infrastructure/utils/email_cipher.py):
+    # EMAIL_ENCRYPTION_KEY encrypts, and EMAIL_ENCRYPTION_OLD_KEYS (comma
+    # separated) still decrypt what earlier keys wrote, after a rotation.
+    # EMAIL_LOOKUP_KEY keys the hash that finds a row by address. Each is 32
+    # random bytes, base64, in this service's Vault path; dev.sh generates them
+    # on `infra up`. Losing a key loses every address it encrypted: back it up.
+    EMAIL_ENCRYPTION_KEY: SecretStr
+    EMAIL_ENCRYPTION_OLD_KEYS: SecretStr | None = None
+    # No column of this service is looked up by address.
+    EMAIL_LOOKUP_KEY: SecretStr | None = None
     CJ_DROPSHIPPING_WEBHOOK_SET_URL: str = (
         "https://developers.cjdropshipping.com/api2.0/v1/webhook/set"
     )

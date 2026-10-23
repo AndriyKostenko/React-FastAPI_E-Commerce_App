@@ -138,6 +138,13 @@ for role in USER_TOKEN GATEWAY_ASSERTION ORDER_SERVICE_ASSERTION SUPPLIER_SERVIC
 done
 new_secret artwork_signing_secret
 publish ARTWORK_SIGNING_SECRET "$artwork_signing_secret"
+# Stored email addresses are encrypted (user, order, payment and supplier
+# services): this run's own keys, 32 random bytes each, base64.
+for key in EMAIL_ENCRYPTION_KEY EMAIL_LOOKUP_KEY; do
+  value="$(openssl rand -base64 32)"
+  mask "$value"
+  publish "$key" "$value"
+done
 # notification-service builds its mail connection at import; nothing is sent.
 new_secret mail_password
 publish MAIL_PASSWORD "$mail_password"

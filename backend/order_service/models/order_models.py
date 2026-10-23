@@ -7,6 +7,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 
 from models.base import Base
+from infrastructure.database_layer.encrypted_email import EncryptedEmail
 from infrastructure.utils.models_mixins import TimestampMixin
 
 # Only for the type checker: SQLAlchemy resolves these relationship names
@@ -24,6 +25,7 @@ class Order(Base, TimestampMixin):
         Index('idx_orders_status', 'status'),
         Index('idx_orders_delivery_status', 'delivery_status'),
         Index('idx_orders_date_created', 'date_created'),
+        Index('idx_orders_user_email_hash', 'user_email_hash'),
         CheckConstraint(
             "amount >= 0 AND subtotal_amount >= 0 AND shipping_amount >= 0 AND tax_amount >= 0"
             " AND shipping_cost_usd >= 0",
@@ -33,7 +35,10 @@ class Order(Base, TimestampMixin):
 
     id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4)
     user_id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), nullable=False)
-    user_email: Mapped[str] = mapped_column(String(320), nullable=False)
+    # Encrypted at rest; the admin orders filter finds an address through
+    # user_email_hash, kept in step by keep_lookup_in_step (below the class).
+    user_email: Mapped[str] = mapped_column(EncryptedEmail(lookup="user_email_hash"), nullable=False)
+    user_email_hash: Mapped[str] = mapped_column(String(EncryptedEmail.LOOKUP_LENGTH), nullable=False)
     # Exact money: refunds sum these. Was a float column (migration 8d2f6a1c3e57).
     amount: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
     # Breakdown of ``amount``. Null only on orders placed before it existed.
@@ -99,3 +104,6 @@ class Order(Base, TimestampMixin):
 
         type_name = sql_type.__class__.__name__.upper()
         return type_mapping.get(type_name, 'string')
+
+
+EncryptedEmail.keep_lookup_in_step(Order.user_email)

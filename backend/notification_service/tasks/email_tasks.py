@@ -35,49 +35,49 @@ admin_alerts = AdminAlerts(settings=settings, logger=logger)
 async def send_verification_email(payload: dict[str, Any]) -> None:
     event = UserRegisteredEvent(**payload)
     await user_notification_email_service.send_verification_email(event)
-    logger.info(f"Verification email sent to {event.user_email}")
+    logger.info(f"Verification email sent to user {event.user_id}")
 
 @taskiq_broker.task
 async def send_email_verified_notification(payload: dict[str, Any]) -> None:
     event = EmailVerificationEvent(**payload)
     await user_notification_email_service.send_email_verified_notification(event)
-    logger.info(f"Email verified notification sent to {event.user_email}")
+    logger.info(f"Email verified notification sent to user {event.user_id}")
 
 @taskiq_broker.task
 async def send_login_notification(payload: dict[str, Any]) -> None:
     event = UserLoginEvent(**payload)
     await user_notification_email_service.send_login_notification_email(event)
-    logger.info(f"Login notification email sent to {event.user_email}")
+    logger.info(f"Login notification email sent to user {event.user_id}")
 
 @taskiq_broker.task
 async def send_password_reset_email(payload: dict[str, Any]) -> None:
     event = PasswordResetRequestedEvent(**payload)
     await user_notification_email_service.send_password_reset_email(event)
-    logger.info(f"Password reset email sent to {event.user_email}")
+    logger.info(f"Password reset email sent to user {event.user_id}")
 
 @taskiq_broker.task
 async def send_password_reset_success(payload: dict[str, Any]) -> None:
     event = PasswordResetSuccessEvent(**payload)
     await user_notification_email_service.send_password_reset_success_email(event)
-    logger.info(f"Password reset success email sent to {event.user_email}")
+    logger.info(f"Password reset success email sent to user {event.user_id}")
 
 @taskiq_broker.task
 async def send_existing_account_notice(payload: dict[str, Any]) -> None:
     event = ExistingAccountRegistrationEvent(**payload)
     await user_notification_email_service.send_existing_account_notice(event)
-    logger.info(f"Existing-account registration notice sent to {event.user_email}")
+    logger.info(f"Existing-account registration notice sent to user {event.user_id}")
 
 @taskiq_broker.task
 async def send_order_confirmed_email(payload: dict[str, Any]) -> None:
     event = OrderConfirmedEvent(**payload)
     await order_notification_email_service.send_order_confirmed_notification(event)
-    logger.info(f"Order confirmed email sent to {event.user_email} for order {event.order_id}")
+    logger.info(f"Order confirmed email sent for order {event.order_id}")
 
 @taskiq_broker.task
 async def send_order_cancelled_email(payload: dict[str, Any]) -> None:
     event = OrderCancelledEvent(**payload)
     await order_notification_email_service.send_order_cancelled_notification(event)
-    logger.info(f"Order cancelled email sent to {event.user_email} for order {event.order_id}")
+    logger.info(f"Order cancelled email sent for order {event.order_id}")
 
 def _parse_shipped_event(payload: dict[str, Any]) -> OrderShippedBaseEvent:
     """Read a dispatch notice from whichever channel actually posted it.
@@ -102,13 +102,13 @@ def _parse_delivered_event(payload: dict[str, Any]) -> OrderDeliveredBaseEvent:
 async def send_order_shipped_email(payload: dict[str, Any]) -> None:
     event = _parse_shipped_event(payload)
     await order_notification_email_service.send_order_shipped_notification(event)
-    logger.info(f"Order shipped email sent to {event.user_email} for order {event.order_id}")
+    logger.info(f"Order shipped email sent for order {event.order_id}")
 
 @taskiq_broker.task
 async def send_order_delivered_email(payload: dict[str, Any]) -> None:
     event = _parse_delivered_event(payload)
     await order_notification_email_service.send_order_delivered_notification(event)
-    logger.info(f"Order delivered email sent to {event.user_email} for order {event.order_id}")
+    logger.info(f"Order delivered email sent for order {event.order_id}")
 
 
 @taskiq_broker.task
@@ -125,24 +125,24 @@ async def send_admin_return_alert(payload: dict[str, Any]) -> None:
 async def send_production_job_cancelled_email(payload: dict[str, Any]) -> None:
     event = ProductionJobCancelledEvent(**payload)
     await order_notification_email_service.send_production_job_cancelled(event)
-    logger.info(f"Production job cancelled email sent to {event.user_email} for order {event.order_id}")
+    logger.info(f"Production job cancelled email sent for order {event.order_id}")
 
 @taskiq_broker.task
 async def send_return_requested_email(payload: dict[str, Any]) -> None:
     event = OrderReturnEvent(**payload)
     await order_notification_email_service.send_return_requested(event)
-    logger.info(f"Return request confirmation sent to {event.user_email} for order {event.order_id}")
+    logger.info(f"Return request confirmation sent for order {event.order_id}")
 
 
 @taskiq_broker.task
 async def send_return_refunded_email(payload: dict[str, Any]) -> None:
     event = OrderReturnRefundedEvent(**payload)
     await order_notification_email_service.send_return_refunded(event)
-    logger.info(f"Return refund email sent to {event.user_email} for order {event.order_id}")
+    logger.info(f"Return refund email sent for order {event.order_id}")
 
 
 @taskiq_broker.task
 async def send_return_decision_email(payload: dict[str, Any]) -> None:
     event = OrderReturnEvent(**payload)
     await order_notification_email_service.send_return_decision(event)
-    logger.info(f"Return decision email sent to {event.user_email} for order {event.order_id}")
+    logger.info(f"Return decision email sent for order {event.order_id}")

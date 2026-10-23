@@ -40,36 +40,36 @@ class UserEventPublisher(BaseEventPublisher):
         """Publish user registration event"""
         event = UserRegisteredEvent(**event_data)
         await self.publish_an_event(event=event, exchange=self.exchange, routing_key=event.event_type)
-        self.logger.info(f"Published user.registered event for {event.user_email}")
+        self.logger.info(f"Published user.registered event for user {event.user_id}")
 
     async def publish_user_logged_in(self, event_data: dict[str, Any]) -> None:
         """Publish user login event"""
         event = UserLoginEvent(**event_data)
         await self.publish_an_event(event=event, exchange=self.exchange, routing_key=event.event_type)
-        self.logger.info(f"Published user.logged.in event for {event.user_email}")
+        self.logger.info(f"Published user.logged.in event for user {event.user_id}")
 
     async def publish_password_reset_request(self, event_data: dict[str, Any]) -> None:
         """Publish user password reset request"""
         event = PasswordResetRequestedEvent(**event_data)
         await self.publish_an_event(event=event, exchange=self.exchange, routing_key=event.event_type)
-        self.logger.info(f"Published password.reset.requested event for {event.user_email}")
+        self.logger.info(f"Published password.reset.requested event for user {event.user_id}")
 
     async def publish_password_reset_success(self, event_data: dict[str, Any]):
         event = PasswordResetSuccessEvent(**event_data)
         await self.publish_an_event(event=event, exchange=self.exchange, routing_key=event.event_type)
-        self.logger.info(f"Published password.reset.success event for {event.user_email}")
+        self.logger.info(f"Published password.reset.success event for user {event.user_id}")
 
     async def publish_registration_existing(self, event_data: dict[str, Any]):
         event = ExistingAccountRegistrationEvent(**event_data)
         await self.publish_an_event(event=event, exchange=self.exchange, routing_key=event.event_type)
-        self.logger.info(f"Published registration.existing event for {event.user_email}")
+        self.logger.info(f"Published registration.existing event for user {event.user_id}")
 
     async def publish_email_verified(self, event_data: dict[str, Any]):
         event = EmailVerificationEvent(**event_data)
         await self.publish_an_event(event=event, exchange=self.exchange, routing_key=event.event_type)
-        self.logger.info(f"Published email.verified event for {event.user_email}")
+        self.logger.info(f"Published email.verified event for user {event.user_id}")
 
     async def publish_user_deleted(self, event_data: dict[str, Any]):
         event = UserDeletedEvent(**event_data)
         await self.publish_an_event(event=event, exchange=self.exchange, routing_key=event.event_type)
-        self.logger.info(f"Published user.deleted event for {event.user_email}")
+        self.logger.info(f"Published user.deleted event for user {event.user_id}")
