@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.user_models import User
@@ -47,6 +47,10 @@ class WebAuthnCredentialRepository(BaseRepository[WebAuthnCredential]):
         credential.sign_count = sign_count
         credential.last_used_at = used_at
         await self.session.flush()
+
+    async def delete_all_for_user(self, user_id: UUID) -> int:
+        result = await self.session.execute(delete(WebAuthnCredential).where(WebAuthnCredential.user_id == user_id))
+        return result.rowcount or 0
 
     async def delete_for_user(self, user_id: UUID, credential_row_id: UUID) -> bool:
         credential = await self.session.get(WebAuthnCredential, credential_row_id)

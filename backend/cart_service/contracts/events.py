@@ -5,7 +5,7 @@ from pydantic import BaseModel, EmailStr, PositiveFloat, Field
 
 from contracts.order import ConfirmedOrderAddress, ConfirmedOrderItem, OrderItem
 from contracts.services_enums import Services
-from contracts.event_enums import OrderEvents
+from contracts.event_enums import OrderEvents, UserEvents
 from contracts.limits import Code, LINES_MAX, MONEY_MAX, Money, Name
 
 
@@ -17,6 +17,18 @@ class BaseEvent(BaseModel):
     event_type: Code
     schema_version: int = Field(default=1, ge=1, le=1000)
     correlation_id: UUID = Field(default_factory=uuid4)
+
+
+# ============== USER SAGA EVENTS ==============
+class UserBaseEvent(BaseEvent):
+    service: Code = Field(default_factory=lambda: Services.USER_SERVICE)
+    user_email: EmailStr
+    user_id: UUID | None = None
+
+
+class UserDeletedEvent(UserBaseEvent):
+    """Event published when a user account is deleted"""
+    event_type: Code = Field(default_factory=lambda: UserEvents.USER_DELETED)
 
 
 # ============== ORDER SAGA EVENTS ==============

@@ -224,6 +224,10 @@ class Settings(BaseSettings):
     # DPI. The preferred provider request is 4K; no artificial upscaling is
     # performed by the storage layer.
     PRINT_IMAGE_MIN_EFFECTIVE_DPI: int = Field(default=150, ge=72, le=600)
+    # A design older than this cannot be ordered: product-service deletes the
+    # ones no order holds at 90 days (GENERATED_DESIGN_RETENTION_DAYS), and the
+    # week between lets an order placed at the limit be confirmed first.
+    CUSTOM_DESIGN_ORDERABLE_DAYS: int = Field(default=83, ge=1, le=3650)
 
     MISSING_SECRET_HINT: ClassVar[str] = (
         "{name} is not configured for this service. Secrets are optional so "

@@ -2,7 +2,7 @@ from collections.abc import Iterable
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 
 from enums.cj_order_enums import CJOrderAttemptStatus
 from models.cj_order_attempt_models import CJOrderAttempt
@@ -12,6 +12,27 @@ from infrastructure.database_layer.database_layer import BaseRepository
 class CJOrderAttemptRepository(BaseRepository[CJOrderAttempt]):
     def __init__(self, session):
         super().__init__(session=session, model=CJOrderAttempt)
+
+    async def ended_with_personal_data(self, ended_before: datetime, limit: int) -> list[CJOrderAttempt]:
+        """Ended orders (terminal status) still holding the customer's details, ended before the cutoff.
+
+        Delivery is when a delivered order ended; for one that failed, was
+        cancelled or rejected, its last change. Row-locked, so two runs never
+        handle the same order.
+        """
+        ended_at = func.coalesce(CJOrderAttempt.delivered_at, CJOrderAttempt.date_updated)
+        result = await self.session.execute(
+            select(CJOrderAttempt)
+            .where(
+                CJOrderAttempt.status.in_([status.value for status in CJOrderAttemptStatus.terminal()]),
+                CJOrderAttempt.personal_data_removed_at.is_(None),
+                ended_at < ended_before,
+            )
+            .order_by(ended_at)
+            .limit(limit)
+            .with_for_update(skip_locked=True)
+        )
+        return list(result.scalars().all())
 
     async def get_for_update(self, order_id: UUID) -> CJOrderAttempt | None:
         result = await self.session.execute(

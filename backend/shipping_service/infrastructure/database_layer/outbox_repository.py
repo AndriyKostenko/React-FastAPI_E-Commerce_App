@@ -1,5 +1,5 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import or_, select
+from sqlalchemy import delete, or_, select
 from sqlalchemy.orm import DeclarativeBase
 from datetime import datetime, timezone
 
@@ -28,3 +28,14 @@ class OutboxRepository(BaseRepository[DeclarativeBase], LockableRepositoryMixin[
         )
         result = await self.session.execute(query)
         return list(result.scalars().all())
+
+    async def delete_processed_before(self, cutoff: datetime, limit: int) -> int:
+        """Delete up to ``limit`` events published before ``cutoff``, oldest first; how many went."""
+        oldest = (
+            select(self.model.id)
+            .where(self.model.processed.is_(True), self.model.processed_at < cutoff)
+            .order_by(self.model.processed_at)
+            .limit(limit)
+        )
+        result = await self.session.execute(delete(self.model).where(self.model.id.in_(oldest)))
+        return result.rowcount or 0

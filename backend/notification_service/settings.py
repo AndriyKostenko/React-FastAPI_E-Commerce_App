@@ -129,6 +129,10 @@ class Settings(BaseSettings):
 
     IDEMPOTENCY_EVENT_SERVICE_HOURS: int
 
+    # Notifications are deleted this long after they were made (privacy
+    # policy: kept no longer than needed); a daily task does it.
+    NOTIFICATION_RETENTION_DAYS: int = Field(default=365, ge=30, le=3650)
+
     # The gateway signs an assertion for every request it proxies; each
     # service verifies it before trusting the caller.
     GATEWAY_ASSERTION_PUBLIC_KEY: str | None = None

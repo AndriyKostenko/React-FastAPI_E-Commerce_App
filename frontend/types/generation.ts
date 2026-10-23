@@ -15,6 +15,9 @@ export interface GeneratedArtworkAsset {
   embedded_dpi: number;
   sha256: string;
   token: string;
+  // When the image service made it (ISO 8601), signed with the rest; older
+  // designs have none. Checkout refuses a design too old to order.
+  issued_at?: string | null;
 }
 
 export interface GeneratedDesign {

@@ -216,11 +216,12 @@ payment-consumer|payment_service|.venv/bin/faststream run events_consumer.app:ap
 cart-consumer|cart_service|.venv/bin/faststream run events_consumer.app:app
 wishlist-consumer|wishlist_service|.venv/bin/faststream run events_consumer.app:app
 shipping-consumer|shipping_service|.venv/bin/faststream run events_consumer.app:app
-product-taskiq-worker|product_service|.venv/bin/taskiq worker tasks.broker:taskiq_broker tasks.image_tasks tasks.catalogue_image_tasks --workers 1
-supplier-taskiq-worker|supplier_service|.venv/bin/taskiq worker tasks.broker:taskiq_broker tasks.sync_tasks tasks.tracking_tasks tasks.cj_payment_tasks tasks.stock_tasks --workers 1 --max-async-tasks 5
-notification-taskiq-worker|notification_service|.venv/bin/taskiq worker tasks.broker:taskiq_broker tasks.email_tasks --workers 1
-product-taskiq-scheduler|product_service|.venv/bin/taskiq scheduler tasks.scheduler:product_task_scheduler tasks.catalogue_image_tasks
-supplier-taskiq-scheduler|supplier_service|.venv/bin/taskiq scheduler tasks.scheduler:supplier_task_scheduler tasks.sync_tasks tasks.tracking_tasks tasks.cj_payment_tasks tasks.stock_tasks
+product-taskiq-worker|product_service|.venv/bin/taskiq worker tasks.broker:taskiq_broker tasks.image_tasks tasks.catalogue_image_tasks tasks.retention_tasks --workers 1
+supplier-taskiq-worker|supplier_service|.venv/bin/taskiq worker tasks.broker:taskiq_broker tasks.sync_tasks tasks.tracking_tasks tasks.cj_payment_tasks tasks.stock_tasks tasks.retention_tasks --workers 1 --max-async-tasks 5
+notification-taskiq-worker|notification_service|.venv/bin/taskiq worker tasks.broker:taskiq_broker tasks.email_tasks tasks.retention_tasks --workers 1
+product-taskiq-scheduler|product_service|.venv/bin/taskiq scheduler tasks.scheduler:product_task_scheduler tasks.catalogue_image_tasks tasks.retention_tasks
+supplier-taskiq-scheduler|supplier_service|.venv/bin/taskiq scheduler tasks.scheduler:supplier_task_scheduler tasks.sync_tasks tasks.tracking_tasks tasks.cj_payment_tasks tasks.stock_tasks tasks.retention_tasks
+notification-taskiq-scheduler|notification_service|.venv/bin/taskiq scheduler tasks.scheduler:notification_task_scheduler tasks.retention_tasks
 EOF
   # No --hostname: next's default binding answers on both localhost and
   # 127.0.0.1, and next.config.js already allows the 127.0.0.1 dev origin.

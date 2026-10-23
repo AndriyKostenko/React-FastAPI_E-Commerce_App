@@ -29,6 +29,7 @@ class UserEvents(StrEnum):
     USER_PASSWORD_RESET_SUCCESS = "user.password.reset.success"
     # Someone registered with an email that already has a verified account.
     USER_REGISTRATION_EXISTING = "user.registration.existing"
+    USER_DELETED = "user.deleted"
 
 
 class OrderEvents(StrEnum):

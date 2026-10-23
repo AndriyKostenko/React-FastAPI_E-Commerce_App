@@ -29,6 +29,7 @@ from infrastructure.managers.cache_manager import CacheManager
 from infrastructure.managers.test_database_session_manager import TestDatabaseSessionManager
 from models.base import Base
 from models.design_moderation_refusal_models import DesignModerationRefusal
+from models.generated_design_models import GeneratedDesign
 from resources import create_cache_manager
 from service_layer.background_removal_service import BackgroundRemover
 from service_layer.design_moderation import (
@@ -39,6 +40,7 @@ from service_layer.design_moderation import (
     ModerationStage,
 )
 from service_layer.design_refusal_log import DatabaseDesignRefusalLog
+from service_layer.generated_design_log import DatabaseGeneratedDesignLog
 from service_layer.image_generation_quota import GenerationQuotaService
 from service_layer.image_generation_service import ImageGenerationService
 from service_layer.image_job_store import ImageJobStore
@@ -105,6 +107,9 @@ class _RecordingStore(ObjectStore):
     async def exists(self, key: str) -> bool:
         return await self._store.exists(key)
 
+    async def delete(self, key: str) -> None:
+        await self._store.delete(key)
+
     async def presign_get(
         self, key: str, ttl_seconds: int, download_filename: str | None = None, content_type: str | None = None
     ) -> str:
@@ -143,6 +148,7 @@ class _Generation:
             background_remover=_ScriptedCutout(),
             moderator=moderator,
             refusal_log=refusal_log or DatabaseDesignRefusalLog(db),
+            design_log=DatabaseGeneratedDesignLog(db),
             settings=settings,
             logger=getLogger("test"),
         )
@@ -212,6 +218,11 @@ class TestAPassingDesign:
         assert job.moderator.images_seen == [GENERATED]
         assert await job.generations_used() == 1
         assert await job.refusals() == []
+        # Dated and signed, and noted with its owner for the retention job.
+        assert asset.issued_at is not None
+        async with job.db.transaction() as session:
+            [recorded] = (await session.execute(select(GeneratedDesign))).scalars().all()
+        assert (recorded.key, recorded.user_id) == (asset.key, job.user_id)
 
     async def test_its_image_is_checked_as_it_will_be_printed_after_the_cutout(self, generation) -> None:
         job = generation(ScriptedModerator())

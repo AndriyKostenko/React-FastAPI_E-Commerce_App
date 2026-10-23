@@ -3,10 +3,10 @@
 locals {
   images = toset([
     "admin-js-service", "api-gateway", "cart-consumer", "cart-service", "frontend",
-    "notification-consumer", "notification-service", "notification-taskiq-worker",
+    "notification-consumer", "notification-service", "notification-taskiq-scheduler", "notification-taskiq-worker",
     "order-consumer", "order-outbox-worker", "order-saga-timeout-worker", "order-service",
     "payment-consumer", "payment-outbox-worker", "payment-service",
-    "product-consumer", "product-outbox-worker", "product-service", "product-taskiq-worker",
+    "product-consumer", "product-outbox-worker", "product-service", "product-taskiq-scheduler", "product-taskiq-worker",
     "shipping-consumer", "shipping-outbox-worker", "shipping-service",
     "supplier-consumer", "supplier-outbox-worker", "supplier-service",
     "supplier-taskiq-scheduler", "supplier-taskiq-worker",

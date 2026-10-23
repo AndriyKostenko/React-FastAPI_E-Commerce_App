@@ -71,4 +71,4 @@ HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
     CMD ps aux | grep -v grep | grep "taskiq worker" || exit 1
 
 ENTRYPOINT ["/app/entrypoint-worker.sh"]
-CMD ["taskiq", "worker", "tasks.broker:taskiq_broker", "tasks.image_tasks", "--workers", "1"]
+CMD ["taskiq", "worker", "tasks.broker:taskiq_broker", "tasks.image_tasks", "tasks.catalogue_image_tasks", "tasks.retention_tasks", "--workers", "1"]

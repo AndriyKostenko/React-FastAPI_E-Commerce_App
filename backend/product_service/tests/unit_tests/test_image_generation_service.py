@@ -22,7 +22,7 @@ from service_layer.openrouter_client import OpenRouterClient
 from service_layer.image_storage_service import ImageStorageService, StoredImage
 from contracts.artwork import GeneratedArtworkAsset
 from storage.object_store import LocalObjectStore
-from tests.design_moderation_fakes import RecordingRefusalLog, ScriptedModerator
+from tests.design_moderation_fakes import RecordingDesignLog, RecordingRefusalLog, ScriptedModerator
 
 
 def _asset() -> GeneratedArtworkAsset:
@@ -170,6 +170,7 @@ def image_generation_service_unit(
         # (test_design_moderation.py).
         moderator=ScriptedModerator(),
         refusal_log=RecordingRefusalLog(),
+        design_log=RecordingDesignLog(),
         settings=image_generation_settings,
         logger=MagicMock(),
     )

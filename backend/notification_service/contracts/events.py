@@ -36,6 +36,11 @@ class UserRegisteredEvent(UserBaseEvent):
     token: Token
 
 
+class UserDeletedEvent(UserBaseEvent):
+    """Event published when a user account is deleted"""
+    event_type: Code = Field(default_factory=lambda: UserEvents.USER_DELETED)
+
+
 class UserLoginEvent(UserBaseEvent):
     """Event published when a user logs in"""
     event_type: Code = Field(default_factory=lambda: UserEvents.USER_LOGGED_IN)

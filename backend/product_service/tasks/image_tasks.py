@@ -6,6 +6,7 @@ from service_layer.image_job_store import ImageJobStore
 from service_layer.openrouter_client import OpenRouterClient
 from service_layer.openrouter_design_moderator import OpenRouterDesignModerator
 from service_layer.design_refusal_log import DatabaseDesignRefusalLog
+from service_layer.generated_design_log import DatabaseGeneratedDesignLog
 from service_layer.image_storage_service import ImageStorageService
 from service_layer.background_removal_service import RembgBackgroundRemover
 from storage.object_storage_provider import get_object_storage_provider
@@ -27,7 +28,7 @@ async def generate_image_task(job_id: str,
 
     A fresh aiohttp session is opened for each task so the worker process
     does not share connection-pool state with the API process. The database
-    is used only to keep a refused design's record.
+    keeps a refused design's record and notes each stored design for retention.
     """
     cache = create_cache_manager()
     database = create_database_manager()
@@ -57,6 +58,7 @@ async def generate_image_task(job_id: str,
                 background_remover=RembgBackgroundRemover(settings=settings, logger=logger),
                 moderator=OpenRouterDesignModerator(session=session, settings=settings, logger=logger),
                 refusal_log=DatabaseDesignRefusalLog(database),
+                design_log=DatabaseGeneratedDesignLog(database),
                 settings=settings,
                 logger=logger,
             )

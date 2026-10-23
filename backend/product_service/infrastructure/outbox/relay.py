@@ -14,6 +14,7 @@ from sqlalchemy.orm import DeclarativeBase
 
 from infrastructure.database_layer.outbox_repository import OutboxRepository
 from infrastructure.managers.database_session_manager import DatabaseSessionManager
+from infrastructure.outbox.pruner import OutboxPruner
 
 
 EventRouter = Callable[[str, dict[str, Any]], Awaitable[None]]
@@ -34,6 +35,7 @@ class OutboxRelay:
         max_retry_seconds: float = 300.0,
         publish_timeout_seconds: float = 30.0,
         claim_lease_seconds: float = 60.0,
+        pruner: OutboxPruner | None = None,
     ) -> None:
         self.session_manager: DatabaseSessionManager = session_manager
         self.event_router: EventRouter = event_router
@@ -47,6 +49,8 @@ class OutboxRelay:
         self.claim_lease_seconds = max(
             claim_lease_seconds, publish_timeout_seconds + 5.0
         )
+        # The relay owns the table, so it also clears out what it published long ago.
+        self.pruner: OutboxPruner = pruner or OutboxPruner(session_manager, outbox_model, logger)
 
     async def _claim_one(self) -> Any | None:
         """Lease one event in a short transaction and return its snapshot."""
@@ -130,6 +134,7 @@ class OutboxRelay:
                 await self.relay_once()
             except Exception:
                 self.logger.exception("Outbox relay batch failed")
+            await self.pruner.prune_if_due()
             try:
                 await wait_for(stop_event.wait(), timeout=self.poll_interval)
             except TimeoutError:

@@ -11,7 +11,7 @@ from PIL import Image, UnidentifiedImageError
 
 from exceptions.image_generation_exceptions import ImageGenerationProviderError
 from service_layer.image_payload import decode_image_payload
-from contracts.artwork import GeneratedArtworkAsset, sign_artwork_asset
+from contracts.artwork import GeneratedArtworkAsset, issue_time, sign_artwork_asset
 from settings import Settings
 from storage.object_store import ObjectStorageError, ObjectStore, ObjectWrite
 
@@ -52,6 +52,7 @@ class ImageStorageService:
                 embedded_dpi=self._settings.PRINT_IMAGE_EMBEDDED_DPI,
                 sha256=sha256,
                 token="0" * 43,
+                issued_at=issue_time(now),
             )
             asset = unsigned_asset.model_copy(
                 update={

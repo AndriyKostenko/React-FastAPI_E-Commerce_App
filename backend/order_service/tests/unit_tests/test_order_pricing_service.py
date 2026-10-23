@@ -1,3 +1,4 @@
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -25,6 +26,7 @@ def _settings(**overrides):
         CUSTOM_TSHIRT_BASE_PRICE=Decimal("19.00"),
         ARTWORK_SIGNING_KEY=_SECRET,
         PRINT_IMAGE_MIN_EFFECTIVE_DPI=150,
+        CUSTOM_DESIGN_ORDERABLE_DAYS=83,
         DOMESTIC_FLAT_SHIPPING_CAD=Decimal("9.99"),
         CJ_USD_TO_CAD_RATE=Decimal("1.40"),
         CJ_FX_SOURCE="fixed",
@@ -45,7 +47,7 @@ def _freight_client():
     )
 
 
-def _asset(width: int = 4096, height: int = 4096) -> GeneratedArtworkAsset:
+def _asset(width: int = 4096, height: int = 4096, issued_at: datetime | None = None) -> GeneratedArtworkAsset:
     unsigned = GeneratedArtworkAsset(
         key="generated-designs/2026/08/" + "a" * 32 + ".png",
         width_px=width,
@@ -53,6 +55,7 @@ def _asset(width: int = 4096, height: int = 4096) -> GeneratedArtworkAsset:
         embedded_dpi=300,
         sha256="b" * 64,
         token="0" * 43,
+        issued_at=issued_at,
     )
     return unsigned.model_copy(update={"token": sign_artwork_asset(unsigned, _SECRET)})
 
@@ -184,6 +187,46 @@ async def test_custom_quote_rejects_resolution_too_low_for_placement():
                 ]
             )
         )
+
+
+def _custom_order(asset: GeneratedArtworkAsset) -> CreateOrder:
+    return _order([OrderProductItem(quantity=1, fulfillment_type="custom", customization=_custom_spec(asset))])
+
+
+def _days_ago(days: float) -> datetime:
+    return datetime.now(UTC).replace(microsecond=0) - timedelta(days=days)
+
+
+class TestTheDesignsAge:
+    """Unordered designs are deleted at 90 days, so checkout stops taking them at 83."""
+
+    def _service(self) -> OrderPricingService:
+        return OrderPricingService(settings=_settings(), catalog_client=SimpleNamespace(quote=AsyncMock()))
+
+    async def test_a_design_within_the_limit_is_ordered(self) -> None:
+        quote = await self._service().build_quote(_custom_order(_asset(issued_at=_days_ago(82))))
+        assert quote.items[0].customization.design_asset.issued_at == _days_ago(82)
+
+    async def test_a_design_past_the_limit_is_refused(self) -> None:
+        with pytest.raises(OrderQuoteError, match="too old to order"):
+            await self._service().build_quote(_custom_order(_asset(issued_at=_days_ago(84))))
+
+    async def test_a_design_from_before_the_date_was_signed_is_ordered(self) -> None:
+        quote = await self._service().build_quote(_custom_order(_asset()))
+        assert quote.items[0].customization.design_asset.issued_at is None
+
+    async def test_moving_the_date_breaks_the_signature(self) -> None:
+        old = _asset(issued_at=_days_ago(84))
+        moved = old.model_copy(update={"issued_at": _days_ago(1)})
+        with pytest.raises(OrderQuoteError, match="not issued by the image service"):
+            await self._service().build_quote(_custom_order(moved))
+
+    async def test_the_date_survives_the_browser_writing_it_back(self) -> None:
+        asset = _asset(issued_at=_days_ago(10))
+        # As JSON in the cart and back: "...Z" text, parsed again.
+        round_trip = GeneratedArtworkAsset.model_validate_json(asset.model_dump_json())
+        quote = await self._service().build_quote(_custom_order(round_trip))
+        assert quote.items[0].customization is not None
 
 
 async def test_mixed_quote_preserves_line_order_and_canonical_catalog_values():

@@ -10,6 +10,7 @@ from .supplier_import_models import SupplierImportBatch
 from .retained_artwork_models import RetainedArtwork
 from .supplier_image_review_models import SupplierImageReview
 from .design_moderation_refusal_models import DesignModerationRefusal
+from .generated_design_models import GeneratedDesign
 
 __all__ = [
     "Base",
@@ -24,5 +25,6 @@ __all__ = [
     "RetainedArtwork",
     "SupplierImageReview",
     "DesignModerationRefusal",
+    "GeneratedDesign",
 ]
 from .catalogue_image_mirror_models import CatalogueImageMirror

@@ -120,6 +120,31 @@ resource "aws_s3_bucket_lifecycle_configuration" "backups" {
   }
 }
 
+# Designs and return evidence a service deletes (retention, a deleted
+# account) leave a delete marker on the versioned bucket; the old version is
+# gone 30 days later, so a mistaken delete can still be undone for a month.
+resource "aws_s3_bucket_lifecycle_configuration" "private" {
+  bucket = aws_s3_bucket.private.id
+
+  rule {
+    id     = "expire-deleted-objects"
+    status = "Enabled"
+    filter {}
+
+    noncurrent_version_expiration {
+      noncurrent_days = 30
+    }
+
+    expiration {
+      expired_object_delete_marker = true
+    }
+
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 1
+    }
+  }
+}
+
 # Every bucket refuses plain HTTP.
 # The catalogue bucket's policy is in cdn.tf (it also grants CloudFront).
 resource "aws_s3_bucket_policy" "deny_insecure" {

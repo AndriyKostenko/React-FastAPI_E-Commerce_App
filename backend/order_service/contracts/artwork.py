@@ -3,7 +3,9 @@
 import base64
 import hashlib
 import hmac
-from pydantic import BaseModel, Field, PositiveInt
+from datetime import UTC, datetime
+
+from pydantic import AwareDatetime, BaseModel, Field, PositiveInt
 
 
 class GeneratedArtworkAsset(BaseModel):
@@ -19,12 +21,27 @@ class GeneratedArtworkAsset(BaseModel):
     embedded_dpi: PositiveInt = Field(ge=72, le=1_200)
     sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     token: str = Field(min_length=43, max_length=128)
+    # When the image service made the design, signed with the rest: checkout
+    # refuses a design too close to being deleted as never ordered. Manifests
+    # issued before the field existed have none (and are signed as v1).
+    issued_at: AwareDatetime | None = None
 
     def signing_payload(self) -> bytes:
-        return (
-            f"v1|{self.key}|{self.width_px}|{self.height_px}|"
+        measured = (
+            f"{self.key}|{self.width_px}|{self.height_px}|"
             f"{self.embedded_dpi}|{self.sha256}"
-        ).encode("utf-8")
+        )
+        if self.issued_at is None:
+            return f"v1|{measured}".encode("utf-8")
+        # Whole seconds in UTC, so the same instant signs the same way
+        # however the browser wrote it back.
+        issued = self.issued_at.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+        return f"v2|{measured}|{issued}".encode("utf-8")
+
+
+def issue_time(now: datetime | None = None) -> datetime:
+    """The issued_at to stamp on a new manifest: now, to the second, in UTC."""
+    return (now or datetime.now(UTC)).astimezone(UTC).replace(microsecond=0)
 
 
 def sign_artwork_asset(asset: GeneratedArtworkAsset, secret: str) -> str:

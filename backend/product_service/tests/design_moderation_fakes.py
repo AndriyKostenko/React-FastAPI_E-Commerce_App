@@ -49,6 +49,16 @@ class ScriptedModerator:
         return verdict
 
 
+class RecordingDesignLog:
+    """A GeneratedDesignLog kept in memory, for tests that have no database."""
+
+    def __init__(self) -> None:
+        self.records: list[tuple[str, UUID | None]] = []
+
+    async def record(self, key: str, user_id: UUID | None) -> None:
+        self.records.append((key, user_id))
+
+
 class RecordingRefusalLog:
     """A DesignRefusalLog kept in memory, for tests that have no database."""
 

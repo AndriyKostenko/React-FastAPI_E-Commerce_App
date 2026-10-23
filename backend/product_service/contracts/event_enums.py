@@ -14,6 +14,16 @@ class ProductSupplierEventsQueue(StrEnum):
     PRODUCT_SUPPLIER_STOCK_DLQ = "product.supplier.stock.dlq"
 
 
+class ProductUserEventsQueue(StrEnum):
+    # user.deleted: the deleted customer's unordered designs and refusal records.
+    PRODUCT_USER_EVENTS_QUEUE = "product.user.events"
+    PRODUCT_USER_EVENTS_DEAD_LETTER_QUEUE = "product.user.events.dlq"
+
+
+class UserEvents(StrEnum):
+    USER_DELETED = "user.deleted"
+
+
 class InventoryEvents(StrEnum):
     INVENTORY_RESERVE_SUCCEEDED = "inventory.reserve.succeeded"
     INVENTORY_RESERVE_FAILED = "inventory.reserve.failed"

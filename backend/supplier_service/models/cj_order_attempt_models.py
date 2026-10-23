@@ -87,3 +87,8 @@ class CJOrderAttempt(Base, TimestampMixin):
     cancelled_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    # When the customer's name, address, phone and email were removed from
+    # this ended order (CJOrderPersonalDataRetention); null while they are kept.
+    personal_data_removed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )

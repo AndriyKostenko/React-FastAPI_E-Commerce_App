@@ -23,6 +23,7 @@ from service_layer.image_storage_service import ImageStorageService
 from service_layer.openrouter_client import OpenRouterClient
 from service_layer.openrouter_design_moderator import OpenRouterDesignModerator
 from service_layer.design_refusal_log import DatabaseDesignRefusalLog
+from service_layer.generated_design_log import DatabaseGeneratedDesignLog
 from service_layer.product_image_service import ProductImageService
 from service_layer.product_service import ProductService
 from service_layer.supplier_stock_service import SupplierStockService
@@ -185,6 +186,7 @@ def get_image_generation_service(
         background_remover=RembgBackgroundRemover(settings=resources.settings, logger=resources.logger),
         moderator=moderator,
         refusal_log=DatabaseDesignRefusalLog(resources.database),
+        design_log=DatabaseGeneratedDesignLog(resources.database),
         settings=resources.settings,
         logger=resources.logger,
     )

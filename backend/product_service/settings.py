@@ -174,6 +174,12 @@ class Settings(BaseSettings):
     OPENROUTER_MODERATION_TIMEOUT_SECONDS: float = Field(default=30.0, gt=0, le=300)
     # The image check sees the design scaled down to this many pixels a side.
     DESIGN_MODERATION_IMAGE_MAX_PX: int = Field(default=1024, ge=256, le=4096)
+    # Kept no longer than needed (privacy policy); a daily task deletes them.
+    # A design no order holds goes this long after it was made. order-service
+    # refuses designs older than its CUSTOM_DESIGN_ORDERABLE_DAYS (83), so one
+    # ordered at the limit has a week to be confirmed before this sweep.
+    GENERATED_DESIGN_RETENTION_DAYS: int = Field(default=90, ge=30, le=3650)
+    DESIGN_REFUSAL_RETENTION_DAYS: int = Field(default=365, ge=30, le=3650)
     # Generation is for signed-in users only; each gets this many per window.
     PRODUCT_IMAGE_GENERATION_LIMIT: int = 10
     PRODUCT_IMAGE_GENERATION_WINDOW_HOURS: int = 24

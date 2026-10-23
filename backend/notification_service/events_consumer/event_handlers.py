@@ -116,6 +116,13 @@ class UserEventHandler(BaseEventHandler):
 
         try:
             user_id = self._parse_user_id(message)
+            if event_type == UserEvents.USER_DELETED:
+                # The account is gone: its notifications go with it, and
+                # nothing new is saved or sent.
+                await self._forget_user(user_id)
+                await self._mark_processed(event_id=event_id, event_type=event_type)
+                return
+
             notification_message: str
 
             email_task: EmailTask | None = None
@@ -159,6 +166,16 @@ class UserEventHandler(BaseEventHandler):
             self._logger.error(f"Error handling user event {event_type}: {error}")
             await self._release_claim(event_id=event_id, event_type=event_type)
             raise
+
+
+    async def _forget_user(self, user_id: UUID | None) -> None:
+        if user_id is None:
+            self._logger.warning("user.deleted without a user id; no notifications to delete")
+            return
+        async with self._db.transaction() as session:
+            service = NotificationService(repository=NotificationRepository(session=session))
+            deleted = await service.forget_user(user_id)
+        self._logger.info("Deleted %s notifications of deleted user %s", deleted, user_id)
 
 
 class OrderEventHandler(BaseEventHandler):
