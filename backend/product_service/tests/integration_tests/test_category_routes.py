@@ -83,7 +83,7 @@ class TestCreateCategory:
         self, integration_client: AsyncClient
     ):
         response = await integration_client.post(f"{TEST_API}/categories", json={})
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
 
 # ===========================================================================

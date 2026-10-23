@@ -123,7 +123,7 @@ class TestCreateProduct:
         response = await integration_client.post(
             f"{TEST_API}/products", json={"name": "too short"}
         )
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
 
 # ===========================================================================
@@ -311,7 +311,7 @@ class TestGetProductCards:
 
     async def test_limit_above_500_is_rejected(self, integration_client: AsyncClient):
         response = await integration_client.get(f"{TEST_API}/products/cards", params={"limit": 501})
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     async def test_detailed_list_honours_the_search_term(self, integration_client: AsyncClient):
         category = await _create_category(integration_client)
