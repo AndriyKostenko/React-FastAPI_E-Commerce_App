@@ -93,6 +93,17 @@ or recorded as decided. Merged so far: PR #41 (readiness, phases 2–5) and PR #
 
 **Frontend**
 
+- **To do (requested 2026-10-23), not started:**
+  1. Generation countdown 15 s → 20 s (`GENERATION_COUNTDOWN_SECONDS` in
+     `utils/constants.ts`).
+  2. The countdown ring's colour follows the shirt: white on a black shirt, black on a
+     white one (`TShirtPreview.tsx`, the ring drawn from `SHIRT_PALETTES`).
+  3. Product card (`components/4. Featured Collections/ProductCard.tsx`): "Add" (to
+     the cart), "Check" (quick look) and "Like" (wishlist) buttons on the card.
+  4. Check a custom design in the cart, end to end: generate an image, add it to the
+     cart, and see how the line shows. It should show the print-ready design on the
+     T-shirt, and open a quick-look view (like macOS Quick Look on a document: a large
+     preview over the page, closed with Escape or a click outside).
 - Storefront content (2026-10-18): the fake newsletter form and the invented testimonials
   are gone; the home page shows real reviews (4+ stars with a comment, newest first) and
   hides the section when there are none. The gateway now serves `GET /reviews` publicly.
