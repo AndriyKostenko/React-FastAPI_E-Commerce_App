@@ -50,7 +50,7 @@ class AvatarService:
         try:
             avatar = self._processor.process(content)
         except InvalidAvatarError as error:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(error)) from error
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(error)) from error
 
         user = await self._user(user_id)
         previous = user.image

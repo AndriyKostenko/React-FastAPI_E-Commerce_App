@@ -120,13 +120,13 @@ class TestCreateAndList:
     async def test_non_canadian_address_is_refused(self, integration_client: AsyncClient, get_outbox_event):
         caller = await _signed_in(integration_client, get_outbox_event)
         response = await caller.post(ADDRESSES, json={**_address(), "country_code": "US"})
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
         assert (await caller.get(ADDRESSES)).json() == []
 
     async def test_malformed_postal_code_is_refused(self, integration_client: AsyncClient, get_outbox_event):
         caller = await _signed_in(integration_client, get_outbox_event)
         response = await caller.post(ADDRESSES, json=_address(postal_code="12345"))
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     async def test_new_default_takes_over_from_the_old_one(
         self, integration_client: AsyncClient, get_outbox_event
@@ -342,4 +342,4 @@ class TestChangePassword:
         response = await caller.post(
             PASSWORD_PATH, json={"current_password": test_settings.TEST_PASSWORD, "new_password": "short"}
         )
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT

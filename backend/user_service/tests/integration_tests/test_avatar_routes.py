@@ -108,13 +108,13 @@ class TestUpload:
     async def test_non_images_are_refused(self, integration_client: AsyncClient, get_outbox_event, content, name):
         token = await _token(integration_client, get_outbox_event)
         response = await _upload(integration_client, token, content, name)
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     async def test_oversized_upload_is_refused(self, integration_client: AsyncClient, get_outbox_event):
         token = await _token(integration_client, get_outbox_event)
         too_big = b"\xff\xd8\xff" + b"\x00" * app_settings.AVATAR_MAX_UPLOAD_BYTES
         response = await _upload(integration_client, token, too_big)
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     async def test_without_a_session_is_refused(self, integration_client: AsyncClient):
         response = await integration_client.put(AVATAR, files={"file": ("me.jpg", _photo_with_location(), "image/jpeg")})

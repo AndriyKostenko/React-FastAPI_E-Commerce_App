@@ -71,7 +71,7 @@ class TestCreateProductEndpoint:
         response = await client_for_unit_testing.post(
             f"{TEST_API}/products", json={"name": "x"}
         )
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
 
 # ===========================================================================

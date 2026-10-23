@@ -10,16 +10,16 @@ dependencies = [
     "httpx>=0.28.1",
     "gunicorn>=23.0.0",
     "uvicorn>=0.35.0",
-    "pydantic-settings>=2.10.1",
+    "pydantic-settings>=2.14.2",
     "redis>=6.2.0",
     "sqlalchemy>=2.0.41",
-    "orjson>=3.11.1",
+    "orjson>=3.11.6",
     "faststream[cli,rabbit]>=0.5.48",
     "prometheus-fastapi-instrumentator>=7.1.0",
     "pydantic[email]>=2.13.4",
     "asyncpg>=0.30.0",
     "fastapi-mail>=1.5.0",
-    "python-multipart>=0.0.20",
+    "python-multipart>=0.0.31",
     "passlib>=1.7.4",
     "opentelemetry-api>=1.29.0",
     "opentelemetry-sdk>=1.29.0",
@@ -30,7 +30,7 @@ dependencies = [
     "opentelemetry-instrumentation-redis>=0.50b0",
     "pyjwt[crypto]>=2.10",
     "prometheus-client>=0.21.0",
-    "cryptography>=45.0",
+    "cryptography>=50.0.0",
 ]
 
 [dependency-groups]

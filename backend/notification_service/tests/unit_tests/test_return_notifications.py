@@ -175,7 +175,7 @@ async def test_the_request_confirmation_says_what_happens_next() -> None:
 
     message = notifications.fast_mail.send_message.await_args.args[0]
     body = _sent_body(notifications)
-    assert message.recipients == ["buyer@example.com"]
+    assert [recipient.email for recipient in message.recipients] == ["buyer@example.com"]
     assert "received your return request" in message.subject
     assert "1 x Custom Tee" in body and "2 x Hoodie" in body
     assert "It arrived damaged" in body
@@ -207,7 +207,7 @@ async def test_the_refund_email_states_the_amount_and_the_lines() -> None:
 
     message = notifications.fast_mail.send_message.await_args.args[0]
     body = _sent_body(notifications)
-    assert message.recipients == ["buyer@example.com"]
+    assert [recipient.email for recipient in message.recipients] == ["buyer@example.com"]
     assert "refund" in message.subject
     assert "41.31 CAD" in body and "2 x Hoodie (30.99 CAD)" in body
     assert "<li>Shipping</li>" in body

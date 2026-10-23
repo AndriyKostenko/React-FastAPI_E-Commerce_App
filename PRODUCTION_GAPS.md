@@ -85,8 +85,8 @@ or recorded as decided. Merged so far: PR #41 (readiness, phases 2–5) and PR #
 **Backend and platform (decided, not started)**
 
 - Per-service Redis and RabbitMQ users (postponed in favour of deploying first).
-- Dependency upgrades (the 35–169 advisories per service, and the critical `proxy-addr`
-  in admin-js); then make the audit blocking.
+- ~~Dependency upgrades, then make the audit blocking~~ (done 2026-10-23, §1: every
+  lock file clean, the CI audit blocking, 4 TinyMCE advisories allowed in admin-js).
 - AI content moderation, GDPR and retention (see §5 and §8). The legal pages are done
   (2026-10-18, below), pending a lawyer's review.
 
@@ -430,9 +430,8 @@ Code work:
   (§8.7).
 - **AI content moderation**: none; unscreened designs can reach the printer (§5).
 - **GDPR / audit / retention**: only account deletion exists (§5).
-- **Dependency vulnerabilities**: 35–169 advisories in 8–16 packages per
-  service (pip-audit); admin-js 69 (npm, one critical, `proxy-addr`); CI
-  reports them as warnings until an upgrade PR lands (§1).
+- ~~**Dependency vulnerabilities**~~: done 2026-10-23 (§1). pip-audit is clean
+  everywhere and the CI audit is blocking.
 - **Deployment phases 2–6**, which include backups / DR and automatic rollback
   (§1).
 
@@ -505,9 +504,51 @@ k6 load tests, Alembic per service. The large `shared/` refactor called out in
   fastapi-mail), several behind exact pins in `pyproject.toml`. npm
   (production dependencies): admin-js 69 (2 low, 43 moderate, 23 high, 1
   critical, `proxy-addr` through express); the frontend 1 moderate (`qs`),
-  its critical `next` advisory gone with the Dependabot bump (#28). The CI
-  audit job reports them as warnings and stays green until an upgrade PR
-  lands; then `AUDIT_BLOCKING: "true"` in `ci.yml` makes it fail on them.
+  its critical `next` advisory gone with the Dependabot bump (#28).
+  **Done 2026-10-23** (branch `chore/dependency-upgrades`, off main). By then
+  the counts had grown to 37–209 advisories per service.
+  - Python: every lock file is clean under pip-audit. Five services (cart,
+    product, shipping, supplier, wishlist) pinned an old full freeze in
+    `pyproject.toml` (`starlette==0.46.2`, `cryptography==45.0.4`,
+    `aiohttp==3.12.11`, and `ecdsa` / `rsa` / `pyasn1` left from python-jose).
+    Those pins are gone: 31 pins of transitive or unused packages dropped (nothing
+    imports them; `ecdsa`'s advisory has no fixed release), the rest became
+    lower bounds like the other services'. `aiohttp` stays only where it is
+    imported (product, wishlist), and `pillow` only in product and user. Every
+    direct dependency that had an advisory now has its fixed release as its
+    floor. The lock files moved only the flagged packages and what they need:
+    FastAPI 0.136 → 0.161 with Starlette 0.46–0.52 → 1.9 (none of the APIs
+    Starlette 1.0 removed are used), cryptography 50, Pillow 10 → 13,
+    aiohttp 3.14.5, python-multipart 0.0.32, fastapi-mail 1.6.8 (aiosmtplib
+    5), OpenTelemetry 1.45 / 0.66b1 and prometheus-fastapi-instrumentator 8.
+  - fastapi-mail 1.6 parses recipients into `NameEmail`, so two notification
+    tests compare `.email` now. The `To` header gains a display name taken
+    from the address (`jane <jane@…>`); the sending code is unchanged.
+    `HTTP_422_UNPROCESSABLE_ENTITY` became `HTTP_422_UNPROCESSABLE_CONTENT`.
+  - npm: `npm audit fix` (no `--force`) in both apps; admin-js adds an
+    override, `serialize-javascript` ^7 (used by `@rollup/plugin-terser`
+    when AdminJS bundles its components). admin-js has 40 moderate packages and
+    1 high left, all from the newest AdminJS. The high one is `tinymce` 6
+    (4 high advisories), whose only fixed releases (7.9.3+) are GPL. The npm copy is
+    never served: AdminJS loads TinyMCE from its own CDN URL, and only for a
+    `richtext` property, which no admin-js resource has (**do not add one**).
+    The frontend has none left.
+  - CI's audit job is blocking. pip-audit fails on any advisory;
+    `backend/ci/npm_audit_gate.py` fails on any high or critical one in
+    production dependencies, except those allowed per app with the reason
+    (the 4 TinyMCE ones). It warns when an allowed advisory stops appearing,
+    and fails when `npm audit` itself could not run.
+  - Checked: all ten suites pass through `dev.sh test` (2,155 tests); the
+    frontend's lint, `tsc`, unit and component tests pass; admin-js compiles
+    and bundles. Live, with the whole stack up on the new versions: every
+    service is ready and serves `/docs`, `/openapi.json` and `/metrics`; the
+    gateway answers the public catalogue routes, 422 on bad input and 401
+    on the anonymous cart; the frontend home page and the AdminJS login page
+    load; and notification-service's real `FastMail` sent a verification
+    email to a scratch Mailpit.
+  - Not covered: admin-js `npm run lint` fails on `main` as well (386 errors,
+    unrelated); a 422 is logged at ERROR as "Session rollback due to
+    exception" (since September, not from this upgrade).
 - **Plan decided (2026-10-12): see "Deployment plan" at the end of this section.**
 - [x] **`order_service` Alembic setup — DONE (2026-09-09).** It was the only one
       of the nine services without migrations, while relying on `init_db`/`create_all`,
@@ -672,7 +713,7 @@ monitoring stack all run on the host** (not RDS / SSM / Amplify / CloudWatch).
        both compose files resolving;
      - frontend type check and production build, admin-js type check;
      - gitleaks on the commits a change adds; pip-audit and `npm audit`
-       (report-only, see above);
+       (blocking since 2026-10-23, see above);
      - `.github/workflows/codeql.yml`: CodeQL for Python and TypeScript on
        pull requests, `main` and weekly; `.github/dependabot.yml`: weekly,
        grouped updates for actions, the ten uv projects and both npm apps.

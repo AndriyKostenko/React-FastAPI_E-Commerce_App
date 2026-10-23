@@ -152,7 +152,7 @@ class TestCreateReview:
             f"{TEST_API}/products/{product['id']}/users/{uuid4()}/reviews",
             json={"comment": "Bad rating", "rating": 10.0},  # > 5
         )
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
 
 # ===========================================================================
