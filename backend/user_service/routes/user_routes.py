@@ -13,6 +13,7 @@ from dependencies.dependencies import (
     self_or_admin_dependency,
     address_service_dependency,
     avatar_service_dependency,
+    passkey_service_dependency,
     human_check_dependency,
     email_policy_dependency,
 )
@@ -295,6 +296,7 @@ async def delete_user_by_id(
     user_service: user_service_dependency,
     addresses: address_service_dependency,
     avatars: avatar_service_dependency,
+    passkeys: passkey_service_dependency,
     auth_user: self_or_admin_dependency,
 ):
     # Saved addresses and the avatar are personal data: they go with the
@@ -303,6 +305,9 @@ async def delete_user_by_id(
     # cannot be reached nothing is changed and the deletion can be retried.
     await avatars.forget(user_id)
     await addresses.delete_all(user_id)
+    # An admin's passkeys; the services that hold more about the account
+    # (cart, notifications, designs) act on the user.deleted event.
+    await passkeys.forget_user(user_id)
     await user_service.delete_user_by_id(user_id=user_id)
     return {"detail": "User deleted successfully"}
 

@@ -41,4 +41,4 @@ HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
 ENTRYPOINT ["/app/entrypoint-worker.sh"]
 # Every task opens its own database engine (1 connection); at most 5 run at
 # once, so this container's share of Postgres's connections is fixed.
-CMD ["taskiq", "worker", "tasks.broker:taskiq_broker", "tasks.sync_tasks", "tasks.tracking_tasks", "tasks.cj_payment_tasks", "tasks.stock_tasks", "--workers", "1", "--max-async-tasks", "5"]
+CMD ["taskiq", "worker", "tasks.broker:taskiq_broker", "tasks.sync_tasks", "tasks.tracking_tasks", "tasks.cj_payment_tasks", "tasks.stock_tasks", "tasks.retention_tasks", "--workers", "1", "--max-async-tasks", "5"]

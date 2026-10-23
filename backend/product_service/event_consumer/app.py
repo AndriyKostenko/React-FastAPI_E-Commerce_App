@@ -8,12 +8,16 @@ from contracts.event_enums import (
     ProductArtworkEventsQueue,
     ProductInventoryEventsQueue,
     ProductSupplierEventsQueue,
+    ProductUserEventsQueue,
     SupplierEvents,
+    UserEvents,
 )
 from infrastructure.messaging import ConsumerTopology
+from event_consumer.account_deletion_consumer import AccountDeletionConsumer
 from event_consumer.product_event_consumer import ProductEventConsumer
 from resources import (
     ProductConsumerResources,
+    create_deleted_account_cleanup,
     create_product_consumer_resources,
     create_supplier_image_review_service,
     logger,
@@ -31,17 +35,21 @@ supplier_exchange = RabbitExchange(
 order_exchange = RabbitExchange(
     name="order.events.exchange", durable=True, type=ExchangeType.TOPIC
 )
+user_exchange = RabbitExchange(
+    name="user.events.exchange", durable=True, type=ExchangeType.TOPIC
+)
 app = FastStream(rabbitmq_broker)
 # Owns every queue below plus their retry queues and DLQs.
 topology = ConsumerTopology(rabbitmq_broker, logger)
 
 product_event_consumer: ProductEventConsumer | None = None
+account_deletion_consumer: AccountDeletionConsumer | None = None
 consumer_resources: ProductConsumerResources | None = None
 
 
 @app.on_startup
 async def startup() -> None:
-    global consumer_resources, product_event_consumer
+    global consumer_resources, product_event_consumer, account_deletion_consumer
     # Before the broker starts consuming, so no failure can dead-letter into
     # an exchange that does not exist yet.
     await topology.declare()
@@ -61,19 +69,26 @@ async def startup() -> None:
             settings=resources.settings,
             image_review=create_supplier_image_review_service(resources.database, resources.http_session),
         )
+        deletions = AccountDeletionConsumer(
+            cleanup=create_deleted_account_cleanup(resources.database),
+            idempotency_service=resources.idempotency,
+            logger=resources.logger,
+        )
     except Exception:
         await resources.close()
         raise
     consumer_resources = resources
     product_event_consumer = consumer
+    account_deletion_consumer = deletions
 
 
 @app.on_shutdown
 async def shutdown() -> None:
-    global consumer_resources, product_event_consumer
+    global consumer_resources, product_event_consumer, account_deletion_consumer
     resources = consumer_resources
     consumer_resources = None
     product_event_consumer = None
+    account_deletion_consumer = None
     if resources is not None:
         await resources.close()
 
@@ -152,3 +167,19 @@ async def handle_artwork_events(body: dict[str, Any], message: RabbitMessage) ->
         message,
         lambda: get_consumer().handle_artwork_retention_event(body),
     )
+
+
+# A deleted account's unordered designs, and its id on refusal records.
+product_user_events_queue = topology.queue(
+    name=ProductUserEventsQueue.PRODUCT_USER_EVENTS_QUEUE,
+    routing_key=UserEvents.USER_DELETED,
+    dead_letter_key=ProductUserEventsQueue.PRODUCT_USER_EVENTS_DEAD_LETTER_QUEUE,
+)
+
+
+@rabbitmq_broker.subscriber(queue=product_user_events_queue.queue, exchange=user_exchange)
+async def handle_user_events(body: dict[str, Any], message: RabbitMessage) -> None:
+    if account_deletion_consumer is None:
+        raise RuntimeError("Account deletion consumer received a message before startup completed.")
+    handler = account_deletion_consumer  # narrowed to non-None for the lambda below
+    await topology.dispatch(product_user_events_queue, message, lambda: handler.handle_user_event(body))

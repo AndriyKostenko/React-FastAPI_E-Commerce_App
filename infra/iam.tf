@@ -107,9 +107,10 @@ resource "aws_iam_user_policy" "product_service" {
         Resource = aws_s3_bucket.catalogue.arn
       },
       {
+        # Delete: the retention job removes designs no order holds.
         Sid      = "DesignsObjects"
         Effect   = "Allow"
-        Action   = ["s3:GetObject", "s3:PutObject"]
+        Action   = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
         Resource = "${aws_s3_bucket.private.arn}/generated-designs/*"
       },
       {

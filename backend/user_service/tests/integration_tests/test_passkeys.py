@@ -11,6 +11,7 @@ from uuid import UUID
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import select
 from webauthn.helpers import bytes_to_base64url
 
 from main import app
@@ -401,3 +402,19 @@ async def test_shopper_password_login_still_works(
     assert response.status_code == 200, response.text
     claims = SIGNING_KEYS.user_token_verifier().decode(response.json()["access_token"])
     assert claims.amr == [AuthMethod.PASSWORD]
+
+
+async def test_deleting_an_admins_account_removes_its_passkeys(
+    integration_client: AsyncClient,
+    enrolled: SoftwareAuthenticator,
+    admin_id: UUID,
+    test_database_session_manager: TestDatabaseSessionManager,
+) -> None:
+    response = await integration_client.delete(f"{API}/users/{admin_id}")
+
+    assert response.status_code == 200, response.text
+    async with test_database_session_manager.transaction() as session:
+        remaining = (await session.execute(
+            select(WebAuthnCredential).where(WebAuthnCredential.user_id == admin_id)
+        )).scalars().all()
+    assert remaining == []

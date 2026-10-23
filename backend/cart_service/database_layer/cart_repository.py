@@ -2,7 +2,7 @@ from uuid import UUID
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.cart_models import Cart, CartItem
@@ -89,3 +89,8 @@ class CartRepository(BaseRepository[Cart]):
         for item in items:
             await self.session.delete(item)
         await self.session.flush()
+
+    async def delete_cart_of_user(self, user_id: UUID) -> int:
+        """Delete a user's cart and, by cascade, its lines; how many carts went (0 or 1)."""
+        result = await self.session.execute(delete(Cart).where(Cart.user_id == user_id))
+        return result.rowcount or 0

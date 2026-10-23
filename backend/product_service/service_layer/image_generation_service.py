@@ -21,6 +21,7 @@ from service_layer.design_moderation import (
     DesignRefusal,
     DesignRefusalLog,
 )
+from service_layer.generated_design_log import GeneratedDesignLog
 from service_layer.image_generation_quota import GenerationQuotaService
 from service_layer.image_job_store import ImageJobStore
 from service_layer.openrouter_client import OpenRouterClient
@@ -70,6 +71,7 @@ class ImageGenerationService(ImageGenerationInterface):
       - BackgroundRemover       → transparent cutout when requested
       - DesignModerator         → checks the request, then the image
       - DesignRefusalLog        → keeps each refused design for the admins
+      - GeneratedDesignLog      → notes each stored design and its owner (retention)
       - ImageStorageService     → print validation + durable persistence
     """
 
@@ -90,6 +92,7 @@ class ImageGenerationService(ImageGenerationInterface):
                  background_remover: BackgroundRemover,
                  moderator: DesignModerator,
                  refusal_log: DesignRefusalLog,
+                 design_log: GeneratedDesignLog,
                  settings: Settings,
                  logger: Logger) -> None:
         self.settings: Settings = settings
@@ -101,6 +104,7 @@ class ImageGenerationService(ImageGenerationInterface):
         self._background_remover: BackgroundRemover = background_remover
         self._moderator: DesignModerator = moderator
         self._refusal_log: DesignRefusalLog = refusal_log
+        self._design_log: GeneratedDesignLog = design_log
 
     async def _produce_artwork(
         self, prompt: str, style: str, remove_background: bool, user_id: UUID | None
@@ -142,6 +146,19 @@ class ImageGenerationService(ImageGenerationInterface):
             self._logger.error("Could not record a design refusal: %s", error)
         raise DesignRefusedError(refusal.category.customer_message)
 
+    async def _store(self, image_payload: str, user_id: UUID | None) -> StoredImage:
+        """Store and sign the design, and note it for the retention job."""
+        stored_image = await self._storage_service.save(image_payload)
+        try:
+            await self._design_log.record(stored_image.asset.key, user_id)
+        except Exception as error:
+            # The customer still gets the design; only its automatic deletion is lost.
+            self._logger.error(
+                "Design %s stored but not recorded, so it will not be deleted automatically: %s",
+                stored_image.asset.key, error,
+            )
+        return stored_image
+
     @override
     async def save_image(self, b64_image: str) -> StoredImage:
         return await self._storage_service.save(b64_image)
@@ -155,7 +172,7 @@ class ImageGenerationService(ImageGenerationInterface):
         remaining_generations = await self._quota_service.consume(user_id)
         try:
             image_payload, model = await self._produce_artwork(prompt, style, remove_background, user_id)
-            stored_image = await self._storage_service.save(image_payload)
+            stored_image = await self._store(image_payload, user_id)
         except Exception:
             await self._refund_quietly(user_id)
             raise
@@ -182,7 +199,7 @@ class ImageGenerationService(ImageGenerationInterface):
         owner_id = await self._job_store.get_owner(job_id)
         try:
             image_payload, model = await self._produce_artwork(prompt, style, remove_background, owner_id)
-            stored_image = await self._storage_service.save(image_payload)
+            stored_image = await self._store(image_payload, owner_id)
             await self._job_store.set_state(
                 job_id,
                 "completed",

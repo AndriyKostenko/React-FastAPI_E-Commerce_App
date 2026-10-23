@@ -6,7 +6,7 @@ from pydantic import BaseModel, EmailStr, Field
 from contracts.order import OrderItem
 from contracts.supplier import GenericSupplierProduct, SupplierStockLevel
 from contracts.services_enums import Services
-from contracts.event_enums import ArtworkEvents, InventoryEvents, SupplierEvents
+from contracts.event_enums import ArtworkEvents, InventoryEvents, SupplierEvents, UserEvents
 from contracts.limits import BATCH_MAX, COUNT_MAX, ClippedText, Code, Count, Identifier, LINES_MAX, Url
 
 
@@ -18,6 +18,18 @@ class BaseEvent(BaseModel):
     event_type: Code
     schema_version: int = Field(default=1, ge=1, le=1000)
     correlation_id: UUID = Field(default_factory=uuid4)
+
+
+# ============== USER SAGA EVENTS ==============
+class UserBaseEvent(BaseEvent):
+    service: Code = Field(default_factory=lambda: Services.USER_SERVICE)
+    user_email: EmailStr
+    user_id: UUID | None = None
+
+
+class UserDeletedEvent(UserBaseEvent):
+    """Event published when a user account is deleted"""
+    event_type: Code = Field(default_factory=lambda: UserEvents.USER_DELETED)
 
 
 # ============== ORDER SAGA EVENTS ==============

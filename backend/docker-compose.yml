@@ -372,6 +372,39 @@ services:
       - ${VAULT_CREDENTIALS_DIR:-/etc/ecommerce/vault}/product-service:/run/vault:ro
       - product_media:/media
 
+  product-taskiq-scheduler:
+    mem_limit: 128m
+    image: ${IMAGE_REGISTRY:-local}/ecommerce-product-taskiq-scheduler:${IMAGE_TAG:-dev}
+    # Sends the scheduled tasks (catalogue image copy, design retention) to the worker.
+    volumes:
+      - ${VAULT_CREDENTIALS_DIR:-/etc/ecommerce/vault}/product-service:/run/vault:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      VAULT_ADDR: http://host.docker.internal:8200
+      VAULT_ROLE_ID_FILE: /run/vault/role-id
+      VAULT_SECRET_ID_FILE: /run/vault/secret-id
+      VAULT_SECRET_PATHS: ecommerce/shared-infra,ecommerce/product-service
+      OTEL_TRACES_DISABLED: ${OTEL_TRACES_DISABLED:-true}
+    build:
+      context: ./product_service
+      dockerfile: Dockerfile.scheduler
+    restart: unless-stopped
+    labels:
+      # Engines this container may hold at once: uses no database.
+      ecommerce.db.max-engines: "0"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      product-taskiq-worker:
+        condition: service_started
+    env_file:
+      - .env
+    networks:
+      - backend
+
   supplier-service:
     mem_limit: 256m
     image: ${IMAGE_REGISTRY:-local}/ecommerce-supplier-service:${IMAGE_TAG:-dev}
@@ -646,6 +679,39 @@ services:
         condition: service_healthy
       notification-service:
         condition: service_healthy
+    env_file:
+      - .env
+    networks:
+      - backend
+
+  notification-taskiq-scheduler:
+    mem_limit: 128m
+    image: ${IMAGE_REGISTRY:-local}/ecommerce-notification-taskiq-scheduler:${IMAGE_TAG:-dev}
+    # Sends the scheduled task (notification retention) to the worker.
+    volumes:
+      - ${VAULT_CREDENTIALS_DIR:-/etc/ecommerce/vault}/notification-service:/run/vault:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      VAULT_ADDR: http://host.docker.internal:8200
+      VAULT_ROLE_ID_FILE: /run/vault/role-id
+      VAULT_SECRET_ID_FILE: /run/vault/secret-id
+      VAULT_SECRET_PATHS: ecommerce/shared-infra,ecommerce/notification-service
+      OTEL_TRACES_DISABLED: ${OTEL_TRACES_DISABLED:-true}
+    build:
+      context: ./notification_service
+      dockerfile: Dockerfile.scheduler
+    restart: unless-stopped
+    labels:
+      # Engines this container may hold at once: uses no database.
+      ecommerce.db.max-engines: "0"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      notification-taskiq-worker:
+        condition: service_started
     env_file:
       - .env
     networks:

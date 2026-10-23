@@ -87,8 +87,9 @@ or recorded as decided. Merged so far: PR #41 (readiness, phases 2–5) and PR #
 - Per-service Redis and RabbitMQ users (postponed in favour of deploying first).
 - ~~Dependency upgrades, then make the audit blocking~~ (done 2026-10-23, §1: every
   lock file clean, the CI audit blocking, 4 TinyMCE advisories allowed in admin-js).
-- ~~AI content moderation~~ (done 2026-10-23, §5). GDPR and retention (see §5 and §8)
-  remain. The legal pages are done (2026-10-18, below), pending a lawyer's review.
+- ~~AI content moderation~~ (done 2026-10-23, §5). ~~Retention and account deletion~~
+  (done 2026-10-23, §5); data export and an admin audit log remain. The legal pages
+  are done (2026-10-18, below), pending a lawyer's review.
 
 **Frontend**
 
@@ -628,7 +629,8 @@ Code work:
   (§8.7).
 - ~~**AI content moderation**~~: done 2026-10-23 (§5). Every design's request and
   image are checked before it can be stored, signed and ordered.
-- **GDPR / audit / retention**: only account deletion exists (§5).
+- **Data protection** (§5): ~~retention and account deletion~~ done 2026-10-23; data
+  export and an admin audit log remain.
 - ~~**Dependency vulnerabilities**~~: done 2026-10-23 (§1). pip-audit is clean
   everywhere and the CI audit is blocking.
 - **Deployment phases 2–6**, which include backups / DR and automatic rollback
@@ -1524,11 +1526,85 @@ the services), not only in unit tests.
   hold then capture, Canada only, CJ ships from China) and needs a lawyer's review.
   Open: whether import duties on parcels from China are paid by us or the customer
   (not stated anywhere yet), GST/HST once tax is switched on.
-- GDPR data export, audit logging, data retention (checklist §13). Deletion
-  exists only in part: `UserService.delete_user_by_id` anonymises the account
-  (name, email, phone, image, password), ends its sessions and publishes
-  `user.deleted`, which only wishlist-service consumes; orders, addresses,
-  reviews, notifications and stored designs keep their data. No export.
+- **Data retention and account deletion (PIPEDA / Quebec Law 25; the shop sells in
+  Canada only). Done 2026-10-23** (branch `feature/data-retention`). Data export (the
+  privacy page's "copy of your information", answered by email within 30 days) and an
+  audit log of admin actions are separate items, not started.
+  - Before this, nothing deleted anything after use. Processed outbox rows kept
+    every event payload, email addresses included (item 2's leftover). CJ's stored
+    request kept the shipping name, address, phone and email. Notifications, design
+    refusals and generated designs nobody ordered were kept forever. Account deletion
+    removed the profile, addresses and avatar, as the privacy page says, but only
+    wishlist-service acted on `user.deleted`.
+  - Kept for, as chosen. Each is a setting, enforced by a job:
+    - **Published outbox events: 30 days** (`OUTBOX_RETENTION_DAYS`). `OutboxPruner`,
+      in every service's relay copy, runs at most hourly in the outbox worker.
+      Unpublished events are never touched.
+    - **CJ orders: 90 days after the order ended** (delivered, failed, cancelled or
+      rejected; `CJ_ORDER_PERSONAL_DATA_RETENTION_DAYS`). The name, street, city,
+      postal code, phone and email leave `request_payload`, and the attempt's
+      email is cleared. Products, shipping method, province, country and amounts stay.
+      Marked by `personal_data_removed_at`. supplier task, daily at 03:30.
+    - **Notifications: 1 year** (`NOTIFICATION_RETENTION_DAYS`). notification task,
+      daily at 03:40, through a new `notification-taskiq-scheduler`.
+    - **Design refusals: 1 year** (`DESIGN_REFUSAL_RETENTION_DAYS`).
+    - **Designs no order holds: 90 days** (`GENERATED_DESIGN_RETENTION_DAYS`).
+      The object and its row go; product task, daily at 03:20.
+      - Every stored design is now recorded in `generated_designs` (key, owner,
+        date), and its signed manifest carries `issued_at` (signing payload `v2`;
+        the six contract copies changed together, older `v1` manifests still
+        verify).
+      - Checkout refuses a design older than `CUSTOM_DESIGN_ORDERABLE_DAYS` (83):
+        "too old to order, generate it again". The week before deletion covers
+        payment and confirmation.
+      - A design a live order holds (`retained_artwork`) is never deleted.
+        Designs from before the table existed have no row and are kept.
+    - **Orders, payments and returns: 6 years** (CRA), anonymised by a later job
+      (not built; the first rows reach 6 years in 2032).
+  - On `user.deleted`:
+    - cart-service deletes the cart and its lines;
+    - notification-service deletes the user's notifications and saves no new one;
+    - product-service deletes the user's unordered designs (any age) and drops
+      the user id from refusal records, which stay;
+    - user-service also deletes an admin's passkeys.
+    Reviews hold only the id and show "Anonymous". Orders, payments and returns
+    stay as the privacy page says.
+  - Fixed on the way (deployment):
+    - `docker-compose.yml` had no product scheduler, and product's worker image did
+      not load `tasks.catalogue_image_tasks`, so in production the 15-minute
+      catalogue image copy would never have run. Both schedulers (product,
+      notification) are now in compose, with `Dockerfile.scheduler` images.
+    - Product-service's IAM key may now delete designs (`s3:DeleteObject`).
+    - The versioned private bucket gains a lifecycle rule. A deleted object's old
+      version expires after 30 days (a month to undo a mistake), and expired
+      delete markers go.
+  - **Before going live (owner):** `tofu apply` for the two new ECR repositories
+    (`product-taskiq-scheduler`, `notification-taskiq-scheduler`), the IAM change and
+    the lifecycle rule, before the first deploy that carries them.
+  - Tests (agreed: real test databases and S3 test bucket, old rows written with past
+    dates, the real consumers):
+    - `test_outbox_pruner.py` (order-service; the copies are equal), including the
+      running relay;
+    - `test_cj_order_personal_data_retention.py`;
+    - notification `test_retention.py`;
+    - cart `test_account_deletion.py`;
+    - product `test_design_retention.py`, plus the generation test recording the
+      design;
+    - the passkey removal in `test_passkeys.py`;
+    - the 83-day limit in `test_order_pricing_service.py`, including a moved date
+      breaking the signature and the browser round trip.
+    Each rule failed its test when taken out (12 mutations). All ten suites pass
+    (2,389 tests).
+  - Live (local stack): every process up, the two new queues
+    (`product.user.events`, `cart.user.events.queue`) consumed, and each outbox
+    worker's first prune committed (nothing older than 30 days locally). One run of
+    each daily job against the local databases and bucket found nothing old enough yet.
+  - Not covered: a live account deletion through the running stack (the consumers
+    are tested through their real handler code); data export; admin audit log; the
+    6-year anonymisation; the privacy page does not yet name these periods.
+  - Seen, not from this change: product's taskiq worker has logged connection-pool
+    timeouts (`QueuePool limit of size 1 overflow 0`) since 2026-10-12, on its
+    catalogue image copy runs.
 - **AI content moderation of customer designs. Done 2026-10-23** (branch
   `feature/design-moderation`). You physically print user designs, so IP / trademark /
   NSFW screening is genuine liability. Before this, product-service generated, stored

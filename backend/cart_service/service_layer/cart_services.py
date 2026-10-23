@@ -87,3 +87,7 @@ class CartService:
         cart = await self.repository.get_cart_by_user_id(user_id)
         if cart:
             await self.repository.clear_cart(cart_id=cart.id)
+
+    async def forget_user(self, user_id: UUID) -> bool:
+        """A deleted account's cart goes entirely, not just emptied. Called from the event consumer."""
+        return await self.repository.delete_cart_of_user(user_id) > 0

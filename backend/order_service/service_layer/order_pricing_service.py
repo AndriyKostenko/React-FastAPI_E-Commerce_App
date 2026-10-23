@@ -1,5 +1,6 @@
 from asyncio import Semaphore, gather
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from logging import getLogger
 
 from infrastructure.auth.service_assertion import ServiceAssertionAuth
@@ -580,6 +581,11 @@ class OrderPricingService:
             raise LineNotSellableError(
                 "Custom design metadata is invalid or was not issued by the image service"
             )
+        # Signed with the rest, so the date cannot be moved. A design from
+        # before the date was signed has none and stays orderable.
+        orderable_for = timedelta(days=self.settings.CUSTOM_DESIGN_ORDERABLE_DAYS)
+        if asset.issued_at is not None and datetime.now(UTC) - asset.issued_at > orderable_for:
+            raise LineNotSellableError("This design is too old to order. Please generate it again.")
 
         print_width, print_height = self.PRINT_AREAS_INCHES[
             specification.placement

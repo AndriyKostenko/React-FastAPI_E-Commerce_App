@@ -7,11 +7,16 @@ from faststream.rabbit.annotations import RabbitMessage
 from service_config import logger, settings
 from events_consumer.cart_event_consumer import CartEventConsumer
 from events_consumer.runtime import CartConsumerResources, create_cart_consumer_resources
-from contracts.event_enums import CartEventsQueue
+from contracts.event_enums import CartEventsQueue, UserEvents
 from infrastructure.messaging import ConsumerTopology
 
 
 rabbitmq_broker = RabbitBroker(url=settings.RABBITMQ_BROKER_URL)
+user_exchange = RabbitExchange(
+    name="user.events.exchange",
+    durable=True,
+    type=ExchangeType.TOPIC,
+)
 order_exchange = RabbitExchange(
     name="order.events.exchange",
     durable=True,
@@ -83,3 +88,19 @@ async def handle_cart_order_events(body: dict[str, Any], message: RabbitMessage)
         message,
         lambda: handler.handle_order_event(body),
     )
+
+
+# A deleted account's cart goes with it.
+cart_user_events_queue = topology.queue(
+    name=CartEventsQueue.CART_USER_EVENTS_QUEUE,
+    routing_key=UserEvents.USER_DELETED,
+    dead_letter_key=CartEventsQueue.CART_USER_EVENTS_DEAD_LETTER_QUEUE,
+)
+
+
+@rabbitmq_broker.subscriber(queue=cart_user_events_queue.queue, exchange=user_exchange)
+async def handle_cart_user_events(body: dict[str, Any], message: RabbitMessage) -> None:
+    if cart_event_consumer is None:
+        raise RuntimeError("Cart event consumer received a message before startup completed.")
+    handler = cart_event_consumer  # narrowed to non-None for the lambda below
+    await topology.dispatch(cart_user_events_queue, message, lambda: handler.handle_user_event(body))

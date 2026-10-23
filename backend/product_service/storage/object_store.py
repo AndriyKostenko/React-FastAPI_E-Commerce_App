@@ -75,6 +75,10 @@ class ObjectStore(ABC):
     async def exists(self, key: str) -> bool: ...
 
     @abstractmethod
+    async def delete(self, key: str) -> None:
+        """Remove the object; removing one that is not there is not an error."""
+
+    @abstractmethod
     async def presign_get(
         self,
         key: str,
@@ -152,6 +156,15 @@ class S3ObjectStore(ObjectStore):
         except (BotoCoreError, ClientError) as error:
             raise ObjectStorageError(f"Could not check s3://{self._bucket}/{key}: {error}") from error
 
+    async def delete(self, key: str) -> None:
+        # S3 answers a delete of a missing key with success. On a versioned
+        # bucket this leaves a delete marker; the bucket's lifecycle rule
+        # expires the old version (infra/storage.tf).
+        try:
+            await to_thread(self._client.delete_object, Bucket=self._bucket, Key=key)
+        except (BotoCoreError, ClientError) as error:
+            raise ObjectStorageError(f"Could not delete s3://{self._bucket}/{key}: {error}") from error
+
     async def presign_get(
         self,
         key: str,
@@ -223,6 +236,13 @@ class LocalObjectStore(ObjectStore):
     async def exists(self, key: str) -> bool:
         path = self._path(key)
         return await to_thread(path.is_file)
+
+    async def delete(self, key: str) -> None:
+        path = self._path(key)
+        try:
+            await to_thread(path.unlink, missing_ok=True)
+        except OSError as error:
+            raise ObjectStorageError(f"Could not delete {key}: {error}") from error
 
     async def presign_get(
         self,

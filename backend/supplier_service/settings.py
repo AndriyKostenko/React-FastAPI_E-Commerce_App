@@ -319,6 +319,10 @@ class Settings(BaseSettings):
     )
     CJ_DROPSHIPPING_TRACKING_POLL_BATCH_SIZE: int = 50
     CJ_DROPSHIPPING_TRACKING_POLL_INTERVAL_MINUTES: int = 15
+    # The customer's name, address, phone and email are removed from a CJ
+    # order this long after it ended (privacy policy: kept no longer than
+    # needed); what was ordered and what it cost stay. A daily task does it.
+    CJ_ORDER_PERSONAL_DATA_RETENTION_DAYS: int = Field(default=90, ge=30, le=3650)
     # Stop polling an order that CJ never advanced; it needs human attention.
     CJ_DROPSHIPPING_TRACKING_MAX_AGE_DAYS: int = 90
     CJ_DROPSHIPPING_TRACKING_URL_TEMPLATE: str = (

@@ -75,6 +75,10 @@ class PasskeyService:
         self._enrolment_link_base = enrolment_link_base.rstrip("/")
         self._now = clock or (lambda: datetime.now(timezone.utc))
 
+    async def forget_user(self, user_id: UUID) -> int:
+        """A deleted account's passkeys go with it (its sessions are already revoked)."""
+        return await self._credentials.delete_all_for_user(user_id)
+
     # ------------------------------ enrolment ------------------------------
 
     async def issue_enrolment_link(self, email: str) -> str:

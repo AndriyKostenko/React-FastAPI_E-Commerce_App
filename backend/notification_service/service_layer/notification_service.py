@@ -110,3 +110,7 @@ class NotificationService:
             is_read=False,
         ))
         return NotificationInfo.model_validate(notification)
+
+    async def forget_user(self, user_id: UUID) -> int:
+        """Delete a deleted account's notifications. Called from the event consumer."""
+        return await self.repository.delete_for_user(user_id)

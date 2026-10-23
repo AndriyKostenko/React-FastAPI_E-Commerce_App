@@ -15,9 +15,12 @@ from infrastructure.managers.cache_manager import CacheManager
 from infrastructure.managers.database_session_manager import DatabaseSessionManager
 from infrastructure.managers.logger_manager import setup_logger
 from service_layer.catalogue_image_fetcher import CatalogueImageFetcher
+from service_layer.deleted_account_cleanup import DeletedAccountCleanup
+from service_layer.design_retention import DesignRefusalRetention, DesignRetention
 from service_layer.openrouter_image_reviewer import OpenRouterImageReviewer
 from service_layer.supplier_image_review_service import SupplierImageReviewService
 from settings import Settings, get_settings
+from storage.object_storage_provider import get_object_storage_provider
 
 
 settings: Settings = get_settings()
@@ -68,6 +71,42 @@ def create_supplier_image_review_service(
         reviewer=reviewer,
         logger=app_logger,
         concurrency=app_settings.SUPPLIER_IMAGE_REVIEW_CONCURRENCY,
+    )
+
+
+def create_design_retention(
+    database: DatabaseSessionManager,
+    app_settings: Settings = settings,
+    app_logger: Logger = logger,
+) -> DesignRetention:
+    """Unordered designs: deleted when old enough, or with their owner's account."""
+    return DesignRetention(
+        database=database,
+        store=get_object_storage_provider().private(),
+        logger=app_logger,
+        retention_days=app_settings.GENERATED_DESIGN_RETENTION_DAYS,
+    )
+
+
+def create_design_refusal_retention(
+    database: DatabaseSessionManager,
+    app_settings: Settings = settings,
+    app_logger: Logger = logger,
+) -> DesignRefusalRetention:
+    return DesignRefusalRetention(
+        database=database, logger=app_logger, retention_days=app_settings.DESIGN_REFUSAL_RETENTION_DAYS
+    )
+
+
+def create_deleted_account_cleanup(
+    database: DatabaseSessionManager,
+    app_settings: Settings = settings,
+    app_logger: Logger = logger,
+) -> DeletedAccountCleanup:
+    return DeletedAccountCleanup(
+        designs=create_design_retention(database, app_settings, app_logger),
+        refusals=create_design_refusal_retention(database, app_settings, app_logger),
+        logger=app_logger,
     )
 
 

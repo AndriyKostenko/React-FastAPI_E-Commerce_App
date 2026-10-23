@@ -1,8 +1,9 @@
+from datetime import datetime
 from typing import Any
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import update
+from sqlalchemy import delete, select, update
 
 from models.notification_models import Notification
 from infrastructure.database_layer.database_layer import BaseRepository
@@ -49,3 +50,19 @@ class NotificationRepository(AdvancedQueryMixin[Notification], BaseRepository[No
         )
         await self.session.flush()
         return result.rowcount
+
+    async def delete_for_user(self, user_id: UUID) -> int:
+        """Delete every notification of one user; how many went."""
+        result = await self.session.execute(delete(Notification).where(Notification.user_id == user_id))
+        return result.rowcount or 0
+
+    async def delete_created_before(self, cutoff: datetime, limit: int) -> int:
+        """Delete up to ``limit`` notifications created before ``cutoff``, oldest first."""
+        oldest = (
+            select(Notification.id)
+            .where(Notification.date_created < cutoff)
+            .order_by(Notification.date_created)
+            .limit(limit)
+        )
+        result = await self.session.execute(delete(Notification).where(Notification.id.in_(oldest)))
+        return result.rowcount or 0

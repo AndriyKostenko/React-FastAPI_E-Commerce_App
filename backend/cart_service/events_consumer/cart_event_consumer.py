@@ -3,8 +3,8 @@ from typing import Any
 
 from infrastructure.idempotency.idempotency_service import IdempotencyEventService
 from infrastructure.managers.database_session_manager import DatabaseSessionManager
-from contracts.event_enums import OrderEvents
-from contracts.events import OrderCreatedEvent, OrderConfirmedEvent
+from contracts.event_enums import OrderEvents, UserEvents
+from contracts.events import OrderCreatedEvent, OrderConfirmedEvent, UserDeletedEvent
 from database_layer.cart_repository import CartRepository
 from service_layer.cart_services import CartService
 
@@ -17,6 +17,7 @@ class CartEventConsumer:
     - order.created: clears the user's cart after an order is placed.
     - order.confirmed: idempotent safety-net clear in case the cart was not
       already emptied when the order was created.
+    - user.deleted: the deleted account's cart is deleted.
     """
 
     def __init__(
@@ -46,6 +47,38 @@ class CartEventConsumer:
                 await self.handle_order_confirmed(message)
             case _:
                 self.logger.warning(f"Unhandled cart consumer event type: {event_type}")
+
+    async def handle_user_event(self, message: dict[str, Any]) -> None:
+        """Route user events to the appropriate handler."""
+        match message.get("event_type"):
+            case UserEvents.USER_DELETED:
+                await self.handle_user_deleted(message)
+            case other:
+                self.logger.warning(f"Unhandled cart consumer event type: {other}")
+
+    async def handle_user_deleted(self, message: dict[str, Any]) -> None:
+        """Delete the deleted account's cart."""
+        event = UserDeletedEvent(**message)
+        if not await self.idempotency_service.try_claim_event(event_id=event.event_id, event_type=event.event_type):
+            self.logger.info(f"Skipping duplicate user.deleted event for cart — user: {event.user_id}")
+            return
+        try:
+            deleted = False
+            if event.user_id is None:
+                self.logger.warning("user.deleted without a user id; no cart to delete")
+            else:
+                async for cart_service in self._get_cart_service():
+                    deleted = await cart_service.forget_user(user_id=event.user_id)
+            await self.idempotency_service.mark_event_as_processed(
+                event_id=event.event_id,
+                event_type=event.event_type,
+                order_id=None,
+                result="cart_deleted" if deleted else "no_cart",
+            )
+        except Exception:
+            # Released, so the consumer's retry queue delivers it again.
+            await self.idempotency_service.release_claim(event_id=event.event_id, event_type=event.event_type)
+            raise
 
     async def handle_order_created(self, message: dict[str, Any]) -> None:
         """
