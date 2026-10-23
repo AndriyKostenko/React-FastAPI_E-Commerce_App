@@ -24,6 +24,17 @@ or recorded as decided. Merged so far: PR #41 (readiness, phases 2–5) and PR #
 - Apply the Terraform change: `cd infra && tofu apply tfplan-phase5` (the plan is
   not saved any more; run `tofu plan -out=tfplan-phase5` first). It adds the build
   role and trims the deploy role.
+- **Run `tofu apply` before the first deploy that carries PR #82** (data retention):
+  `cd infra && tofu plan -out=tfplan-retention`, review, then
+  `tofu apply tfplan-retention`. It adds:
+  - the ECR repositories `ecommerce-product-taskiq-scheduler` and
+    `ecommerce-notification-taskiq-scheduler`. Without them the image push fails,
+    and the deploy with it.
+  - `s3:DeleteObject` for product-service on `generated-designs/*`. Without it the
+    daily design clean-up and account deletion fail to remove designs (S3 answers
+    403).
+  - the private bucket's lifecycle rule: a deleted object's old version expires
+    after 30 days. Without it, deleted designs stay as hidden old versions forever.
 - Move the Vault recovery keys and root token off the host: `/root/vault-init.json`.
   Mandatory before production.
 - Root account: turn on MFA, create an admin identity other than root, delete root
